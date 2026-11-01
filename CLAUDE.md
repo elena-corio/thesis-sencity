@@ -19,4 +19,6 @@ SenCity shows how public spaces in Vienna may feel for one person, from their ow
   - The app does not name IAAC.
 - **Costs:** ask before any run that calls a paid API beyond a small test (show the expected number of calls and the cost first).
 - **Decisions:** when the brief leaves a choice open, pick the simplest option, say so, and log it in `docs/decisions.md`.
+- **Language:** frontend in plain JavaScript (Vue 3, `<script setup>`), not TypeScript; backend in Python.
+- **Styles:** every colour, font and size is a variable in `frontend/src/styles/style.css`. No hard-coded hex values or fonts in components or map code.
 - **README:** `README.md` lists every script with its exact command. Update it when a script changes.

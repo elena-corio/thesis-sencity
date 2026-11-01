@@ -2,6 +2,60 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-01 – Desktop: the sun/moon switches the theme directly
+**Context.** Elena tried the Appearance popover and did not want a menu there.
+**Decision (Elena).** On desktop, one click on the sun/moon switches between light and dark and remembers the choice on this device. "System" (follow the device) stays available in the account menu, as on the phone (board P5). This replaces the popover in the entry below.
+**Alternatives.** The three-way switch in a popover (brief §3, "the same Appearance switch replaces the single light/dark button on desktop"): one click more.
+**Consequences.** This differs from brief §3 on desktop. The first click always leaves System mode; choosing System again happens in the account menu.
+
+## 2026-11-01 – Dark mode: outside faded like light mode, stronger lit circle (changes brief §2 values)
+**Context.** The OpenFreeMap Dark base map is almost black. First a darker mask (`#060d10` at 55%) was tried so the outside would read as dimmed, then no mask at all. Elena preferred the light-mode effect, where the outside is faded (lower contrast) rather than darkened.
+**Decision (Elena).** Dark mode: mask in the ground colour `#13232a` at 50% (the brief's colour; brief: 60%), which fades the outside toward the panels like light mode does. The lit inside is raised to `#4f95a3` at 30% (brief: 18%), so the circle reads as the lit area at full contrast. Light mode keeps the brief's values. All values are in `frontend/src/styles/style.css`.
+**Alternatives.** A darker mask (the outside goes almost black); no mask (the circle does not stand out enough); the OpenFreeMap "Fiord" style (lighter, but slate-blue, against the brief's grey-style rule).
+**Consequences.** The dark-mode opacities differ from brief §2.
+
+## 2026-11-01 – Frontend choices confirmed by Elena
+**Context.** The first frontend step left four points open.
+**Decision.**
+- *Appearance on desktop:* the sun/moon icon stays, as on the boards, and opens a small popover with the System / Light / Dark switch. The account button opens the P5 menu, which has the same switch. *(Replaced the same day: the sun/moon now switches directly, see above.)*
+- *Logo:* the paths from `frontend/src/assets/logo/sencity.svg` (black in the file), drawn in `var(--logo)`: white on dark, `#15474a` on light. The favicon is recoloured the same way, with a dark-mode media query.
+- *Phone start screen:* there is no board, so it follows P1: the top bar, then the season/time row with Ask, then the hint. The left panel is hidden on a phone. "This area" is a bottom sheet above the tab bar. Once the sheet shows, the hint gives way to it, and the sheet says "Drag the edge of the circle to adjust."
+- *Font:* Inter from Google Fonts (one `<link>`, no dependency).
+**Consequences.** The browser contacts Google for the font. Self-hosting is a later option if the privacy notice should avoid it.
+
+## 2026-11-01 – All colours, fonts and sizes in style.css
+**Context.** CLAUDE.md: every colour, font and size is a variable in `frontend/src/styles/style.css`. Today's request had put the tint and mask colours in `config.js`.
+**Decision.** The CLAUDE.md rule wins. Theme tokens, map tint, mask, lit circle and circle colours, their opacities, and every size are CSS variables. The map code reads them with `getComputedStyle` when the style loads, so a theme change reloads them. `config.js` keeps only non-visual settings: radius limits, start view, style URLs, photo estimate, default heat window.
+**Consequences.** To tune the map overlay, edit `style.css`, not `config.js`.
+
+## 2026-11-01 – Two-click selection details (proposed)
+**Context.** Brief §6 and boards Flow 1, 1b and 1c leave some details open.
+**Decision.**
+- *Centre marker:* a thin crosshair with a dot, as on the boards and in brief §4 ("the point clicked to load a new area is a thin crosshair"), rather than the "dot with a ring" in today's request.
+- *Edge handle:* hollow while the radius is being chosen (1b), filled and draggable once set (1c). The chip shows "180 m / max 500 m" in 1b, a small "180 m" label in 1c, and turns amber with "500 m, maximum" past the cap.
+- *Radius:* the ground distance (haversine) is rounded to 10 m, then snapped up to 50 m or stopped at 500 m. The stored radius is the rounded value, so the circle and the chip always agree.
+- *Mouse:* after the first click, the circle grows from 50 m with the pointer. Dragging still pans the map.
+- *Touch:* after the first tap, a one-finger drag sets the radius (map panning is paused) and lifting the finger fixes it. A second tap also fixes it. The chip sits 64 px above the finger.
+- *Keyboard:* the map canvas takes Enter, the arrow keys (only once a centre is placed) and Esc. The handle starts at 60° (north-east, as on the boards). After Enter fixes the radius, focus moves to "Analyse this area"; after Analyse, to "Change area".
+- *Map layers:* the tint and lit circle go under the street labels, so names stay readable. The mask goes over them, so everything outside is dimmed (brief §2).
+- *Pan to the circle:* after the circle is fixed, if the card, sheet or other panels cover it, the map pans (and zooms out if needed) so the whole circle is in the free space.
+- *Analysed state:* no backend call yet. The card shows "This area", coordinates, radius and "Change area". The hint, handle and radius line disappear; the lit circle and dimmed outside stay (Flow 2 without the loading card).
+- *"About N street photos":* area × 1,860 photos/km² (kept photos per km² in the Stephansplatz 200 m run), rounded to 10. A placeholder, no API call.
+**Alternatives.** Measuring the radius in screen pixels (wrong at other zooms and latitudes).
+**Consequences.** All limits are in `config.js`; all sizes are in `style.css`.
+
+## 2026-11-01 – Fitting every screen (proposed)
+**Context.** Brief §3: no page scroll, no overlap, at 360 × 640 up to 1920 × 1080, both orientations, 200% zoom and a larger system font.
+**Decision.**
+- *1024–1199 px:* the right card replaces the left panel while it shows (brief §3).
+- *Below 1024 px:* About and Print move into the account menu, and Ask becomes an icon.
+- *Below 768 px:* phone layout (P1).
+- *Short screens:* the left panel and the phone sheet scroll inside themselves as a last resort.
+- *Bottom row:* the season bar and map controls sit above the credits line, which scales with the font size.
+- *Inactive controls:* placeholders (About, Print, Ask, Compare, Profile, search) stay focusable with `aria-disabled` and "Coming soon". Controls that are inactive until an area loads (layers, places, season, time) are disabled and faded to 40%.
+- *Checks:* the Playwright fit check emulates 200% zoom as half the CSS pixels at twice the density for the desktop sizes. A larger font is emulated as a root font size of 125%.
+**Consequences.** On a landscape phone (640 × 360) the sheet scrolls and little map is left. That is acceptable for phase 1, which is desktop-first.
+
 ## 2026-11-01 – Courtyards are skipped
 **Context.** Elena's suggestion after review: courtyards are often private, and their photos were interiors. OSM has no reliable courtyard tag; both problem areas were unnamed pedestrian areas, while every named square was fine. How enclosed an area is alone does not separate them (named squares 59–64%, the unnamed areas 54% and 79%).
 **Decision.** A park, square or pedestrian area is skipped as a "courtyard" when it has no name and at least 50% of its edge lies within 2 m of a building footprint. Named areas are always kept, and paths through courtyards (passages) stay as street segments. Config: `osm.courtyard`.
