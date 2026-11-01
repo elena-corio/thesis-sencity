@@ -1,13 +1,13 @@
 <script setup>
-// "This area" (board Flow 1c): before analysis, with Analyse / Start again; after Analyse,
-// only the header with Change area. No backend calls yet. A bottom sheet on a phone.
-import { computed, nextTick, ref, watch } from 'vue'
+// "This area" (board Flow 1c): before analysis, with Analyse / Start again; once the area has
+// loaded, the header, the number of streets with photos and Change area. A bottom sheet on a phone.
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import config from '../config.js'
 import { estimatePhotos, formatCoords } from '../lib/geo.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ phone: Boolean })
+const props = defineProps({ phone: Boolean })
 const emit = defineEmits(['focus-map'])
 const area = useAreaStore()
 const analyseBtn = ref(null)
@@ -24,6 +24,8 @@ watch(() => area.step, async (step) => {
   if (step === 'set') analyseBtn.value?.focus()
   if (step === 'analysed') changeBtn.value?.focus()
 })
+// Back from a loading or place card with the keyboard: focus Change area.
+onMounted(() => { if (area.byKeyboard && area.step === 'analysed') changeBtn.value?.focus() })
 
 function startAgain() {
   area.reset()
@@ -53,11 +55,17 @@ function startAgain() {
       </div>
     </template>
 
-    <div v-else class="buttons">
-      <button ref="changeBtn" type="button" class="btn" @click="startAgain">
-        <AppIcon name="edit" /> Change area
-      </button>
-    </div>
+    <template v-else>
+      <p v-if="area.load === 'ready'" class="summary">
+        {{ area.counts.all }} street stretches · {{ area.counts.withPhotos }} with photos
+      </p>
+      <p class="hint">{{ props.phone ? 'Tap' : 'Click' }} a street to see its photos.</p>
+      <div class="buttons">
+        <button ref="changeBtn" type="button" class="btn" @click="startAgain">
+          <AppIcon name="edit" /> Change area
+        </button>
+      </div>
+    </template>
 
     <slot />
   </section>
@@ -67,6 +75,8 @@ function startAgain() {
 .card { padding: var(--space-5); overflow-y: auto; }
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.summary { margin: var(--space-4) 0 0; }
+.hint { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .facts { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2); }
 .facts li { display: flex; align-items: center; gap: var(--space-3); color: var(--text); }
 .facts :deep(.icon) { color: var(--text-2); }

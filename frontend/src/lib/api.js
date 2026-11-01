@@ -37,3 +37,46 @@ export function kindLabel(kind) {
   const s = kind.replace(/_/g, ' ')
   return s[0].toUpperCase() + s.slice(1)
 }
+
+/**
+ * Street segments and their chosen photos for one circle (POST /api/area).
+ * The answer is a stream of JSON lines; onEvent gets each event:
+ * {type: "stage"} · {type: "segments", features, total} · {type: "segment", feature, done, total}
+ * · {type: "done", area} · {type: "error", message}. Abort the signal to cancel.
+ * @param {{lat:number, lon:number, radius:number}} area
+ * @param {(event: object) => void} onEvent
+ * @param {AbortSignal} [signal]
+ */
+export async function loadArea(area, onEvent, signal) {
+  const res = await fetch(`${config.apiBase}/api/area`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(area),
+    signal,
+  })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* not JSON */ }
+    throw new ApiError(res.status, detail)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let nl
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl).trim()
+      buffer = buffer.slice(nl + 1)
+      if (line) onEvent(JSON.parse(line))
+    }
+  }
+  if (buffer.trim()) onEvent(JSON.parse(buffer))
+}
+
+/** URL of one Street View image, streamed through the API (the key stays on the server). */
+export function photoUrl(photo) {
+  return `${config.apiBase}/api/photo/${encodeURIComponent(photo.pano_id)}?heading=${photo.heading}`
+}

@@ -1,6 +1,6 @@
 // The two-click area selection, step by step, with screenshots (boards Flow 1, 1b, 1c, Flow 2 circle).
 import { expect, test } from '@playwright/test'
-import { layoutProblems, mapIdle, openMap, placeCentre, points } from './helpers.js'
+import { layoutProblems, mapIdle, mockArea, openMap, placeCentre, points } from './helpers.js'
 
 const SHOTS = 'e2e/screens'
 
@@ -9,6 +9,7 @@ for (const theme of ['dark', 'light']) {
     test.use({ viewport: { width: 1440, height: 900 }, colorScheme: theme })
 
     test('step 1 → 1b → 1c → analysed', async ({ page }) => {
+      await mockArea(page)
       await openMap(page, theme)
       const p = points(page.viewportSize())
 
@@ -46,6 +47,7 @@ for (const theme of ['dark', 'light']) {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: theme, hasTouch: true, isMobile: true })
 
     test('tap centre, tap radius, analyse', async ({ page }) => {
+      await mockArea(page)
       await openMap(page, theme)
       const p = points(page.viewportSize(), 110, true)
       await expect(page.getByText('Tap to place the centre')).toBeVisible()

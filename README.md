@@ -94,7 +94,15 @@ Open http://127.0.0.1:8765/ and stop the server with Ctrl+C.
 
 ### `app`: the SenCity API
 
-The backend the app talks to. For now it has one endpoint, `POST /api/search`, which forwards address and place searches to Photon (komoot, OpenStreetMap data, no key). The search text travels in the request body and is never logged; access logs are off.
+The backend the app talks to. `npm run dev` starts it for you (see Frontend); you only need the commands below to run it on its own.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/search` | Address and place search through Photon (komoot, OpenStreetMap data, no key). The text travels in the request body and is never logged. |
+| `POST /api/area` | Street segments and their chosen photos for one circle `{lat, lon, radius}`: the `tool.fetch_photos` pipeline, metadata calls only (free). It streams its progress, and the result is cached in `runs/areas/<key>.json` (segments and photo metadata only, no images). A cached area answers at once. |
+| `GET /api/photo/{pano_id}?heading=…` | One Street View image (640 × 640, fov 90, pitch 0, as in the study), streamed through and never written to disk. Only photos chosen for a loaded area can be fetched. Each is one paid image call (about $0.007); the browser keeps it for an hour (`Cache-Control: private`). |
+
+Access logs are off, and request bodies are never logged.
 
 ```bash
 cd backend
@@ -102,7 +110,9 @@ cd backend
 ../.venv/Scripts/python -m app --reload   # restarts when the code changes
 ```
 
-Settings (Photon URL, minimum and maximum length, number of results, rate limit per IP, allowed browser origins) are in the `api` section of `config/tool.yaml`.
+Settings are in the `api` section of `config/tool.yaml`: allowed browser origins; for search, the Photon URL, text length, number of results and rate limit; for areas, the cache folder, parallel lookups and the limit of new areas per IP per hour; for photos, the limit per IP per minute and how long the browser may keep them. The key `GOOGLE_MAPS_API_KEY` is read from `.env` on the server only.
+
+A new area takes about a minute: most of it is the public Overpass server (OpenStreetMap), which is often busy. The photo lookups run in parallel and take a few seconds.
 
 ### Tests
 
@@ -111,7 +121,7 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 ```
 
-These test segment splitting, the selection rule and the search endpoint (with a fake Photon). They make no API calls.
+These test segment splitting, the selection rule, and the API: search (with a fake Photon), areas (from a fixed cached sample) and photos (the key never in the answer, nothing written to disk). They make no API calls.
 
 ## Frontend
 
@@ -132,13 +142,16 @@ npm run dev                     # starts the API too, and opens http://localhost
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
 | `npm test` | Unit tests for the radius maths (Vitest), no browser needed |
-| `npm run test:e2e` | Playwright: step screenshots, the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, the keyboard walk-through, and search (with a mocked API, so the API need not run). Starts the dev server itself if it is not running. |
+| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, a placeholder image), so no Street View or Overpass calls are made. Starts the dev server itself if it is not running. |
 
 **Using the map:**
 - Search: type at least 3 letters of a street, address or place, then pick a suggestion with the mouse, or with the arrow keys and Enter. The map moves there. Esc closes the list, a second Esc clears the text.
 - Click to place the centre of your area, move to set the radius, then click again to fix it.
 - Drag the edge to adjust. Esc or a right-click starts again.
-- **Analyse this area** stores the area (no backend yet).
+- **Analyse this area** loads the streets and their photos (about a minute for a new area). The loading card shows the progress; streets light up as their photos are found. Cancel goes back to the circle.
+- Streets with photos are light teal with a soft glow; streets without a photo are thin and dim. Click a street to open its card: up to 3 photos with arrows, date and direction ("Looking north-east, July 2024"). Click the photo to enlarge it; arrow keys switch photos, Esc goes back. A street without a photo offers "Go to the nearest street with photos".
+- Photos load only when you open a street (each is one paid Street View call); nothing is fetched for the whole area.
+- Keyboard: after the area has loaded, Tab from the map goes through its streets in reading order (a dashed ring shows which); Enter opens the card, Esc closes it.
 - Keyboard: Tab to the map, then Enter places the centre at the map centre, the arrow keys change the radius in 10 m steps, and Enter fixes it.
 - Phone: tap the centre, then drag (the circle follows your finger; lift to fix it) or tap a second point. Press and drag also works with a mouse.
 

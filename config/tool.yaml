@@ -107,3 +107,10 @@ api:
     limit: 5
     timeout_s: 5
     rate_per_minute: 30        # per IP, keeps us within Photon's fair use
+  area:
+    cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
+    workers: 8                   # segments looked up in parallel (metadata calls are free)
+    rate_per_hour: 20            # new (not cached) areas per IP
+  photo:
+    rate_per_minute: 60          # images per IP; each is a paid Street View call
+    browser_cache_s: 3600        # Cache-Control: private, so only the browser keeps it, briefly

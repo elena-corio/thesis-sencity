@@ -73,3 +73,29 @@ describe('labels', () => {
     expect(formatCoords({ lat: -33.8688, lon: -70.1 })).toBe('33.8688° S, 70.1000° W')
   })
 })
+
+import { bounds, compassWord, formatMonth, midpoint } from './geo.js'
+
+describe('segments and photos', () => {
+  it('finds the middle of a line by length, not by vertex count', () => {
+    const line = { type: 'LineString', coordinates: [[16.37, 48.2], [16.3701, 48.2], [16.372, 48.2]] }
+    const m = midpoint(line)
+    expect(m.lat).toBeCloseTo(48.2, 6)
+    expect(m.lon).toBeCloseTo(16.371, 4)
+  })
+  it('uses the outline average for a square', () => {
+    const sq = { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] }
+    expect(midpoint(sq)).toEqual({ lat: 1, lon: 1 })
+    expect(bounds(sq)).toEqual([[0, 0], [2, 2]])
+  })
+  it('names the direction of a photo', () => {
+    expect(compassWord(0)).toBe('north')
+    expect(compassWord(63.5)).toBe('north-east')
+    expect(compassWord(200)).toBe('south')
+    expect(compassWord(359)).toBe('north')
+  })
+  it('formats capture dates', () => {
+    expect(formatMonth('2024-07')).toBe('July 2024')
+    expect(formatMonth(null)).toBe('date unknown')
+  })
+})

@@ -85,3 +85,71 @@ export async function layoutProblems(page) {
     return problems
   })
 }
+
+// Area and photo mocks: the checks never call Street View or Overpass.
+import { readFileSync } from 'node:fs'
+import { deflateSync } from 'node:zlib'
+
+export const AREA = JSON.parse(readFileSync(new URL('./fixtures/area-stephansplatz-100m.json', import.meta.url), 'utf8'))
+export const WITH_3 = AREA.features.find((f) => f.properties.photos.length === 3)
+export const WITHOUT = AREA.features.find((f) => f.properties.photos.length === 0)
+
+/** A small solid-colour PNG, standing in for a Street View image. */
+function png(size, [r, g, b]) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const td = Buffer.concat([Buffer.from(type), data])
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td))
+    return Buffer.concat([len, td, c])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4); ihdr[8] = 8; ihdr[9] = 2
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(size * 3, Buffer.from([r, g, b]))])
+  const raw = Buffer.concat(Array.from({ length: size }, () => row))
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+}
+const PHOTO = png(64, [120, 150, 160])
+
+/**
+ * Mock POST /api/area (streamed like the API: segments, then each segment, then done) and
+ * GET /api/photo. Returns the list of photo URLs requested. hold: never answer (to test Cancel).
+ */
+export async function mockArea(page, { hold = false } = {}) {
+  const photoRequests = []
+  await page.route('**/api/area', async (route) => {
+    if (hold) return // the loading card stays until Cancel
+    const pending = AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } }))
+    const lines = [{ type: 'segments', features: pending, total: pending.length },
+      ...AREA.features.map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total: AREA.features.length })),
+      { type: 'done', area: AREA }]
+    await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+  })
+  await page.route('**/api/photo/**', async (route) => {
+    photoRequests.push(route.request().url())
+    await route.fulfill({ contentType: 'image/png', body: PHOTO, headers: { 'Cache-Control': 'private, max-age=3600' } })
+  })
+  return photoRequests
+}
+
+/** Set a 100 m circle at the map centre with the keyboard and press Analyse this area. */
+export async function analyseCentre(page) {
+  await page.locator('canvas').focus()
+  await page.keyboard.press('Enter')
+  for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Analyse this area' }).click()
+}
+
+/** Open a segment's place card through the keyboard list of streets. */
+export async function openSegment(page, id) {
+  const btn = page.locator(`[data-seg="${id}"]`)
+  await btn.focus()
+  await page.keyboard.press('Enter')
+}

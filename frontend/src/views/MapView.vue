@@ -6,6 +6,8 @@ import { useMedia } from '../composables.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from '../components/AppIcon.vue'
 import AreaCard from '../components/AreaCard.vue'
+import LoadingCard from '../components/LoadingCard.vue'
+import PlaceCard from '../components/PlaceCard.vue'
 import LayerPanel from '../components/LayerPanel.vue'
 import MapAttribution from '../components/MapAttribution.vue'
 import MapCanvas from '../components/MapCanvas.vue'
@@ -25,6 +27,8 @@ const hasCard = computed(() => area.step === 'set' || area.step === 'analysed')
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 const showLeft = computed(() => !phone.value && (wide.value || !hasCard.value))
 
+const loadingCard = computed(() => area.step === 'analysed' && (area.load === 'loading' || area.load === 'error'))
+
 const getCentre = () => mapRef.value?.getCentre() ?? null
 const onPick = (place) => mapRef.value?.flyToPlace(place)
 </script>
@@ -41,7 +45,11 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left"><LayerPanel /></div>
       <div class="slot s-hint"><StepHint /></div>
-      <div class="slot s-card"><AreaCard @focus-map="mapRef?.focusMap()" /></div>
+      <div class="slot s-card">
+        <LoadingCard v-if="loadingCard" />
+        <PlaceCard v-else-if="area.selectedId" />
+        <AreaCard v-else @focus-map="mapRef?.focusMap()" />
+      </div>
       <div class="slot s-season"><SeasonBar /></div>
       <div class="slot s-controls">
         <MapControls @zoom-in="mapRef?.zoomIn()" @zoom-out="mapRef?.zoomOut()" @recentre="mapRef?.recentre()" />
@@ -59,7 +67,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       </div>
       <div v-if="!hasCard" class="slot s-p-hint"><StepHint phone /></div>
       <div class="slot s-p-sheet">
-        <AreaCard phone @focus-map="mapRef?.focusMap()">
+        <LoadingCard v-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
+        <PlaceCard v-else-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
+        <AreaCard v-else phone @focus-map="mapRef?.focusMap()">
           <MapAttribution class="in-sheet" in-sheet />
         </AreaCard>
       </div>

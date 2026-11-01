@@ -66,15 +66,9 @@ def candidates_for(seg: Segment, metas: list[PhotoMeta], proj: LocalProjection, 
     return out
 
 
-def query_photos(segments: list[Segment], provider: PhotoProvider, proj: LocalProjection, cfg: dict,
-                 log=print) -> tuple[dict[str, list[PhotoMeta]], dict]:
-    """Metadata lookup for every sample point. Identical (point, radius) lookups are asked once per run.
-
-    On streets, when the nearest pano is a contributor photo, it may hide an official one:
-    retry from nearby points along the street with a smaller radius (brief §4, step 1).
-    Returns photos found per segment and counts (points with no photo, retries, retries that found
-    an official pano)."""
-    sv = cfg["streetview"]
+def make_lookup(provider: PhotoProvider, proj: LocalProjection):
+    """Metadata lookup for a point in local metres. Identical (point, radius) lookups are asked once.
+    Safe to share between threads (a duplicate call can happen, but never a wrong answer)."""
     cache: dict[tuple, PhotoMeta | None] = {}
 
     def lookup(x: float, y: float, radius: float | None = None) -> PhotoMeta | None:
@@ -84,29 +78,42 @@ def query_photos(segments: list[Segment], provider: PhotoProvider, proj: LocalPr
             cache[key] = provider.search(lat, lon, radius)
         return cache[key]
 
+    return lookup
+
+
+def photos_for_segment(seg: Segment, lookup, cfg: dict, stats: dict) -> list[PhotoMeta]:
+    """Photos found along one segment. On streets, when the nearest pano is a contributor photo,
+    it may hide an official one: retry from nearby points with a smaller radius (brief §4, step 1)."""
+    sv = cfg["streetview"]
+    metas = []
+    for pt in sample_points(seg, cfg):
+        m = lookup(pt.x, pt.y)
+        if m is None:
+            stats["empty_points"] = stats.get("empty_points", 0) + 1
+            continue
+        metas.append(m)
+        if not m.official and seg.kind == "street":
+            stats["retry_points"] = stats.get("retry_points", 0) + 1
+            line, s = seg.geom, seg.geom.project(pt)
+            hits = [lookup(q.x, q.y, sv["retry_radius_m"])
+                    for q in (line.interpolate(min(max(s + off, 0), line.length)) for off in sv["retry_offsets_m"])]
+            hits = [h for h in hits if h is not None]
+            metas.extend(hits)
+            if any(h.official for h in hits):
+                stats["retry_found_official"] = stats.get("retry_found_official", 0) + 1
+    return metas
+
+
+def query_photos(segments: list[Segment], provider: PhotoProvider, proj: LocalProjection, cfg: dict,
+                 log=print) -> tuple[dict[str, list[PhotoMeta]], dict]:
+    """Metadata lookup for every segment, one after another (the command-line run).
+    Returns photos found per segment and counts (points with no photo, retries, retries that found
+    an official pano)."""
+    lookup = make_lookup(provider, proj)
     found: dict[str, list[PhotoMeta]] = {}
     stats = {"empty_points": 0, "retry_points": 0, "retry_found_official": 0}
-    total = sum(len(sample_points(s, cfg)) for s in segments)
-    done = 0
-    for seg in segments:
-        metas = []
-        for pt in sample_points(seg, cfg):
-            m = lookup(pt.x, pt.y)
-            done += 1
-            if m is None:
-                stats["empty_points"] += 1
-            else:
-                metas.append(m)
-            if m is not None and not m.official and seg.kind == "street":
-                stats["retry_points"] += 1
-                line, s = seg.geom, seg.geom.project(pt)
-                hits = [lookup(q.x, q.y, sv["retry_radius_m"])
-                        for q in (line.interpolate(min(max(s + off, 0), line.length)) for off in sv["retry_offsets_m"])]
-                hits = [h for h in hits if h is not None]
-                metas.extend(hits)
-                if any(h.official for h in hits):
-                    stats["retry_found_official"] += 1
-            if done % 50 == 0:
-                log(f"  metadata {done}/{total} sample points ({provider.metadata_calls} calls)")
-        found[seg.id] = metas
+    for i, seg in enumerate(segments, start=1):
+        found[seg.id] = photos_for_segment(seg, lookup, cfg, stats)
+        if i % 10 == 0:
+            log(f"  metadata: {i}/{len(segments)} segments ({provider.metadata_calls} calls)")
     return found, stats

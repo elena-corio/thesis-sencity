@@ -1,6 +1,7 @@
 """Google Street View: free metadata endpoint + Street View Static API (paid, per image).
 Only pano IDs, location, date and heading are stored, never image files (Google terms)."""
 import re
+import threading
 import time
 
 import requests
@@ -16,6 +17,7 @@ class StreetViewProvider(PhotoProvider):
         self.session = requests.Session()
         self.metadata_calls = 0
         self.image_calls = 0
+        self._count_lock = threading.Lock()  # the API looks up segments in parallel
         self._official = re.compile(self.cfg["official_copyright"])
 
     def is_official(self, copyright_: str) -> bool:
@@ -35,7 +37,8 @@ class StreetViewProvider(PhotoProvider):
         return resp
 
     def search(self, lat: float, lon: float, radius_m: float | None = None) -> PhotoMeta | None:
-        self.metadata_calls += 1
+        with self._count_lock:
+            self.metadata_calls += 1
         resp = self._get(self.cfg["metadata_url"], {
             "location": f"{lat:.7f},{lon:.7f}",
             "radius": radius_m or self.cfg["metadata_radius_m"],
@@ -59,7 +62,8 @@ class StreetViewProvider(PhotoProvider):
         )
 
     def fetch_image(self, photo_id: str, heading: float) -> bytes:
-        self.image_calls += 1
+        with self._count_lock:
+            self.image_calls += 1
         resp = self._get(self.cfg["image_url"], {
             "pano": photo_id,
             "heading": f"{heading:.1f}",

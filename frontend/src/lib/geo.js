@@ -81,3 +81,62 @@ export function formatCoords({ lat, lon }) {
   const ew = lon >= 0 ? 'E' : 'W'
   return `${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lon).toFixed(4)}° ${ew}`
 }
+
+/** All [lon, lat] positions of a LineString, Polygon or Multi* geometry. */
+function positions(geometry) {
+  const c = geometry.coordinates
+  switch (geometry.type) {
+    case 'LineString': return c
+    case 'Polygon': return c[0]
+    case 'MultiLineString': return c.flat()
+    case 'MultiPolygon': return c.map((p) => p[0]).flat()
+    default: return [c]
+  }
+}
+
+/** [[west, south], [east, north]] of a geometry. */
+export function bounds(geometry) {
+  const ps = positions(geometry)
+  const lons = ps.map((p) => p[0])
+  const lats = ps.map((p) => p[1])
+  return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]]
+}
+
+/** The middle of a segment: half way along a line; the average of a polygon's outline. */
+export function midpoint(geometry) {
+  const ps = positions(geometry)
+  if (geometry.type === 'LineString' && ps.length > 1) {
+    const pt = (p) => ({ lat: p[1], lon: p[0] })
+    const legs = ps.slice(1).map((p, i) => haversine(pt(ps[i]), pt(p)))
+    let half = legs.reduce((a, b) => a + b, 0) / 2
+    for (let i = 0; i < legs.length; i++) {
+      if (half <= legs[i] || i === legs.length - 1) {
+        const t = legs[i] ? Math.min(1, half / legs[i]) : 0
+        return { lat: ps[i][1] + t * (ps[i + 1][1] - ps[i][1]), lon: ps[i][0] + t * (ps[i + 1][0] - ps[i][0]) }
+      }
+      half -= legs[i]
+    }
+  }
+  const ring = geometry.type === 'Polygon' ? ps.slice(0, -1) : ps
+  return {
+    lat: ring.reduce((a, p) => a + p[1], 0) / ring.length,
+    lon: ring.reduce((a, p) => a + p[0], 0) / ring.length,
+  }
+}
+
+const WINDS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west']
+
+/** Compass word for a heading: 63° → "north-east". */
+export function compassWord(heading) {
+  return WINDS[Math.round((((heading % 360) + 360) % 360) / 45) % 8]
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December']
+
+/** Street View capture date "2024-07" → "July 2024". */
+export function formatMonth(ym) {
+  if (!ym) return 'date unknown'
+  const [y, m] = ym.split('-').map(Number)
+  return m ? `${MONTHS[m - 1]} ${y}` : String(y)
+}

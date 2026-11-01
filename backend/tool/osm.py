@@ -21,7 +21,9 @@ class Segment:
     osm_ids: list[str] = field(default_factory=list)
 
 
-def fetch_overpass(lat: float, lon: float, radius_m: float, cfg: dict) -> dict:
+def fetch_overpass(lat: float, lon: float, radius_m: float, cfg: dict, with_buildings: bool = False) -> dict:
+    """Walkable ways, parks and squares around the circle; with_buildings adds the building
+    footprints in the same query (one wait for the public server instead of two)."""
     osm = cfg["osm"]
     hw = "|".join(osm["walkable_highways"])
     r = int(radius_m)
@@ -31,12 +33,16 @@ def fetch_overpass(lat: float, lon: float, radius_m: float, cfg: dict) -> dict:
             area_parts.append(f'way(around:{r},{lat},{lon})["{key}"="{v}"];')
             area_parts.append(f'relation(around:{r},{lat},{lon})["{key}"="{v}"];')
     roads = "|".join(osm["alongside_road"]["road_highways"])
+    rb = r + osm["buildings_margin_m"]
+    building_parts = (f'way(around:{rb},{lat},{lon})["building"]; relation(around:{rb},{lat},{lon})["building"];'
+                      if with_buildings else "")
     query = f"""
 [out:json][timeout:{osm['timeout_s']}];
 (
   way(around:{r},{lat},{lon})["highway"~"^({hw})$"];
   way(around:{r + 30},{lat},{lon})["highway"~"^({roads})$"];
   {' '.join(area_parts)}
+  {building_parts}
 );
 out geom;
 """
@@ -74,6 +80,8 @@ def parse_buildings(data: dict, proj: LocalProjection, inset_m: float = 0):
     """Union of building footprints, optionally shrunk by inset_m."""
     polys = []
     for el in data.get("elements", []):
+        if "building" not in el.get("tags", {}):
+            continue
         if el["type"] == "way" and len(el.get("geometry", [])) >= 4:
             polys.append(Polygon([proj.to_xy(g["lon"], g["lat"]) for g in el["geometry"]]).buffer(0))
         elif el["type"] == "relation":
@@ -136,6 +144,8 @@ def parse(data: dict, proj: LocalProjection, cfg: dict):
                 node_xy[n] = p
             ways.append(Way(el["id"], nodes, tags))
         elif el["type"] == "relation":
+            if not any(tags.get(k) in v for k, v in osm["area_tags"].items()):
+                continue  # e.g. a building relation from a combined query
             outers = [LineString([proj.to_xy(g["lon"], g["lat"]) for g in m["geometry"]])
                       for m in el.get("members", [])
                       if m.get("type") == "way" and m.get("role") in ("outer", "") and len(m.get("geometry", [])) >= 2]
