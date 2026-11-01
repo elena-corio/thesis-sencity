@@ -1,6 +1,6 @@
 // Keyboard walk-through (brief §3 keyboard focus, §6 keyboard selection, §11).
 import { expect, test } from '@playwright/test'
-import { openMap } from './helpers.js'
+import { mockArea, openMap } from './helpers.js'
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' })
 
@@ -38,6 +38,7 @@ test('every control is reachable with Tab and shows the focus outline', async ({
 })
 
 test('select an area with the keyboard only', async ({ page }) => {
+  await mockArea(page)
   await openMap(page, 'dark')
   await page.locator('canvas').focus()
 

@@ -3,7 +3,7 @@
 How the tool is built **now**:
 - **Backend:** fetching street photo candidates for one circle.
 - **Frontend:** the map start screen, address search and the two-click area selection.
-- **API:** `POST /api/search` (FastAPI), which forwards searches to Photon.
+- **API:** `POST /api/search` (Photon), `POST /api/area` (street segments and their photos, metadata only), `GET /api/photo/{pano_id}` (Street View images, passed through).
 
 There is no AI rating and no Infrared.city yet.
 
@@ -30,6 +30,15 @@ flowchart LR
   API -- "search text + map centre (from the API's address, not the user's)" --> PH["Photon (komoot)"]
   PH -- "places: name, address parts, point, extent" --> API
   API -- "up to 5 places" --> APP
+  APP -- "circle: lat, lon, radius (POST body)" --> API
+  API -- "circle (streets, parks, squares, buildings)" --> OVP2["OpenStreetMap / Overpass API"]
+  API -- "sample points, key (metadata, free)" --> SVM2["Street View metadata"]
+  API -- "segments + chosen photo metadata (no images)" --> CACHE[("runs/areas/&lt;key&gt;.json")]
+  API -- "segments, streamed as they are found" --> APP
+  APP -- "pano ID + heading, on click only" --> API
+  API -- "pano ID + heading, key" --> SVI2["Street View Static API (paid)"]
+  SVI2 -- "image ⇢ passed through, never stored" --> API
+  API -- "image (Cache-Control: private, 1 h)" --> APP
 ```
 
 ⚠ marks data that may be personal: what people type in search can be their own address. It is never logged or stored: the API forwards it to Photon and passes the answer back. Photon sees the API's address, not the user's. No other arrow carries personal data. Review notes are Elena's own judgement of the photos. The selected area stays in the browser (Pinia store) until analysis is built.
@@ -51,6 +60,7 @@ flowchart LR
 | `backend/tool/geo.py`, `config.py` | Local metric projection, circle, bearings; config and `.env` loading |
 | `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
 | `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent) |
+| `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
 
@@ -63,14 +73,19 @@ flowchart LR
 | `src/components/MapCanvas.vue` | MapLibre map, theme style swap, the two-click selection (pointer, touch, keyboard), crosshair, edge handle, radius chip, pan to keep the circle visible |
 | `src/map/layers.js` | Our map layers: teal tint, lit circle, dimmed outside (world minus circle), dashed circle and radius line; colours read from `style.css` |
 | `src/lib/geo.js` | Radius maths: haversine, limits (snap to 50 m, cap at 500 m, round to 10 m), 64-point circle, mask, photo estimate, coordinate label |
-| `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}` |
+| `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}`; loading the area (progress, cancel, errors), its segments, the selected segment |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |
 | `src/components/TopSearch.vue` | Logo + search: suggestions while typing (combobox, keyboard and pointer), messages for no results and errors; picking moves the map |
-| `src/lib/api.js` | Calls to the SenCity API (`searchPlaces`), error type, place-type labels |
+| `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `loadArea` (reads the streamed events), `photoUrl`; error type, place-type labels |
 | `src/components/ViewTabs.vue`, `TopActions.vue` | Map / Compare / Profile (bottom tab bar on a phone); About, Print, light/dark (one click), Ask, account |
 | `src/components/AccountMenu.vue`, `AppearanceSwitch.vue` | Account menu (board P5) with the System / Light / Dark switch |
 | `src/components/LayerPanel.vue`, `SeasonBar.vue`, `MapControls.vue`, `MapAttribution.vue` | Left panel and season bar (inactive until an area is loaded), zoom and re-centre, credits |
-| `src/components/StepHint.vue`, `AreaCard.vue` | Step hints (Flow 1, 1b, 1c) and the "This area" card (a bottom sheet on a phone) |
+| `src/components/StepHint.vue`, `AreaCard.vue` | Step hints (Flow 1, 1b, 1c) and the "This area" card, with the number of streets with photos once loaded (a bottom sheet on a phone) |
+| `src/components/LoadingCard.vue` | "Loading this area" (Flow 2): street photos with progress; buildings, heat and rating greyed as "next"; Cancel |
+| `src/components/PlaceCard.vue` | The selected street (2f, 2g; phone P2): photo with arrows, enlarge badge, credit, thumbnails, date and direction; "Not rated yet"; no-photo state with "Go to the nearest street with photos" |
+| `src/components/PhotoViewer.vue` | Enlarged photo (2f+; phone P2+ as a full page): arrows, swipe, thumbnails, keyboard, focus trap |
+| `src/map/segments.js` | Segment layers (halo, core, dim, selected edge, invisible hit line) with hover and selection as feature-states |
+| `src/lib/place.js` | Words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default heat window |
@@ -79,7 +94,7 @@ flowchart LR
 
 ## Data formats
 
-**Street segment** (`segments.geojson`, one feature each, WGS84):
+**Street segment, photo script** (`segments.geojson`, one feature each, WGS84):
 `segment_id` str · `kind` "street" | "area" · `name` str · `highway` str (OSM type, or park/square) · `osm_ids` [str] · `length_m` float (streets) or `area_m2` float (areas) · `n_candidates` int · `pano_ids` [str] · `contributor_photos` int · `photos` [{`pano_id`, `heading`, `date`, `lat`, `lon`, `photo_type`}].
 
 **Photo candidate** (`photos.csv`, one row per pano × heading × segment):
@@ -91,6 +106,12 @@ flowchart LR
 
 **Search** (`POST /api/search`): request `{ q: string (3–100 characters), lat: number | null, lon: number | null }` (the map centre ranks nearby places first). Response `{ results: [{ name: string, detail: string, lat: number, lon: number, kind: string, bbox?: [[west, south], [east, north]] }] }`, up to 5. Errors: 422 (too long), 429 (rate limit), 502 (Photon unavailable).
 
+**Area** (`POST /api/area`, request `{ lat: number, lon: number, radius: number (50–500) }`): newline-separated JSON events. `{type: "segments", features, total}` gives all segments with `photos: null` (still looking). Then one `{type: "segment", feature, done, total}` per segment with its photos. Then `{type: "done", area: FeatureCollection, cached?: true}`, or `{type: "error", message}`. A cached area sends only "done".
+
+**Street segment, app** (a feature of that FeatureCollection; `id` is also the feature id): geometry LineString (street) or Polygon (park, square, pedestrian area), WGS84. Properties: `id` str · `name` str (OSM name, or the way type if unnamed) · `named` bool · `place_type` "street" | "pedestrian" | "park" | "square" · `way_type` str (OSM highway or area tag) · `length_m` float (streets) or `area_m2` float (areas) · `photos` null | [{ `pano_id` str, `lat`, `lon` float, `heading` float (°), `date` "YYYY-MM", `contributor` bool }] (0–3, best first).
+
+**Area cache** (`runs/areas/<key>.json`, not committed): `{ lat, lon, radius, created, area: FeatureCollection }`. The key is a hash of the circle and the pipeline settings. Neutral data only: no images, nothing about the person.
+
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
 Not built yet: the profile, the photo rating and the rating cache entry.
@@ -99,9 +120,9 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 
 | Service | Used for | Region | What it keeps |
 |---|---|---|---|
-| Overpass API (overpass-api.de) | OSM ways, parks and squares for one circle | Germany | Request logs (circle query only) |
+| Overpass API (overpass-api.de) | OSM ways, parks, squares and buildings for one circle (the `fetch_photos` script and `/api/area`) | Germany | Request logs (circle query only, from our API's address) |
 | Google Street View metadata | Pano ID, location, date per sample point (free) | Google | API usage per key |
-| Google Street View Static API | Images for the image check and review page (paid, ~$7/1000, 10,000 free/month) | Google | API usage per key |
+| Google Street View Static API | Images for the app's place card and enlarged photo (`/api/photo`, on click only), the image check and the review page (paid, ~$7/1000, 10,000 free/month) | Google | API usage per key; the images are never stored by us |
 | OpenFreeMap | Base map tiles in the app (Positron light, Dark) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre from our API, never the user's IP |

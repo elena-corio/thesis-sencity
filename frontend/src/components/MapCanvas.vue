@@ -1,11 +1,14 @@
 <script setup>
-// The map and the two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c).
+// The map, the two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c) and the
+// street segments of the analysed area: hover, click to select, selection ring (brief §4).
 import { Map as MapLibreMap } from 'maplibre-gl'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
 import { useMedia } from '../composables.js'
-import { bearing, circlePolygon, destination } from '../lib/geo.js'
+import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
+import { addSegmentLayers, HIT_LAYER, setSegments, setSegmentState } from '../map/segments.js'
+import { typeLabel } from '../lib/place.js'
 import { useAreaStore } from '../stores/area.js'
 import { useThemeStore } from '../stores/theme.js'
 
@@ -91,7 +94,132 @@ function onClick(e) {
     if (touchMoved) { touchMoved = false; return }
     setRadiusTo(p)
     area.fix()
+    return
   }
+  if (area.step === 'analysed' && area.segments) {
+    const id = segmentAt(e.point)
+    if (id) {
+      area.byKeyboard = false
+      area.select(id, p)
+    } else {
+      area.clearSelection()
+    }
+  }
+}
+
+// Segments: hover and selection are feature-states on the segment itself (brief §4).
+function segmentAt(point) {
+  const m = map.value
+  if (!m.getLayer(HIT_LAYER)) return null
+  // Streets before parks and squares, so a street crossing a square can be picked.
+  const lines = m.queryRenderedFeatures(point, { layers: [HIT_LAYER] })
+    .filter((f) => f.geometry.type !== 'Polygon')
+  const areas = m.queryRenderedFeatures(point, { layers: [HIT_LAYER, 'sc-seg-hit-area'] })
+  return (lines[0] ?? areas[0])?.properties.id ?? null
+}
+
+const hoverId = ref(null)
+watch(hoverId, (id, old) => {
+  if (!map.value) return
+  setSegmentState(map.value, old, { hover: false })
+  setSegmentState(map.value, id, { hover: true })
+})
+watch(() => area.selectedId, (id, old) => {
+  if (!map.value) return
+  setSegmentState(map.value, old, { selected: false })
+  setSegmentState(map.value, id, { selected: true })
+  if (id) {
+    restartPulse()
+    nextTick(() => requestAnimationFrame(() => revealSelected(id)))
+  }
+})
+watch(() => area.segments, (fc) => {
+  if (map.value) setSegments(map.value, fc)
+  if (!fc) hoverId.value = null
+})
+
+const hoverPx = ref(null) // pointer position over a street, for the name label
+function onSegmentHover(e) {
+  if (area.step !== 'analysed' || !area.segments) {
+    hoverId.value = null
+    return
+  }
+  hoverId.value = segmentAt(e.point)
+  hoverPx.value = hoverId.value ? { x: e.point.x, y: e.point.y } : null
+  map.value.getCanvas().style.cursor = hoverId.value ? 'pointer' : ''
+}
+
+// Name label: the full street name and type, beside the pointer (or at the keyboard-focused
+// street), in the tooltip style of the Profile board. Mouse and keyboard only, not touch.
+const tooltip = computed(() => {
+  const id = focusedSegId.value ?? hoverId.value
+  const px = focusedSegId.value ? focusRingPx.value : hoverPx.value
+  if (!id || !px || (!focusedSegId.value && !finePointer.value)) return null
+  const f = area.segments?.features.find((s) => s.properties.id === id)
+  if (!f) return null
+  return { x: px.x, y: px.y, name: f.properties.name, type: typeLabel(f.properties, f.geometry.type) }
+})
+
+// Selection ring at the clicked point, with a soft pulse that stops after a few seconds or
+// on interaction; no pulse with reduced motion (brief §4).
+const ringPx = computed(() => (area.selectedId ? project(area.selectedPoint) : null))
+const pulsing = ref(false)
+let pulseTimer
+function restartPulse() {
+  clearTimeout(pulseTimer)
+  pulsing.value = !reducedMotion.value
+  pulseTimer = setTimeout(() => { pulsing.value = false }, 6000)
+}
+function stopPulse() {
+  clearTimeout(pulseTimer)
+  pulsing.value = false
+}
+
+// Keyboard: segments in reading order (top to bottom, then left to right), in a hidden list.
+const focusedSegId = ref(null)
+const keyboardList = computed(() => {
+  if (area.step !== 'analysed' || !area.segments) return []
+  const band = 0.0003 // about 30 m of latitude: one "line" of reading
+  return area.segments.features
+    .map((f) => ({ f, mid: midpoint(f.geometry) }))
+    .sort((a, b) => Math.round(b.mid.lat / band) - Math.round(a.mid.lat / band) || a.mid.lon - b.mid.lon)
+    .map(({ f, mid }) => {
+      const p = f.properties
+      const n = p.photos?.length ?? 0
+      const photos = p.photos == null ? 'photos loading' : n ? `${n} photo${n > 1 ? 's' : ''}` : 'no photo'
+      return { id: p.id, mid, label: `${p.name}, ${p.place_type}, ${photos}` }
+    })
+})
+const focusRingPx = computed(() => {
+  const item = keyboardList.value.find((s) => s.id === focusedSegId.value)
+  return item ? project(item.mid) : null
+})
+let openerId = null
+function onListFocus(id) {
+  focusedSegId.value = id
+  hoverId.value = id
+}
+function onListBlur() {
+  focusedSegId.value = null
+  hoverId.value = null
+}
+function openFromList(item) {
+  openerId = item.id
+  area.byKeyboard = true
+  area.select(item.id, item.mid)
+}
+// When the card closes, focus goes back to the street that opened it (brief §3).
+watch(() => area.selectedId, (id) => {
+  if (id || !openerId) return
+  const opener = openerId
+  openerId = null
+  nextTick(() => container.value?.parentElement.querySelector(`[data-seg="${CSS.escape(opener)}"]`)?.focus())
+})
+
+function revealSelected(id) {
+  const f = area.segments?.features.find((s) => s.properties.id === id)
+  if (!f || !map.value) return
+  revealBounds(bounds(f.geometry))
 }
 
 function onMouseMove(e) {
@@ -183,9 +311,12 @@ function onKeyDown(e) {
 }
 
 function onWindowKey(e) {
-  if (e.key === 'Escape' && (area.step === 'radius' || area.step === 'set') && !e.defaultPrevented) {
+  if (e.key !== 'Escape' || e.defaultPrevented) return
+  if (area.step === 'radius' || area.step === 'set') {
     area.reset()
     map.value?.getCanvas().focus()
+  } else if (area.selectedId) {
+    area.clearSelection() // "Back to area" (brief §3: Esc does the same)
   }
 }
 
@@ -216,11 +347,12 @@ function freePadding() {
     const r = el.getBoundingClientRect()
     if (!r.width || !r.height) continue
     const name = el.dataset.panel
-    const sheet = name === 'area-card' && r.width > W * 0.8
+    const card = ['area-card', 'place-card', 'loading-card'].includes(name)
+    const sheet = card && r.width > W * 0.8
     if (TOP_PANELS.includes(name)) pad.top = Math.max(pad.top, r.bottom + gap)
     else if (BOTTOM_PANELS.includes(name) || sheet) pad.bottom = Math.max(pad.bottom, H - r.top + gap)
     else if (name === 'layers') pad.left = Math.max(pad.left, r.right + gap)
-    else if (name === 'area-card') pad.right = Math.max(pad.right, W - r.left + gap)
+    else if (card) pad.right = Math.max(pad.right, W - r.left + gap)
   }
   // Leave at least a small window for the circle on very small screens.
   if (pad.top + pad.bottom > H - 80) pad.bottom = Math.max(gap, H - 80 - pad.top)
@@ -236,10 +368,14 @@ function circleBounds() {
 }
 
 function revealCircle() {
+  if (!map.value || !area.centre) return
+  revealBounds(circleBounds())
+}
+
+/** Pan (and zoom out if needed) so these bounds sit in the space the panels leave free. */
+function revealBounds([[w, s], [e, n]]) {
   const m = map.value
-  if (!m || !area.centre) return
   const pad = freePadding()
-  const [[w, s], [e, n]] = circleBounds()
   const a = m.project([w, n])
   const b = m.project([e, s])
   const inside = a.x >= pad.left && a.y >= pad.top &&
@@ -268,8 +404,20 @@ onMounted(() => {
   m.keyboard.disableRotation()
   map.value = m
 
-  m.on('style.load', () => { addAreaLayers(m); syncLayers() })
+  m.on('style.load', () => {
+    addAreaLayers(m)
+    addSegmentLayers(m)
+    syncLayers()
+    setSegments(m, area.segments)
+    setSegmentState(m, area.selectedId, { selected: true }) // states are lost with the old style
+  })
   m.on('move', () => { frame.value++ })
+  m.on('movestart', stopPulse)
+  m.on('mousemove', onSegmentHover)
+  m.on('mouseout', () => {
+    hoverPx.value = null
+    if (!focusedSegId.value) hoverId.value = null
+  })
   m.on('resize', () => { frame.value++ })
   m.on('click', onClick)
   m.on('mousemove', onMouseMove)
@@ -290,6 +438,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(pulseTimer)
   window.removeEventListener('keydown', onWindowKey)
   map.value?.remove()
 })
@@ -362,12 +511,84 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
       </template>
     </div>
 
+    <!-- Selection ring: what the place card shows (brief §4). -->
+    <div v-if="ringPx" class="ring" :class="{ pulsing }" aria-hidden="true"
+         :style="{ left: `${ringPx.x}px`, top: `${ringPx.y}px` }">
+      <span class="dot" />
+    </div>
+    <!-- Keyboard focus on a street (from the hidden list): a ring without pulse. -->
+    <div v-if="focusRingPx" class="ring focus" aria-hidden="true"
+         :style="{ left: `${focusRingPx.x}px`, top: `${focusRingPx.y}px` }" />
+
+    <div v-if="tooltip" class="street-tip" aria-hidden="true"
+         :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
+      <strong>{{ tooltip.name }}</strong> · {{ tooltip.type }}
+    </div>
+
     <div class="visually-hidden" aria-live="polite">{{ announcement }}</div>
+
+    <!-- Streets of the area in reading order, for Tab and Enter (brief §3 keyboard focus). -->
+    <ul v-if="keyboardList.length" class="visually-hidden" aria-label="Streets in this area">
+      <li v-for="s in keyboardList" :key="s.id">
+        <button type="button" :data-seg="s.id" :aria-label="s.label" :aria-pressed="area.selectedId === s.id"
+                @focus="onListFocus(s.id)" @blur="onListBlur" @click="openFromList(s)">{{ s.label }}</button>
+      </li>
+    </ul>
   </div>
 </template>
 
 <style scoped>
 .map-wrap { position: absolute; inset: 0; }
+
+.ring {
+  position: absolute;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  border: var(--focus-width) solid var(--ring);
+  box-shadow: 0 0 var(--space-2) var(--ring);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.ring .dot {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--ring-dot); height: var(--ring-dot);
+  border-radius: 50%;
+  background: var(--ring);
+  border: var(--focus-width) solid var(--ring-edge);
+  transform: translate(-50%, -50%);
+}
+/* Soft pulse: a second ring grows to about 2x and fades, every ~2.4 s, ease-out. */
+.ring.pulsing::after {
+  content: "";
+  position: absolute; inset: calc(-1 * var(--focus-width));
+  border-radius: 50%;
+  border: var(--focus-width) solid var(--ring);
+  animation: pulse var(--ring-pulse-s) ease-out infinite;
+}
+@keyframes pulse {
+  from { transform: scale(1); opacity: 0.5; }
+  to { transform: scale(2); opacity: 0; }
+}
+.ring.focus { box-shadow: none; border-style: dashed; }
+
+/* Street name on hover: the tooltip style of the Profile board ("Sight"). */
+.street-tip {
+  position: absolute;
+  transform: translate(var(--chip-offset), calc(-100% - var(--chip-offset)));
+  max-width: var(--tip-max-w);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-chip);
+  background: var(--btn-selected-bg);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 5;
+}
+.street-tip strong { color: var(--text); font-weight: var(--fw-medium); }
 .map { position: absolute; inset: 0; }
 .map.picking :deep(canvas) { cursor: none; }
 .map.sizing :deep(canvas) { cursor: crosshair; }

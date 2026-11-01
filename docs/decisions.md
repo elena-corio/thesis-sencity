@@ -2,6 +2,24 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-01 – Street segments and photos in the app (proposed details)
+**Context.** Step 3: segments on the map, clickable, with their photos; no heat or rating yet. The request fixed the endpoints, the cache, the photo proxy and the look; these details were open.
+**Decision.**
+- *Endpoints:* `POST /api/area` and `GET /api/photo/{pano_id}`, under `/api` like search, so one proxy rule covers the API in development.
+- *Progress:* `/api/area` streams newline-separated JSON events (segments, then each segment with its photos, then the result), not one long answer. The loading card can show "34 of 58" and streets light up as their photos are found (brief §4). Cancel aborts the request, and the server stops its lookups when the app stops reading.
+- *Speed:* segments are looked up 8 at a time (metadata calls are free). Streets, parks, squares and buildings come from one Overpass query instead of two. The public Overpass server is the slow part (30–50 s when busy); a cached area is instant. *Later:* our own copy of the OpenStreetMap data for Vienna, if loading stays slow.
+- *Cache key:* the circle (rounded to ~1 m) plus the pipeline settings, so changing a threshold gives a fresh area.
+- *Photo endpoint:* only (pano ID, heading) pairs chosen for a cached area can be fetched, so it is not an open Street View proxy. Limits: 60 images per IP per minute, 20 new areas per IP per hour.
+- *Segment names:* the OSM name, or the way type if unnamed ("Footway"). Place types: street, pedestrian (street or area), park, square.
+- *Colours:* light teal (`--map-seg`) with the soft halo for segments with photos; thin and dim (`--map-seg-none`) without. Selected: fully opaque, wider, with a white edge (dark teal in light mode), through a feature-state. An invisible wider line makes thin streets easy to click. All values are in `style.css`.
+- *Ring:* at the clicked point (keyboard: the segment's middle). It pulses for 6 s, stops when the map moves, and never pulses with reduced motion.
+- *Place card:* follows board 2f without the rating parts. In their place: "Not rated yet. Ratings come in the next step." Thumbnails are the street's other photos (at most 3, so the previous and next), and use the same URL, so each image is fetched once. On the phone sheet (P2), only the enlarge badge sits on the small photo; arrows, dots and thumbnails are on the full page (P2+).
+- *No photo (2g):* "No street photo here yet, so this street will have no Senses or Overall rating.", "Go to the nearest street with photos" (by distance between segment middles), and the board's note. The heat bar comes with the heat step.
+- *Enlarged photo:* "Not rated yet" where the photo's rating will go. The photo is `min(70vh, 80vw)` as in the brief, and also no taller than the screen minus its header and thumbnails, so it fits a 720 px laptop.
+- *Keyboard:* a visually hidden list of the area's streets in reading order (top to bottom by ~30 m bands, then left to right). Focus shows a dashed ring and the hover style on the map. Enter opens the card with focus on "Back to area"; Esc closes it and returns focus to the street.
+- *Loading card:* the board's rows; Buildings, Heat and Rating are greyed as "next". The close button and Cancel both cancel.
+**Consequences.** The first image call happens only when a street is opened (1–3 calls, about $0.007 each). The privacy notice should say that coordinates of chosen areas reach our API and Overpass.
+
 ## 2026-11-01 – Address search: Photon through our API
 **Context.** The brief has "logo + search in one bar" and says search results scroll inside their own panel. It does not name a service or say what a result does.
 **Decision (Elena).**

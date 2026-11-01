@@ -71,6 +71,35 @@
   /* Map: circle and radius line widths (px) */
   --map-circle-width: 1.5;
   --map-radius-line-width: 1.25;
+
+  /* Map: street segments (brief §4). Before rating, segments with photos use one neutral colour. */
+  --map-seg-width: 3;
+  --map-seg-opacity: 0.5;          /* translucent core line (brief: 50%) */
+  --map-seg-hover-opacity: 0.85;
+  --map-seg-halo-width: 9;         /* soft halo, ~3x the line */
+  --map-seg-halo-blur: 4;
+  --map-seg-halo-opacity: 0.3;
+  --map-seg-selected-width: 5;     /* selected: fully opaque, slightly wider */
+  --map-seg-edge-width: 8;         /* thin edge around the selected segment */
+  --map-seg-none-width: 1.5;       /* no photo: thin and dim */
+  --map-seg-none-opacity: 0.55;
+  --map-seg-hit-width: 16;         /* invisible, wider line that makes thin streets easy to click */
+  --map-area-fill-opacity: 0.1;    /* parks and squares with photos */
+
+  /* Selection ring (brief §4) */
+  --ring-size: 26px;
+  --ring-dot: 10px;
+  --ring-pulse-s: 2.4s;
+  --bar-slide-s: 1.4s;
+  --tip-max-w: 320px;              /* street name label on hover */             /* loading bar while the streets are being found */
+
+  /* Place card and enlarged photo */
+  --card-photo: 168px;
+  --card-photo-phone: 112px;
+  --thumb: 52px;
+  --viewer-chrome: 300px;          /* header, details, thumbnails and hint around the enlarged photo */
+  --viewer-photo: min(70vh, 80vw, calc(100dvh - var(--viewer-chrome)));  /* brief: min(70vh, 80vw) */
+  --viewer-arrow: 52px;
 }
 
 :root[data-theme="dark"] {
@@ -100,6 +129,12 @@
   --map-lit: #4f95a3;
   --map-lit-opacity: 0.3;       /* brief: 18%; raised so the inside reads as lit on the dark base */
   --map-circle: #eef3f4;
+  --map-seg: #8ad9e6;              /* light teal: has photos, not rated yet */
+  --map-seg-none: #6d8d94;
+  --map-seg-edge: #ffffff;         /* edge of the selected segment */
+  --ring: #ffffff;
+  --ring-edge: #13232a;
+  --overlay-photo: rgba(10, 20, 24, 0.9);   /* enlarged photo: app dimmed 90% (brief §3) */
 }
 
 :root[data-theme="light"] {
@@ -128,6 +163,12 @@
   --map-lit: #bfe6ee;
   --map-lit-opacity: 0.28;
   --map-circle: #15474a;
+  --map-seg: #2a97a8;
+  --map-seg-none: #9fb4b9;
+  --map-seg-edge: #15474a;         /* dark teal edge in light mode (brief §4) */
+  --ring: #15474a;
+  --ring-edge: #ffffff;
+  --overlay-photo: rgba(238, 243, 244, 0.92);
 }
 
 @media (max-width: 767px) {
