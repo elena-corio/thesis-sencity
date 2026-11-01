@@ -171,6 +171,14 @@ button:disabled, [aria-disabled="true"] { cursor: default; }
   outline: var(--focus-width) solid var(--focus);
   outline-offset: var(--focus-offset);
 }
+/* Text fields count as focus-visible even when clicked: show their outline only when they were
+   reached with the keyboard (main.js sets data-input). */
+input:focus-visible { outline: none; }
+html[data-input="keyboard"] input:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-chip);
+}
 
 .visually-hidden {
   position: absolute !important;

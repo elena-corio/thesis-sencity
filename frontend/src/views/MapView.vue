@@ -24,6 +24,9 @@ const mapRef = ref(null)
 const hasCard = computed(() => area.step === 'set' || area.step === 'analysed')
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 const showLeft = computed(() => !phone.value && (wide.value || !hasCard.value))
+
+const getCentre = () => mapRef.value?.getCentre() ?? null
+const onPick = (place) => mapRef.value?.flyToPlace(place)
 </script>
 
 <template>
@@ -33,7 +36,7 @@ const showLeft = computed(() => !phone.value && (wide.value || !hasCard.value))
     <h1 class="visually-hidden">SenCity map</h1>
 
     <template v-if="!phone">
-      <div class="slot s-top-left"><TopSearch /></div>
+      <div class="slot s-top-left"><TopSearch :get-centre="getCentre" @pick="onPick" /></div>
       <div class="slot s-top-centre"><ViewTabs /></div>
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left"><LayerPanel /></div>
@@ -47,7 +50,7 @@ const showLeft = computed(() => !phone.value && (wide.value || !hasCard.value))
     </template>
 
     <template v-else>
-      <div class="slot s-p-top"><TopSearch phone /></div>
+      <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
       <div class="slot s-p-row">
         <SeasonBar phone />
         <button type="button" class="ask-round" aria-label="Ask" aria-disabled="true" title="Coming soon" data-panel="ask">
