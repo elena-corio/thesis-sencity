@@ -1,0 +1,225 @@
+# Build prompt – SenCity tool
+
+You are helping build **SenCity**, the tool part of a master thesis at IAAC (Barcelona). It shows how public spaces in Vienna may feel for one person, based on their own sensory profile. Read this whole prompt, then `tool-design-notes.md`, then look at the design canvas screenshots before writing code. Ask before changing any decision written here.
+
+## 1. What the tool does
+1. A person fills in a short sensory profile (the thesis survey's Part A).
+2. An AI model rates street photos with that profile in mind and predicts comfort (1–5), what may bother and what may feel good.
+3. Infrared.city provides heat (thermal comfort) for a chosen season and time.
+4. The map shows one layer at a time: **Heat**, **Senses** (photo ratings), **Overall** (worst of the two).
+5. People can compare two routes or areas, ask a chatbot about places, and print a one-page report.
+
+Everything shown is a **prediction, not a reason**. The UI says so wherever a rating appears.
+
+## 2. Stack
+- **Frontend:** Vue 3 (Composition API, `<script setup>`), Vite, TypeScript if comfortable, otherwise plain JS. Pinia for state. Vue Router for views.
+- **Map: MapLibre GL JS** (open source, no API key). Use a **ready-made, almost grey vector style**, picked automatically with the app theme: OpenFreeMap **"Positron"** in light mode and **"Dark"** in dark mode (or the Protomaps light / dark flavours); switch style when the theme changes, then re-add our layers. Do not restyle the base map beyond small tweaks (hide shop/POI icons if needed); grey styles are chosen so map colours never compete with easy / mixed / hard (avoid styles with bright blue water or green parks). Credit "© OpenStreetMap contributors" (and the tile host) in the corner. **No 3D buildings**: Infrared.city is used only for data (buildings as simulation input, thermal comfort), never drawn, so dropping the SDK later only removes the Heat layer. **Teal tint:** a full-map fill layer just above the base map and below our layers, in the app background colour (dark `#0d2a32` at ~15%, light `#cfe3e8` at ~12%), so the grey map matches the teal panels; opacity in config. **Focus by opacity:** a mask layer (world-minus-circle polygon, panel colour `#13232a` / `#eef3f4` at ~60%) dims everything outside the loaded circle; inside the circle the base map is at full strength with a slightly lighter teal (dark `#4f95a3` at ~18%, light `#bfe6ee` at ~28%), so the loaded area reads as lit. Streets (OSM segments) are our own line layers on top, coloured segment by segment; photo points are a debug layer for now. **Flat top-down view** (pitch 0), no tilt. The first frontend is exactly this: click a point, see the circle at full strength, streets coloured by heat, and photo points. Read the Infrared.city SDK documentation first; do not guess its API.
+- **Backend:** Python, FastAPI. Background jobs for rating (FastAPI background tasks are enough at first).
+- **Hosting:** Render, **Frankfurt (EU) region** for everything: the Vite build as a static site, FastAPI as a web service, and (phase 2 only) a managed Postgres. Deploy from GitHub. Secrets only in Render environment variables.
+- **Accounts (phase 2):** Clerk (`@clerk/vue` in the frontend; FastAPI verifies the Clerk session token on every request). Passwordless sign-in by email link or code. Invite-only via Clerk's allowlist.
+- **Styling:** plain CSS with custom properties (no UI kit). Font: Inter only (self-host or Google Fonts).
+
+## 3. Screens (see canvas)
+**Two phases.** Phase 1 (deploy first): no accounts, the profile stays in the browser only. Phase 2 (if time allows): Clerk accounts, profiles stored in the EU database.
+
+**Flow:** Welcome (the same tinted street map as background, faded on the left) → (phase 2: Sign in / create account with Clerk; phase 1: skipped) → consent → Onboarding → Profile → Save and go to map (Loading) → Map.
+Returning user: Welcome → Sign in → Map. Profile tab with no profile yet → empty state with "Create your profile" → Onboarding; until then the map shows general ratings: Senses from the default model (V0), heat with the standard bands, a "Not personalised yet" card with a "Create your profile" shortcut, and "Senses · general" on the legend and place cards.
+
+0. **Welcome** and **Sign in / create account** (phase 2, Clerk passwordless; "continue without an account" keeps the profile on this device only). In phase 1 the sign-in screen is a mock or hidden.
+   **Consent** (before Part A, both phases): one screen "Before you start" (canvas board 3): four short points (what SenCity does; what we ask, treated as sensitive data; where it goes: an AI model that keeps nothing, everything else in this browser in phase 1; your choice: skip, change, delete at any time), a separate checkbox, **unticked by default**, "I have read this and agree that my answers are used to build my profile" with a link to the privacy notice, "Not now" and "Agree and start" (enabled only when ticked), thesis and contact line. No consent → map with Heat only.
+1. **Onboarding** – Part A as in the survey: 1–5 grids, one block per card, sense icon per row, optional own-words field, progress, privacy line. Plain background.
+2. **Profile** – if no profile exists yet, show the empty state with "Create your profile" (→ Onboarding). Otherwise: radar of the 8 senses (circular rings, icons instead of names, name + both values on hover): what bothers (pink) and what feels good (cyan). Right panel: own words, strongest items, personal heat threshold, "Places that may suit you", buttons **Edit answers** / **Save and go to map**.
+3. **Loading** – logo animation, once, right after the profile is saved (see §8). Waiting for an area or a route happens inside the map (see the map and compare flows below).
+4. **Map** – the main view, floating panels over the 3D map:
+   - top left: logo + search in one bar
+   - top centre: tabs Map / Compare / Profile
+   - top right, one bar: About (?), Print, light/dark, Ask, account menu (profile, log out)
+   - left panel: layer toggle, legend, personal note, place-type filter chips
+   - bottom centre: season chips + compact time slider (only for Heat and Overall)
+   - bottom right, fixed: zoom +/−, re-centre on the loaded area
+   - bottom left: "© OpenStreetMap contributors · OpenFreeMap · heat: Infrared.city" (plus "Photos: Google" on the photo itself)
+   - place card on click (right): square photo (click to enlarge), name, type, overall box, heat state, photo rating "mixed · 3 of 5", might bother / might feel good with sense icons, coverage line, "prediction, not reason" Scores: an Overall headline with no bar ("Hard · overall, because of heat"), then two 1–5 bars, Heat and Senses (pink→amber→cyan gradient, diamond at the score); the card shows only the selected layer's scale (Senses → Senses bar only; Heat → heat only); both bars appear only on Overall, with the bar that decided it highlighted.
+   - chat panel (right, above the map controls), scrollable
+   - **area card (right) when an area is loaded and no place is selected** ("This area, for you"): centre coordinates and radius (`{radius}` m, never hard-coded); a radius slider (50–500 m, step 50; changing it loads the area again); one stacked bar of the street stretches for the selected layer with counts and % (easy / mixed / hard / no photo); "Why hard" (how many hard stretches are decided by heat vs senses, and the most common sense item); "Places here" (per place type, e.g. "Parks: 2 of 3 easy"); "Print area report". Clicking a street replaces it with the place card; closing the place card brings it back. Numbers follow the layer, season and time selected.
+   **Map flow (canvas boards Flow 1–4):** (1) start: no area, streets unlit, layer and place controls, the legend and the season/time bar inactive (panels stay visible, only the controls are faded to 40%), hint "Click anywhere to see how the area around it may feel for you" with the radius slider, dashed circle preview of `{radius}` follows the cursor; (2) click: crosshair, dashed circle, loading card ("`{radius}` m around the point you clicked"; buildings → photos → heat → rating, with progress), controls, legend and season/time inactive; (3) heat ready first (it does not depend on photos): Heat layer, places and season/time become active and the circle's streets show heat; Senses and Overall stay inactive until rating ends; (4) rating done: all layers active, map switches to Overall, the loading card is replaced by the area card and a small "Area ready · 52 of 58 streets rated · Click a street to see why" message that can be closed (the click hint also shows as the cursor tooltip over a rated street until the first click). The full-screen logo loading screen is used only once, right after the profile is saved.
+   **Season and time bar rule:** shown only when Heat or Overall is on screen or about to be computed (hidden on Senses). Inactive (40%) on Flow 1 before an area is loaded and while an area or a route is loading; active once heat is ready (Flow 3 on), and on Compare 1 (the choice is used for the route load).
+5. **Compare** – routes only for now (comparing two areas is dropped for phase 1), Start / End, "Colour the routes by" (Heat / Senses / Overall). On the map: routes coloured by state along their length (A continuous, B dashed). Panel: Route A / Route B show-hide buttons, one bar per route labelled with the chosen layer, km + minutes, share "hard", one-line verdict, coverage.
+   Routes: the user picks only Start and End (both marked on the map). The backend computes two walking routes: A = shortest, B = the easiest (least share of "hard" on the chosen layer) at most 25% longer; if that is the same as A, B = the second shortest. Buttons "A · shortest" / "B · easiest". Bars ~200 px wide, opaque state colours.
+6. **About** – dialog over the dimmed app (80% overlay, app visible but inactive).
+   **Compare flow (canvas boards Compare 1–4):** (1) Start / End by search **or by clicking on the map**: the first click sets Start (pin + field "[Clicked point]", step 1 ticked) and the hint "Start set. Now click where you want to go"; the second click sets End; colour-by and legend inactive; (2) both points set: **no routes on the map yet** (the best way cannot be known before rating); plain map with only the start and end pins (no highlighted area), right panel with progress (streets between start and end → street photos → heat → rating → finding the two ways), colour-by, legend and season/time inactive; the two routes appear only when rating is done; (3) result as above, routes coloured stretch by stretch; (4) **select a stretch**: clicking a stretch of either route on the map, or a section of a route bar, selects it: selection ring on the stretch (stretch restyled as in the map), the bar section gets a white outline, and the **stretch card replaces the comparison panel** on the right (same pattern as the area card → place card on the map): "Back to comparison", the route bar with the selected section outlined, "Route A · stretch 2 of 5", photo, street name, length and minutes, overall state and why, the Senses / Heat bars for the chosen layer, might bother, coverage, and previous / next stretch buttons. Arrow keys step to the previous / next stretch of the same route. A "stretch" is a run of consecutive segments with the same state.
+7. **Print report** – a print-only A4 layout (`@media print` or a dedicated route), light, works in grayscale. Sections: profile (radar, own words, strongest), **the area** (centre coordinates, size in m and ha, season and time, number of street stretches with one stacked bar and counts/% for easy / mixed / hard / no photo, why hard, places by type), one place, route comparison, how this was made. **Can be more than one page** (canvas boards 8 and 8b): page 1 = an "In short" sentence (area counts, main reason, the route verdict), profile, then the area: a full-width **map of the area** (light map, circle, streets in print colours, legend on the map), centre / radius / heat-for, four big counts (easy / mixed / hard / no photo), "Why hard" and "Places here"; page 2 = the route comparison with a full-width **map of both routes** (A solid, B dashed, Start and End pins), one row per route (line sample, km, min, bar, % hard) and the verdict box, then the place, then "Places that may suit you" (3 photos from the profile); "How this was made" at the end; footer "Page n of N". Maps are rendered from the MapLibre view (`map.getCanvas().toDataURL()` after `idle`, with `preserveDrawingBuffer: true`, in light style) with print colours. Radius shown as "`{radius}` m (≈ area ha)".
+
+**Fit every screen (hard requirement).** The app is a full-viewport layout (`100dvh`) that resizes correctly from 360 × 640 phones to large monitors: nothing may overflow, overlap, get cut off or need horizontal scrolling because of the layout. Scrolling is fine **only where the content is genuinely long** (the chat, the About text, a long list of search results), and then it happens inside that panel, with a visible cue, never on the whole page. Test at 360 × 640, 390 × 844, 768 × 1024, 1280 × 720, 1366 × 768, 1440 × 900 and 1920 × 1080, in both orientations, at 100% and 200% browser zoom, and with the system font size raised; add a Playwright check that screenshots each view at these sizes and fails if the page itself scrolls, anything is clipped, or a panel that is not marked as scrollable overflows.
+- Panels are sized from the viewport (`max-height: calc(100dvh - top bar - bottom bar - margins)`), never fixed heights.
+- When space runs out on a card that normally fits (place, area, compare), first **reduce by priority** rather than scroll: (1) state and reason ("Hard, overall because of heat"), (2) the layer bar(s), (3) might bother / feel good, (4) rate this place, (5) secondary lines (scale numbers 1–5, coverage, hints). Lower-priority parts collapse into a "More" toggle or move to a second step, in this order; only if it still does not fit (very small or zoomed screens) the card scrolls inside itself. Same for the area card (counts → why hard → places → radius) and the compare panel (bars and verdict → coverage).
+- Long sets are split into steps where that reads better than a list: onboarding blocks show as many items as fit (on a phone 4 per screen, "Part 1 of 2"). The chat, About and search results scroll inside their own panel.
+- Panels on the left and right must never overlap each other or the centre controls: below ~1200 px wide the right card replaces the left panel's lower sections, below 768 px everything becomes bottom sheets.
+- Text never shrinks below 13 px to fit; drop content instead. Long street names truncate with an ellipsis and a tooltip.
+- The map pans so the selected street stays visible above or beside the open card.
+
+**One card pattern for map and compare.** The place card (map) and the stretch card (compare) are the same component:
+- top: "← Back to area" (map) or "← Back to comparison" (compare); no separate close button; Esc does the same
+- square photo with the enlarge badge, name, type or length
+- overall state and reason, then the Senses / Heat 1–5 bars for the chosen layer
+- might bother / might feel good
+- "Rate this place" (1–5) with "From the photo. It tunes your profile."
+- compare only: coverage line and previous / next stretch
+**Enlarged photo (canvas board 2f+):** clicking the photo or its badge opens a full-screen view over the dimmed app (90%): "← Back to place", "Photo 1 of 3", the photo as large as fits (square, `min(70vh, 80vw)`), "Google" credit on the photo, previous / next arrows, street name, direction and date of the photo, this photo's own rating ("Mixed, this photo, 3 of 5"), thumbnails of all photos for the street, and the hint "The street rating combines all 3 photos". Arrow keys switch photos, Esc goes back; focus is trapped inside while open. The image is loaded from Street View on demand, never stored. On a phone (boards P2+) it is a full-screen page instead of an overlay: back link and "Photo 1 of 3" at the top, the photo full width and square, swipe or 44 px arrows to change photo, page dots, then name, direction and date, this photo's rating, thumbnails and the hint.
+**All state bars share one style:** 10 px high, 5 px radius, 2 px gaps between sections, state colours at 85% (hard opaque), no photo `#2b4a52`, full card width; a selected section gets a 2 px inset light outline. Used for the area bar, the route bars and the bar in the stretch card.
+
+**States and errors (canvas board 9).** Every message says what happened, what still works and what to do next, shown where it happens (in the card or as the top hint), never as a modal or browser alert:
+- few photos (under half the streets in the area have one): note in the area card "Only 4 of 58 streets have photos here. Heat is shown for every street; Senses and Overall only where there is a photo." with "Show heat" / "Try a nearby area"
+- heat slow or failed (no answer after 60 s or an error): in the loading card "Heat is taking longer than usual" with "Try again" / "Senses only for now"; photo rating continues
+- click outside Vienna: top hint "SenCity covers Vienna for now. Click a point inside the city." (no request is sent)
+- offline: top hint "You are offline. What is loaded stays on the map; new areas load when you are back." with Retry; loaded data stays usable
+- the AI model fails for some photos: those streets stay "No photo"-styled with "Could not rate" on the card and a retry
+- the chat fails: the message stays in the input with "Could not send. Try again."
+
+**Keyboard focus.** Every button, link, toggle, slider, legend item and street (streets are reachable with Tab in reading order of the list behind the map) shows a **2 px outline, 3 px offset**, light (`#eef3f4`) in dark mode and dark (`#15474a`) in light mode, only for keyboard use (`:focus-visible`). Never remove outlines without this replacement. Esc closes the open card, dialog or sheet and returns focus to what opened it.
+
+**Phone (below 768 px; canvas boards P1–P5, 390 × 844).** Phase 1 is desktop-first, but build the layout so it already works on a phone:
+- top: one bar with logo, search and an account button (initials); under it, the season chip ("Summer ▾") and the time slider, with the same visibility rule as on desktop; Ask is a round icon button on the right
+- views (Map / Compare / Profile) move to a bottom tab bar
+- every right or left panel becomes a **bottom sheet** with a handle: peek height shows the area card (title, layer buttons, stacked bar, counts, "Tap a street to see why"); swipe up for "Why hard", places and the radius; tapping a street swaps it for the place sheet (fits without scrolling: no 1–5 numbers under the bars, might bother / feel good as chips side by side) and the map pans so the selected street stays above the sheet
+- Compare: Start / End fields with a swap button at the top, routes on the map, colour-by and the comparison in the sheet
+- onboarding: one block per screen, each item as a label with five full-width buttons below it, Back / Next fixed at the bottom
+- the chat opens full screen; Profile, About, Sign in and Welcome stack into one column; the report stays A4
+- **menu (board P5):** the account button opens a small menu under it, over the dimmed app: a header (initials, "Your account", "Profile and settings"); **Appearance** as a three-way switch **System / Light / Dark**; then About and how to use, Print report, Account, Log out (Account and Log out only in phase 2). Tap outside or Esc closes it; focus moves into the menu and back to the button. The same Appearance switch replaces the single light/dark button on desktop.
+- touch targets ≥ 44 px, "click" becomes "tap" in hints
+
+Both **dark and light** modes for every screen (light references: boards 1, 3, 4, 5 light and P1–P5 light). **System** is the default: follow `prefers-color-scheme` on first open and switch live if the phone changes (e.g. at night). Choosing Light or Dark overrides it and is remembered on that device (`localStorage`, wrapped in try/catch); choosing System again clears the override.
+
+## 4. Rating logic
+- **States:** every layer maps to three states: easy, mixed, hard. The map shows states; cards show the 1–5 number too.
+  - Photo rating (comfort 1–5): 4–5 easy, 3 mixed, 1–2 hard.
+  - Heat: Infrared.city returns UTCI, a "feels like" temperature in °C. Default bands: up to 26 °C easy, 26–32 °C mixed, above 32 °C hard (standard heat-stress bands; in winter, cold stress below 0 °C counts as mixed and below −13 °C as hard). **Personal thresholds:** if the profile says direct sun and heat bother a lot (A13 = 4–5), the limits start lower (e.g. 23 / 29 °C); the user can move both limits in their profile with a slider. Untested personalisation: say so in the legend in one sentence. All limits in config.
+- **Heat on the streets:** every layer is drawn street by street, Heat included (same glowing lines as Senses; every street has heat, so none stays unlit). The raw Infrared grid is used only for the computation, not drawn. Heat is projected onto street segments (~50 m, split at intersections): sample the thermal comfort values within a few metres either side of the street line, take the 75th percentile (the hotter part, so one unshaded stretch is not averaged away), then map it to the three states with the personal threshold. Recompute when season or time changes. Parks and squares are treated as small areas with their own photos and heat samples. Segment length, buffer width and percentile go in config.
+- **Overall** = the worse state of Heat and Senses on each segment; the card names which layer decided it ("set by heat"). A segment with no photo has no Senses and therefore no Overall: it stays unlit (never fall back to heat alone under the Overall label).
+- **Senses on the map:** colour street segments by the rating of the photos within a set distance (start with 50 m). Streets with no photo in range stay unlit (no colour). Never interpolate across gaps. Draw rated segments as **translucent** lines (core line at **50% opacity**, in dark and light mode, so the ground shows through) with a soft halo of the same colour (e.g. a second line layer ~2–3× wider with line-blur and ~30% opacity in MapLibre); no wide bloom. Opacity, halo width and halo opacity go in config, so they can be tuned in the live app. The glow stays on the street and ends where coverage ends. A stronger glow only where attention is: the selected street (white outline over its glow), the routes in Compare, and streets lighting up while an area loads. Add a **"Calm map"** setting (profile and map controls): plain lines, no glow, no animation.
+- **Every marker comes with its street highlighted:** whenever a point is on the map, the street segment it belongs to is restyled itself (no extra symbol or line on top): it keeps its state colour but turns fully opaque, slightly wider, with a thin white edge (dark teal in light mode), so the rating stays readable. Implement it as a feature-state on the segment layer. Exception: the point clicked to **load a new area** is a thin crosshair at the centre of the dashed circle (no street highlight, no pulse), since it picks an area, not a place. Otherwise two kinds of marker only: the **selection ring** (one at a time, what the card shows) and **numbered suggestion pins** from the chat (filled circle in the place's state colour with 1, 2, 3…, the same number on the chat card; no pulse).
+- **Selection marker:** the point the user clicked (or the selected place) gets a ring in the same style: white dot with a dark outline, a thin ring with a soft glow, and a **soft pulse**, a second ring that slowly grows from the ring's size to about 2× while fading out, every ~2.4 s, ease-out, no bounce. The pulse is gentle (start opacity ~0.5) and stops after the card is open for a few seconds or when the user interacts. No pulse with `prefers-reduced-motion` or Calm map. Light mode uses dark teal (#15474a) instead of white. No photo-point markers by default: photos are reached by clicking a street (its card shows the photo); show small photo dots only when zoomed in close, as an option.
+- **Choosing photos when several cover one segment (or park/square):**
+  1. *Filter:* outdoor official imagery only (Street View: `source=outdoor`, skip user-uploaded photospheres), daylight, perspective views, not panoramas (as in the study; Gu et al. 2025), at least 70% of the image sharp and unblocked (privacy blur on faces and plates is fine; reject a bus or wall filling the frame; simple sharpness check per tile; threshold in config, try 66–75%), view heading along the street direction (Street View: request the heading of the street, both directions; Mapillary: camera heading within ±45°).
+  2. *Rank:* most recent first (capture date from the metadata; drop images older than 5 years if newer exist), then closest to the segment midpoint.
+  3. *Keep up to 3*, from different spots along the segment (Street View) or different capture days or sequences (Mapillary), so one moment (a market, roadworks, a parked truck) does not decide.
+  4. *Combine:* rate each kept photo separately; the segment's comfort is the **median** of their 1–5 ratings; "bothers" and "feels good" are the codes named in at least 2 of 3 photos (in the single photo if only one, in both if two).
+  5. *Show:* the card shows the photo whose rating is closest to the median (ties: most recent), with "based on N photos within X m" and the capture dates; the other photos are reachable with small arrows.
+  6. *Deterministic:* selection is a pure function of segment and photo metadata; store the chosen photo IDs per segment and log them, so the map can be reproduced. Distance, max age, heading tolerance and max photos (3) go in config.
+- **Coverage:** every card and comparison shows what a rating rests on ("based on 3 photos within 50 m", "photos along 80% of route A").
+- **Temperature from photos is ignored in the tool** (a photo shows one moment's weather). Heat comes only from Infrared.city.
+
+## 5. Persona and model
+- Build the persona from the profile with the **same prompt templates as the study** (`pilot2/pilot3-prompt.md`, `persona_v2.txt` = lived experience only, `persona_v3.txt` = labels + lived experience). The default version is set in config; it will follow the H2 result.
+- Same model, temperature and output schema as the study. Output per photo: comfort 1–5, up to 4 "bothers", up to 4 "feels good" (the 8 sense codes), short explanation.
+- **Privacy:** never send profile data to free model endpoints. Use the zero-data-retention routing already configured for the study. Keys only in `.env` (never committed).
+- **Caching:** rate each (photo, profile version) once; store results. Re-rate only when the profile changes. Show the loading screen during the first rating batch; rate the visible area first.
+
+## 5b. Calibration with own ratings (H3)
+- Place card has "Rate this place" (1–5, then optional bothers / feels good), rated from the photo.
+- The persona prompt adds up to 5 of the user's own ratings as examples: one per place type, chosen by a fixed seed, never the photo being predicted (same rule as the study's V2+). Re-rate cached photos when the example set changes.
+- Phase 1: own ratings live in the browser with the profile and are sent with each rating request; phase 2: stored with the profile. Deleted with the profile.
+- Whether examples are used is a config flag that follows the H3 result; reliability (UI text: "how close your predictions have been to your own ratings") is always shown.
+
+## 6. Data
+- **Study area (phase 1): click a point, get a circle.** The user clicks a place; the tool takes a **circle centred on it** with a radius the user sets (slider next to the "Click anywhere" hint and in the area card: 50–500 m in 50 m steps, **default 200 m**; the dashed preview circle follows the cursor). The circle (as a ~64-point polygon) is the one area for everything: photos for all street segments and parks that intersect it (segments clipped at the edge), and the Infrared.city heat run on the same polygon. Cost: Infrared tiles are 512 m squares, so a radius up to ~250 m usually fits one tile (one job); 300–500 m needs up to 4 tiles, which the SDK tiles and merges itself; call `preview_area` first and show the expected wait in the loading card. Photo count grows with the area (×4 for twice the radius), so show "about N photos" before loading and keep 500 m as the hard maximum. **Start testing with 100 m**, then 200 m. Radius limits and default go in config.
+- **First task: fetch photos for one test square (before any UI).**
+  - *Input:* a command-line script, `python -m tool.fetch_photos --lat 48.2085 --lon 16.3721 --size 200` (coordinates copied from Google Maps: right-click → copy). Streets come from OpenStreetMap (walkable ways only), split into ~50 m segments.
+  - *Output, saved in `runs/photos/<date>_<lat>_<lon>/`:* `segments.geojson` (segments, with chosen pano IDs), `photos.csv` (one row per candidate: pano ID, segment, location, date, heading, kept or rejected, and the reason, e.g. "too old", "indoor", "70% rule"), and `review.html`.
+  - *`review.html`, for checking:* a small map of the square with the segments and photo points, and next to it a grid of the kept photos grouped by segment, with the date and reason under each; rejected photos in a collapsed section. Images load live through a small local endpoint (`python -m tool.review_server`), which keeps the API key out of the HTML and saves no image files (Google terms). A keep/reject toggle per photo writes `review_notes.csv`, so the filter can be tuned on what I flagged.
+  - Log the number of metadata and image calls per run, with the estimated cost.
+  - *README:* write `README.md` (repo root) with every script, starting with this one: what it does, setup (install, which keys go in `.env`), the exact command with an example, what each output file contains, how to open and use `review.html`, and common errors. Keep it updated whenever a script is added or changed.
+- **Infrared.city, per square** (Python SDK, `pip install "infrared-sdk[geodata]"`; check the current docs at infrared.city/docs/sdk before coding, names may change):
+  1. *Buildings:* `client.buildings.get_area(polygon)` (GeoJSON polygon, WGS84, one ring). Pass the **returned object** to the run, not a bare mesh, so it keeps its origin (otherwise the city can shift). Also store the footprints: the map draws them, and they help the photo filter (a view facing a wall).
+  2. *Trees and ground:* fetch vegetation and ground materials (asphalt, concrete, soil, vegetation, water) if available; thermal comfort uses both.
+  3. *Weather:* nearest public station via `get_weather_file_from_location`, then filter to the window; no season argument, so each "season and time" in the UI is a fixed window (e.g. summer = 15 July, 12–16 h; in config).
+  4. *Run:* analysis `thermal-comfort-index` (UTCI, °C, 1 m ground grid) with `run_area_and_wait(payload, polygon, buildings=…, vegetation=…, ground_materials=…)`. Call `preview_area` first to confirm one tile.
+  5. *Store:* the UTCI grid per (square, window) as a GeoTIFF/COG, plus buildings as GeoJSON; recompute only when the window changes. Then project onto street segments as above.
+- **Street photos:** the source is a config switch, `photo_source: streetview | mapillary`, behind one `PhotoProvider` interface (search by location, metadata, fetch image), so switching needs no other code change.
+  - **Prototype (now): Google Street View** (Street View Static API + free metadata endpoint), same source and crop settings as the study (size, fov, pitch), so tool and study photos look alike. Credit "© Google" on every photo. Respect the Google Maps Platform terms: store only pano IDs, location, date and heading, never the image files; fetch images on demand through the backend; keep the prototype private (invited testers, no public deployment). Before any public release, check the terms for storing VLM ratings derived from the images.
+  - **Public deployment (later): Mapillary** (CC BY-SA 4.0): images can be stored and shown with credit ("© Mapillary contributors, CC BY-SA"). Quality varies, so the quality filter above matters more; run the same selection rule and compare coverage and ratings against Street View on the 20 study places before switching.
+  - Square crops in both cases.
+- **Profiles, phase 1:** kept in the browser only (localStorage, wrapped in try/catch). The server receives answers only to build the persona and rate photos, and **stores nothing** about the person: ratings go back to the browser and are cached there. Only neutral data is stored server-side (photos, segments, heat).
+- **Profiles, phase 2:** stored in Postgres (Frankfurt), keyed by a random user id, never by email (the email stays in Clerk). Ratings cached per (photo, profile version).
+- **Delete and export** (canvas boards 5 and 5c): "Download my data" and "Delete my data" links under the Profile buttons and in the account menu. Delete opens a confirmation dialog (`role="alertdialog"`, focus starts on Cancel): what is removed (answers, own words, profile, own ratings; the map goes back to general ratings), where (this browser; in phase 2 also the database within 24 h), "cannot be undone", "Download a copy first", Cancel / "Delete everything", then the empty profile view. The "Delete my data" action (phase 1: clears this browser; phase 2: deletes the profile and ratings from the database and the account from Clerk) and "Download my data" (JSON).
+- **No participant data in the app.** Survey participants' personas and answers are never deployed; the live app shows only profiles that users create themselves (and Elena's own for the demo).
+- Do not commit `data/raw/`, `.env` or any participant data. Quotes shown in the UI use pseudonyms.
+
+## 7. Backend API (first version)
+- Phase 1 has no profile endpoints: the browser sends the profile with each request (`POST` body, never in the URL).
+- Phase 2 (Clerk token required): `POST /profile` save answers → profile id + persona version · `GET /profile` · `DELETE /profile` (profile, ratings and Clerk account) · `GET /profile/export`
+- `POST /ratings/run` profile + bounding box → job id
+- `GET /ratings/status/{job}` progress for the loading screen
+- `GET /ratings?bbox=…` photo points with state, 1–5, bothers, feels good, explanation
+- `GET /segments?bbox=…&layer=…` street segments with state and coverage
+- `POST /ratings/own` (phase 2) save an own rating; phase 1 keeps them in the browser
+- `POST /compare` two routes or areas → per-stretch states, distance, time, share hard, coverage, verdict
+- `POST /chat` question + profile id → answer + referenced places (ids, so the map can highlight them)
+
+## 8. Interaction and motion
+- **Linked highlighting on hover** (and on keyboard focus): hovering anything highlights everything related to it, everywhere on screen; the rest dims slightly.
+  - place card or chat suggestion ↔ its marker and street segment
+  - a section of a Compare bar ↔ that stretch of the route (both ways)
+  - a legend state ↔ all matching streets
+  - a sense icon on the radar ↔ tooltip with both values, matching rows in "strongest" and the place card
+  - Route A / B button ↔ that route
+  Highlight = full opacity + light outline; others to ~40% opacity. Transitions ~150 ms.
+- **Selected state** everywhere: filled + light outline (tabs, layer buttons, toggles, chips).
+- **Selected place marker:** dot + one thin ring.
+- **Loading animation:** the logo is 12 arcs (top S ×4, bottom S ×4, C ×4). Each step draws one arc per sector along its curve (inside to outside, 0.3 s apart; C draws anticlockwise from the top), all hold, then fade; loop ~3.2 s. Use one shared clock (SVG SMIL or a single JS timer), not separate CSS delays, so the sectors stay in sync. Use the original logo SVG paths when available.
+- **Reduced motion:** with `prefers-reduced-motion`, no animation (static logo, instant highlights).
+
+## 9. Design tokens
+Colour carries meaning only. Easy `#40c5e8`, mixed `#faa81e`, hard `#c2306a` (darker than mixed, so the three stay apart with colour blindness; checked with a protan/deutan/tritan simulation). No stripes on screen: colour is never the only cue, because cards and bars always name the state ("Hard") and give the number. Print report: no stripes either; it uses light-to-dark versions (easy `#9fdff2`, mixed `#e8a33a`, hard `#a3245a`) so the order still reads in grayscale (lightness ≈ 85 / 72 / 37), plus words and numbers next to every bar. Light-pink text `#f6a3b9` for the word "Hard" on dark panels. Senses are icons, never colours.
+
+| Token | Dark | Light |
+|---|---|---|
+| ground | `#13232a` | `#eef3f4` |
+| panel | `#162730` | `#ffffff` |
+| line / border | `#2b4a52` | `#d6e3e6` |
+| text | `#eef3f4` | `#13232a` |
+| text secondary | `#b7cbd0` | `#3d5a61` |
+| text muted | `#8fb0b6` | `#5f7f86` |
+| primary button | `#c6dade` on `#13232a` text | `#1c3941` on `#eef3f4` text |
+| accent (marker, slider) | `#eef3f4` | `#15474a` (logo teal) |
+| shadow | `0 12px 32px rgba(0,0,0,.35)` | `0 12px 32px rgba(19,35,42,.12)` |
+
+Panels: radius 18, bars radius 16, buttons radius 10–12, touch targets ≥ 40 px. Section titles: Inter 600, 14 px, sentence case. Numbers: tabular figures. Logo: white on dark, `#15474a` on light and print. Map: dark-teal or white extruded buildings, analysis draped on the ground, no glows.
+
+## 10. Security and data protection
+Not legal advice; Elena confirms the final texts with IAAC (ethics approval for the app, short DPIA if they ask for one).
+- **Keys:** model, Infrared.city, Google Maps Platform and Mapillary keys only on the backend (Render env vars). The browser only calls FastAPI. `.env` never committed.
+- **Abuse and cost:** monthly spending cap at the model provider; rate limit per IP on `/ratings/run` and `/chat` (e.g. a few rating runs per hour, ~20 chat messages per hour); limits on request size, bounding-box size and chat message length; optional Cloudflare Turnstile before the first rating run. CORS allows only the app's own domain.
+- **Logs:** never log request bodies, profiles, answers or chat text. No error tracker that captures bodies (or strip them). No analytics, so no cookie banner is needed (Clerk's sign-in cookies are strictly necessary).
+- **Model output:** shown as text only; never `v-html` on model or chat output. Chat has a fixed system prompt, no tools that act, sees only that user's own profile, answer length capped.
+- **Model provider:** paid endpoint with zero data retention only, never free endpoints; same routing as the study.
+- **Transport and storage:** HTTPS only (Render); phase 2 database encrypted at rest, user id not email as the key.
+- **Shared devices:** clear "Delete my profile from this device" in the account menu and in the privacy notice.
+- **Privacy notice** (linked from Welcome, consent and About): who is responsible and contact; what is collected and why; that answers are health data used only to build the persona; where data goes (Render Frankfurt; Clerk, email only, phase 2; the model provider, no retention); how long it is kept; rights (access, change, delete, export) and how to use them. Check that Render and Clerk are covered by the EU–US Data Privacy Framework and accept their data processing agreements.
+- **Access:** phase 2 invite-only (Clerk allowlist) until the thesis discussion.
+
+## 11. Accessibility
+Real buttons and links, labels on every input, `aria-label` on icon buttons, focus visible, contrast ≥ 4.5:1 for text, states never by colour alone, dialog traps focus and closes with Esc.
+
+## 12. Milestones (timeline)
+- **W03** design (done), project setup, theme tokens, layout shell with floating panels; Render services in Frankfurt with deploy from GitHub from day one
+- **W04–W05** street and park photos; Infrared.city heat layer with season/time; backend skeleton
+- **W06–W07** photo rating pipeline + caching; Senses and Overall layers; place card; tool survey (only if personas work)
+- **W08** chatbot, Compare, refinement, print report; security checklist (§10), consent and privacy notice; phase 2 Clerk accounts if time allows
+- **W09** demo on the live phase 1 app (open a minute before, in case the service is asleep)
+
+## 13. Out of scope for now
+Wind, green layer, planner view (aggregated across profiles), mobile layout beyond basic responsiveness, public sign-up (phase 2 stays invite-only), participants' data in the app.
+
+## 14. Project documentation
+Before writing code, create two files in `docs/` and keep them up to date in the same commit as the change they describe. Keep both short and plain: they are read by me and by my thesis supervisor, and parts go into the thesis annex.
+
+- **`docs/architecture.md`** – how the tool is built, as it is now (not as planned):
+  - a data-flow diagram in a Mermaid block: browser → FastAPI → AI model / Infrared.city / OpenStreetMap / photo source, and what data crosses each arrow (mark anything personal);
+  - modules: one line per frontend view, store and backend route, with its file path;
+  - data formats: the profile, a photo rating, a street segment, the cache entry (fields and types);
+  - external services: what each is used for, region, and what it keeps;
+  - configuration: environment variables (names only, never values) and config files.
+- **`docs/decisions.md`** – one entry per decision, newest at the top:
+  - `## YYYY-MM-DD – short title`, then **Context** (why it came up), **Decision**, **Alternatives** (and why not), **Consequences** (what it changes or limits);
+  - start with the decisions already fixed in this prompt (stack, MapLibre with grey styles and no 3D, Render Frankfurt, two phases, Clerk in phase 2, profile only in the browser in phase 1, zero data retention, one map layer at a time);
+  - add an entry whenever you choose something this prompt leaves open, and whenever I ask to change a decision here. Do not change a decision without asking first.
