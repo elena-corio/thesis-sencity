@@ -1,0 +1,224 @@
+/* SenCity design tokens (brief §9). Every colour, font and size used by components and
+   map code is a variable here; components and map code use var(--…) only.
+   The theme is set on <html data-theme="dark|light"> by the theme store. */
+
+:root {
+  /* Font */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed (§3) */
+  --fs-sm: 0.875rem;    /* 14 px, section titles */
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;     /* card titles */
+  --lh: 1.4;
+
+  /* Space and size */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --margin: 24px;               /* distance of floating panels from the viewport edge */
+  --gap: 12px;                  /* between floating panels */
+  --topbar-h: 52px;
+  --tabbar-h: 64px;
+  --panel-left-w: 340px;
+  --panel-right-w: 360px;
+  --menu-w: 320px;              /* account menu (board P5) */
+  --seasonbar-w: 560px;
+  --control-size: 44px;         /* map zoom buttons */
+  --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
+  --tabs-half: 140px;           /* half the width of the Map / Compare / Profile tabs */
+  --attribution-h: 1.25rem;     /* one line of map credits; grows with the system font size */
+  --chip-h: 34px;               /* place-type chips */
+  --swatch-h: 5px;              /* legend swatches */
+  --range-min-w: 60px;          /* time slider */
+  --hairline: 1px;
+  --touch: 40px;                /* minimum target (§9) */
+  --touch-phone: 44px;          /* minimum target on a phone (§3) */
+  --icon: 20px;
+  --icon-stroke: 1.75;
+  --logo-size: 34px;
+  --crosshair-size: 44px;
+  --centre-dot: 6px;
+  --handle-size: 14px;
+  --chip-offset: 14px;          /* radius chip distance from the pointer or handle */
+  --chip-offset-touch: 64px;    /* above the finger */
+
+  /* Radius */
+  --radius-panel: 18px;
+  --radius-bar: 16px;
+  --radius-btn: 12px;
+  --radius-chip: 10px;
+  --radius-pill: 999px;
+
+  /* Focus (§3): 2 px outline, 3 px offset */
+  --focus-width: 2px;
+  --focus-offset: 3px;
+
+  /* State colours (same in both themes) */
+  --easy: #40c5e8;
+  --mixed: #faa81e;
+  --hard: #c2306a;
+  --warning: var(--mixed);
+
+  /* Inactive controls (§3 Map flow) */
+  --inactive-opacity: 0.4;
+  --transition: 150ms ease;
+
+  /* Map: circle and radius line widths (px) */
+  --map-circle-width: 1.5;
+  --map-radius-line-width: 1.25;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #13232a;
+  --panel: #162730;
+  --line: #2b4a52;
+  --text: #eef3f4;
+  --text-2: #b7cbd0;
+  --text-muted: #8fb0b6;
+  --btn-primary-bg: #c6dade;
+  --btn-primary-text: #13232a;
+  --btn-selected-bg: #24414a;
+  --accent: #eef3f4;
+  --focus: #eef3f4;
+  --logo: #ffffff;
+  --hard-text: #f6a3b9;
+  --no-photo: #2b4a52;
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --backdrop: rgba(9, 18, 22, 0.55);
+
+  /* Map overlay (§2): teal tint, dimmed outside, lit inside, circle */
+  --map-tint: #0d2a32;
+  --map-tint-opacity: 0.15;
+  --map-mask: #13232a;          /* fades the outside toward the ground colour, like light mode (brief: 60%) */
+  --map-mask-opacity: 0.5;
+  --map-lit: #4f95a3;
+  --map-lit-opacity: 0.3;       /* brief: 18%; raised so the inside reads as lit on the dark base */
+  --map-circle: #eef3f4;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ground: #eef3f4;
+  --panel: #ffffff;
+  --line: #d6e3e6;
+  --text: #13232a;
+  --text-2: #3d5a61;
+  --text-muted: #5f7f86;
+  --btn-primary-bg: #1c3941;
+  --btn-primary-text: #eef3f4;
+  --btn-selected-bg: #d3e2e5;
+  --accent: #15474a;
+  --focus: #15474a;
+  --logo: #15474a;
+  --hard-text: #c2306a;
+  --no-photo: #d6e3e6;
+  --shadow: 0 12px 32px rgba(19, 35, 42, 0.12);
+  --backdrop: rgba(19, 35, 42, 0.25);
+
+  --map-tint: #cfe3e8;
+  --map-tint-opacity: 0.12;
+  --map-mask: #eef3f4;
+  --map-mask-opacity: 0.6;
+  --map-lit: #bfe6ee;
+  --map-lit-opacity: 0.28;
+  --map-circle: #15474a;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --margin: 12px;
+    --gap: 8px;
+    --topbar-h: 56px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  :root {
+    --margin: 16px;
+    --panel-left-w: 300px;
+    --panel-right-w: 340px;
+    --seasonbar-w: 520px;
+  }
+}
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--ground);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled, [aria-disabled="true"] { cursor: default; }
+
+/* Keyboard focus only (§3) */
+:focus { outline: none; }
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+/* Shared building blocks */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+}
+.section-title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+.btn {
+  min-height: var(--touch);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--btn-primary-bg);
+}
+.icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text);
+}
+.inactive { opacity: var(--inactive-opacity); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

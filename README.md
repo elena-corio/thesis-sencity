@@ -101,6 +101,38 @@ cd ..   # repo root
 
 These test segment splitting and the selection rule on a small fixed sample. They make no API calls.
 
+## Frontend
+
+The app: the map start screen and the two-click area selection (boards Flow 1, 1b, 1c), in dark and light. It makes no backend calls yet. Requires Node.js 20 or newer.
+
+```bash
+cd frontend
+npm install                     # once
+npx playwright install chromium # once, for the screen checks
+npm run dev                     # http://localhost:5173/map
+```
+
+| Command (in `frontend/`) | What it does |
+|---|---|
+| `npm run dev` | Starts the app and opens http://localhost:5173/map in your browser; reloads on every change |
+| `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
+| `npm run preview` | Serves the built site locally |
+| `npm test` | Unit tests for the radius maths (Vitest), no browser needed |
+| `npm run test:e2e` | Playwright: step screenshots, the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, and the keyboard walk-through. Starts the dev server itself if it is not running. |
+
+**Using the map:**
+- Click to place the centre of your area, move to set the radius, then click again to fix it.
+- Drag the edge to adjust. Esc or a right-click starts again.
+- **Analyse this area** stores the area (no backend yet).
+- Keyboard: Tab to the map, then Enter places the centre at the map centre, the arrow keys change the radius in 10 m steps, and Enter fixes it.
+- Phone: tap the centre, then drag or tap a second point.
+
+**Where things are set:**
+- Colours, fonts and sizes, including the map tint and mask: `frontend/src/styles/style.css`.
+- Radius limits, start view and map style URLs: `frontend/src/config.js`.
+
+**Screenshots** from `npm run test:e2e` are saved in `frontend/e2e/screens/` (not committed).
+
 ## Common errors
 
 | Error | What to do |
@@ -115,3 +147,7 @@ These test segment splitting and the selection rule on a small fixed sample. The
 | Many street segments without a photo | Check `photos.csv`. In tourist areas the nearest pano is often a contributor photo, which hides official panos nearby, even after the retry. |
 | `outside the allowed area` | `area.allowed_polygon` is set in config. Clear it (set it to `null`) to allow any location. |
 | Results did not change after editing sampling or retry settings | The run folder reuses `metadata.json`. Add `--refresh`. |
+| The map stays empty, console says "Worker failed to load" | MapLibre must not be pre-bundled by Vite. Check that `vite.config.js` still has `optimizeDeps: { exclude: ['maplibre-gl'] }`, then delete `frontend/node_modules/.vite` and restart `npm run dev`. |
+| `Port 5173 is already in use` | Another dev server is running. Use it, or stop it and start again. |
+| Playwright: "Executable doesn't exist" | Run `npx playwright install chromium` in `frontend/`. |
+| Map tiles missing in the screen checks | The checks load real tiles from OpenFreeMap and need internet. |
