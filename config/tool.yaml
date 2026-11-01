@@ -1,0 +1,98 @@
+# SenCity tool configuration. Every threshold used by the scripts lives here.
+# Keys never go in this file: they live in .env (see .env.example).
+
+area:
+  radius_default_m: 200
+  radius_min_m: 50
+  radius_max_m: 500          # hard maximum (brief §6)
+  radius_step_m: 50
+  radius_confirm_above_m: 100  # fetch_photos needs --yes above this (testing phase)
+  # Optional allowed area: a GeoJSON Polygon (lon/lat). Empty = any location can be selected.
+  allowed_polygon: null
+  circle_points: 64
+
+osm:
+  overpass_url: https://overpass-api.de/api/interpreter
+  buildings_margin_m: 50    # building footprints are fetched this far beyond the circle (indoor test)
+  timeout_s: 90
+  # Highway values that count as walkable street centrelines or standalone paths.
+  walkable_highways: [primary, secondary, tertiary, unclassified, residential,
+                      living_street, pedestrian, service, footway, path, steps,
+                      track, cycleway, bridleway]
+  # Ways matching any of these tag values are dropped from the rated network
+  # (kept for the routing graph later, brief §6 "one line per street").
+  exclude_tags:
+    footway: [sidewalk, crossing]
+    service: [driveway, parking_aisle]
+    access: [private, "no"]
+    foot: ["no"]
+    tunnel: ["yes"]
+    indoor: ["yes"]
+  # highway=footway (no footway=* tag) running alongside a road is treated as a sidewalk:
+  # dropped if at least this share of its length lies within this distance of a road centreline.
+  alongside_road:
+    road_highways: [primary, secondary, tertiary, unclassified, residential, living_street, service]
+    distance_m: 12
+    min_share: 0.8
+  # Courtyards (Elena, 2026-11-01): an unnamed area whose edge runs mostly along buildings is skipped,
+  # since courtyards are often private and their photos are often interiors. Named ones are kept.
+  courtyard:
+    min_enclosed_share: 0.5   # share of the area's edge within building_distance_m of a building
+    building_distance_m: 2
+  # Areas: parks and squares that intersect the circle, clipped at its edge.
+  area_tags:
+    leisure: [park]
+    place: [square]
+    highway: [pedestrian]   # only when the way is closed and area=yes
+
+segments:
+  target_length_m: 50       # pieces between intersections are cut into round(L / target) equal parts
+  merge_below_m: 10         # a leftover piece shorter than this is merged into its neighbour
+  min_isolated_length_m: 1  # only a piece this short with no neighbour (a line grazing the circle) is dropped
+  min_area_m2: 50           # smaller clipped park/square slivers are dropped
+  # The same square is often mapped twice (place=square and a highway=pedestrian area).
+  # An area is dropped when this share of it (or of the other) is covered by an area already kept;
+  # parks and squares are kept before pedestrian areas.
+  max_area_overlap: 0.8
+
+photo_source: streetview    # streetview | mapillary (only streetview is implemented)
+
+streetview:
+  metadata_url: https://maps.googleapis.com/maps/api/streetview/metadata
+  image_url: https://maps.googleapis.com/maps/api/streetview
+  source: outdoor
+  metadata_radius_m: 15     # search radius per sample point
+  official_copyright: '^© (\d{4} )?Google$'   # regex; anything else (a person's name) is a contributor photo
+  # Streets: when the nearest pano is a contributor photo, retry from nearby points with a smaller radius.
+  retry_radius_m: 5
+  retry_offsets_m: [-4, 0, 4]   # along the street from the sample point
+  # Crop settings, same as the study (640x640, fov 90, pitch 0; confirm against the study).
+  size: 640x640
+  fov: 90
+  pitch: 0
+  # Pricing (USD). Metadata calls are free. Check console.cloud.google.com for current prices.
+  price_per_1000_images_usd: 7.0
+  free_images_per_month: 10000
+  request_timeout_s: 20
+
+candidates:
+  street_sample_spacing_m: 10   # one metadata call per sample point along a segment
+  area_grid_spacing_m: 20       # sample grid inside parks and squares
+
+selection:
+  max_photos: 3
+  max_age_years: 5              # older photos are dropped when a newer one exists for the segment
+  max_distance_to_segment_m: 15 # pano must be this close to the segment line (or inside the area)
+  min_spacing_m: 10             # kept photos must be at least this far apart ("different spots")
+  indoor_building_inset_m: 1.5  # a photo inside an OSM building footprint (shrunk by this) is "indoor"
+  heading_tolerance_deg: 45     # Mapillary only (camera heading vs street direction); unused for Street View
+
+image_check:
+  # Run only with --check-images. Images are analysed in memory, never saved.
+  grid: 4                       # 4 x 4 tiles
+  min_sharp_share: 0.70         # brief: try 0.66-0.75
+  tile_min_laplacian_var: 60.0  # tile is "sharp" above this (8-bit greyscale); tune with review notes
+  tile_min_std: 12.0            # and not flat (a bus side or plain wall filling the tile)
+
+runs:
+  dir: runs/photos
