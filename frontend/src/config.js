@@ -25,4 +25,15 @@ export default {
   // Heat window shown before analysis (brief §6, Infrared.city windows).
   heatDefault: { season: 'summer', time: '15:00' },
   seasons: ['spring', 'summer', 'autumn', 'winter'],
+
+  // SenCity API. Empty = same origin (/api, proxied by Vite in development).
+  apiBase: import.meta.env.VITE_API_BASE ?? '',
+
+  // Search (brief §3): suggestions while typing, through the API (Photon).
+  search: {
+    minChars: 3,
+    debounceMs: 300,
+    placeZoom: 17, // zoom for a result without an extent (an address, a stop)
+    maxZoom: 18, // never zoom in further than this for a street or area
+  },
 }

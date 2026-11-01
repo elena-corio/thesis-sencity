@@ -9,7 +9,7 @@ test('account menu lines up with the top-right bar', async ({ page }) => {
   const bar = await page.locator('[data-panel="actions"]').boundingBox()
   for (const name of ['Your account']) {
     await page.getByRole('button', { name }).click()
-    const menu = await page.locator('[data-popover]').boundingBox()
+    const menu = await page.getByRole('dialog', { name: 'Your account' }).boundingBox()
     expect(Math.abs(menu.x + menu.width - (bar.x + bar.width)), `${name}: right edges`).toBeLessThan(2)
     expect(menu.y).toBeGreaterThan(bar.y + bar.height)
     await page.screenshot({ path: `e2e/screens/menu-account.png`,

@@ -92,6 +92,18 @@ Open http://127.0.0.1:8765/ and stop the server with Ctrl+C.
 - **Keep / Reject** on any photo saves your verdict, and the optional note, to `review_notes.csv` in the run folder. Click again to clear it. Use these notes to tune the filter thresholds.
 - **Costs:** every photo shown is one paid Street View image call. The page shows the total for the kept photos, and the server prints and logs each call. Images are never saved or cached, so reloading the page fetches them again.
 
+### `app`: the SenCity API
+
+The backend the app talks to. For now it has one endpoint, `POST /api/search`, which forwards address and place searches to Photon (komoot, OpenStreetMap data, no key). The search text travels in the request body and is never logged; access logs are off.
+
+```bash
+cd backend
+../.venv/Scripts/python -m app            # http://127.0.0.1:8000, Ctrl+C to stop
+../.venv/Scripts/python -m app --reload   # restarts when the code changes
+```
+
+Settings (Photon URL, minimum and maximum length, number of results, rate limit per IP, allowed browser origins) are in the `api` section of `config/tool.yaml`.
+
 ### Tests
 
 ```bash
@@ -99,37 +111,40 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 ```
 
-These test segment splitting and the selection rule on a small fixed sample. They make no API calls.
+These test segment splitting, the selection rule and the search endpoint (with a fake Photon). They make no API calls.
 
 ## Frontend
 
-The app: the map start screen and the two-click area selection (boards Flow 1, 1b, 1c), in dark and light. It makes no backend calls yet. Requires Node.js 20 or newer.
+The app: the map start screen, address search and the two-click area selection (boards Flow 1, 1b, 1c), in dark and light. Requires Node.js 20 or newer.
 
 ```bash
 cd frontend
 npm install                     # once
 npx playwright install chromium # once, for the screen checks
-npm run dev                     # http://localhost:5173/map
+npm run dev                     # starts the API too, and opens http://localhost:5173/map
 ```
+
+`npm run dev` also starts the SenCity API (`python -m app` in `backend/`, port 8000) and stops it when you stop the dev server; the terminal shows `[api] started`. If the API already runs on port 8000, it is reused. It needs the Python setup above (`.venv` at the repo root). Vite forwards `/api` to it, so the browser talks to one address only. Without the API, the map still works, and search says "Search is not available right now."
 
 | Command (in `frontend/`) | What it does |
 |---|---|
-| `npm run dev` | Starts the app and opens http://localhost:5173/map in your browser; reloads on every change |
+| `npm run dev` | Starts the API and the app, and opens http://localhost:5173/map in your browser; reloads on every change |
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
 | `npm test` | Unit tests for the radius maths (Vitest), no browser needed |
-| `npm run test:e2e` | Playwright: step screenshots, the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, and the keyboard walk-through. Starts the dev server itself if it is not running. |
+| `npm run test:e2e` | Playwright: step screenshots, the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, the keyboard walk-through, and search (with a mocked API, so the API need not run). Starts the dev server itself if it is not running. |
 
 **Using the map:**
+- Search: type at least 3 letters of a street, address or place, then pick a suggestion with the mouse, or with the arrow keys and Enter. The map moves there. Esc closes the list, a second Esc clears the text.
 - Click to place the centre of your area, move to set the radius, then click again to fix it.
 - Drag the edge to adjust. Esc or a right-click starts again.
 - **Analyse this area** stores the area (no backend yet).
 - Keyboard: Tab to the map, then Enter places the centre at the map centre, the arrow keys change the radius in 10 m steps, and Enter fixes it.
-- Phone: tap the centre, then drag or tap a second point.
+- Phone: tap the centre, then drag (the circle follows your finger; lift to fix it) or tap a second point. Press and drag also works with a mouse.
 
 **Where things are set:**
 - Colours, fonts and sizes, including the map tint and mask: `frontend/src/styles/style.css`.
-- Radius limits, start view and map style URLs: `frontend/src/config.js`.
+- Radius limits, start view, map style URLs and search timing: `frontend/src/config.js`.
 
 **Screenshots** from `npm run test:e2e` are saved in `frontend/e2e/screens/` (not committed).
 
@@ -149,5 +164,7 @@ npm run dev                     # http://localhost:5173/map
 | Results did not change after editing sampling or retry settings | The run folder reuses `metadata.json`. Add `--refresh`. |
 | The map stays empty, console says "Worker failed to load" | MapLibre must not be pre-bundled by Vite. Check that `vite.config.js` still has `optimizeDeps: { exclude: ['maplibre-gl'] }`, then delete `frontend/node_modules/.vite` and restart `npm run dev`. |
 | `Port 5173 is already in use` | Another dev server is running. Use it, or stop it and start again. |
+| Search says "Search is not available right now." | Look for `[api]` lines in the `npm run dev` terminal. "not started: no Python found" means the Python setup (`.venv`) is missing; "stopped (exit code …)" shows the error above it. If the API runs, Photon may be down; the map still works by clicking. |
+| Search says "Too many searches." | More than 30 searches a minute from one address. Wait a moment. |
 | Playwright: "Executable doesn't exist" | Run `npx playwright install chromium` in `frontend/`. |
 | Map tiles missing in the screen checks | The checks load real tiles from OpenFreeMap and need internet. |

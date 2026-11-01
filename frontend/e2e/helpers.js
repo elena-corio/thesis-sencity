@@ -45,6 +45,16 @@ export async function placeCentre(page, p) {
 export async function layoutProblems(page) {
   return page.evaluate(() => {
     const problems = []
+    // Open dropdowns and menus (data-popover) float over the map: they only have to fit the screen.
+    for (const el of document.querySelectorAll('[data-popover]')) {
+      if (!el.getClientRects().length) continue
+      const r = el.getBoundingClientRect()
+      if (r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) {
+        problems.push(`popover outside the viewport (${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)})`)
+      }
+    }
+    const hidden = [...document.querySelectorAll('[data-popover]')].map((el) => [el, el.style.display])
+    hidden.forEach(([el]) => { el.style.display = 'none' })
     const de = document.documentElement
     if (de.scrollHeight > innerHeight + 1 || de.scrollWidth > innerWidth + 1) {
       problems.push(`page scrolls: ${de.scrollWidth}×${de.scrollHeight} in ${innerWidth}×${innerHeight}`)
@@ -71,6 +81,7 @@ export async function layoutProblems(page) {
         }
       }
     }
+    hidden.forEach(([el, display]) => { el.style.display = display })
     return problems
   })
 }

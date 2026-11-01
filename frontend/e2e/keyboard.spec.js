@@ -89,3 +89,17 @@ test('account menu: System is there; Esc closes it and focus returns to the butt
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'Your account' })).toBeFocused()
 })
+
+test('clicking into the search shows no outline; Tab into it does', async ({ page }) => {
+  await openMap(page, 'dark')
+  const box = page.getByRole('combobox')
+  await box.click()
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none')
+  await page.keyboard.press('Escape')
+  await page.locator('canvas').focus()
+  for (let i = 0; i < 5 && !(await box.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('Tab')
+  }
+  await expect(box).toBeFocused()
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+})

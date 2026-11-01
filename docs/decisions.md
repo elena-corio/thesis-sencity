@@ -2,6 +2,24 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-01 – Address search: Photon through our API
+**Context.** The brief has "logo + search in one bar" and says search results scroll inside their own panel. It does not name a service or say what a result does.
+**Decision (Elena).**
+- *Service:* Photon (komoot, OpenStreetMap data, no key, built for suggestions while typing).
+- *Route:* through our FastAPI backend, `POST /api/search`, not straight from the browser. The search text can be someone's own address. This way Photon never sees the user's IP, and the browser only talks to our API (brief §10).
+- *Suggestions:* while typing, up to 5, after 3 letters and a 300 ms pause.
+- *Picking a result:* only moves the map there. A street or area is fitted to its extent; an address or stop gets zoom 17. The area is still chosen with two clicks.
+**Details (proposed).**
+- *Privacy:* the text goes in the request body, not the URL, so it does not appear in access logs or the browser history. The API runs with access logs off and logs only the error type, never the text.
+- *Ranking:* the map centre is sent as a bias, so nearby places come first (Vienna's Graben before other Grabens). Names are as in OpenStreetMap (German in Vienna).
+- *Limits:* 3 to 100 characters, 30 searches per minute per IP (in memory), 5 s timeout. All in the `api` section of `config/tool.yaml`.
+- *List:* the place type is shown before the detail line ("Pedestrian · Innere Stadt, Wien"), because several results often share a name.
+- *Keyboard:* arrow keys, Enter, Esc. The first Esc closes the list, the second clears the text, and Esc in search never resets the area. The focus outline goes around the whole search bar.
+- *Development:* `npm run dev` also starts the API (a small Vite plugin, `frontend/dev-api.js`, no new dependency) and stops it with the dev server. Vite forwards `/api` to the API on port 8000. In production `VITE_API_BASE` points to the Render API, and `api.cors_origins` must list the site.
+- *Messages:* "No places found for "…". Try another spelling, or choose an area on the map." and "Search is not available right now. You can still choose an area on the map."
+**Alternatives.** Nominatim (no search-as-you-type on the public server); a paid service (key and cost); calling Photon straight from the browser (Photon would see the user's IP and the text).
+**Consequences.** Search needs the API running (`python -m app`). Without it, the map still works and search says so. Photon's public server has fair-use limits; for the public release, check them or host Photon. The privacy notice should name Photon (komoot, Germany) as a recipient of search text.
+
 ## 2026-11-01 – Desktop: the sun/moon switches the theme directly
 **Context.** Elena tried the Appearance popover and did not want a menu there.
 **Decision (Elena).** On desktop, one click on the sun/moon switches between light and dark and remembers the choice on this device. "System" (follow the device) stays available in the account menu, as on the phone (board P5). This replaces the popover in the entry below.
@@ -35,7 +53,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Edge handle:* hollow while the radius is being chosen (1b), filled and draggable once set (1c). The chip shows "180 m / max 500 m" in 1b, a small "180 m" label in 1c, and turns amber with "500 m, maximum" past the cap.
 - *Radius:* the ground distance (haversine) is rounded to 10 m, then snapped up to 50 m or stopped at 500 m. The stored radius is the rounded value, so the circle and the chip always agree.
 - *Mouse:* after the first click, the circle grows from 50 m with the pointer. Dragging still pans the map.
-- *Touch:* after the first tap, a one-finger drag sets the radius (map panning is paused) and lifting the finger fixes it. A second tap also fixes it. The chip sits 64 px above the finger.
+- *Press and drag (touch, pen or mouse):* after the first tap or click, pressing and dragging sets the radius live and releasing fixes it; map panning is paused for that gesture. It is decided per gesture from the pointer type, not from the device, so it also works in a desktop browser's phone preview (fixed 2026-11-01, Elena found the radius only changed on the second tap there). A second tap or click also fixes it. With a finger, the chip sits 64 px above it.
 - *Keyboard:* the map canvas takes Enter, the arrow keys (only once a centre is placed) and Esc. The handle starts at 60° (north-east, as on the boards). After Enter fixes the radius, focus moves to "Analyse this area"; after Analyse, to "Change area".
 - *Map layers:* the tint and lit circle go under the street labels, so names stay readable. The mask goes over them, so everything outside is dimmed (brief §2).
 - *Pan to the circle:* after the circle is fixed, if the card, sheet or other panels cover it, the map pans (and zooms out if needed) so the whole circle is in the free space.

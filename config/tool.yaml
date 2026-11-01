@@ -96,3 +96,14 @@ image_check:
 
 runs:
   dir: runs/photos
+
+# Backend API (backend/app). The browser only calls this API (brief §10).
+api:
+  cors_origins: ["http://localhost:5173"]   # the Vite dev server; add the Render site URL when deployed
+  search:
+    provider_url: https://photon.komoot.io/api/   # Photon (komoot, OpenStreetMap data, no key)
+    min_chars: 3
+    max_chars: 100
+    limit: 5
+    timeout_s: 5
+    rate_per_minute: 30        # per IP, keeps us within Photon's fair use

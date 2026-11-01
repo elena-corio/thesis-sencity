@@ -109,15 +109,37 @@ function onContextMenu(e) {
   if (area.step === 'radius' || area.step === 'set') area.reset()
 }
 
-// Phone: after the first tap, a one-finger drag sets the radius; lifting the finger fixes it.
-function onTouchMove(e) {
-  if (area.step !== 'radius' || e.points.length !== 1) return
-  touchMode.value = true
-  touchMoved = true
-  setRadiusTo(lngLatToPoint(e.lngLat))
+// Step 2: press and drag sets the radius live; releasing fixes it (phone: "drag or tap a second
+// point"). Decided per gesture from the pointer type, not from the device, so it also works in a
+// desktop browser's phone preview. Listeners run in the capture phase, before the map's own panning.
+let sizing = null // { id, x, y } while a finger, pen or mouse is down in step 2
+const MOVE_PX = 6 // below this, the gesture is a tap or click (handled by onClick)
+
+function pointInMap(e) {
+  const rect = container.value.getBoundingClientRect()
+  return lngLatToPoint(map.value.unproject([e.clientX - rect.left, e.clientY - rect.top]))
 }
-function onTouchEnd() {
-  if (area.step === 'radius' && touchMoved) area.fix()
+function onSizeDown(e) {
+  touchMoved = false
+  if (area.step !== 'radius' || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return
+  sizing = { id: e.pointerId, x: e.clientX, y: e.clientY }
+  touchMode.value = e.pointerType !== 'mouse'
+  map.value.dragPan.disable()
+}
+function onSizeMove(e) {
+  if (!sizing || e.pointerId !== sizing.id) return
+  if (!touchMoved && Math.hypot(e.clientX - sizing.x, e.clientY - sizing.y) < MOVE_PX) return
+  touchMoved = true
+  setRadiusTo(pointInMap(e))
+}
+function onSizeUp(e) {
+  if (!sizing || e.pointerId !== sizing.id) return
+  sizing = null
+  map.value.dragPan.enable()
+  if (touchMoved && area.step === 'radius') {
+    setRadiusTo(pointInMap(e))
+    area.fix()
+  }
 }
 
 // Edge handle (Flow 1c): drag to adjust, same limits.
@@ -179,12 +201,6 @@ watch(() => theme.resolved, (t) => {
   map.value?.setStyle(config.mapStyles[t], { diff: false })
 })
 
-// Phone: a finger drag sets the radius instead of moving the map while the radius is being chosen.
-watch(() => area.step, (step) => {
-  if (!map.value) return
-  if (step === 'radius' && !finePointer.value) map.value.dragPan.disable()
-  else if (!dragging.value) map.value.dragPan.enable()
-})
 
 // Once the circle is fixed, the card (or the phone sheet) appears: pan so the whole circle
 // stays visible in the space the panels leave free.
@@ -259,14 +275,16 @@ onMounted(() => {
   m.on('mousemove', onMouseMove)
   m.on('mouseout', onMouseOut)
   m.on('contextmenu', onContextMenu)
-  m.on('touchmove', onTouchMove)
-  m.on('touchend', onTouchEnd)
   m.once('idle', () => { document.documentElement.dataset.mapReady = 'true' })
 
   const canvas = m.getCanvas()
   canvas.setAttribute('aria-label',
     'Map. Press Enter to place the centre of your area at the map centre, then the arrow keys to change the radius and Enter to fix it.')
   container.value.addEventListener('keydown', onKeyDown, true)
+  container.value.addEventListener('pointerdown', onSizeDown, true)
+  container.value.addEventListener('pointermove', onSizeMove, true)
+  container.value.addEventListener('pointerup', onSizeUp, true)
+  container.value.addEventListener('pointercancel', onSizeUp, true)
   window.addEventListener('keydown', onWindowKey)
   window.__sencityMap = m // for the Playwright checks
 })
@@ -289,7 +307,26 @@ function recentre() {
   }
 }
 function focusMap() { map.value?.getCanvas().focus() }
-defineExpose({ zoomIn, zoomOut, recentre, focusMap })
+
+/** Map centre, for ranking search results near the current view. */
+function getCentre() {
+  const c = map.value?.getCenter()
+  return c ? { lat: c.lat, lon: c.lng } : null
+}
+
+/** Search result: move the map there (the area is still chosen with two clicks). */
+function flyToPlace(place) {
+  const m = map.value
+  if (!m) return
+  const animate = !reducedMotion.value
+  if (place.bbox) {
+    m.fitBounds(place.bbox, { padding: freePadding(), maxZoom: config.search.maxZoom, animate })
+  } else {
+    m.flyTo({ center: [place.lon, place.lat], zoom: Math.max(m.getZoom(), config.search.placeZoom), animate })
+  }
+}
+
+defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
 </script>
 
 <template>
