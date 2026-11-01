@@ -34,6 +34,11 @@ osm:
     road_highways: [primary, secondary, tertiary, unclassified, residential, living_street, service]
     distance_m: 12
     min_share: 0.8
+  # Courtyards (Elena, 2026-11-01): an unnamed area whose edge runs mostly along buildings is skipped,
+  # since courtyards are often private and their photos are often interiors. Named ones are kept.
+  courtyard:
+    min_enclosed_share: 0.5   # share of the area's edge within building_distance_m of a building
+    building_distance_m: 2
   # Areas: parks and squares that intersect the circle, clipped at its edge.
   area_tags:
     leisure: [park]

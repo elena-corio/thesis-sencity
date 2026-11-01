@@ -2,6 +2,12 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-01 – Courtyards are skipped
+**Context.** Elena's suggestion after review: courtyards are often private, and their photos were interiors. OSM has no reliable courtyard tag; both problem areas were unnamed pedestrian areas, while every named square was fine. How enclosed an area is alone does not separate them (named squares 59–64%, the unnamed areas 54% and 79%).
+**Decision.** A park, square or pedestrian area is skipped as a "courtyard" when it has no name and at least 50% of its edge lies within 2 m of a building footprint. Named areas are always kept, and paths through courtyards (passages) stay as street segments. Config: `osm.courtyard`.
+**Alternatives.** Skipping every unnamed pedestrian area (would also drop open plazas without a name); a size limit (courtyards and small plazas overlap in size).
+**Consequences.** At 200 m, 1 area was skipped (the 91 m² courtyard with the "© IMPULS" interior). The rule uses the area's full outline, not the part inside the circle. The other unnamed area (`relation/20221102`) is only 23% enclosed on its full outline, so it stays; its only photo is already rejected as indoor. Public unnamed courtyards are lost too.
+
 ## 2026-11-01 – Image classifier when the AI rating is added (planned)
 **Context.** After the indoor rule, review still found an interior: a contributor photo ("© IMPULS", 2022-09) in a 91 m² courtyard (`way/867514530`, `highway=pedestrian` area). It sits in the open courtyard, not inside a footprint. Both contributor fallback photos kept at 200 m were interiors.
 **Decision.** When the AI rating is built (W06–W07), the rating call also returns whether the photo is an outdoor view of a public space and is usable. A photo that fails is rejected like the 70% rule, and the next ranked photo takes its place. This adds no image calls, because the image is already sent for rating.

@@ -87,3 +87,15 @@ def test_isolated_short_piece_is_kept_and_no_length_is_lost():
     out = merge_short(pieces, 10)
     assert {p.id for p in out} == {"a", "lonely"}
     assert round(sum(p.line.length for p in out), 6) == round(sum(p.line.length for p in pieces), 6)
+
+
+def test_courtyard_rule_skips_only_unnamed_enclosed_areas():
+    from shapely.geometry import box
+    from tool.osm import is_courtyard
+    cfg = {"osm": {"courtyard": {"min_enclosed_share": 0.5, "building_distance_m": 2}}}
+    yard = box(0, 0, 10, 10)
+    # Buildings on three sides of the yard.
+    buildings = box(-10, -10, 0, 20).union(box(10, -10, 20, 20)).union(box(0, 10, 10, 20))
+    assert is_courtyard({"highway": "pedestrian"}, yard, buildings, cfg)
+    assert not is_courtyard({"highway": "pedestrian", "name": "Heiligenkreuzerhof"}, yard, buildings, cfg)
+    assert not is_courtyard({"highway": "pedestrian"}, yard, box(-10, -10, 0, 20), cfg)  # one side only

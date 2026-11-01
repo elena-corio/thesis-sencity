@@ -70,9 +70,8 @@ def _post(query: str, osm: dict) -> dict:
     return resp.json()
 
 
-def parse_buildings(data: dict, proj: LocalProjection, inset_m: float):
-    """Union of building footprints, shrunk by inset_m so a street photo taken right
-    against a facade (GPS error) is not counted as indoor."""
+def parse_buildings(data: dict, proj: LocalProjection, inset_m: float = 0):
+    """Union of building footprints, optionally shrunk by inset_m."""
     polys = []
     for el in data.get("elements", []):
         if el["type"] == "way" and len(el.get("geometry", [])) >= 4:
@@ -84,7 +83,8 @@ def parse_buildings(data: dict, proj: LocalProjection, inset_m: float):
             polys.extend(polygonize(linemerge(outers)) if outers else [])
     if not polys:
         return None
-    return unary_union(polys).buffer(-inset_m)
+    union = unary_union(polys)
+    return union.buffer(-inset_m) if inset_m else union
 
 
 def _excluded(tags: dict, exclude: dict) -> str | None:
@@ -159,8 +159,22 @@ def parse(data: dict, proj: LocalProjection, cfg: dict):
     return ways, node_xy, areas, dropped
 
 
-def build_segments(ways, node_xy, areas, circle: Polygon, cfg: dict) -> list[Segment]:
+def is_courtyard(tags: dict, poly: Polygon, buildings, cfg: dict) -> bool:
+    """An unnamed area whose edge runs mostly along buildings: likely a courtyard,
+    often private and photographed from inside. Named squares and courtyards are kept."""
+    c = cfg["osm"]["courtyard"]
+    if buildings is None or tags.get("name"):
+        return False
+    ring = poly.boundary  # the whole area, not clipped to the circle; works for multipolygons too
+    return ring.intersection(buildings.buffer(c["building_distance_m"])).length / ring.length >= c["min_enclosed_share"]
+
+
+def build_segments(ways, node_xy, areas, circle: Polygon, cfg: dict, buildings=None,
+                   dropped: dict | None = None) -> list[Segment]:
+    """Street and area segments. buildings (footprint union, local metres) enables the courtyard rule;
+    dropped areas are counted in `dropped`."""
     seg_cfg = cfg["segments"]
+    dropped = dropped if dropped is not None else {}
     by_id = {w.id: w for w in ways}
     segments: list[Segment] = []
     pieces: list[Piece] = []
@@ -187,6 +201,9 @@ def build_segments(ways, node_xy, areas, circle: Polygon, cfg: dict) -> list[Seg
             clipped = max(clipped.geoms, key=lambda g: g.area)
         if any(clipped.intersection(k).area / min(clipped.area, k.area) >= seg_cfg["max_area_overlap"]
                for k in kept_areas):
+            continue
+        if is_courtyard(tags, poly, buildings, cfg):
+            dropped["courtyard"] = dropped.get("courtyard", 0) + 1
             continue
         kept_areas.append(clipped)
         kind = tags.get("leisure") or tags.get("place") or tags.get("highway") or "area"

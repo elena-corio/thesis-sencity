@@ -14,6 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from shapely.geometry import Point, mapping, shape
+from shapely.prepared import prep
 
 from . import image_check
 from .candidates import candidates_for, query_photos
@@ -85,8 +86,19 @@ def main():
         log("OSM: querying Overpass…")
         data = fetch_overpass(args.lat, args.lon, args.radius, cfg)
         osm_path.write_text(json.dumps(data), encoding="utf-8")
+    # Building footprints, for the courtyard rule and the indoor test (cached separately).
+    bld_path = run_dir / "buildings.json"
+    if bld_path.exists() and not args.refresh:
+        bld_data = json.loads(bld_path.read_text(encoding="utf-8"))
+    else:
+        log("OSM: querying building footprints…")
+        bld_data = fetch_buildings(args.lat, args.lon, args.radius, cfg)
+        bld_path.write_text(json.dumps(bld_data), encoding="utf-8")
+    footprints = parse_buildings(bld_data, proj, 0)
+    log(f"OSM: {len(bld_data.get('elements', []))} building footprints")
+
     ways, node_xy, areas, dropped = parse(data, proj, cfg)
-    segments = build_segments(ways, node_xy, areas, area_poly, cfg)
+    segments = build_segments(ways, node_xy, areas, area_poly, cfg, footprints, dropped)
     n_street = sum(s.kind == "street" for s in segments)
     log(f"OSM: {len(ways)} walkable ways, {len(areas)} parks/squares; dropped {dict(sorted(dropped.items()))}")
     log(f"segments: {len(segments)} ({n_street} street, {len(segments) - n_street} park/square)")
@@ -119,19 +131,10 @@ def main():
         f"{stats.get('retry_points', 0)}, of which the retry found an official pano {stats.get('retry_found_official', 0)}")
     metadata_calls = (new_calls, earlier_calls + new_calls)
 
-    # Building footprints for the indoor test (cached separately, so adding them needs no new metadata calls).
-    bld_path = run_dir / "buildings.json"
-    if bld_path.exists() and not args.refresh:
-        bld_data = json.loads(bld_path.read_text(encoding="utf-8"))
-    else:
-        log("OSM: querying building footprints…")
-        bld_data = fetch_buildings(args.lat, args.lon, args.radius, cfg)
-        bld_path.write_text(json.dumps(bld_data), encoding="utf-8")
-    buildings = parse_buildings(bld_data, proj, cfg["selection"]["indoor_building_inset_m"])
-    if buildings is not None:
-        from shapely.prepared import prep
-        buildings = prep(buildings)
-    log(f"OSM: {len(bld_data.get('elements', []))} building footprints for the indoor test")
+    # Indoor test: footprints shrunk a little, so photos right against a facade still count as outdoor.
+    buildings = None
+    if footprints is not None:
+        buildings = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"]))
 
     kinds = {s.id: s.kind for s in segments}
     cands = {s.id: candidates_for(s, found.get(s.id, []), proj, buildings) for s in segments}
