@@ -26,9 +26,18 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Street View images must never be stored (Google Maps Platform terms)
+# Run outputs and data (never committed, CLAUDE.md)
+runs/
+data/
+
+# Images: Street View images must never be stored (Google Maps Platform terms).
+# Only the design canvas screenshots are committed.
 *.jpg
 *.jpeg
+*.png
+*.webp
+*.gif
+*.heic
 !design/**
 
 # Logs and caches

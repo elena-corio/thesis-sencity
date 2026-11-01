@@ -1,0 +1,1 @@
+"""Street photo sources."""

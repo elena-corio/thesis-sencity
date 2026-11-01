@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo review</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root { --ground:#eef3f4; --panel:#fff; --line:#d6e3e6; --text:#13232a; --muted:#5f7f86; --accent:#15474a;
+          --easy:#40c5e8; --hard:#c2306a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 Inter, system-ui, sans-serif; background:var(--ground); color:var(--text);
+         display:grid; grid-template-columns: minmax(320px, 40%) 1fr; height:100dvh; }
+  #map { height:100dvh; position:sticky; top:0; }
+  main { overflow-y:auto; padding:16px 20px 60px; }
+  h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:14px; margin:0; }
+  .muted { color:var(--muted); font-size:12px; }
+  .flag { display:inline-block; font-size:11px; font-weight:600; padding:1px 6px; border-radius:6px; background:#fff4e0; border:1px solid #f0d29a; margin-bottom:3px; }
+  .warn { background:#fff4e0; border:1px solid #f0d29a; border-radius:10px; padding:8px 10px; margin:10px 0; }
+  .seg { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin:12px 0; }
+  .seg.active { outline:2px solid var(--accent); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; margin-top:8px; }
+  .photo { border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--ground); }
+  .photo .img { aspect-ratio:1; background:#dfe8ea; display:flex; align-items:center; justify-content:center; position:relative; }
+  .photo img { width:100%; height:100%; object-fit:cover; display:block; }
+  .credit { position:absolute; right:6px; bottom:4px; color:#fff; font-size:11px; text-shadow:0 0 3px #000; }
+  .photo .meta { padding:6px 8px; font-size:12px; }
+  .toggle { display:flex; gap:6px; margin-top:6px; }
+  .toggle button { flex:1; border:1px solid var(--line); background:#fff; border-radius:8px; padding:4px; cursor:pointer; font:inherit; }
+  .toggle button[aria-pressed="true"].keep { background:var(--easy); border-color:var(--easy); }
+  .toggle button[aria-pressed="true"].reject { background:var(--hard); border-color:var(--hard); color:#fff; }
+  .photo input { width:100%; margin-top:6px; font:inherit; font-size:12px; padding:3px 5px; border:1px solid var(--line); border-radius:6px; }
+  details { margin-top:8px; } summary { cursor:pointer; color:var(--muted); }
+  .load { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; font:inherit; }
+  button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  @media (max-width: 800px) { body { grid-template-columns:1fr; height:auto; } #map { height:45vh; position:relative; } }
+</style>
+</head>
+<body>
+<div id="map" aria-label="Map of the circle with segments and photo points"></div>
+<main>
+  <h1>Photo review</h1>
+  <div id="summary" class="muted"></div>
+  <div class="warn" id="cost"></div>
+  <div class="muted" id="status">Keep / reject saves to review_notes.csv in the run folder.</div>
+  <div id="segments"></div>
+</main>
+<script>
+const DATA = /*__DATA__*/null;
+const S = DATA.summary;
+S.kept_official ??= S.kept; S.kept_contributor ??= 0;
+const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); Object.assign(e, attrs); if (text != null) e.textContent = text; return e; };
+const key = p => `${p.segment_id}|${p.pano_id}|${p.heading}`;
+let notes = {};
+
+document.getElementById('summary').textContent =
+  `${S.lat}, ${S.lon} · radius ${S.radius_m} m · ${S.segments} segments (${S.segments_with_photo} with a photo) · ` +
+  `${S.candidates} candidates · ${S.kept} kept (${S.kept_official} official, ${S.kept_contributor} contributor) · run ${S.date}`;
+document.getElementById('cost').textContent =
+  `Every photo shown is one paid Street View image call (about $${(S.review_cost_kept_usd / Math.max(S.kept, 1)).toFixed(4)} each). ` +
+  `Kept photos load as you scroll (${S.kept} in total, about $${S.review_cost_kept_usd.toFixed(2)}); rejected photos load only when you ask. ` +
+  `Images are not cached: reloading the page loads them again.`;
+
+function imgUrl(p) { return `/image?pano=${encodeURIComponent(p.pano_id)}&heading=${encodeURIComponent(p.heading)}`; }
+
+function photoCard(p, loadNow) {
+  const card = el('div', { className: 'photo' });
+  const box = el('div', { className: 'img' });
+  const showImg = () => {
+    box.textContent = '';
+    box.append(el('img', { src: imgUrl(p), loading: 'lazy', alt: `Street View photo ${p.pano_id}, heading ${p.heading}°` }),
+               el('span', { className: 'credit' }, p.photo_type === 'contributor' ? 'Google · contributor photo' : '© Google'));
+  };
+  if (loadNow) showImg();
+  else { const b = el('button', { className: 'load', type: 'button' }, 'Load photo (1 image call)'); b.onclick = showImg; box.append(b); }
+  card.append(box);
+  const meta = el('div', { className: 'meta' });
+  if (p.photo_type === 'contributor') meta.append(el('div', { className: 'flag' }, 'Contributor photo'));
+  meta.append(el('div', {}, `${p.date || 'no date'} · heading ${p.heading}° · ${p.status}${p.reason ? ': ' + p.reason : ''}`));
+  meta.append(el('div', { className: 'muted' }, `rank ${p.rank || '–'} · ${p.dist_to_segment_m} m from line · ${p.dist_to_midpoint_m} m from middle` +
+                                                (p.sharp_share !== '' ? ` · sharp ${Math.round(p.sharp_share * 100)}%` : '')));
+  meta.append(el('div', { className: 'muted' }, p.pano_id));
+  const t = el('div', { className: 'toggle', role: 'group', ariaLabel: 'Your verdict' });
+  const k = el('button', { className: 'keep', type: 'button' }, 'Keep');
+  const r = el('button', { className: 'reject', type: 'button' }, 'Reject');
+  const note = el('input', { type: 'text', placeholder: 'Note (optional)', ariaLabel: 'Note' });
+  const paint = () => { const v = (notes[key(p)] || {}).verdict; k.setAttribute('aria-pressed', v === 'keep'); r.setAttribute('aria-pressed', v === 'reject'); note.value = (notes[key(p)] || {}).note || ''; };
+  const save = (verdict) => {
+    const body = { segment_id: p.segment_id, pano_id: p.pano_id, heading: p.heading, pipeline_status: p.status,
+                   pipeline_reason: p.reason, verdict: verdict ?? ((notes[key(p)] || {}).verdict || ''), note: note.value };
+    fetch('/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(res => { if (!res.ok) throw new Error(res.status); notes[key(p)] = body; paint(); setStatus('Saved.'); })
+      .catch(() => setStatus('Could not save. Is tool.review_server running?'));
+  };
+  k.onclick = () => save((notes[key(p)] || {}).verdict === 'keep' ? '' : 'keep');
+  r.onclick = () => save((notes[key(p)] || {}).verdict === 'reject' ? '' : 'reject');
+  note.onchange = () => save();
+  t.append(k, r);
+  meta.append(t, note);
+  card.append(meta);
+  card.paint = paint;
+  return card;
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+const cards = [];
+function render() {
+  const root = document.getElementById('segments');
+  const bySeg = {};
+  for (const p of DATA.photos) (bySeg[p.segment_id] ||= []).push(p);
+  for (const f of DATA.segments.features) {
+    const sp = f.properties;
+    const list = bySeg[sp.segment_id] || [];
+    const kept = list.filter(p => p.status === 'kept');
+    const rejected = list.filter(p => p.status !== 'kept');
+    const sec = el('section', { className: 'seg', id: 'seg-' + sp.segment_id });
+    sec.append(el('h2', {}, `${sp.name || '(no name)'} · ${sp.kind === 'street' ? sp.highway + ', ' + sp.length_m + ' m' : sp.highway + ', ' + sp.area_m2 + ' m²'}`));
+    sec.append(el('div', { className: 'muted' }, `${sp.segment_id} · ${kept.length} kept of ${list.length} candidates`));
+    if (kept.length) { const g = el('div', { className: 'grid' }); kept.forEach(p => { const c = photoCard(p, true); cards.push(c); g.append(c); }); sec.append(g); }
+    else sec.append(el('div', { className: 'muted' }, 'No photo kept for this segment.'));
+    if (rejected.length) {
+      const d = el('details');
+      const counts = {};
+      rejected.forEach(p => counts[p.reason] = (counts[p.reason] || 0) + 1);
+      d.append(el('summary', {}, `Rejected (${rejected.length}): ` + Object.entries(counts).map(([r, n]) => `${r} ${n}`).join(', ')));
+      const g = el('div', { className: 'grid' });
+      rejected.forEach(p => { const c = photoCard(p, false); cards.push(c); g.append(c); });
+      d.append(g);
+      sec.append(d);
+    }
+    root.append(sec);
+  }
+}
+
+render();
+fetch('/notes').then(r => r.ok ? r.json() : []).then(rows => {
+  for (const n of rows) notes[`${n.segment_id}|${n.pano_id}|${n.heading}`] = n;
+  cards.forEach(c => c.paint());
+}).catch(() => setStatus('Open this page through tool.review_server to load photos and save notes.'));
+
+// Map: circle, segments, photo points. Clicking a segment scrolls to its photos.
+const points = { type: 'FeatureCollection', features: [] };
+const seenPt = new Set();
+for (const p of DATA.photos) {
+  const id = p.pano_id + p.segment_id;
+  if (seenPt.has(id) && p.status !== 'kept') continue;
+  seenPt.add(id);
+  points.features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [+p.lon, +p.lat] }, properties: { kept: p.status === 'kept' ? 1 : 0, seg: p.segment_id } });
+}
+const ring = [];
+for (let i = 0; i <= 64; i++) {
+  const a = 2 * Math.PI * i / 64, dLat = S.radius_m * Math.cos(a) / 111320, dLon = S.radius_m * Math.sin(a) / (111320 * Math.cos(S.lat * Math.PI / 180));
+  ring.push([S.lon + dLon, S.lat + dLat]);
+}
+const map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', center: [S.lon, S.lat], zoom: 16.5, pitch: 0 });
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+map.on('load', () => {
+  map.addSource('circle', { type: 'geojson', data: { type: 'Polygon', coordinates: [ring] } });
+  map.addLayer({ id: 'circle', type: 'line', source: 'circle', paint: { 'line-color': '#15474a', 'line-dasharray': [2, 2], 'line-width': 1.5 } });
+  map.addSource('segments', { type: 'geojson', data: DATA.segments });
+  map.addLayer({ id: 'areas', type: 'fill', source: 'segments', filter: ['==', ['get', 'kind'], 'area'], paint: { 'fill-color': '#40c5e8', 'fill-opacity': 0.15 } });
+  map.addLayer({ id: 'streets', type: 'line', source: 'segments', filter: ['==', ['get', 'kind'], 'street'],
+    paint: { 'line-color': ['case', ['>', ['length', ['get', 'pano_ids']], 0], '#40c5e8', '#8fb0b6'], 'line-width': 4, 'line-opacity': 0.8 } });
+  map.addSource('points', { type: 'geojson', data: points });
+  map.addLayer({ id: 'points', type: 'circle', source: 'points',
+    paint: { 'circle-radius': ['case', ['==', ['get', 'kept'], 1], 5, 3], 'circle-color': ['case', ['==', ['get', 'kept'], 1], '#15474a', '#b7cbd0'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+  for (const layer of ['streets', 'areas', 'points']) {
+    map.on('click', layer, e => {
+      const sid = e.features[0].properties.segment_id || e.features[0].properties.seg;
+      const sec = document.getElementById('seg-' + sid);
+      if (!sec) return;
+      document.querySelectorAll('.seg.active').forEach(s => s.classList.remove('active'));
+      sec.classList.add('active');
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
+  }
+});
+</script>
+</body>
+</html>
