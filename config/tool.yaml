@@ -97,6 +97,26 @@ image_check:
 runs:
   dir: runs/photos
 
+# Thermal comfort (brief §4, §5): Infrared.city thermal-comfort-index (UTCI, "feels like" °C, 1 m
+# ground grid), sampled onto the street segments. The 1–5 score and the limits live in the app,
+# because personal limits come from the profile, which stays in the browser.
+thermal:
+  analysis: thermal-comfort-index
+  default: {season: summer, time: "15:00"}
+  # Each season is one typical day of the weather file, at one hour (a fixed window, brief §5).
+  # Hours are the weather file's local standard time: no daylight-saving hour is added.
+  seasons:
+    spring: {month: 4, day: 15}
+    summer: {month: 7, day: 15}
+    autumn: {month: 10, day: 15}
+    winter: {month: 1, day: 15}
+  station_radius_km: 100     # nearest public weather station within this distance
+  max_jobs: 4                # refuse a run that would bill more (a 500 m circle is up to 4 tiles)
+  buffer_m: 4                # grid cells within this distance either side of a street line
+  percentile: 75             # the hotter part, so one unshaded stretch is not averaged away
+  cache_dir: runs/thermal    # per area and window: the grid (.npz) and the values per segment (.json)
+  rate_per_hour: 10          # new (not cached) thermal runs per IP; each one is billed
+
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:
   cors_origins: ["http://localhost:5173"]   # the Vite dev server; add the Render site URL when deployed
