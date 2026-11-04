@@ -46,8 +46,8 @@ test.describe('desktop', () => {
     expect(requests).toHaveLength(0) // under 3 letters: no request
 
     await box.fill('Graben')
-    await expect(page.getByRole('option')).toHaveCount(2)
-    await expect(page.getByRole('option').first()).toContainText('Pedestrian · Innere Stadt, Wien')
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2)
+    await expect(page.getByRole('listbox').getByRole('option').first()).toContainText('Pedestrian · Innere Stadt, Wien')
     expect(requests).toHaveLength(1) // typed fast: one request after the pause
     // The text travels in the body, never in the URL; the map centre ranks nearby places first.
     expect(requests[0].url).not.toContain('Graben')
@@ -57,7 +57,7 @@ test.describe('desktop', () => {
 
     await box.press('ArrowDown')
     await box.press('ArrowDown')
-    await expect(page.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('listbox').getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true')
     await box.press('Enter')
     await expect(page.getByRole('listbox')).toBeHidden()
     await expect(box).toHaveValue('Karlsplatz')
@@ -70,7 +70,7 @@ test.describe('desktop', () => {
   test('pointer pick of a street fits its extent', async ({ page }) => {
     await mockSearch(page)
     await openMap(page, 'light')
-    await page.getByRole('combobox').fill('Graben')
+    await page.getByRole('combobox', { name: /search/i }).fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).click()
     await waitForCentreNear(page, 48.2085, 16.3703)
     const c = await mapCentre(page)
@@ -85,7 +85,7 @@ test.describe('desktop', () => {
     await page.mouse.click(p.edge.x, p.edge.y)
     await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeVisible()
 
-    const box = page.getByRole('combobox')
+    const box = page.getByRole('combobox', { name: /search/i })
     await box.fill('Graben')
     await expect(page.getByRole('listbox')).toBeVisible()
     await box.press('Escape')
@@ -99,12 +99,12 @@ test.describe('desktop', () => {
   test('no results and errors say what to do', async ({ page }) => {
     await mockSearch(page, { results: [] })
     await openMap(page, 'dark')
-    await page.getByRole('combobox').fill('Xyzzyplatz')
+    await page.getByRole('combobox', { name: /search/i }).fill('Xyzzyplatz')
     await expect(page.getByRole('status').filter({ hasText: 'No places found' })).toContainText('Xyzzyplatz')
 
     await page.unroute('**/api/search')
     await mockSearch(page, { status: 502 })
-    await page.getByRole('combobox').fill('Graben')
+    await page.getByRole('combobox', { name: /search/i }).fill('Graben')
     await expect(page.getByText('Search is not available right now.')).toBeVisible()
   })
 })
@@ -115,9 +115,9 @@ test.describe('phone', () => {
   test('tap a suggestion; the list fits the screen', async ({ page }) => {
     await mockSearch(page)
     await openMap(page, 'light')
-    await page.getByRole('combobox').tap()
-    await page.getByRole('combobox').fill('Graben')
-    await expect(page.getByRole('option')).toHaveCount(2)
+    await page.getByRole('combobox', { name: /search/i }).tap()
+    await page.getByRole('combobox', { name: /search/i }).fill('Graben')
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/search-phone-light.png' })
     await page.getByRole('option', { name: /Karlsplatz/ }).tap()

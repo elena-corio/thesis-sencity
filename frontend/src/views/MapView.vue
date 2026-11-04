@@ -27,7 +27,8 @@ const hasCard = computed(() => area.step === 'set' || area.step === 'analysed')
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 const showLeft = computed(() => !phone.value && (wide.value || !hasCard.value))
 
-const loadingCard = computed(() => area.step === 'analysed' && (area.load === 'loading' || area.load === 'error'))
+const loadingCard = computed(() => area.step === 'analysed' &&
+  (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
 
 const getCentre = () => mapRef.value?.getCentre() ?? null
 const onPick = (place) => mapRef.value?.flyToPlace(place)
@@ -46,8 +47,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div v-if="showLeft" class="slot s-left"><LayerPanel /></div>
       <div class="slot s-hint"><StepHint /></div>
       <div class="slot s-card">
-        <LoadingCard v-if="loadingCard" />
-        <PlaceCard v-else-if="area.selectedId" />
+        <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
+        <PlaceCard v-if="area.selectedId" />
+        <LoadingCard v-else-if="loadingCard" />
         <AreaCard v-else @focus-map="mapRef?.focusMap()" />
       </div>
       <div class="slot s-season"><SeasonBar /></div>
@@ -67,8 +69,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       </div>
       <div v-if="!hasCard" class="slot s-p-hint"><StepHint phone /></div>
       <div class="slot s-p-sheet">
-        <LoadingCard v-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
-        <PlaceCard v-else-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
+        <PlaceCard v-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
+        <LoadingCard v-else-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
         <AreaCard v-else phone @focus-map="mapRef?.focusMap()">
           <MapAttribution class="in-sheet" in-sheet />
         </AreaCard>

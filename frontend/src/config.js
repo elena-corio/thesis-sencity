@@ -22,8 +22,17 @@ export default {
   // Kept photos per km² from the Stephansplatz 200 m run (234 photos in 0.126 km²).
   photosPerKm2: 1860,
 
-  // Heat window shown before analysis (brief §6, Infrared.city windows).
-  heatDefault: { season: 'summer', time: '15:00' },
+  // Thermal window shown before analysis (brief §6, Infrared.city windows).
+  thermalDefault: { season: 'summer', time: '15:00' },
+  // Feels-like °C to the two-sided 1–5 score (brief §4, standard UTCI stress categories):
+  // above heat[2] → 1, heat[1] → 2, heat[0] → 3; from cold[0] up to heat[0] → 5 (no stress);
+  // cold[1]–cold[0] → 4, cold[2]–cold[1] → 3, cold[3]–cold[2] → 2, below cold[3] → 1.
+  // Personal limits (from the profile) will shift these; not yet.
+  thermalLimits: { heat: [26, 32, 38], cold: [9, 0, -13, -27] },
+  // Walking speed for "2 min away" on the place card (about 4.8 km/h).
+  walkMetresPerMinute: 80,
+  // Wait this long after the last season or time change before asking for it (each new one is billed).
+  thermalDebounceMs: 700,
   seasons: ['spring', 'summer', 'autumn', 'winter'],
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).

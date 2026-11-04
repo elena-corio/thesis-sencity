@@ -56,3 +56,6 @@ data/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Photo specs of the study places
+docs/specs/

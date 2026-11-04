@@ -36,14 +36,19 @@ export function credit(photo) {
 }
 
 /** The nearest segment with photos, from the middle of this one. */
-export function nearestWithPhotos(feature, features) {
+/** The nearest other segment that passes keep(f), by distance between middles: { f, mid, d } or null. */
+export function nearest(feature, features, keep) {
   const from = midpoint(feature.geometry)
   let best = null
   for (const f of features) {
-    if (f === feature || !f.properties.photos?.length) continue
+    if (f === feature || f.properties.id === feature.properties.id || !keep(f)) continue
     const mid = midpoint(f.geometry)
     const d = haversine(from, mid)
     if (!best || d < best.d) best = { f, mid, d }
   }
   return best
+}
+
+export function nearestWithPhotos(feature, features) {
+  return nearest(feature, features, (f) => f.properties.photos?.length)
 }

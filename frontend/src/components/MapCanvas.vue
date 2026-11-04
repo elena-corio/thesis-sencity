@@ -7,7 +7,7 @@ import config from '../config.js'
 import { useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
-import { addSegmentLayers, HIT_LAYER, setSegments, setSegmentState } from '../map/segments.js'
+import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
 import { useAreaStore } from '../stores/area.js'
 import { useThemeStore } from '../stores/theme.js'
@@ -132,6 +132,9 @@ watch(() => area.selectedId, (id, old) => {
     restartPulse()
     nextTick(() => requestAnimationFrame(() => revealSelected(id)))
   }
+})
+watch(() => area.layer, (layer) => {
+  if (map.value) setSegmentLayer(map.value, layer)
 })
 watch(() => area.segments, (fc) => {
   if (map.value) setSegments(map.value, fc)
@@ -406,7 +409,7 @@ onMounted(() => {
 
   m.on('style.load', () => {
     addAreaLayers(m)
-    addSegmentLayers(m)
+    addSegmentLayers(m, area.layer)
     syncLayers()
     setSegments(m, area.segments)
     setSegmentState(m, area.selectedId, { selected: true }) // states are lost with the old style

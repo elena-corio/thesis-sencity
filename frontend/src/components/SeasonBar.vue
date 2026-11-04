@@ -1,37 +1,55 @@
 <script setup>
-// Season chips + time slider. Inactive until heat is ready (brief §3, season and time bar rule).
-// Desktop: one bar at the bottom centre. Phone: "Summer ▾" and the slider under the top bar.
+// Season chips + time slider. Active before analysis, where the choice is free and Analyse uses it, and
+// again once thermal is ready; inactive while an area or thermal is loading (brief §3, season and time
+// bar rule). Desktop: one bar at the bottom centre. Phone: a season menu and the slider under the top
+// bar. On a loaded area each new season or time is a billed run, so the slider asks only when let go.
+import { computed, ref, watch } from 'vue'
 import config from '../config.js'
+import { useAreaStore } from '../stores/area.js'
 
 defineProps({ phone: Boolean })
-const { season, time } = config.heatDefault
-const hour = Number(time.split(':')[0])
+const area = useAreaStore()
 const cap = (s) => s[0].toUpperCase() + s.slice(1)
+const hourOf = (time) => Number(time.split(':')[0])
+const timeOf = (hour) => `${String(hour).padStart(2, '0')}:00`
+
+const active = computed(() => area.windowActive)
+const label = computed(() => (active.value ? 'Season and time' : 'Season and time (available once this area has loaded)'))
+const season = computed(() => area.thermalWindow.season)
+// The slider's position while it is dragged, before the time is asked for.
+const hour = ref(hourOf(area.thermalWindow.time))
+watch(() => area.thermalWindow.time, (t) => { hour.value = hourOf(t) })
 </script>
 
 <template>
-  <div v-if="!phone" class="bar panel" data-panel="season" aria-label="Season and time (available once heat is ready)" role="group">
-    <div class="seasons inactive">
-      <button v-for="s in config.seasons" :key="s" type="button" class="season" :class="{ on: s === season }" disabled>
+  <div v-if="!phone" class="bar panel" data-panel="season" :aria-label="label" role="group">
+    <div class="seasons" :class="{ inactive: !active }">
+      <button v-for="s in config.seasons" :key="s" type="button" class="season" :class="{ on: s === season }"
+              :disabled="!active" :aria-pressed="s === season" @click="area.setThermalWindow({ season: s })">
         {{ cap(s) }}
       </button>
     </div>
     <span class="divider" aria-hidden="true" />
-    <label class="time inactive">
+    <label class="time" :class="{ inactive: !active }">
       <span class="visually-hidden">Time of day</span>
-      <input type="range" min="6" max="21" :value="hour" disabled />
-      <output>{{ time }}</output>
+      <input v-model.number="hour" type="range" min="6" max="21" :disabled="!active"
+             @change="area.setThermalWindow({ time: timeOf(hour) })" />
+      <output>{{ timeOf(hour) }}</output>
     </label>
   </div>
 
-  <div v-else class="phone-row" role="group" aria-label="Season and time (available once heat is ready)">
-    <button type="button" class="season-chip panel inactive" data-panel="season-chip" disabled>
-      {{ cap(season) }} <span aria-hidden="true">▾</span>
-    </button>
-    <label class="time-box panel inactive" data-panel="time">
+  <div v-else class="phone-row" role="group" :aria-label="label">
+    <div class="season-chip panel" :class="{ inactive: !active }" data-panel="season-chip">
+      <select :value="season" aria-label="Season" :disabled="!active"
+              @change="area.setThermalWindow({ season: $event.target.value })">
+        <option v-for="s in config.seasons" :key="s" :value="s">{{ cap(s) }}</option>
+      </select>
+    </div>
+    <label class="time-box panel" :class="{ inactive: !active }" data-panel="time">
       <span class="visually-hidden">Time of day</span>
-      <input type="range" min="6" max="21" :value="hour" disabled />
-      <output>{{ time }}</output>
+      <input v-model.number="hour" type="range" min="6" max="21" :disabled="!active"
+             @change="area.setThermalWindow({ time: timeOf(hour) })" />
+      <output>{{ timeOf(hour) }}</output>
     </label>
   </div>
 </template>
@@ -56,11 +74,12 @@ output {
 }
 
 .phone-row { display: flex; gap: var(--gap); flex: 1; min-width: 0; }
-.season-chip {
-  display: inline-flex; align-items: center; gap: var(--space-2);
-  height: var(--touch-phone); padding: 0 var(--space-4);
-  font-weight: var(--fw-semibold); color: var(--text);
+.season-chip { display: inline-flex; align-items: center; height: var(--touch-phone); padding: 0 var(--space-2); }
+.season-chip select {
+  height: 100%; border: 0; background: transparent; color: var(--text);
+  font: inherit; font-weight: var(--fw-semibold);
 }
+.season-chip option { background: var(--panel); color: var(--text); }
 .time-box {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2);
   height: var(--touch-phone); padding: 0 var(--space-2) 0 var(--space-3);

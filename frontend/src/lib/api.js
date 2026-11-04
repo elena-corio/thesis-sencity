@@ -42,8 +42,10 @@ export function kindLabel(kind) {
  * Street segments and their chosen photos for one circle (POST /api/area).
  * The answer is a stream of JSON lines; onEvent gets each event:
  * {type: "stage"} · {type: "segments", features, total} · {type: "segment", feature, done, total}
- * · {type: "done", area} · {type: "error", message}. Abort the signal to cancel.
- * @param {{lat:number, lon:number, radius:number}} area
+ * · {type: "done", area} · {type: "error", message}; then {type: "stage", stage: "thermal"}
+ * · {type: "thermal", season, time, station, values} or {type: "thermal_error", message}.
+ * Abort the signal to cancel.
+ * @param {{lat:number, lon:number, radius:number, season?:string, time?:string}} area
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
  */

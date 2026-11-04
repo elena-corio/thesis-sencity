@@ -1,11 +1,14 @@
 <script setup>
-// Place card (boards 2f, 2g; phone P2): the selected segment's photos. No ratings yet.
+// Place card (boards 2f, 2g; phone P2): the selected segment's photo and name. On the Thermal layer
+// (board 2e) the photo stays (Elena's choice) and the rest is thermal comfort only: how warm or cold it
+// feels, the state and why, the 1–5 bar and a cooler (or warmer) street nearby. No photo ratings yet.
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { photoUrl } from '../lib/api.js'
 import { formatMonth } from '../lib/geo.js'
-import { credit, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
+import { credit, nearest, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
+import { formatDegrees, isCold, thermalReason, walkMinutes } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 import PhotoViewer from './PhotoViewer.vue'
@@ -24,6 +27,15 @@ const photos = computed(() => p.value?.photos ?? [])
 const photo = computed(() => photos.value[index.value])
 const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.geometry.type) : ''))
 const dates = computed(() => [...new Set(photos.value.map((ph) => formatMonth(ph.date)))].join(', '))
+const STATE_LABEL = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
+const thermalView = computed(() => area.layer === 'thermal' && p.value?.utci != null)
+const cold = computed(() => thermalView.value && isCold(p.value.utci))
+/** The nearest street that feels better (a higher score), for "Cooler street nearby"; none if already easy. */
+const better = computed(() => {
+  if (!thermalView.value || p.value.thermal_state === 'easy') return null
+  const score = p.value.thermal_score
+  return nearest(feature.value, area.segments.features, (f) => f.properties.thermal_score > score)
+})
 const alongWord = computed(() => (feature.value?.geometry.type === 'Polygon' ? 'in this place' : 'along this street'))
 
 watch(() => area.selectedId, () => {
@@ -99,31 +111,64 @@ watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn
       </div>
     </div>
 
-    <template v-if="photo">
-      <div class="thumbs-row">
-        <div v-if="photos.length > 1" class="thumbs" role="group" aria-label="Photos of this street">
-          <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
-                  :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
-                  @click="index = i">
-            <img v-if="!failed.has(i)" :src="photoUrl(ph)" alt="" @error="onImgError(i)" />
+    <template v-if="thermalView">
+      <div class="thermal" data-testid="thermal">
+        <p class="t-meta">
+          This {{ feature.geometry.type === 'Polygon' ? 'place' : 'street stretch' }},
+          {{ area.thermalInfo?.season }}, {{ area.thermalInfo?.time }}
+        </p>
+        <p class="temp"><strong>{{ formatDegrees(p.utci) }}</strong> feels like</p>
+        <p class="verdict">
+          <span class="swatch" :style="{ background: `var(--${p.thermal_state})` }" />
+          <strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong>
+          <span class="muted">{{ thermalReason(p.utci) }}</span>
+        </p>
+        <div class="scale" role="img" :aria-label="`Thermal: ${STATE_LABEL[p.thermal_state]}, ${p.thermal_score} of 5`">
+          <div class="scale-head">
+            <span>Thermal · general</span>
+            <span><strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong> · {{ p.thermal_score }} of 5</span>
+          </div>
+          <div class="track"><span class="diamond" :style="{ left: `${(p.thermal_score - 1) * 25}%` }" /></div>
+          <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
+        </div>
+        <div v-if="better" class="nearby">
+          <p class="nearby-title">{{ cold ? 'Warmer' : 'Cooler' }} street nearby</p>
+          <button type="button" class="nearby-link" @click="area.select(better.f.properties.id, better.mid)">
+            <span class="swatch" :style="{ background: `var(--${better.f.properties.thermal_state})` }" />
+            {{ better.f.properties.name }}, {{ walkMinutes(better.d) }} min away, {{ formatDegrees(better.f.properties.utci) }}
           </button>
         </div>
-        <div class="along">
-          <p>{{ photos.length }} photo{{ photos.length > 1 ? 's' : '' }} {{ alongWord }}</p>
-          <p class="muted">{{ dates }}</p>
-        </div>
+        <p class="foot">A simulation of sun, shade and wind, not a measurement. A prediction, not a reason.</p>
       </div>
-      <p class="photo-line">
-        Photo {{ index + 1 }} of {{ photos.length }} · {{ photoLine(photo) }}
-        <span v-if="photo.contributor" class="flag">Contributor photo</span>
-      </p>
-      <p class="not-rated">Not rated yet. Ratings come in the next step.</p>
     </template>
 
-    <template v-else-if="p.photos != null">
-      <p class="why">No street photo here yet, so this street will have no Senses or Overall rating.</p>
-      <button type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
-      <p class="muted small">We never guess between photos: streets without one stay unlit.</p>
+    <template v-else>
+      <template v-if="photo">
+        <div class="thumbs-row">
+          <div v-if="photos.length > 1" class="thumbs" role="group" aria-label="Photos of this street">
+            <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
+                    :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
+                    @click="index = i">
+              <img v-if="!failed.has(i)" :src="photoUrl(ph)" alt="" @error="onImgError(i)" />
+            </button>
+          </div>
+          <div class="along">
+            <p>{{ photos.length }} photo{{ photos.length > 1 ? 's' : '' }} {{ alongWord }}</p>
+            <p class="muted">{{ dates }}</p>
+          </div>
+        </div>
+        <p class="photo-line">
+          Photo {{ index + 1 }} of {{ photos.length }} · {{ photoLine(photo) }}
+          <span v-if="photo.contributor" class="flag">Contributor photo</span>
+        </p>
+        <p class="not-rated">Not rated yet. Ratings come in the next step.</p>
+      </template>
+
+      <template v-else-if="p.photos != null">
+        <p class="why">No street photo here yet, so this street will have no Senses or Overall rating.</p>
+        <button type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
+        <p class="muted small">We never guess between photos: without one, a street stays unlit in Senses and Overall.</p>
+      </template>
     </template>
 
     <slot />
@@ -133,6 +178,39 @@ watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn
 </template>
 
 <style scoped>
+.t-meta { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.temp { margin: var(--space-4) 0 0; color: var(--text-2); }
+.temp strong { font-size: var(--fs-xl); font-weight: var(--fw-semibold); color: var(--text); margin-right: var(--space-2); }
+.verdict { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0 0; }
+.swatch { width: var(--space-5); height: var(--swatch-h); border-radius: var(--radius-pill); flex: none; }
+.state-label { font-weight: var(--fw-semibold); }
+.state-label.hard { color: var(--hard-text); }
+.scale {
+  margin-top: var(--space-4); padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
+}
+.scale-head { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-sm); }
+.track {
+  position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
+  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
+}
+.diamond {
+  position: absolute; top: 50%; width: var(--handle-size); height: var(--handle-size);
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--ring); border: var(--hairline) solid var(--ring-edge);
+}
+.ticks { display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--text-muted); }
+.nearby { margin-top: var(--space-4); }
+.nearby-title { margin: 0; font-weight: var(--fw-semibold); }
+.nearby-link {
+  display: flex; align-items: center; gap: var(--space-2); min-height: var(--touch); padding: 0;
+  border: 0; background: transparent; color: var(--text); text-align: left;
+}
+.nearby-link:hover { text-decoration: underline; }
+.foot {
+  margin: var(--space-4) 0 0; padding-top: var(--space-4); border-top: var(--hairline) solid var(--line);
+  font-size: var(--fs-sm); color: var(--text-2);
+}
 .card { padding: var(--space-4) var(--space-5) var(--space-5); overflow-y: auto; }
 .back {
   display: inline-flex; align-items: center; gap: var(--space-1);

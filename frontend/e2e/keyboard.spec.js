@@ -27,7 +27,7 @@ test('every control is reachable with Tab and shows the focus outline', async ({
     seen.set(f.name, f.outline)
   }
   const names = [...seen.keys()]
-  for (const expected of ['Search a street or place', 'Map', 'Compare', 'Profile', 'About and how to use',
+  for (const expected of ['Search a street or place', 'Area', 'Routes', 'Profile', 'About and how to use',
     'Print report', 'Switch to light mode', 'Ask', 'Your account', 'Zoom in', 'Zoom out', 'Re-centre the map']) {
     expect(names, `Tab reaches ${expected}`).toContain(expected)
   }

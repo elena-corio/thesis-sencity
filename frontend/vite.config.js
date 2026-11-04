@@ -8,7 +8,7 @@ export default defineConfig({
   // /api goes to the SenCity API (python -m app, port 8000), so the browser only talks to one origin.
   server: {
     port: 5173,
-    open: process.env.PLAYWRIGHT ? false : '/map',
+    open: process.env.PLAYWRIGHT ? false : '/area',
     proxy: { '/api': 'http://127.0.0.1:8000' },
   },
   // MapLibre 6 loads its web worker from a file next to it; pre-bundling breaks that path.

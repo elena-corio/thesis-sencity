@@ -1,4 +1,4 @@
-// Fit every screen (brief §3): screenshots of /map at every size, both orientations, dark and light,
+// Fit every screen (brief §3): screenshots of /area at every size, both orientations, dark and light,
 // before and after an area is set. Fails if the page scrolls, a panel is clipped or outside the
 // viewport, two panels overlap, or a panel not marked data-scrollable overflows.
 import { expect, test } from '@playwright/test'

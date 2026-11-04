@@ -3,21 +3,30 @@
 Metadata calls only (free); no image is fetched here. The result is neutral data (segments, pano IDs,
 locations, dates, headings) and is cached on disk per area (brief §6: allowed). Progress is reported as
 events, so the app can light streets up while the area loads (brief §4).
+
+Thermal comfort comes after the photos: one Infrared.city run per area and window (billed), cached as
+the grid and the UTCI per segment, so the same area, season and time is never paid for twice.
 """
 import hashlib
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 from shapely.geometry import mapping
 from shapely.prepared import prep
 
 from tool.candidates import candidates_for, make_lookup, photos_for_segment
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection, circle
+from tool.infrared import ThermalError, run_utci
 from tool.osm import build_segments, fetch_overpass, parse, parse_buildings
 from tool.selection import select
+from tool.thermal import segment_values
+
+log = logging.getLogger("sencity.api")
 
 PLACE_TYPES = {"park": "park", "square": "square", "pedestrian": "pedestrian"}
 
@@ -141,3 +150,69 @@ def load_all_known(cfg: dict) -> set[tuple[str, float]]:
             except (ValueError, KeyError):
                 continue
     return known
+
+
+# Thermal comfort
+
+def thermal_dir(cfg: dict) -> Path:
+    return REPO_ROOT / cfg["thermal"]["cache_dir"]
+
+
+def thermal_key(area: str, season: str, time: str, cfg: dict) -> str:
+    """Same area, window and thermal settings → same key (the grid is not paid for twice)."""
+    t = cfg["thermal"]
+    settings = {"analysis": t["analysis"], "day": t["seasons"][season], "buffer_m": t["buffer_m"],
+                "percentile": t["percentile"]}
+    raw = json.dumps({"area": area, "season": season, "time": time, "settings": settings}, sort_keys=True)
+    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+def load_thermal(key: str, cfg: dict) -> dict | None:
+    path = thermal_dir(cfg) / f"{key}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def save_thermal(key: str, result: dict, grid: np.ndarray, bounds: tuple, cfg: dict) -> None:
+    d = thermal_dir(cfg)
+    d.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(d / f"{key}.npz", grid=grid, bounds=np.asarray(bounds))
+    tmp = d / f"{key}.json.tmp"
+    tmp.write_text(json.dumps({**result, "created": date.today().isoformat()}), encoding="utf-8")
+    tmp.replace(d / f"{key}.json")
+
+
+def run_thermal(fc: dict, lat: float, lon: float, radius: int, season: str, time: str, cfg: dict,
+                runner=None) -> tuple[dict, np.ndarray, tuple]:
+    """UTCI per segment for one window: {"season", "time", "station", "values": {id: °C or None}}."""
+    proj = LocalProjection(lat, lon)
+    polygon = mapping(proj.geom_to_lonlat(circle(radius, cfg["area"]["circle_points"])))
+    r = (runner or run_utci)(polygon, lat, lon, season, time, cfg)
+    t = cfg["thermal"]
+    values = segment_values(r["grid"], r["bounds"], fc["features"], proj, t["buffer_m"], t["percentile"])
+    return {"season": season, "time": time, "station": r["station"], "values": values}, r["grid"], r["bounds"]
+
+
+def thermal_events(area: str, fc: dict, lat: float, lon: float, radius: int, season: str, time: str,
+                   cfg: dict, allowed, runner=None):
+    """Yield {"type": "stage", "stage": "thermal"}, then {"type": "thermal", ...} or
+    {"type": "thermal_error", "message"}. allowed() is asked only before a new (billed) run."""
+    yield {"type": "stage", "stage": "thermal"}
+    key = thermal_key(area, season, time, cfg)
+    cached = load_thermal(key, cfg)
+    if cached is not None:
+        yield {"type": "thermal", **{k: cached[k] for k in ("season", "time", "station", "values")}}
+        return
+    if not allowed():
+        yield {"type": "thermal_error", "message": "Too many new thermal runs in a short time. Try again later."}
+        return
+    try:
+        result, grid, bounds = run_thermal(fc, lat, lon, radius, season, time, cfg, runner)
+    except ThermalError as e:
+        yield {"type": "thermal_error", "message": str(e)}
+        return
+    except Exception as e:  # noqa: BLE001 (SDK and network errors: log the type only)
+        log.warning("thermal failed: %s", type(e).__name__)
+        yield {"type": "thermal_error", "message": "Thermal comfort could not be loaded. Try again."}
+        return
+    save_thermal(key, result, grid, bounds, cfg)
+    yield {"type": "thermal", **result}
