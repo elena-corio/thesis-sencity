@@ -3,13 +3,11 @@
 // then rating (shown greyed: it does not exist yet). Streets light up on the map as their photos are
 // found, then in their thermal colour.
 import { computed, onMounted, ref } from 'vue'
-import config from '../config.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 
 defineProps({ phone: Boolean })
 const area = useAreaStore()
-const thermal = config.thermalDefault
 const cancelBtn = ref(null)
 // Started with the keyboard: focus Cancel, so Enter or Space can stop it.
 onMounted(() => { if (area.byKeyboard) cancelBtn.value?.focus() })
@@ -50,7 +48,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
       <li :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
         <AppIcon :name="area.thermal === 'ready' ? 'check' : 'pending'" />
         <span class="label">Thermal</span>
-        <span class="detail" role="status">{{ thermal.season }}, {{ thermal.time }}</span>
+        <span class="detail" role="status">{{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</span>
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>

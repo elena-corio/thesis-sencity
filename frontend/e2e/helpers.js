@@ -122,6 +122,8 @@ const PHOTO = png(64, [120, 150, 160])
  * GET /api/photo. Returns the list of photo URLs requested. hold: never answer (to test Cancel).
  */
 /** Feels-like °C per segment for the mocked thermal step: 22, 29, 36, 22, … (easy, mixed, hard). */
+/** The bodies of the mocked /api/area requests, to see which seasons and times were asked for. */
+export const areaRequests = []
 export const THERMAL = Object.fromEntries(AREA.features.map((f, i) => [f.properties.id, [22, 29, 36][i % 3]]))
 
 /** Mock /api/area (and /api/photo). thermal: also send the thermal stage ('error' sends a thermal_error). */
@@ -129,13 +131,23 @@ export async function mockArea(page, { hold = false, thermal = false } = {}) {
   const photoRequests = []
   await page.route('**/api/area', async (route) => {
     if (hold) return // the loading card stays until Cancel
+    const asked = route.request().postDataJSON()
+    if (thermal === 'fail-winter' && asked.season === 'winter') {
+      const line = { type: 'thermal_error', message: 'Too many new thermal runs in a short time. Try again later.' }
+      await route.fulfill({ contentType: 'application/x-ndjson', body: `${JSON.stringify({ type: 'done', area: AREA })}\n${JSON.stringify(line)}\n` })
+      return
+    }
     const pending = AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } }))
     const lines = [{ type: 'segments', features: pending, total: pending.length },
       ...AREA.features.map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total: AREA.features.length })),
       { type: 'done', area: AREA }]
     if (thermal) lines.push({ type: 'stage', stage: 'thermal' })
-    if (thermal === true) {
-      lines.push({ type: 'thermal', season: 'summer', time: '15:00', values: THERMAL,
+    if (thermal === true || thermal === 'fail-winter') {
+      areaRequests.push(asked)
+      // Winter feels cold: every street is 30 °C colder than in the summer values.
+      const values = asked.season === 'winter'
+        ? Object.fromEntries(Object.entries(THERMAL).map(([k, v]) => [k, v - 30])) : THERMAL
+      lines.push({ type: 'thermal', season: asked.season, time: asked.time, values,
         station: { name: 'Wien-Innere Stadt', distance_km: 1.2 } })
     } else if (thermal === 'error') {
       lines.push({ type: 'thermal_error', message: 'Thermal comfort could not be loaded. Try again.' })

@@ -17,7 +17,6 @@ const changeBtn = ref(null)
 
 const place = computed(() => (area.step === 'analysed' ? area.analysed : { ...area.centre, radius: area.radius }))
 const photos = computed(() => estimatePhotos(area.radius, config.photosPerKm2))
-const thermal = config.thermalDefault
 const ROWS = [
   { id: 'easy', label: 'Easy', color: 'var(--easy)' },
   { id: 'mixed', label: 'Mixed', color: 'var(--mixed)' },
@@ -72,7 +71,7 @@ function startAgain() {
       <p v-if="phone" class="meta">Drag the edge of the circle to adjust.</p>
       <ul class="facts">
         <li><AppIcon name="image" /> About {{ photos }} street photos</li>
-        <li><AppIcon name="thermometer" /> Thermal for {{ thermal.season }}, {{ thermal.time }}</li>
+        <li><AppIcon name="thermometer" /> Thermal for {{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</li>
         <li><AppIcon name="clock" /> Ready in about a minute</li>
       </ul>
       <div class="buttons">
@@ -106,6 +105,7 @@ function startAgain() {
           </li>
         </ul>
         <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
+        <p v-if="area.thermalError" class="thermal-error" role="status">{{ area.thermalError }}</p>
 
         <section v-if="placesHere.length" class="sub">
           <h3 class="sub-title">Places here</h3>

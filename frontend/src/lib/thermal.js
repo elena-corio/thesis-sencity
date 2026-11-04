@@ -63,15 +63,17 @@ export function thermalLegend(limits = config.thermalLimits) {
   ]
 }
 
-/** Add utci, thermal_score and thermal_state to every segment that has a value. */
+/** Set utci, thermal_score and thermal_state on every segment that has a value. */
 export function withThermal(fc, values) {
   return {
     type: 'FeatureCollection',
     features: fc.features.map((f) => {
-      const utci = values[f.properties.id]
-      if (utci == null) return f
+      // Drop the values of an earlier season or time first.
+      const { utci: _u, thermal_score: _s, thermal_state: _t, ...props } = f.properties
+      const utci = values[props.id]
+      if (utci == null) return { ...f, properties: props }
       const score = thermalScore(utci)
-      return { ...f, properties: { ...f.properties, utci, thermal_score: score, thermal_state: scoreState(score) } }
+      return { ...f, properties: { ...props, utci, thermal_score: score, thermal_state: scoreState(score) } }
     }),
   }
 }

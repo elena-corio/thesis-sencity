@@ -31,6 +31,8 @@ export default {
   thermalLimits: { heat: [26, 32, 38], cold: [9, 0, -13, -27] },
   // Walking speed for "2 min away" on the place card (about 4.8 km/h).
   walkMetresPerMinute: 80,
+  // Wait this long after the last season or time change before asking for it (each new one is billed).
+  thermalDebounceMs: 700,
   seasons: ['spring', 'summer', 'autumn', 'winter'],
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).

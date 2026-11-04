@@ -34,6 +34,12 @@ export const useAreaStore = defineStore('area', () => {
   const thermalError = ref('')
   /** The window and weather station of the values shown. @type {import('vue').Ref<{season:string, time:string, station:{name:string, distance_km:number|null}} | null>} */
   const thermalInfo = ref(null)
+  /** The season and time asked for; thermalInfo is what the streets show until it arrives. */
+  const thermalWindow = ref({ ...config.thermalDefault })
+  let windowTimer = null
+  /** The bar can be used before analysis (the choice is free) and whenever nothing is loading. */
+  const windowActive = computed(() => step.value !== 'analysed' ||
+    (load.value === 'ready' && (thermal.value === 'ready' || thermal.value === 'error')))
   /** Layer on the map: null (photos only, before any rating) or 'thermal'. Senses and Overall come with rating. */
   const layer = ref(null)
   /** Selected segment id (the place card shows it). */
@@ -64,7 +70,7 @@ export const useAreaStore = defineStore('area', () => {
     progress.value = { stage: 'streets', done: 0, total: 0 }
     resetThermal()
     try {
-      await loadArea({ ...analysed.value, ...config.thermalDefault }, (e) => {
+      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
         if (e.type === 'segments') {
           segments.value = { type: 'FeatureCollection', features: e.features }
           progress.value = { stage: 'photos', done: 0, total: e.total }
@@ -77,10 +83,7 @@ export const useAreaStore = defineStore('area', () => {
         } else if (e.type === 'stage' && e.stage === 'thermal') {
           thermal.value = 'loading'
         } else if (e.type === 'thermal') {
-          segments.value = withThermal(segments.value, e.values)
-          thermalInfo.value = { season: e.season, time: e.time, station: e.station }
-          thermal.value = 'ready'
-          layer.value = 'thermal'
+          applyThermal(e)
         } else if (e.type === 'thermal_error') {
           thermal.value = 'error'
           thermalError.value = e.message
@@ -108,7 +111,57 @@ export const useAreaStore = defineStore('area', () => {
     }
   }
 
+  function applyThermal(e) {
+    segments.value = withThermal(segments.value, e.values)
+    thermalInfo.value = { season: e.season, time: e.time, station: e.station }
+    thermal.value = 'ready'
+    layer.value = 'thermal'
+  }
+
+  /** Back to the season and time on screen: the streets keep their colours. */
+  function keepShownWindow(message = '') {
+    thermal.value = 'ready'
+    thermalError.value = message
+    thermalWindow.value = { season: thermalInfo.value.season, time: thermalInfo.value.time }
+  }
+
+  /** Thermal comfort for another season or time. The segments stay on the map; the same request
+   *  answers at once from the cache when this area and window were already paid for. */
+  async function reloadThermal() {
+    controller?.abort()
+    controller = new AbortController()
+    const signal = controller.signal
+    const failed = 'Thermal comfort could not be loaded for that season and time. Try again.'
+    thermal.value = 'loading'
+    thermalError.value = ''
+    try {
+      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+        if (e.type === 'thermal') applyThermal(e)
+        else if (e.type === 'thermal_error') keepShownWindow(e.message)
+        else if (e.type === 'error') throw new ApiError(500, e.message)
+      }, signal)
+      if (thermal.value === 'loading') keepShownWindow(failed)
+    } catch {
+      if (!signal.aborted) keepShownWindow(failed)
+    }
+  }
+
+  /** Season chips and time slider. Before analysis this only records the choice: Analyse uses it.
+   *  On a loaded area it asks for thermal again, after a moment, so arrow-key steps ask only once. */
+  function setThermalWindow(change) {
+    if (!windowActive.value) return
+    thermalWindow.value = { ...thermalWindow.value, ...change }
+    if (thermal.value !== 'ready') return
+    thermalError.value = ''
+    clearTimeout(windowTimer)
+    windowTimer = setTimeout(() => {
+      const { season, time } = thermalWindow.value
+      if (season !== thermalInfo.value?.season || time !== thermalInfo.value?.time) reloadThermal()
+    }, config.thermalDebounceMs)
+  }
+
   function resetThermal() {
+    clearTimeout(windowTimer)
     thermal.value = 'idle'
     thermalError.value = ''
     thermalInfo.value = null
@@ -119,6 +172,11 @@ export const useAreaStore = defineStore('area', () => {
   function cancelLoad() {
     controller?.abort()
     controller = null
+    // Only another season or time was loading: keep the area and what it showed.
+    if (load.value === 'ready' && thermalInfo.value) {
+      keepShownWindow()
+      return
+    }
     load.value = 'idle'
     segments.value = null
     resetThermal()
@@ -190,7 +248,7 @@ export const useAreaStore = defineStore('area', () => {
   return {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
-    thermal, thermalError, thermalInfo, layer,
+    thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer,
     startLoad, cancelLoad, select, clearSelection,
   }
 })

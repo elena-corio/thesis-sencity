@@ -47,6 +47,13 @@ describe('withThermal', () => {
   })
 })
 
+describe('withThermal for another season', () => {
+  it('drops the old values of a street that has none now', () => {
+    const fc = { type: 'FeatureCollection', features: [{ properties: { id: 'a', utci: 31, thermal_score: 3, thermal_state: 'mixed' } }] }
+    expect(withThermal(fc, { a: null }).features[0].properties).toEqual({ id: 'a' })
+  })
+})
+
 describe('card lines', () => {
   it('gives the reason for the state on both sides', () => {
     expect(thermalReason(34)).toBe('above 32 °C')

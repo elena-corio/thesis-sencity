@@ -1,7 +1,7 @@
 // Street segments and their photos: loading card, segments on the map, place card, enlarged photo.
 // /api/area and /api/photo are mocked (no Street View or Overpass calls).
 import { expect, test } from '@playwright/test'
-import { AREA, THERMAL, WITH_3, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
+import { AREA, THERMAL, WITH_3, areaRequests, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
 
 const segPx = (page, id) => page.evaluate((segId) => {
   const m = window.__sencityMap
@@ -150,6 +150,61 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/places-dark-thermal-card.png' })
     await place.locator('.nearby-link').click()
     await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
+  })
+
+  test('the season and time bar turns on with thermal and asks for the new window', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await openMap(page, 'dark')
+    const bar = page.locator('[data-panel="season"]')
+    const winter = bar.getByRole('button', { name: 'Winter' })
+    await analyseCentre(page)
+    await expect(winter).toBeEnabled()
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('summer, 15:00')
+
+    areaRequests.length = 0
+    await winter.click()
+    await expect(card).toContainText('winter, 15:00')
+    await expect(winter).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByText(/Simulated by Infrared\.city for winter, 15:00/)).toBeVisible()
+    expect(areaRequests.map((r) => r.season)).toEqual(['winter'])
+
+    // Arrow-key steps on the slider ask only once, for the last time.
+    areaRequests.length = 0
+    const slider = bar.getByRole('slider', { name: 'Time of day' })
+    await slider.focus()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(card).toContainText('winter, 17:00')
+    expect(areaRequests.map((r) => r.time)).toEqual(['17:00'])
+    await expect(bar.getByRole('button', { name: 'Winter' })).toBeEnabled()
+  })
+
+  test('a season chosen before analysis costs nothing and Analyse uses it', async ({ page }) => {
+    areaRequests.length = 0
+    await mockArea(page, { thermal: true })
+    await openMap(page, 'dark')
+    const bar = page.locator('[data-panel="season"]')
+    await bar.getByRole('button', { name: 'Winter' }).click()
+    await bar.getByRole('slider', { name: 'Time of day' }).fill('9')
+    await page.waitForTimeout(1000) // longer than the wait before a loaded area asks again
+    expect(areaRequests).toHaveLength(0)
+    await analyseCentre(page)
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('winter, 09:00')
+    expect(areaRequests.map((r) => [r.season, r.time])).toEqual([['winter', '09:00']])
+  })
+
+  test('a failed season keeps what was shown and says why', async ({ page }) => {
+    await mockArea(page, { thermal: 'fail-winter' })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const bar = page.locator('[data-panel="season"]')
+    await bar.getByRole('button', { name: 'Winter' }).click()
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('Too many new thermal runs')
+    await expect(card).toContainText('summer, 15:00')
+    await expect(bar.getByRole('button', { name: 'Summer' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('a thermal failure keeps the photos and offers Try again', async ({ page }) => {
