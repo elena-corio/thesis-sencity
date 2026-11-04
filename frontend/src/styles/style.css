@@ -12,6 +12,7 @@
   --fs-sm: 0.875rem;    /* 14 px, section titles */
   --fs-md: 1rem;
   --fs-lg: 1.25rem;     /* card titles */
+  --fs-xl: 2rem;        /* the feels-like temperature on the place card (board 2e) */
   --lh: 1.4;
 
   /* Space and size */
@@ -30,7 +31,7 @@
   --seasonbar-w: 560px;
   --control-size: 44px;         /* map zoom buttons */
   --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
-  --tabs-half: 140px;           /* half the width of the Map / Compare / Profile tabs */
+  --tabs-half: 140px;           /* half the width of the Area / Routes / Profile tabs */
   --attribution-h: 1.25rem;     /* one line of map credits; grows with the system font size */
   --chip-h: 34px;               /* place-type chips */
   --swatch-h: 5px;              /* legend swatches */

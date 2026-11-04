@@ -1,12 +1,12 @@
 <script setup>
-// Map / Compare / Profile. Top centre on desktop, bottom tab bar on a phone (brief §3).
-// Only Map works for now.
+// Area / Routes / Profile. Top centre on desktop, bottom tab bar on a phone (brief §3).
+// Only Area works for now.
 import AppIcon from './AppIcon.vue'
 
 defineProps({ phone: Boolean })
 const TABS = [
-  { id: 'map', label: 'Map', icon: 'map', ready: true },
-  { id: 'compare', label: 'Compare', icon: 'route', ready: false },
+  { id: 'area', label: 'Area', icon: 'area', ready: true },
+  { id: 'routes', label: 'Routes', icon: 'route', ready: false },
   { id: 'profile', label: 'Profile', icon: 'user', ready: false },
 ]
 </script>
@@ -14,7 +14,7 @@ const TABS = [
 <template>
   <nav :class="phone ? 'tabbar' : 'tabs panel'" aria-label="Views" :data-panel="phone ? 'tabbar' : 'tabs'">
     <template v-for="t in TABS" :key="t.id">
-      <RouterLink v-if="t.ready" to="/map" class="tab" :class="{ on: t.id === 'map' }" aria-current="page">
+      <RouterLink v-if="t.ready" to="/area" class="tab" :class="{ on: t.id === 'area' }" aria-current="page">
         <span v-if="phone" class="tab-icon"><AppIcon :name="t.icon" /></span>
         <span>{{ t.label }}</span>
       </RouterLink>

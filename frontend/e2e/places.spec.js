@@ -1,7 +1,7 @@
 // Street segments and their photos: loading card, segments on the map, place card, enlarged photo.
 // /api/area and /api/photo are mocked (no Street View or Overpass calls).
 import { expect, test } from '@playwright/test'
-import { AREA, WITH_3, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
+import { AREA, THERMAL, WITH_3, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
 
 const segPx = (page, id) => page.evaluate((segId) => {
   const m = window.__sencityMap
@@ -105,6 +105,64 @@ test.describe('desktop', () => {
     await expect(card).toContainText('Photo 1 of')
   })
 
+  test('thermal comfort arrives after the photos and becomes the layer', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const thermalBtn = page.getByRole('button', { name: 'Thermal', exact: true })
+    await expect(thermalBtn).toBeEnabled()
+    await expect(thermalBtn).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Senses', exact: true })).toBeDisabled()
+    await expect(page.getByText('Feels like temperature, hot or cold')).toBeVisible()
+    await expect(page.getByText('Easy, 0 to 26 °C')).toBeVisible()
+    await expect(page.getByText(/with weather from Wien-Innere Stadt/)).toBeVisible()
+
+    // Every street with a value is lit in its state colour, photo or not.
+    await mapIdle(page)
+    const lit = await page.evaluate(() => {
+      const m = window.__sencityMap
+      return { filter: m.getFilter('sc-seg-core'), states: m.querySourceFeatures('sc-seg').map((f) => f.properties.thermal_state) }
+    })
+    expect(lit.filter).toEqual(['has', 'thermal_state'])
+    expect(new Set(lit.states)).toEqual(new Set(['easy', 'mixed', 'hard']))
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText(`Thermal · ${AREA.features.length} street stretches`)
+    await expect(card.getByRole('img', { name: /^Thermal: Easy \d+, Mixed \d+, Hard \d+/ })).toBeVisible()
+    await expect(card).toContainText('Places here')
+    await page.screenshot({ path: 'e2e/screens/places-dark-thermal.png' })
+
+    // The place card shows how warm the street feels; a street with no photo has a value too.
+    await openSegment(page, WITHOUT.properties.id)
+    const place = page.locator('[data-panel="place-card"]')
+    const t = THERMAL[WITHOUT.properties.id]
+    await expect(place.getByTestId('thermal')).toContainText(`${t} °C feels like`)
+    await expect(place.getByTestId('thermal')).toContainText('not a measurement')
+
+    // A hard street: the reason, its place on the 1–5 bar, and a cooler street nearby to go to.
+    await place.getByRole('button', { name: 'Back to area' }).click()
+    const hard = AREA.features.find((f) => THERMAL[f.properties.id] === 36)
+    await openSegment(page, hard.properties.id)
+    await expect(place.getByTestId('thermal')).toContainText('Hard')
+    await expect(place.getByTestId('thermal')).toContainText('above 32 °C')
+    await expect(place.getByRole('img', { name: 'Thermal: Hard, 2 of 5' })).toBeVisible()
+    await expect(place.getByTestId('thermal')).toContainText('Cooler street nearby')
+    await mapIdle(page)
+    await page.screenshot({ path: 'e2e/screens/places-dark-thermal-card.png' })
+    await place.locator('.nearby-link').click()
+    await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
+  })
+
+  test('a thermal failure keeps the photos and offers Try again', async ({ page }) => {
+    await mockArea(page, { thermal: 'error' })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('Thermal comfort could not be loaded. Try again.')
+    await expect(card.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toBeDisabled()
+    await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
+  })
+
   test('Cancel while loading goes back to the set circle', async ({ page }) => {
     await mockArea(page, { hold: true })
     await openMap(page, 'dark')
@@ -112,7 +170,7 @@ test.describe('desktop', () => {
     const loading = page.locator('[data-panel="loading-card"]')
     await expect(loading).toContainText('Loading this area')
     await expect(loading).toContainText('finding the streets…')
-    await expect(loading).toContainText('Heat')
+    await expect(loading).toContainText('Thermal')
     await page.screenshot({ path: 'e2e/screens/places-dark-loading.png' })
     await loading.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeVisible()

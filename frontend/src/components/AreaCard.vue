@@ -1,6 +1,8 @@
 <script setup>
-// "This area" (board Flow 1c): before analysis, with Analyse / Start again; once the area has
-// loaded, the header, the number of streets with photos and Change area. A bottom sheet on a phone.
+// "This area" (boards Flow 1c, Flow 4): before analysis, with Analyse / Start again; once the area
+// has loaded, Change area, the street stretches of the selected layer as one stacked bar with counts
+// and %, places by type and Print area report (not built yet). Only Thermal exists so far, so "Why
+// hard" waits for Senses. A bottom sheet on a phone.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import config from '../config.js'
 import { estimatePhotos, formatCoords } from '../lib/geo.js'
@@ -15,7 +17,33 @@ const changeBtn = ref(null)
 
 const place = computed(() => (area.step === 'analysed' ? area.analysed : { ...area.centre, radius: area.radius }))
 const photos = computed(() => estimatePhotos(area.radius, config.photosPerKm2))
-const heat = config.heatDefault
+const thermal = config.thermalDefault
+const ROWS = [
+  { id: 'easy', label: 'Easy', color: 'var(--easy)' },
+  { id: 'mixed', label: 'Mixed', color: 'var(--mixed)' },
+  { id: 'hard', label: 'Hard', color: 'var(--hard)' },
+  { id: 'none', label: 'No value', color: 'var(--no-photo)' },
+]
+const features = computed(() => area.segments?.features ?? [])
+/** Street stretches per thermal state ("none": no grid value there, e.g. under a building). */
+const stack = computed(() => {
+  const n = { easy: 0, mixed: 0, hard: 0, none: 0 }
+  for (const f of features.value) n[f.properties.thermal_state ?? 'none']++
+  const total = features.value.length || 1
+  return ROWS.filter((r) => r.id !== 'none' || n.none)
+    .map((r) => ({ ...r, n: n[r.id], pct: Math.round((100 * n[r.id]) / total) }))
+})
+const stackLabel = computed(() => stack.value.map((r) => `${r.label} ${r.n}`).join(', '))
+/** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one). */
+const PLACE_GROUPS = [{ label: 'Parks', types: ['park'] }, { label: 'Squares', types: ['square', 'pedestrian'] }]
+const placesHere = computed(() => PLACE_GROUPS.map((g) => {
+  const fs = features.value.filter((f) => f.geometry.type === 'Polygon' && g.types.includes(f.properties.place_type)
+    && f.properties.thermal_state)
+  if (!fs.length) return null
+  const count = (st) => fs.filter((f) => f.properties.thermal_state === st).length
+  const state = ['hard', 'mixed', 'easy'].reduce((best, st) => (count(st) > count(best) ? st : best))
+  return { label: g.label, state, text: `${count(state)} of ${fs.length} ${state}` }
+}).filter(Boolean))
 
 // Keyboard: after Enter fixes the radius, focus goes to Analyse; after Analyse, to Change area.
 watch(() => area.step, async (step) => {
@@ -44,7 +72,7 @@ function startAgain() {
       <p v-if="phone" class="meta">Drag the edge of the circle to adjust.</p>
       <ul class="facts">
         <li><AppIcon name="image" /> About {{ photos }} street photos</li>
-        <li><AppIcon name="thermometer" /> Heat for {{ heat.season }}, {{ heat.time }}</li>
+        <li><AppIcon name="thermometer" /> Thermal for {{ thermal.season }}, {{ thermal.time }}</li>
         <li><AppIcon name="clock" /> Ready in about a minute</li>
       </ul>
       <div class="buttons">
@@ -56,13 +84,53 @@ function startAgain() {
     </template>
 
     <template v-else>
-      <p v-if="area.load === 'ready'" class="summary">
-        {{ area.counts.all }} street stretches · {{ area.counts.withPhotos }} with photos
-      </p>
-      <p class="hint">{{ props.phone ? 'Tap' : 'Click' }} a street to see its photos.</p>
-      <div class="buttons">
+      <div class="buttons change-row">
         <button ref="changeBtn" type="button" class="btn" @click="startAgain">
-          <AppIcon name="edit" /> Change area
+          <AppIcon name="area" /> Change area
+        </button>
+      </div>
+
+      <template v-if="area.thermal === 'ready'">
+        <div class="stack-head">
+          <span>Thermal · {{ area.counts.all }} street stretches</span>
+          <span class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
+        </div>
+        <div class="stack" role="img" :aria-label="`Thermal: ${stackLabel}`">
+          <span v-for="r in stack" :key="r.id" :style="{ flexGrow: r.n, background: r.color }" />
+        </div>
+        <ul class="rows">
+          <li v-for="r in stack" :key="r.id">
+            <span class="swatch" :style="{ background: r.color }" />
+            <span class="row-label">{{ r.label }}</span>
+            <span class="num"><strong>{{ r.n }}</strong> · {{ r.pct }}%</span>
+          </li>
+        </ul>
+        <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
+
+        <section v-if="placesHere.length" class="sub">
+          <h3 class="sub-title">Places here</h3>
+          <p v-for="pl in placesHere" :key="pl.label" class="place-row">
+            <span>{{ pl.label }}</span><span :class="['state-text', pl.state]">{{ pl.text }}</span>
+          </p>
+        </section>
+      </template>
+      <template v-else>
+        <p v-if="area.load === 'ready'" class="summary">
+          {{ area.counts.all }} street stretches · {{ area.counts.withPhotos }} with photos
+        </p>
+        <p v-if="area.thermal === 'error'" class="thermal-error">{{ area.thermalError }}</p>
+      </template>
+
+      <p class="foot">
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.thermal === 'ready' ? 'why' : 'its photos' }}.
+        Change area: {{ props.phone ? 'tap' : 'click' }} a new centre, then the radius. Predictions, not reasons.
+      </p>
+      <div class="buttons">
+        <button v-if="area.thermal === 'error'" type="button" class="btn btn-primary" @click="area.startLoad()">
+          Try again
+        </button>
+        <button type="button" class="btn" aria-disabled="true" title="Coming soon">
+          <AppIcon name="print" /> Print area report
         </button>
       </div>
     </template>
@@ -76,7 +144,28 @@ function startAgain() {
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .summary { margin: var(--space-4) 0 0; }
-.hint { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.change-row { margin-top: var(--space-3); }
+.stack-head { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); font-size: var(--fs-sm); }
+.stack {
+  display: flex; gap: var(--hairline); height: var(--space-2); margin-top: var(--space-2);
+  border-radius: var(--radius-pill); overflow: hidden;
+}
+.stack span { flex-basis: 0; min-width: var(--hairline); }
+.rows { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); }
+.num { font-variant-numeric: tabular-nums; color: var(--text-2); }
+.num strong { color: var(--text); }
+.swatch { width: var(--space-5); height: var(--swatch-h); border-radius: var(--radius-pill); }
+.muted { color: var(--text-2); }
+.small { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
+.sub { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
+.sub-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.place-row { display: flex; justify-content: space-between; gap: var(--space-3); margin: var(--space-2) 0 0; }
+.state-text.easy { color: var(--easy); }
+.state-text.mixed { color: var(--mixed); }
+.state-text.hard { color: var(--hard-text); }
+.thermal-error { margin: var(--space-4) 0 0; font-size: var(--fs-sm); }
+.foot { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .facts { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2); }
 .facts li { display: flex; align-items: center; gap: var(--space-3); color: var(--text); }
 .facts :deep(.icon) { color: var(--text-2); }

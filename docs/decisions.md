@@ -2,8 +2,30 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-04 – Thermal comfort on the streets (proposed details)
+**Context.** Elena asked for thermal comfort after the photos, as a layer (boards Flow 3 and 2e). The brief fixes the source (Infrared.city `thermal-comfort-index`), the nearest public station, a fixed window per season, the 75th percentile along each street and the two-sided 1–5 score. These details were open.
+**Decision.**
+- *Order:* thermal runs after the photos, in the same `/api/area` stream (Elena's request), not in parallel.
+- *Windows:* each season is one typical day of the weather file at one hour (spring 15 April, summer 15 July, autumn 15 October, winter 15 January; in config). One hour, not a range, because the docs do not say how a longer window is aggregated. Hours are the weather file's local standard time: no daylight-saving hour is added, so summer "15:00" is 16:00 on a Vienna clock.
+- *Inputs:* buildings, trees and ground materials from the SDK's public data. Trees and ground are optional: if they cannot be read, the run goes ahead without them.
+- *Cost guard:* `preview_area` counts the jobs first, and a run over `thermal.max_jobs` (4) is refused before anything is billed. New thermal runs are limited to 10 per IP per hour.
+- *Cache:* per area, season and time in `runs/thermal/`: the grid as `.npz` (not GeoTIFF, which would need another library) and the values per segment as JSON.
+- *Where the score is computed:* the server sends °C only. The app turns it into the 1–5 score and the state, because personal limits will come from the profile, which stays in the browser. Standard limits for now (26 / 32 / 38 and 9 / 0 / −13 / −27 °C).
+- *Sampling:* cells within 4 m either side of a street line, or inside a park or square. Cells inside buildings have no value and are skipped. A street with no cell keeps no value and stays unlit.
+- *Season and time bar:* stays fixed at summer 15:00 for now. Each change would be a new billed run, so it comes as its own step.
+- *Inputs, speed:* buildings, trees and ground are read in parallel. Trees and ground get 20 s (`thermal.optional_input_timeout_s`) and are skipped after that: the ground read hung for minutes on Elena's first run.
+- *Place card on the Thermal layer (2e):* the photo and name stay at the top (Elena: board 2e has no photo, but she wants it), then thermal comfort only (the brief's "only the selected layer's scale").
+- *Area card (Flow 4):* the stacked bar and counts follow the selected layer (Thermal for now), with "No value" for streets where the grid has none. "Places here" names the most common state per type (a tie goes to the worse state). "Why hard" waits for Senses, since thermal decides every hard street for now. The title stays "This area" (not "for you") until there is a profile. Print area report is shown as "Coming soon". "Thermal · general" instead of the board's "for you", since the limits are not personal yet. "Cooler street nearby" is the nearest street with a higher score (warmer on the cold side), with walking minutes at 80 m/min (in config). Clicking a street while the area is still loading opens its card; Back returns to the loading card.
+- *Wording:* "UTCI" is never shown (brief §4). The legend says "Feels like temperature, hot or cold", and the card says "A simulation of sun, shade and wind, not a measurement."
+**Consequences.** One new area costs about 10 tokens (a 500 m circle up to 40). Outside Vienna it works the same way; the station name is shown, so a distant station is visible. Tests never call Infrared.city: `backend/tests/conftest.py` empties the key and replaces the runner.
+
+## 2026-11-03 – Thermal, Area and Routes (accepted)
+**Context.** The new design boards rename the Heat layer to Thermal (it covers hot and cold) and the Map and Compare tabs to Area and Routes.
+**Decision.** Elena asked for the renames. The app uses Thermal, Area and Routes in every label, and `thermalDefault` in `config.js`. The app's address is now `/area` (it was `/map`); `/` and any other path, `/map` included, redirect there. The `MapView` component and the `src/map/` folder keep their names, because they hold the map itself, which both Area and Routes use.
+**Consequences.** Bookmarks to `/map` still work through the redirect. Old entries below are reworded to the new names.
+
 ## 2026-11-01 – Street segments and photos in the app (proposed details)
-**Context.** Step 3: segments on the map, clickable, with their photos; no heat or rating yet. The request fixed the endpoints, the cache, the photo proxy and the look; these details were open.
+**Context.** Step 3: segments on the map, clickable, with their photos; no thermal or rating yet. The request fixed the endpoints, the cache, the photo proxy and the look; these details were open.
 **Decision.**
 - *Endpoints:* `POST /api/area` and `GET /api/photo/{pano_id}`, under `/api` like search, so one proxy rule covers the API in development.
 - *Progress:* `/api/area` streams newline-separated JSON events (segments, then each segment with its photos, then the result), not one long answer. The loading card can show "34 of 58" and streets light up as their photos are found (brief §4). Cancel aborts the request, and the server stops its lookups when the app stops reading.
@@ -14,10 +36,10 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Colours:* light teal (`--map-seg`) with the soft halo for segments with photos; thin and dim (`--map-seg-none`) without. Selected: fully opaque, wider, with a white edge (dark teal in light mode), through a feature-state. An invisible wider line makes thin streets easy to click. All values are in `style.css`.
 - *Ring:* at the clicked point (keyboard: the segment's middle). It pulses for 6 s, stops when the map moves, and never pulses with reduced motion.
 - *Place card:* follows board 2f without the rating parts. In their place: "Not rated yet. Ratings come in the next step." Thumbnails are the street's other photos (at most 3, so the previous and next), and use the same URL, so each image is fetched once. On the phone sheet (P2), only the enlarge badge sits on the small photo; arrows, dots and thumbnails are on the full page (P2+).
-- *No photo (2g):* "No street photo here yet, so this street will have no Senses or Overall rating.", "Go to the nearest street with photos" (by distance between segment middles), and the board's note. The heat bar comes with the heat step.
+- *No photo (2g):* "No street photo here yet, so this street will have no Senses or Overall rating.", "Go to the nearest street with photos" (by distance between segment middles), and the board's note. The thermal bar comes with the thermal step.
 - *Enlarged photo:* "Not rated yet" where the photo's rating will go. The photo is `min(70vh, 80vw)` as in the brief, and also no taller than the screen minus its header and thumbnails, so it fits a 720 px laptop.
 - *Keyboard:* a visually hidden list of the area's streets in reading order (top to bottom by ~30 m bands, then left to right). Focus shows a dashed ring and the hover style on the map. Enter opens the card with focus on "Back to area"; Esc closes it and returns focus to the street.
-- *Loading card:* the board's rows; Buildings, Heat and Rating are greyed as "next". The close button and Cancel both cancel.
+- *Loading card:* the board's rows: Street photos, then Thermal and Rating greyed (no Buildings row since the 2026-11-03 board; buildings are still fetched, for the indoor-photo check). The close button and Cancel both cancel.
 **Consequences.** The first image call happens only when a street is opened (1–3 calls, about $0.007 each). The privacy notice should say that coordinates of chosen areas reach our API and Overpass.
 
 ## 2026-11-01 – Address search: Photon through our API
@@ -61,7 +83,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 
 ## 2026-11-01 – All colours, fonts and sizes in style.css
 **Context.** CLAUDE.md: every colour, font and size is a variable in `frontend/src/styles/style.css`. Today's request had put the tint and mask colours in `config.js`.
-**Decision.** The CLAUDE.md rule wins. Theme tokens, map tint, mask, lit circle and circle colours, their opacities, and every size are CSS variables. The map code reads them with `getComputedStyle` when the style loads, so a theme change reloads them. `config.js` keeps only non-visual settings: radius limits, start view, style URLs, photo estimate, default heat window.
+**Decision.** The CLAUDE.md rule wins. Theme tokens, map tint, mask, lit circle and circle colours, their opacities, and every size are CSS variables. The map code reads them with `getComputedStyle` when the style loads, so a theme change reloads them. `config.js` keeps only non-visual settings: radius limits, start view, style URLs, photo estimate, default thermal window.
 **Consequences.** To tune the map overlay, edit `style.css`, not `config.js`.
 
 ## 2026-11-01 – Two-click selection details (proposed)
@@ -88,7 +110,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Below 768 px:* phone layout (P1).
 - *Short screens:* the left panel and the phone sheet scroll inside themselves as a last resort.
 - *Bottom row:* the season bar and map controls sit above the credits line, which scales with the font size.
-- *Inactive controls:* placeholders (About, Print, Ask, Compare, Profile, search) stay focusable with `aria-disabled` and "Coming soon". Controls that are inactive until an area loads (layers, places, season, time) are disabled and faded to 40%.
+- *Inactive controls:* placeholders (About, Print, Ask, Routes, Profile, search) stay focusable with `aria-disabled` and "Coming soon". Controls that are inactive until an area loads (layers, places, season, time) are disabled and faded to 40%.
 - *Checks:* the Playwright fit check emulates 200% zoom as half the CSS pixels at twice the density for the desktop sizes. A larger font is emulated as a root font size of 125%.
 **Consequences.** On a landscape phone (640 × 360) the sheet scrolls and little map is left. That is acceptable for phase 1, which is desktop-first.
 
@@ -154,7 +176,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Context.** The brief says to use street centrelines and drop sidewalks and crossings, with the tag lists in config. The exact lists were left open.
 **Decision.** Walkable: `highway` = primary, secondary, tertiary, unclassified, residential, living_street, pedestrian, service, footway, path, steps, track, cycleway, bridleway. Dropped: `footway=sidewalk|crossing`, `service=driveway|parking_aisle`, `access=private|no`, `foot=no`, `tunnel=yes`, `indoor=yes`. A `highway=footway` with no `footway=*` tag is treated as a sidewalk when 80% of it lies within 12 m of a road centreline. Areas: `leisure=park`, `place=square`, and closed `highway=pedestrian` ways with `area=yes`.
 **Alternatives.** osmnx's "walk" network (heavier dependency, less control over sidewalks).
-**Consequences.** Underground passages (the U-Bahn station under Stephansplatz: 120 ways) are not rated. The sidewalk graph for routing is not built yet (Compare, later).
+**Consequences.** Underground passages (the U-Bahn station under Stephansplatz: 120 ways) are not rated. The sidewalk graph for routing is not built yet (Routes, later).
 
 ## 2026-11-01 – OSM data from the public Overpass API (accepted)
 **Context.** The brief says "streets come from OpenStreetMap" but not how.
@@ -186,7 +208,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 ## 2026-11-01 – Any location can be selected
 **Context.** Elena asked for it, and the brief now says so (§3, states and errors).
 **Decision.** No city is hard-coded. An optional allowed-area polygon (`area.allowed_polygon`, GeoJSON, lon/lat) is empty by default; when set, fetch_photos refuses a centre outside it. Outside Vienna, the area card will say "Tested in Vienna. Elsewhere, predictions are less certain."
-**Consequences.** Photo coverage, heat data and OSM quality vary by place. Rate limits and the 500 m maximum still cap cost.
+**Consequences.** Photo coverage, thermal data and OSM quality vary by place. Rate limits and the 500 m maximum still cap cost.
 
 ## Fixed by the brief (recorded 2026-11-01)
 Decisions already made in `docs/tool-build-prompt.md`. Ask before changing any of them.
@@ -198,5 +220,5 @@ Decisions already made in `docs/tool-build-prompt.md`. Ask before changing any o
 - **Accounts (phase 2).** Clerk, passwordless, invite-only allowlist. FastAPI verifies the session token.
 - **Profile in the browser (phase 1).** Stored in localStorage only. The server stores nothing about the person.
 - **Zero data retention.** AI models only through paid endpoints with zero data retention, never free endpoints. The routing is the same as the study's.
-- **One map layer at a time.** Heat, Senses or Overall. Overall is the worse of the two, and segments with no photo stay unlit.
+- **One map layer at a time.** Thermal, Senses or Overall. Overall is the worse of the two, and segments with no photo stay unlit.
 - **Street View terms.** Store pano IDs, location, date and heading only. Fetch images on demand through the backend. The prototype stays private.

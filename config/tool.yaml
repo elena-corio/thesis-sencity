@@ -112,6 +112,7 @@ thermal:
     winter: {month: 1, day: 15}
   station_radius_km: 100     # nearest public weather station within this distance
   max_jobs: 4                # refuse a run that would bill more (a 500 m circle is up to 4 tiles)
+  optional_input_timeout_s: 20   # trees and ground materials: skipped if not read by then
   buffer_m: 4                # grid cells within this distance either side of a street line
   percentile: 75             # the hotter part, so one unshaded stretch is not averaged away
   cache_dir: runs/thermal    # per area and window: the grid (.npz) and the values per segment (.json)

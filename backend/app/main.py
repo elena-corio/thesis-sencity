@@ -1,7 +1,8 @@
 """SenCity API (FastAPI).
 
 - POST /api/search   address and place search (Photon)
-- POST /api/area     street segments and their chosen photos for one circle (metadata only)
+- POST /api/area     street segments and their chosen photos for one circle (metadata only), then
+                     thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
 
 Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
@@ -100,6 +101,8 @@ class AreaRequest(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
     radius: int = Field(..., ge=full_cfg["area"]["radius_min_m"], le=full_cfg["area"]["radius_max_m"])
+    season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
+    time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
 
 
 # (pano ID, heading) pairs of every cached area: /photo fetches nothing else.
@@ -113,27 +116,40 @@ def _ndjson(event: dict) -> bytes:
 @app.post("/api/area")
 def area(body: AreaRequest, request: Request) -> StreamingResponse:
     """Streams newline-separated JSON events: "segments" (all segments, photos pending), "segment"
-    (one segment with its photos, with done/total), then "done" with the FeatureCollection.
-    A cached area answers with "done" at once. If the app cancels, the lookups stop."""
+    (one segment with its photos, with done/total), "done" with the FeatureCollection, then the
+    thermal stage: "thermal" (UTCI per segment) or "thermal_error". A cached area sends "done" at
+    once; cached thermal comfort comes straight after it. If the app cancels, the lookups stop."""
     key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg)
+    ip = _ip(request)
     cached = area_mod.load_cached(key, full_cfg)
-    if cached is not None:
-        return StreamingResponse(iter([_ndjson({"type": "done", "area": cached, "cached": True})]),
-                                 media_type="application/x-ndjson")
-    if _rate_limited("area", _ip(request), cfg["area"]["rate_per_hour"], 3600):
+    if cached is None and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new areas in a short time. Wait a while and try again.")
-    prov = provider()
+    prov = provider() if cached is None else None
+
+    def thermal(fc):
+        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        for event in area_mod.thermal_events(key, fc, body.lat, body.lon, body.radius, body.season, body.time,
+                                             full_cfg, allowed):
+            yield _ndjson(event)
 
     def events():
+        if cached is not None:
+            yield _ndjson({"type": "done", "area": cached, "cached": True})
+            yield from thermal(cached)
+            return
+        fc = None
         try:
             for event in area_mod.run_area(body.lat, body.lon, body.radius, full_cfg, prov):
                 if event["type"] == "done":
-                    area_mod.save_cached(key, body.lat, body.lon, body.radius, event["area"], full_cfg)
-                    _known_photos.update(area_mod.known_photos(event["area"]))
+                    fc = event["area"]
+                    area_mod.save_cached(key, body.lat, body.lon, body.radius, fc, full_cfg)
+                    _known_photos.update(area_mod.known_photos(fc))
                 yield _ndjson(event)
         except (requests.RequestException, SystemExit) as e:
             log.warning("area failed: %s", type(e).__name__)
             yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
+            return
+        yield from thermal(fc)
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 

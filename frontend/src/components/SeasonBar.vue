@@ -1,16 +1,16 @@
 <script setup>
-// Season chips + time slider. Inactive until heat is ready (brief §3, season and time bar rule).
+// Season chips + time slider. Inactive until thermal is ready (brief §3, season and time bar rule).
 // Desktop: one bar at the bottom centre. Phone: "Summer ▾" and the slider under the top bar.
 import config from '../config.js'
 
 defineProps({ phone: Boolean })
-const { season, time } = config.heatDefault
+const { season, time } = config.thermalDefault
 const hour = Number(time.split(':')[0])
 const cap = (s) => s[0].toUpperCase() + s.slice(1)
 </script>
 
 <template>
-  <div v-if="!phone" class="bar panel" data-panel="season" aria-label="Season and time (available once heat is ready)" role="group">
+  <div v-if="!phone" class="bar panel" data-panel="season" aria-label="Season and time (available once thermal is ready)" role="group">
     <div class="seasons inactive">
       <button v-for="s in config.seasons" :key="s" type="button" class="season" :class="{ on: s === season }" disabled>
         {{ cap(s) }}
@@ -24,7 +24,7 @@ const cap = (s) => s[0].toUpperCase() + s.slice(1)
     </label>
   </div>
 
-  <div v-else class="phone-row" role="group" aria-label="Season and time (available once heat is ready)">
+  <div v-else class="phone-row" role="group" aria-label="Season and time (available once thermal is ready)">
     <button type="button" class="season-chip panel inactive" data-panel="season-chip" disabled>
       {{ cap(season) }} <span aria-hidden="true">▾</span>
     </button>

@@ -7,7 +7,7 @@ defineProps({ inSheet: Boolean })
   <p class="attribution" :data-panel="inSheet ? undefined : 'attribution'">
     © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
     · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>
-    · heat: Infrared.city
+    · thermal: Infrared.city
   </p>
 </template>
 

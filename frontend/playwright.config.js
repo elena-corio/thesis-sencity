@@ -13,7 +13,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev -- --port 5173 --strictPort',
-    url: 'http://localhost:5173/map',
+    url: 'http://localhost:5173/area',
     reuseExistingServer: true,
     env: { PLAYWRIGHT: '1' }, // keeps vite.config.js from opening a browser window
     timeout: 60_000,

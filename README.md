@@ -17,6 +17,7 @@ cp .env.example .env                         # then fill in the key
 | Name | What |
 |---|---|
 | `GOOGLE_MAPS_API_KEY` | Google Maps Platform key with **Street View Static API** enabled. Backend only: never name it `VITE_*`, because Vite would put it in the browser bundle. |
+| `INFRARED_API_KEY` | Infrared.city key for thermal comfort. Each new area and season/time is billed: 10 tokens per 512 m tile (a circle up to ~250 m is usually 1 tile, 500 m up to 4). Backend only. |
 
 All thresholds are in `config/tool.yaml`.
 
@@ -112,6 +113,8 @@ cd backend
 
 Settings are in the `api` section of `config/tool.yaml`: allowed browser origins; for search, the Photon URL, text length, number of results and rate limit; for areas, the cache folder, parallel lookups and the limit of new areas per IP per hour; for photos, the limit per IP per minute and how long the browser may keep them. The key `GOOGLE_MAPS_API_KEY` is read from `.env` on the server only.
 
+After the photos, `/api/area` runs **thermal comfort** for the circle (Infrared.city, season and time from the request, default summer 15:00) and sends the feels-like °C per street. It is billed per run and cached in `runs/thermal/` per area and window, so the same area, season and time is never paid for twice. A run that would bill more than `thermal.max_jobs` jobs is refused before anything is sent. Settings are in the `thermal` section of `config/tool.yaml`; the key `INFRARED_API_KEY` is read from `.env` on the server only. Without the key the photos still load and the app says thermal comfort is not set up.
+
 A new area takes about a minute: most of it is the public Overpass server (OpenStreetMap), which is often busy. The photo lookups run in parallel and take a few seconds.
 
 ### Tests
@@ -131,14 +134,14 @@ The app: the map start screen, address search and the two-click area selection (
 cd frontend
 npm install                     # once
 npx playwright install chromium # once, for the screen checks
-npm run dev                     # starts the API too, and opens http://localhost:5173/map
+npm run dev                     # starts the API too, and opens http://localhost:5173/area
 ```
 
 `npm run dev` also starts the SenCity API (`python -m app` in `backend/`, port 8000) and stops it when you stop the dev server; the terminal shows `[api] started`. If the API already runs on port 8000, it is reused. It needs the Python setup above (`.venv` at the repo root). Vite forwards `/api` to it, so the browser talks to one address only. Without the API, the map still works, and search says "Search is not available right now."
 
 | Command (in `frontend/`) | What it does |
 |---|---|
-| `npm run dev` | Starts the API and the app, and opens http://localhost:5173/map in your browser; reloads on every change |
+| `npm run dev` | Starts the API and the app, and opens http://localhost:5173/area in your browser; reloads on every change |
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
 | `npm test` | Unit tests for the radius maths (Vitest), no browser needed |
@@ -166,6 +169,8 @@ npm run dev                     # starts the API too, and opens http://localhost
 | Error | What to do |
 |---|---|
 | `Missing GOOGLE_MAPS_API_KEY` | Add the key to `.env` at the repo root. An old `VITE_GOOGLE_MAPS_KEY` is not read. |
+| "Thermal comfort is not set up on the server." | Add `INFRARED_API_KEY` to `.env` and restart the API. |
+| "No weather station near this area…" | No public station within `thermal.station_radius_km`; the area has no thermal comfort. |
 | `Street View metadata error: REQUEST_DENIED` | The key is wrong, or Street View Static API is not enabled for it in the Google Cloud console |
 | `OVER_QUERY_LIMIT` | Too many calls per minute or per day. Wait and re-run: cached answers are reused. |
 | Overpass `429` / `504` / timeout | The public Overpass server is busy. Wait a minute and re-run. |

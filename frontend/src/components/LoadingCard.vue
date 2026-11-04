@@ -1,6 +1,7 @@
 <script setup>
-// "Loading this area" (board Flow 2). Only the street photos step exists for now; buildings, heat
-// and rating are shown greyed as "next". Streets light up on the map as their photos are found.
+// "Loading this area" (boards Flow 2, Flow 3): street photos, then thermal comfort (Infrared.city),
+// then rating (shown greyed: it does not exist yet). Streets light up on the map as their photos are
+// found, then in their thermal colour.
 import { computed, onMounted, ref } from 'vue'
 import config from '../config.js'
 import { useAreaStore } from '../stores/area.js'
@@ -8,7 +9,7 @@ import AppIcon from './AppIcon.vue'
 
 defineProps({ phone: Boolean })
 const area = useAreaStore()
-const heat = config.heatDefault
+const thermal = config.thermalDefault
 const cancelBtn = ref(null)
 // Started with the keyboard: focus Cancel, so Enter or Space can stop it.
 onMounted(() => { if (area.byKeyboard) cancelBtn.value?.focus() })
@@ -16,6 +17,7 @@ onMounted(() => { if (area.byKeyboard) cancelBtn.value?.focus() })
 const photosDetail = computed(() => {
   const p = area.progress
   if (area.load === 'error') return ''
+  if (area.load === 'ready') return `${area.counts.all} of ${area.counts.all}`
   return p.stage === 'streets' ? 'finding the streets…' : `${p.done} of ${p.total}`
 })
 const share = computed(() => (area.progress.total ? area.progress.done / area.progress.total : 0))
@@ -36,9 +38,6 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
     </div>
 
     <ul class="steps">
-      <li class="next">
-        <AppIcon name="pending" /><span class="label">Buildings</span><span class="detail">next</span>
-      </li>
       <li :class="{ active: area.load === 'loading', failed: area.load === 'error' }">
         <AppIcon :name="area.load === 'ready' ? 'check' : 'pending'" />
         <span class="label">Street photos</span>
@@ -48,15 +47,22 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
           <span :style="area.progress.stage === 'streets' ? {} : { width: `${Math.round(share * 100)}%` }" />
         </span>
       </li>
-      <li class="next">
-        <AppIcon name="pending" /><span class="label">Heat</span><span class="detail">next · {{ heat.season }}, {{ heat.time }}</span>
+      <li :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
+        <AppIcon :name="area.thermal === 'ready' ? 'check' : 'pending'" />
+        <span class="label">Thermal</span>
+        <span class="detail" role="status">{{ thermal.season }}, {{ thermal.time }}</span>
+        <!-- One simulation with no count: the bar slides until it is done. -->
+        <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
       <li class="next">
-        <AppIcon name="pending" /><span class="label">Rating for your profile</span><span class="detail">next</span>
+        <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>
 
     <p v-if="area.load === 'error'" class="note error">{{ area.loadError }}</p>
+    <p v-else-if="area.thermal === 'loading'" class="note">
+      Simulating sun, shade and wind for this area. This can take a few minutes; click a street to see its photos meanwhile.
+    </p>
     <p v-else-if="area.progress.stage === 'streets'" class="note">
       Finding the streets, parks and squares in this circle. This can take up to a minute; you can keep exploring.
     </p>

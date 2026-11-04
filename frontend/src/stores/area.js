@@ -3,6 +3,7 @@ import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
 import { ApiError, loadArea } from '../lib/api.js'
 import { haversine, limitRadius } from '../lib/geo.js'
+import { withThermal } from '../lib/thermal.js'
 
 /**
  * Two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c).
@@ -28,6 +29,13 @@ export const useAreaStore = defineStore('area', () => {
   const loadError = ref('')
   /** GeoJSON FeatureCollection of segments; photos is null while still being looked up. */
   const segments = shallowRef(null)
+  // Thermal comfort, after the photos (Flow 3): 'idle' | 'loading' | 'ready' | 'error'.
+  const thermal = ref('idle')
+  const thermalError = ref('')
+  /** The window and weather station of the values shown. @type {import('vue').Ref<{season:string, time:string, station:{name:string, distance_km:number|null}} | null>} */
+  const thermalInfo = ref(null)
+  /** Layer on the map: null (photos only, before any rating) or 'thermal'. Senses and Overall come with rating. */
+  const layer = ref(null)
   /** Selected segment id (the place card shows it). */
   const selectedId = ref(null)
   /** Where the selection ring sits: the click point, or the segment's middle. */
@@ -54,8 +62,9 @@ export const useAreaStore = defineStore('area', () => {
     loadError.value = ''
     segments.value = null
     progress.value = { stage: 'streets', done: 0, total: 0 }
+    resetThermal()
     try {
-      await loadArea(analysed.value, (e) => {
+      await loadArea({ ...analysed.value, ...config.thermalDefault }, (e) => {
         if (e.type === 'segments') {
           segments.value = { type: 'FeatureCollection', features: e.features }
           progress.value = { stage: 'photos', done: 0, total: e.total }
@@ -65,18 +74,45 @@ export const useAreaStore = defineStore('area', () => {
         } else if (e.type === 'done') {
           segments.value = e.area
           load.value = 'ready'
+        } else if (e.type === 'stage' && e.stage === 'thermal') {
+          thermal.value = 'loading'
+        } else if (e.type === 'thermal') {
+          segments.value = withThermal(segments.value, e.values)
+          thermalInfo.value = { season: e.season, time: e.time, station: e.station }
+          thermal.value = 'ready'
+          layer.value = 'thermal'
+        } else if (e.type === 'thermal_error') {
+          thermal.value = 'error'
+          thermalError.value = e.message
         } else if (e.type === 'error') {
           throw new ApiError(500, e.message)
         }
       }, signal)
       if (load.value !== 'ready') throw new ApiError(500, '')
+      if (thermal.value === 'loading') {
+        thermal.value = 'error'
+        thermalError.value = 'Thermal comfort could not be loaded. Try again.'
+      }
     } catch (err) {
       if (signal.aborted) return
+      if (load.value === 'ready') {
+        // The photos arrived; only thermal comfort was cut off.
+        thermal.value = 'error'
+        thermalError.value = 'Thermal comfort could not be loaded. Try again.'
+        return
+      }
       load.value = 'error'
       loadError.value = err.status === 429
         ? 'Too many new areas in a short time. Wait a while and try again.'
         : 'Could not load street photos for this area. Check that the API is running, then try again.'
     }
+  }
+
+  function resetThermal() {
+    thermal.value = 'idle'
+    thermalError.value = ''
+    thermalInfo.value = null
+    layer.value = null
   }
 
   /** Cancel loading: back to the set circle (Flow 1c). */
@@ -85,6 +121,7 @@ export const useAreaStore = defineStore('area', () => {
     controller = null
     load.value = 'idle'
     segments.value = null
+    resetThermal()
     clearSelection()
     step.value = 'set'
   }
@@ -142,6 +179,7 @@ export const useAreaStore = defineStore('area', () => {
     controller = null
     load.value = 'idle'
     segments.value = null
+    resetThermal()
     clearSelection()
     step.value = 'centre'
     centre.value = null
@@ -152,6 +190,7 @@ export const useAreaStore = defineStore('area', () => {
   return {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
+    thermal, thermalError, thermalInfo, layer,
     startLoad, cancelLoad, select, clearSelection,
   }
 })

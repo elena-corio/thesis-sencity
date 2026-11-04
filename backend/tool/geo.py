@@ -17,6 +17,10 @@ class LocalProjection:
     def to_xy(self, lon: float, lat: float) -> tuple[float, float]:
         return self._fwd.transform(lon, lat)
 
+    def to_xy_many(self, lons, lats):
+        """Arrays of lon/lat to arrays of x/y (one call for many points)."""
+        return self._fwd.transform(lons, lats)
+
     def to_lonlat(self, x: float, y: float) -> tuple[float, float]:
         return self._inv.transform(x, y)
 
