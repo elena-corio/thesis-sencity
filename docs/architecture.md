@@ -3,8 +3,9 @@
 How the tool is built **now**:
 - **Backend:** fetching street photo candidates for one circle.
 - **Frontend:** the map start screen, address search and the two-click area selection.
-- **API:** `POST /api/search` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `GET /api/photo/{pano_id}` (Street View images, passed through).
+- **API:** `POST /api/search` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
 - **Thermal layer:** feels-like °C per street, scored 1–5 in the app with the standard limits.
+- **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 
 There is no AI rating yet, so Senses and Overall stay inactive.
 
@@ -44,9 +45,15 @@ flowchart LR
   API -- "pano ID + heading, key" --> SVI2["Street View Static API (paid)"]
   SVI2 -- "image ⇢ passed through, never stored" --> API
   API -- "image (Cache-Control: private, 1 h)" --> APP
+  APP -- "start, end ⚠ may be personal (a home, a workplace) + thermal limits, season, time (POST body)" --> API
+  API -- "search ellipse, then corridor polygon (no start or end as such)" --> OVP3["OpenStreetMap / Overpass API"]
+  API -- "sample points, key (metadata, free)" --> SVM3["Street View metadata"]
+  API -- "corridor polygon, middle point, season and hour (key)" --> IR2["Infrared.city API (billed; preview free)"]
+  API -- "corridor streets + photo metadata, under a hashed name (no start or end)" --> RCACHE[("runs/routes/&lt;key&gt;.json")]
+  API -- "progress counts, then the two ways, their streets, °C, verdict" --> APP
 ```
 
-⚠ marks data that may be personal: what people type in search can be their own address. It is never logged or stored: the API forwards it to Photon and passes the answer back. Photon sees the API's address, not the user's. No other arrow carries personal data. Review notes are Elena's own judgement of the photos. The selected area stays in the browser (Pinia store) until analysis is built.
+⚠ marks data that may be personal: what people type in search can be their own address. It is never logged or stored: the API forwards it to Photon and passes the answer back. Photon sees the API's address, not the user's. The start and end of a route can be a home and a workplace: they are never logged or stored. The services see only polygons around the way, but the search ellipse's foci are the two points and the corridor runs from one to the other, so these do show roughly where someone walks, as does the route cache. No other arrow carries personal data. Review notes are Elena's own judgement of the photos. The selected area stays in the browser (Pinia store) until analysis is built.
 
 ## Modules
 
@@ -65,9 +72,11 @@ flowchart LR
 | `backend/tool/infrared.py` | Infrared.city run for one circle and window: job count check, nearest station, buildings, trees, ground, UTCI grid (billed) |
 | `backend/tool/thermal.py` | Pure: grid cell centres, the percentile of the cells along each segment |
 | `backend/tool/geo.py`, `config.py` | Local metric projection, circle, bearings; config and `.env` loading |
-| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
+| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/area`, `/api/routes`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
 | `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent) |
 | `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
+| `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
+| `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
 
@@ -75,20 +84,27 @@ flowchart LR
 
 | Path | What it does |
 |---|---|
-| `src/main.js`, `src/App.vue`, `src/router.js` | App entry; the only route is `/area` (`/` and any other path redirect there) |
-| `src/views/MapView.vue` | Map view: places every floating panel from the viewport; phone layout below 768 px |
-| `src/components/MapCanvas.vue` | MapLibre map, theme style swap, the two-click selection (pointer, touch, keyboard), crosshair, edge handle, radius chip, pan to keep the circle visible |
+| `src/main.js`, `src/App.vue`, `src/router.js` | App entry; `/area` and `/routes` are one view around one map (`/` and any other path redirect to `/area`) |
+| `src/views/MapView.vue` | Map view, for Area and Routes: places every floating panel from the viewport; phone layout below 768 px |
+| `src/components/MapCanvas.vue` | MapLibre map, theme style swap, the two-click selection (pointer, touch, keyboard), crosshair, edge handle, radius chip, pan to keep the circle visible; in Routes: clicks set Start and End, pins, hover and click on a stretch, fit the way in the free space |
+| `src/map/routes.js` | Route layers: each street in its state colour, A continuous, B dashed over runs of one state, glow, selected edge, the rest dimmed on hover |
+| `src/stores/routes.js` | Pinia: Start, End, the preview before Analyse, loading the ways (progress, cancel, errors), the routes and their stretches, shown or hidden, selected stretch, linked hover, season and time |
+| `src/lib/routes.js` | Pure: a route's parts to stretches (one per street), runs of one state, a stretch as one place for the card, distances |
+| `src/components/RoutePanel.vue`, `RouteLayerButtons.vue` | Start and End fields, colour by, legend (desktop left panel; phone top bar with swap) |
+| `src/components/RouteCard.vue`, `RouteBar.vue` | "Which way feels better?": the steps, the preview ("This walk"), the progress, the comparison; one state bar per route, each street a button (a bottom sheet on a phone) |
+| `src/components/StretchCard.vue` | A selected stretch: the place card with the route bar, coverage, previous / next, arrow keys |
+| `src/components/PlaceSearch.vue` | One search field with suggestions, used by the top bar and by Start and End |
 | `src/map/layers.js` | Our map layers: teal tint, lit circle, dimmed outside (world minus circle), dashed circle and radius line; colours read from `style.css` |
 | `src/lib/geo.js` | Radius maths: haversine, limits (snap to 50 m, cap at 500 m, round to 10 m), 64-point circle, mask, photo estimate, coordinate label |
 | `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}`; loading the area (progress, cancel, errors), its segments, the selected segment; thermal comfort (state, window, station) and the layer on the map |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |
-| `src/components/TopSearch.vue` | Logo + search: suggestions while typing (combobox, keyboard and pointer), messages for no results and errors; picking moves the map |
-| `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `loadArea` (reads the streamed events), `photoUrl`; error type, place-type labels |
+| `src/components/TopSearch.vue` | Logo + search (`PlaceSearch`); picking moves the map |
+| `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `loadArea` and `loadRoutes` (read the streamed events), `photoUrl`; error type, place-type labels |
 | `src/components/ViewTabs.vue`, `TopActions.vue` | Area / Routes / Profile (bottom tab bar on a phone); About, Print, light/dark (one click), Ask, account |
 | `src/components/AccountMenu.vue`, `AppearanceSwitch.vue` | Account menu (board P5) with the System / Light / Dark switch |
 | `src/components/LayerPanel.vue`, `SeasonBar.vue`, `MapControls.vue`, `MapAttribution.vue` | Left panel (Thermal turns on with its feels-like legend once thermal comfort is ready; Senses and Overall wait for rating) and season bar (active before analysis, where Analyse uses the choice, and once thermal is ready, where a new season or time asks for thermal again), zoom and re-centre, credits |
 | `src/components/StepHint.vue`, `AreaCard.vue` | Step hints (Flow 1, 1b, 1c) and the "This area" card (Flow 4 once loaded: Change area, the street stretches of the layer as one stacked bar with counts and %, places by type, Print area report as "Coming soon"; or why thermal is missing, with Try again; a bottom sheet on a phone) |
-| `src/components/LoadingCard.vue` | "Loading this area" (Flow 2): street photos with progress; thermal and rating greyed; Cancel |
+| `src/components/LoadingCard.vue` | "Loading this area" (Flow 2): streets, then street photos with progress; thermal, and rating greyed; Cancel |
 | `src/components/PlaceCard.vue` | The selected street (2f, 2g; phone P2): photo with arrows, enlarge badge, credit, thumbnails, date and direction; "Not rated yet"; on the Thermal layer the photo and name, then thermal comfort (2e): feels-like °C, state and why, the 1–5 bar, a cooler (or warmer) street nearby; no-photo state with "Go to the nearest street with photos" |
 | `src/components/PhotoViewer.vue` | Enlarged photo (2f+; phone P2+ as a full page): arrows, swipe, thumbnails, keyboard, focus trap |
 | `src/map/segments.js` | Segment layers (halo, core, dim, selected edge, invisible hit line) with hover and selection as feature-states; the Thermal layer lights every street with a value in its state colour |
@@ -97,8 +113,8 @@ flowchart LR
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default thermal window |
-| `src/lib/geo.test.js`, `thermal.test.js` | Vitest: radius maths; thermal score, states and labels |
-| `e2e/` | Playwright: step-by-step screenshots, fit-every-screen check, keyboard walk-through |
+| `src/lib/geo.test.js`, `thermal.test.js`, `routes.test.js` | Vitest: radius maths; thermal score, states and labels; stretches |
+| `e2e/` | Playwright: step-by-step screenshots, fit-every-screen check, keyboard walk-through, Routes |
 
 ## Data formats
 
@@ -124,6 +140,14 @@ flowchart LR
 
 **Thermal on a segment, app** (added in the browser, `lib/thermal.js`): `utci` float (°C) · `thermal_score` 1–5 · `thermal_state` "easy" | "mixed" | "hard".
 
+**Routes** (`POST /api/routes`): request `{ start: {lat, lon}, end: {lat, lon}, limits: {heat: [3 °C], cold: [4 °C]}, season?, time? }`. Refused with 422 when the points are under 50 m or over 1.5 km apart, 429 for too many new routes. Newline-separated JSON events: `{type: "stage", stage: "streets" | "thermal" | "routes"}`, `{type: "segments", total}`, `{type: "segment", done, total}` (counts only: nothing is drawn yet), then `{type: "routes", season, time, station, routes, verdict, segments: FeatureCollection (the streets of both ways, as in Area), values: {segment id: °C | null}}`. Or `{type: "error", message}` or `{type: "thermal_error", message}`; the stream ends.
+
+**A route**: `id` "A" | "B" · `kind` "shortest" | "easiest" | "second" · `length_m` · `minutes` · `hard_share`, `mixed_share`, `thermal_share`, `photo_share` (0–1, of the length) · `parts` [{ `segment_id` str | null (a connector), `length_m`, `coordinates` [[lon, lat]] }] in walking order.
+
+**A stretch, app** (`lib/routes.js`): `key` "A-2" · `routeId` · `index` · `state` "easy" | "mixed" | "hard" | "none" · `segmentId` · `length_m` · `coordinates`. One street segment of the route; a connector joins the stretch before it.
+
+**Route cache** (`runs/routes/<key>.json`, not committed): `{ created, lat, lon (the middle), zone (corridor polygon), area: FeatureCollection }`. The key is a hash of the two points, either way round, and the settings. No start or end, and nothing about the person. Thermal comfort for it is in `runs/thermal/`, as for an area.
+
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
 Not built yet: the profile, the photo rating and the rating cache entry.
@@ -132,7 +156,7 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 
 | Service | Used for | Region | What it keeps |
 |---|---|---|---|
-| Overpass API (overpass-api.de) | OSM ways, parks, squares and buildings for one circle (the `fetch_photos` script and `/api/area`) | Germany | Request logs (circle query only, from our API's address) |
+| Overpass API (overpass-api.de) | OSM ways, parks, squares and buildings for one circle (the `fetch_photos` script and `/api/area`), or the streets and buildings around a route (`/api/routes`) | Germany | Request logs (the circle or polygon, from our API's address) |
 | Google Street View metadata | Pano ID, location, date per sample point (free) | Google | API usage per key |
 | Google Street View Static API | Images for the app's place card and enlarged photo (`/api/photo`, on click only), the image check and the review page (paid, ~$7/1000, 10,000 free/month) | Google | API usage per key; the images are never stored by us |
 | OpenFreeMap | Base map tiles in the app (Positron light, Dark) and review.html | EU | Tile request logs |
@@ -143,9 +167,9 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 ## Configuration
 
 - **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`. Template: `.env.example`.
-- **`config/tool.yaml`**: `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
+- **`config/tool.yaml`**: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
 - **`backend/requirements.txt`**: Python 3.11+ dependencies.
-- **`frontend/src/config.js`**: radius limits (50–500 m, default 200, rounding 10 m), start view, map style URLs, photo estimate, default season and time, thermal limits (°C), API base (`VITE_API_BASE`, empty = same origin), search timing.
+- **`frontend/src/config.js`**: radius limits (50–500 m, default 200, rounding 10 m), start view, map style URLs, photo estimate, default season and time, thermal limits (°C), route limits (shown before asking; keep them equal to `routes` in `config/tool.yaml`), API base (`VITE_API_BASE`, empty = same origin), search timing.
 - **`frontend/vite.config.js`**: dev server on port 5173, `/api` forwarded to the API on port 8000. `frontend/dev-api.js` starts the API with `npm run dev`.
 - **`frontend/src/styles/style.css`**: design tokens (brief §9) and map overlay colours and opacities, for dark and light.
 - **`frontend/package.json`**: Vue, Pinia, Vue Router, MapLibre GL JS; Vite, Vitest, Playwright for development.

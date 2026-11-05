@@ -1,0 +1,260 @@
+import { defineStore } from 'pinia'
+import { computed, ref, shallowRef } from 'vue'
+import config from '../config.js'
+import { loadRoutes } from '../lib/api.js'
+import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
+import { haversine } from '../lib/geo.js'
+import { withThermal } from '../lib/thermal.js'
+
+/**
+ * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
+ * there is a preview, and nothing is asked for until Analyse (as in Area: a misclick costs nothing). The
+ * two ways appear on the map only when they are ready.
+ * Thermal is the only layer so far; Senses and Overall come with rating.
+ */
+export const useRoutesStore = defineStore('routes', () => {
+  /** named: the label is a place from search, not a point on the map.
+   *  @type {import('vue').Ref<{lat:number, lon:number, label:string, named:boolean} | null>} */
+  const start = ref(null)
+  const end = ref(null)
+  /** 'idle' | 'loading' | 'ready' | 'error' */
+  const load = ref('idle')
+  const progress = ref({ stage: 'streets', done: 0, total: 0 })
+  const error = ref('')
+  /** Why the chosen end was refused before asking (too close, too far). */
+  const pointError = ref('')
+  /** Why a new season or time could not be shown; the previous one stays on the map. */
+  const windowError = ref('')
+  const thermalWindow = ref({ ...config.thermalDefault })
+  /** The window and station of the routes shown. */
+  const info = ref(null)
+  const layer = ref('thermal')
+  const routes = shallowRef([])
+  const verdict = ref('')
+  const segments = shallowRef(new Map())
+  const visible = ref({ A: true, B: true })
+  /** The selected stretch: { key, point } */
+  const selected = ref(null)
+  /** Linked highlight (brief §8): a stretch key or a route id, from the map, a bar or a button. */
+  const hoverKey = ref(null)
+  const hoverRoute = ref(null)
+  /** The last step was done with the keyboard, so focus can follow. */
+  const byKeyboard = ref(false)
+  /** The bar section to focus again after Back to comparison. */
+  const returnKey = ref(null)
+  let controller = null
+  let windowTimer = null
+
+  const step = computed(() => {
+    if (!start.value) return 'start'
+    if (!end.value) return 'end'
+    return 'set'
+  })
+  const hasResult = computed(() => routes.value.length > 0)
+  const windowActive = computed(() => load.value !== 'loading')
+  /** Both points are set and nothing has been asked for yet. */
+  const previewing = computed(() => step.value === 'set' && load.value === 'idle' && !hasResult.value)
+  const aerialDistance = computed(() => (start.value && end.value ? haversine(start.value, end.value) : 0))
+  /** Every route with its stretches on the chosen layer. */
+  const shown = computed(() => routes.value.map((r) => ({ ...r, stretches: stretchesOf(r, segments.value, layer.value) })))
+  const allStretches = computed(() => shown.value.flatMap((r) => r.stretches))
+  const selectedStretch = computed(() => allStretches.value.find((s) => s.key === selected.value?.key) ?? null)
+  const selectedRoute = computed(() => shown.value.find((r) => r.id === selectedStretch.value?.routeId) ?? null)
+
+  function clearResult() {
+    routes.value = []
+    verdict.value = ''
+    segments.value = new Map()
+    info.value = null
+    selected.value = null
+    hoverKey.value = null
+    hoverRoute.value = null
+    visible.value = { A: true, B: true }
+    windowError.value = ''
+  }
+
+  function stopLoading() {
+    controller?.abort()
+    controller = null
+    clearTimeout(windowTimer)
+  }
+
+  /** Set the next empty point: the first click is Start, the second End (brief §3). */
+  function pick(point, label = 'Clicked point', keyboard = false) {
+    byKeyboard.value = keyboard
+    if (!start.value) setPoint('start', point, label)
+    else if (!end.value) setPoint('end', point, label)
+  }
+
+  function setPoint(which, point, label, named = false) {
+    stopLoading()
+    clearResult()
+    load.value = 'idle'
+    error.value = ''
+    pointError.value = ''
+    const next = { lat: point.lat, lon: point.lon, label, named }
+    if (which === 'start') start.value = next
+    else end.value = next
+    if (start.value && end.value) distanceAllowed(which)
+  }
+
+  /** Refuse points too close or too far before asking the API. The point just chosen is cleared. */
+  function distanceAllowed(which) {
+    const d = haversine(start.value, end.value)
+    const { minM, maxM } = config.routes
+    if (d >= minM && d <= maxM) return true
+    pointError.value = d < minM
+      ? `Start and end are only ${Math.round(d)} m apart. Choose points further apart.`
+      : `That is ${formatKm(d)} in a straight line. Routes go up to ${formatKm(maxM)} for now. Choose a closer point.`
+    if (which === 'start') start.value = null
+    else end.value = null
+    return false
+  }
+
+  function clearPoint(which) {
+    stopLoading()
+    clearResult()
+    load.value = 'idle'
+    error.value = ''
+    pointError.value = ''
+    if (which === 'start') start.value = null
+    else end.value = null
+  }
+
+  function swap() {
+    if (!start.value && !end.value) return
+    const was = start.value
+    // With routes on the map the answer is already paid for, either way round: ask at once.
+    const again = hasResult.value
+    stopLoading()
+    clearResult()
+    start.value = end.value
+    end.value = was
+    if (again) find()
+    else load.value = 'idle'
+  }
+
+  function reset() {
+    stopLoading()
+    clearResult()
+    load.value = 'idle'
+    error.value = ''
+    pointError.value = ''
+    start.value = null
+    end.value = null
+  }
+
+  function apply(e) {
+    segments.value = new Map(withThermal(e.segments, e.values).features.map((f) => [f.properties.id, f]))
+    routes.value = e.routes
+    verdict.value = e.verdict
+    info.value = { season: e.season, time: e.time, station: e.station }
+    thermalWindow.value = { season: e.season, time: e.time }
+    selected.value = null
+    visible.value = { A: true, B: true }
+    windowError.value = ''
+    load.value = 'ready'
+  }
+
+  /** Something failed: with routes on the map they stay, for the season and time they show. */
+  function failed(message) {
+    if (hasResult.value) {
+      thermalWindow.value = { season: info.value.season, time: info.value.time }
+      windowError.value = message
+      load.value = 'ready'
+    } else {
+      error.value = message
+      load.value = 'error'
+    }
+  }
+
+  async function find() {
+    stopLoading()
+    controller = new AbortController()
+    const { signal } = controller
+    load.value = 'loading'
+    error.value = ''
+    windowError.value = ''
+    progress.value = { stage: 'streets', done: 0, total: 0 }
+    const generic = 'Could not find the two ways. Check that the API is running, then try again.'
+    try {
+      await loadRoutes({
+        start: { lat: start.value.lat, lon: start.value.lon },
+        end: { lat: end.value.lat, lon: end.value.lon },
+        limits: config.thermalLimits,
+        ...thermalWindow.value,
+      }, (e) => {
+        if (e.type === 'stage') progress.value = { ...progress.value, stage: e.stage }
+        else if (e.type === 'segments') progress.value = { stage: 'photos', done: 0, total: e.total }
+        else if (e.type === 'segment') progress.value = { stage: 'photos', done: e.done, total: e.total }
+        else if (e.type === 'routes') apply(e)
+        else if (e.type === 'thermal_error' || e.type === 'error') {
+          progress.value = { ...progress.value, failed: e.type === 'thermal_error' ? 'thermal' : progress.value.stage }
+          failed(e.message)
+        }
+      }, signal)
+      if (load.value === 'loading') failed(generic)
+    } catch (err) {
+      if (signal.aborted) return
+      failed(err.status === 429 || err.status === 422 ? err.message : generic)
+    }
+  }
+
+  /** Cancel loading. With routes on the map they stay; otherwise back to the preview, as in Area. */
+  function cancel() {
+    stopLoading()
+    if (hasResult.value) {
+      thermalWindow.value = { season: info.value.season, time: info.value.time }
+      load.value = 'ready'
+      return
+    }
+    load.value = 'idle'
+    error.value = ''
+  }
+
+  /** Season chips and time slider: free until Analyse; on a result it asks again. */
+  function setThermalWindow(change) {
+    if (!windowActive.value) return
+    thermalWindow.value = { ...thermalWindow.value, ...change }
+    windowError.value = ''
+    if (!hasResult.value) return
+    clearTimeout(windowTimer)
+    windowTimer = setTimeout(() => {
+      const { season, time } = thermalWindow.value
+      if (season !== info.value?.season || time !== info.value?.time) find()
+    }, config.thermalDebounceMs)
+  }
+
+  function toggleRoute(id) {
+    visible.value = { ...visible.value, [id]: !visible.value[id] }
+    if (selectedStretch.value?.routeId === id && !visible.value[id]) selected.value = null
+  }
+
+  function selectStretch(key, point, keyboard = false) {
+    const stretch = allStretches.value.find((s) => s.key === key)
+    if (!stretch) return
+    byKeyboard.value = keyboard
+    selected.value = { key, point: point ?? stretchMiddle(stretch) }
+    returnKey.value = key
+  }
+
+  /** The next or previous stretch of the same route (arrow keys and the card's buttons). */
+  function stepStretch(delta, keyboard = false) {
+    const s = selectedStretch.value
+    if (!s) return
+    const next = selectedRoute.value.stretches[s.index + delta]
+    if (next) selectStretch(next.key, undefined, keyboard)
+  }
+
+  function back(keyboard = false) {
+    byKeyboard.value = keyboard
+    selected.value = null
+  }
+
+  return {
+    start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
+    segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
+    shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
+    pick, setPoint, clearPoint, swap, reset, find, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
+  }
+})

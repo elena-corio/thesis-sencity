@@ -5,27 +5,29 @@
 // bar. On a loaded area each new season or time is a billed run, so the slider asks only when let go.
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
-import { useAreaStore } from '../stores/area.js'
 
-defineProps({ phone: Boolean })
-const area = useAreaStore()
+const props = defineProps({
+  phone: Boolean,
+  /** The store that owns the window: the area or the routes (the same three fields). */
+  store: { type: Object, required: true },
+})
 const cap = (s) => s[0].toUpperCase() + s.slice(1)
 const hourOf = (time) => Number(time.split(':')[0])
 const timeOf = (hour) => `${String(hour).padStart(2, '0')}:00`
 
-const active = computed(() => area.windowActive)
+const active = computed(() => props.store.windowActive)
 const label = computed(() => (active.value ? 'Season and time' : 'Season and time (available once this area has loaded)'))
-const season = computed(() => area.thermalWindow.season)
+const season = computed(() => props.store.thermalWindow.season)
 // The slider's position while it is dragged, before the time is asked for.
-const hour = ref(hourOf(area.thermalWindow.time))
-watch(() => area.thermalWindow.time, (t) => { hour.value = hourOf(t) })
+const hour = ref(hourOf(props.store.thermalWindow.time))
+watch(() => props.store.thermalWindow.time, (t) => { hour.value = hourOf(t) })
 </script>
 
 <template>
   <div v-if="!phone" class="bar panel" data-panel="season" :aria-label="label" role="group">
     <div class="seasons" :class="{ inactive: !active }">
       <button v-for="s in config.seasons" :key="s" type="button" class="season" :class="{ on: s === season }"
-              :disabled="!active" :aria-pressed="s === season" @click="area.setThermalWindow({ season: s })">
+              :disabled="!active" :aria-pressed="s === season" @click="store.setThermalWindow({ season: s })">
         {{ cap(s) }}
       </button>
     </div>
@@ -33,7 +35,7 @@ watch(() => area.thermalWindow.time, (t) => { hour.value = hourOf(t) })
     <label class="time" :class="{ inactive: !active }">
       <span class="visually-hidden">Time of day</span>
       <input v-model.number="hour" type="range" min="6" max="21" :disabled="!active"
-             @change="area.setThermalWindow({ time: timeOf(hour) })" />
+             @change="store.setThermalWindow({ time: timeOf(hour) })" />
       <output>{{ timeOf(hour) }}</output>
     </label>
   </div>
@@ -41,14 +43,14 @@ watch(() => area.thermalWindow.time, (t) => { hour.value = hourOf(t) })
   <div v-else class="phone-row" role="group" :aria-label="label">
     <div class="season-chip panel" :class="{ inactive: !active }" data-panel="season-chip">
       <select :value="season" aria-label="Season" :disabled="!active"
-              @change="area.setThermalWindow({ season: $event.target.value })">
+              @change="store.setThermalWindow({ season: $event.target.value })">
         <option v-for="s in config.seasons" :key="s" :value="s">{{ cap(s) }}</option>
       </select>
     </div>
     <label class="time-box panel" :class="{ inactive: !active }" data-panel="time">
       <span class="visually-hidden">Time of day</span>
       <input v-model.number="hour" type="range" min="6" max="21" :disabled="!active"
-             @change="area.setThermalWindow({ time: timeOf(hour) })" />
+             @change="store.setThermalWindow({ time: timeOf(hour) })" />
       <output>{{ timeOf(hour) }}</output>
     </label>
   </div>

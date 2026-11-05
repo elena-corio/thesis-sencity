@@ -45,6 +45,28 @@ def optional(future, label: str, limit_s: float, started: float):
     return None
 
 
+def count_jobs(polygon: dict, cfg: dict) -> int:
+    """How many tiles a run on this polygon would bill. Free: preview_area runs no analysis."""
+    from infrared_sdk import InfraredClient
+
+    try:
+        client = InfraredClient(api_key=get_key("INFRARED_API_KEY"), base_url="https://api.infrared.city/v2")
+    except SystemExit:
+        raise ThermalError("Thermal comfort is not set up on the server.") from None
+    return client.preview_area(polygon, analysis_type=cfg["thermal"]["analysis"]).would_bill_jobs
+
+
+def count_jobs(polygon: dict, cfg: dict) -> int:
+    """How many tiles a run on this polygon would bill. Free: preview_area runs no analysis."""
+    from infrared_sdk import InfraredClient
+
+    try:
+        client = InfraredClient(api_key=get_key("INFRARED_API_KEY"), base_url="https://api.infrared.city/v2")
+    except SystemExit:
+        raise ThermalError("Thermal comfort is not set up on the server.") from None
+    return client.preview_area(polygon, analysis_type=cfg["thermal"]["analysis"]).would_bill_jobs
+
+
 def run_utci(polygon: dict, lat: float, lon: float, season: str, time: str, cfg: dict) -> dict:
     """UTCI grid for the polygon (lon/lat GeoJSON). Returns {"grid": float32 array (row 0 south,
     NaN = no value), "bounds": (min_lon, min_lat, max_lon, max_lat), "station": {...}, "jobs": n}."""

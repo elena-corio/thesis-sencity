@@ -35,6 +35,12 @@ export default {
   thermalDebounceMs: 700,
   seasons: ['spring', 'summer', 'autumn', 'winter'],
 
+  // Routes (brief §3): the limits of the API (config/tool.yaml, routes), checked here before asking.
+  routes: {
+    minM: 50, // start and end closer than this are not a route
+    maxM: 1500, // straight line, and the longest walk
+  },
+
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',
 

@@ -99,25 +99,61 @@ def merge_short(pieces: list[Piece], below_m: float, tol: float = 0.01) -> list[
     """Merge every piece shorter than below_m into a neighbour that shares an end with it,
     so no gaps appear at junctions. The shortest piece goes first; it joins the neighbour
     with the same street name if there is one, otherwise the longest, then the smallest id.
-    A short piece with no neighbour stays as it is."""
+    A short piece with no neighbour stays as it is.
+    Pieces are found through a grid of their ends, so this stays fast with thousands of them."""
     pieces = list(pieces)
+    alive: dict[int, Piece] = dict(enumerate(pieces))
+    grid: dict[tuple[int, int], set[int]] = {}
+
+    def cell(xy):
+        return int(xy[0] // tol), int(xy[1] // tol)
+
+    def add(i: int) -> None:
+        for end in _ends(alive[i].line):
+            grid.setdefault(cell(end), set()).add(i)
+
+    def drop(i: int) -> None:
+        for end in _ends(alive[i].line):
+            grid[cell(end)].discard(i)
+
+    def neighbours(i: int) -> list[int]:
+        found: set[int] = set()
+        for end in _ends(alive[i].line):
+            cx, cy = cell(end)
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    found |= grid.get((cx + dx, cy + dy), set())
+        found.discard(i)
+        return sorted(j for j in found if _touch(alive[i].line, alive[j].line, tol))
+
+    for i in alive:
+        add(i)
+    short = {i for i, p in alive.items() if p.line.length < below_m}
     while True:
-        short = sorted((p for p in pieces if p.line.length < below_m), key=lambda p: (p.line.length, p.id))
-        for s in short:
-            nbs = [p for p in pieces if p is not s and _touch(s.line, p.line, tol)]
+        for i in sorted(short, key=lambda k: (alive[k].line.length, alive[k].id)):
+            s = alive[i]
+            nbs = neighbours(i)
             if not nbs:
                 continue
-            nb = min(nbs, key=lambda p: (p.name != s.name or not s.name, -p.line.length, p.id))
+            j = min(nbs, key=lambda k: (alive[k].name != s.name or not s.name, -alive[k].line.length, alive[k].id))
+            nb = alive[j]
             merged = linemerge([_snap(nb.line, s.line, tol), s.line])
             if not isinstance(merged, LineString):
                 continue
-            nb_index = pieces.index(nb)
-            pieces[nb_index] = Piece(nb.id, merged, nb.name or s.name,
-                                     nb.osm_ids + [o for o in s.osm_ids if o not in nb.osm_ids])
-            pieces.remove(s)
+            drop(i)
+            drop(j)
+            alive[j] = Piece(nb.id, merged, nb.name or s.name,
+                             nb.osm_ids + [o for o in s.osm_ids if o not in nb.osm_ids])
+            del alive[i]
+            add(j)
+            short.discard(i)
+            if merged.length < below_m:
+                short.add(j)
+            else:
+                short.discard(j)
             break
         else:
-            return pieces
+            return [alive[i] for i in sorted(alive)]
 
 
 def _snap(line: LineString, other: LineString, tol: float) -> LineString:

@@ -118,6 +118,30 @@ thermal:
   cache_dir: runs/thermal    # per area and window: the grid (.npz) and the values per segment (.json)
   rate_per_hour: 10          # new (not cached) thermal runs per IP; each one is billed
 
+# Routes (brief §3): two walking routes between two points, on the rated street lines. Thermal only for
+# now (decisions.md, 2026-11-05). A new route is one thermal run on a narrow corridor around its candidates.
+routes:
+  max_walk_m: 1500           # longest walk asked for, and the shortest way must not be longer
+  min_walk_m: 50             # start and end closer than this are not a route
+  max_jobs: 8                # thermal tiles per run (10 tokens each); the corridor is narrowed to fit
+  length_ratio: 1.25         # B is at most this x the length of A (brief §3)
+  walk_m_per_min: 80         # about 4.8 km/h, as the app's walkMetresPerMinute
+  # Streets are read from an ellipse around start and end, wide enough for the detours:
+  search_ratio: 1.4          # walking distance through the ellipse's edge, x the straight line...
+  search_margin_m: 200       # ...plus this
+  search_points: 32
+  snap_max_m: 100            # a clicked point further than this from any street is refused
+  connect_gap_m: 15          # a path's end this close to another street joins it (sidewalks are not mapped in)
+  candidates: 8              # tries at finding different ways, each penalising the streets already used
+  candidate_penalty: 1.4
+  corridor_buffer_m: 40      # streets this close to a candidate get photos and thermal comfort
+  thermal_margin_m: 10       # the thermal polygon reaches this far beyond those streets' zone
+  easiest_weights: [0.5, 1, 2, 4, 8]  # how much longer a hard street counts when looking for B
+  mixed_weight: 0.25         # a mixed or no-value street counts this share of a hard one
+  min_difference_share: 0.1  # a "second shortest" B differs from A along at least this share
+  cache_dir: runs/routes     # one JSON per start and end: the corridor's segments and photo metadata
+  rate_per_hour: 10          # new (not cached) routes per IP
+
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:
   cors_origins: ["http://localhost:5173"]   # the Vite dev server; add the Render site URL when deployed

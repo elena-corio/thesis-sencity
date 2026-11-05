@@ -13,32 +13,50 @@ import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 import PhotoViewer from './PhotoViewer.vue'
 
-const props = defineProps({ phone: Boolean })
+const props = defineProps({
+  phone: Boolean,
+  /** What the card shows, when it is not the street selected on the map: a stretch of a route (brief §3,
+   *  "one card pattern"). { key, feature, layer, info, features, backLabel, subtitle, byKeyboard, back(keyboard) } */
+  source: { type: Object, default: null },
+})
 const area = useAreaStore()
+// The street selected on the map.
+const fromArea = computed(() => ({
+  key: area.selectedId,
+  feature: area.selected,
+  layer: area.layer,
+  info: area.thermalInfo,
+  features: area.segments?.features ?? [],
+  backLabel: 'Back to area',
+  subtitle: null,
+  byKeyboard: area.byKeyboard,
+  back: () => area.clearSelection(),
+}))
+const src = computed(() => props.source ?? fromArea.value)
 const backBtn = ref(null)
 const enlargeBtn = ref(null)
 const index = ref(0)
 const viewerOpen = ref(false)
 const failed = ref(new Set())
 
-const feature = computed(() => area.selected)
+const feature = computed(() => src.value.feature)
 const p = computed(() => feature.value?.properties)
 const photos = computed(() => p.value?.photos ?? [])
 const photo = computed(() => photos.value[index.value])
 const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.geometry.type) : ''))
 const dates = computed(() => [...new Set(photos.value.map((ph) => formatMonth(ph.date)))].join(', '))
 const STATE_LABEL = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
-const thermalView = computed(() => area.layer === 'thermal' && p.value?.utci != null)
+const thermalView = computed(() => src.value.layer === 'thermal' && p.value?.utci != null)
 const cold = computed(() => thermalView.value && isCold(p.value.utci))
 /** The nearest street that feels better (a higher score), for "Cooler street nearby"; none if already easy. */
 const better = computed(() => {
-  if (!thermalView.value || p.value.thermal_state === 'easy') return null
+  if (!thermalView.value || !src.value.features || p.value.thermal_state === 'easy') return null
   const score = p.value.thermal_score
-  return nearest(feature.value, area.segments.features, (f) => f.properties.thermal_score > score)
+  return nearest(feature.value, src.value.features, (f) => f.properties.thermal_score > score)
 })
 const alongWord = computed(() => (feature.value?.geometry.type === 'Polygon' ? 'in this place' : 'along this street'))
 
-watch(() => area.selectedId, () => {
+watch(() => src.value.key, () => {
   index.value = 0
   failed.value = new Set()
 })
@@ -57,7 +75,7 @@ function closeViewer() {
 }
 
 function goNearest() {
-  const near = nearestWithPhotos(feature.value, area.segments.features)
+  const near = nearestWithPhotos(feature.value, src.value.features)
   if (near) area.select(near.f.properties.id, near.mid)
 }
 
@@ -66,17 +84,18 @@ function onImgError(i) {
 }
 
 // Opened with the keyboard: focus starts on "Back to area".
-onMounted(() => { if (area.byKeyboard) backBtn.value?.focus() })
-watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn.value?.focus()) })
+onMounted(() => { if (src.value.byKeyboard) backBtn.value?.focus() })
+watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) nextTick(() => backBtn.value?.focus()) })
 </script>
 
 <template>
   <section v-if="feature" class="card panel" :class="{ sheet: props.phone }" data-panel="place-card" data-scrollable
            aria-labelledby="place-title">
     <div v-if="props.phone" class="grip" aria-hidden="true" />
-    <button ref="backBtn" type="button" class="back" @click="area.clearSelection()">
-      <AppIcon name="chevronLeft" /> Back to area
+    <button ref="backBtn" type="button" class="back" @click="src.back($event.detail === 0)">
+      <AppIcon name="chevronLeft" /> {{ src.backLabel }}
     </button>
+    <slot name="head" />
 
     <div class="top">
       <div v-if="photo" class="photo">
@@ -106,16 +125,16 @@ watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn
       </div>
 
       <div class="name">
-        <h2 id="place-title" :title="p.name">{{ p.name }}</h2>
-        <p class="type">{{ type }} · {{ sizeLabel(p) }}</p>
+        <h2 id="place-title" lang="de" :title="p.name">{{ p.name }}</h2>
+        <p class="type">{{ src.subtitle ?? `${type} · ${sizeLabel(p)}` }}</p>
       </div>
     </div>
 
     <template v-if="thermalView">
       <div class="thermal" data-testid="thermal">
-        <p class="t-meta">
+        <p v-if="!source" class="t-meta">
           This {{ feature.geometry.type === 'Polygon' ? 'place' : 'street stretch' }},
-          {{ area.thermalInfo?.season }}, {{ area.thermalInfo?.time }}
+          {{ src.info?.season }}, {{ src.info?.time }}
         </p>
         <p class="temp"><strong>{{ formatDegrees(p.utci) }}</strong> feels like</p>
         <p class="verdict">
@@ -166,11 +185,12 @@ watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn
 
       <template v-else-if="p.photos != null">
         <p class="why">No street photo here yet, so this street will have no Senses or Overall rating.</p>
-        <button type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
+        <button v-if="src.features" type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
         <p class="muted small">We never guess between photos: without one, a street stays unlit in Senses and Overall.</p>
       </template>
     </template>
 
+    <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
                  :failed="failed" @close="closeViewer" @failed="onImgError" />
@@ -250,7 +270,8 @@ watch(() => area.selectedId, () => { if (area.byKeyboard) nextTick(() => backBtn
 .name { min-width: 0; }
 .name h2 {
   margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold);
-  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  /* A name is never cut: it wraps, hyphenated where the browser can, or else at any letter. */
+  overflow-wrap: anywhere; hyphens: auto;
 }
 .type { margin: var(--space-1) 0 0; color: var(--text-2); font-size: var(--fs-sm); }
 .thumbs-row { display: flex; gap: var(--space-3); align-items: center; margin-top: var(--space-4); }

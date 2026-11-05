@@ -176,3 +176,85 @@ export async function openSegment(page, id) {
   await btn.focus()
   await page.keyboard.press('Enter')
 }
+
+// Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
+// mixed), three on B (easy, mixed, easy), built around the points the app sends.
+export async function openRoutes(page, theme) {
+  await page.addInitScript((t) => {
+    try { localStorage.setItem('sencity-appearance', t) } catch {}
+  }, theme)
+  await page.goto('/routes')
+  await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
+  await page.evaluate(() => document.fonts.ready)
+}
+
+/** Two free map points, in viewport pixels, about 400 m apart at the start zoom. */
+export function routeClicks(viewport, phone = false) {
+  const y = Math.round(viewport.height * (phone ? 0.3 : 0.6))
+  const left = phone ? 0.2 : 0.42
+  const right = phone ? 0.8 : 0.62
+  return { a: { x: Math.round(viewport.width * left), y }, b: { x: Math.round(viewport.width * right), y } }
+}
+
+function routeResponse(req, sameState = false, longName = null, second = false) {
+  const { start, end } = req
+  const lerp = (t, lift) => [start.lon + t * (end.lon - start.lon), start.lat + t * (end.lat - start.lat) + lift]
+  const features = []
+  const values = {}
+  const part = (id, name, a, b, utci, length) => {
+    features.push({
+      type: 'Feature', id, geometry: { type: 'LineString', coordinates: [a, b] },
+      properties: { id, name, named: true, place_type: 'street', way_type: 'residential', length_m: length, photos: WITH_3.properties.photos },
+    })
+    values[id] = utci
+    return { segment_id: id, length_m: length, coordinates: [a, b] }
+  }
+  const a = [
+    part('a1', longName ?? 'Mittelgasse', lerp(0, 0), lerp(0.2, 0.0006), 29, 100),
+    part('a2', 'Heissgasse', lerp(0.2, 0.0006), lerp(0.4, 0.0006), 36, 100),
+    part('a3', 'Lange Gasse', lerp(0.4, 0.0006), lerp(0.6, 0.0006), 29, 100),
+    part('a4', 'Heissgasse', lerp(0.6, 0.0006), lerp(0.8, 0.0006), 36, 100),
+    part('a5', 'Lange Gasse', lerp(0.8, 0.0006), lerp(1, 0), 29, 100),
+  ]
+  const b = [
+    part('b1', 'Kuehlgasse', lerp(0, 0), lerp(0.3, -0.001), 22, 180),
+    part('b2', 'Marktgasse', lerp(0.3, -0.001), lerp(0.7, -0.001), 29, 200),
+    part('b3', 'Kuehlgasse', lerp(0.7, -0.001), lerp(1, 0), 22, 180),
+  ]
+  // Two neighbours in the same state, then a third: the stretches stay single streets.
+  if (sameState) {
+    b.splice(0, 3,
+      part('c1', 'Kuehlgasse', lerp(0, 0), lerp(0.25, -0.001), 22, 140),
+      part('c2', 'Kuehlgasse', lerp(0.25, -0.001), lerp(0.5, -0.001), 22, 140),
+      part('c3', 'Marktgasse', lerp(0.5, -0.001), lerp(0.75, -0.001), 29, 140),
+      part('c4', 'Marktgasse', lerp(0.75, -0.001), lerp(1, 0), 29, 140))
+  }
+  const route = (id, kind, parts, hard) => {
+    const length_m = parts.reduce((n, p) => n + p.length_m, 0)
+    return { id, kind, length_m, minutes: Math.round(length_m / 80), hard_share: hard, mixed_share: 1 - hard, thermal_share: 1, photo_share: 0.8, parts }
+  }
+  return {
+    type: 'routes', season: req.season, time: req.time, station: { name: 'Wien-Innere Stadt', distance_km: 1.2 },
+    routes: [route('A', 'shortest', a, 0.4), route('B', second ? 'second' : 'easiest', b, 0)],
+    verdict: 'B is 1 minute longer but avoids the hot stretch on Heissgasse.',
+    segments: { type: 'FeatureCollection', features }, values,
+  }
+}
+
+/** Mock the routes API and the photos. hold: never answer. thermal: 'error' sends a thermal_error (can be changed later). */
+export async function mockRoutes(page, { hold = false, thermal = true, sameState = false, longName = null, second = false } = {}) {
+  const mock = { requests: [], urls: [], thermal }
+  await page.route('**/api/routes', async (route) => {
+    mock.urls.push(route.request().url())
+    if (hold) { mock.requests.push(route.request().postDataJSON()); return }
+    const asked = route.request().postDataJSON()
+    mock.requests.push(asked)
+    const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }, { type: 'stage', stage: 'thermal' }]
+    if (mock.thermal === 'route-error') lines.push({ type: 'stage', stage: 'routes' }, { type: 'error', message: 'No walking way was found between these two points.' })
+    else if (mock.thermal === 'error') lines.push({ type: 'thermal_error', message: 'No weather station near this area, so thermal comfort is not available here.' })
+    else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second))
+    await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+  })
+  await page.route('**/api/photo/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
+  return mock
+}

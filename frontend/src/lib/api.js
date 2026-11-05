@@ -49,11 +49,28 @@ export function kindLabel(kind) {
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
  */
-export async function loadArea(area, onEvent, signal) {
-  const res = await fetch(`${config.apiBase}/api/area`, {
+export function loadArea(area, onEvent, signal) {
+  return streamEvents('/api/area', area, onEvent, signal)
+}
+
+/**
+ * Two walking routes between two points (POST /api/routes). Start and end travel in the body, never in
+ * the URL. Events: {type: "stage", stage: "streets"|"thermal"|"routes"} · {type: "segments", total} ·
+ * {type: "segment", done, total}, then {type: "routes", season, time, station, routes, verdict, segments,
+ * values}, or {type: "error", message} or {type: "thermal_error", message}. Abort the signal to cancel.
+ * @param {{start:{lat:number,lon:number}, end:{lat:number,lon:number}, limits:object, season:string, time:string}} request
+ * @param {(event: object) => void} onEvent
+ * @param {AbortSignal} [signal]
+ */
+export function loadRoutes(request, onEvent, signal) {
+  return streamEvents('/api/routes', request, onEvent, signal)
+}
+
+async function streamEvents(path, body, onEvent, signal) {
+  const res = await fetch(`${config.apiBase}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(area),
+    body: JSON.stringify(body),
     signal,
   })
   if (!res.ok) {

@@ -87,6 +87,32 @@
   --map-seg-hit-width: 16;         /* invisible, wider line that makes thin streets easy to click */
   --map-area-fill-opacity: 0.1;    /* parks and squares with photos */
 
+  /* Map: the routes (brief §3, §4): the stronger glow, and B dashed. */
+  --map-route-width: 5;
+  --map-route-selected-width: 7;
+  --map-route-edge-width: 11;      /* the light edge of the selected stretch */
+  --map-route-halo-width: 15;
+  --map-route-halo-blur: 7;
+  --map-route-halo-opacity: 0.45;
+  --map-route-dim-opacity: 0.4;    /* the others, while one is hovered (brief §8) */
+  --map-route-hover-edge-opacity: 0.6;
+  --map-route-dash: 1.4 1.1;       /* route B: dash and gap, in line widths */
+  --route-pin-w: 28px;             /* the End pin */
+  --route-pin-h: 38px;
+  --route-start-size: 22px;        /* the Start ring */
+  --route-mark: 14px;              /* the same marks beside the phone's fields and in the preview */
+  --route-point-label: 72px;       /* "Start" and "End" in the preview */
+  --route-sample-w: 24px;          /* line sample in the route buttons */
+  --step-mark: 28px;               /* numbered steps on the route card */
+
+  /* State bars (brief §3: all share one style) */
+  --bar-h: 10px;
+  --bar-radius: 5px;
+  --bar-gap: 2px;
+  --bar-hit-h: 24px;               /* the section's button is taller than the bar */
+  --bar-min-section: 4px;          /* so a very short stretch can still be hit */
+  --bar-state-opacity: 0.85;
+
   /* Selection ring (brief §4) */
   --ring-size: 26px;
   --ring-dot: 10px;

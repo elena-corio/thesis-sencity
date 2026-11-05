@@ -78,6 +78,29 @@ def photo_props(c) -> dict:
             "date": c.date, "contributor": not c.official}
 
 
+def lookup_photos(segments: list, proj: LocalProjection, indoor, cfg: dict, provider):
+    """Yield (done, segment, its chosen photos) as the metadata lookups finish, several at a time.
+    Stops as soon as the caller stops reading."""
+    lookup = make_lookup(provider, proj)
+    stats: dict = {}  # counts only; an occasional lost increment between threads does not matter
+    today = date.today()
+
+    def one(seg):
+        metas = photos_for_segment(seg, lookup, cfg, stats)
+        chosen = select(candidates_for(seg, metas, proj, indoor), cfg, today,
+                        contributor_fallback=seg.kind == "area")
+        return seg, [photo_props(c) for c in chosen if c.status == "kept"]
+
+    pool = ThreadPoolExecutor(max_workers=cfg["api"]["area"]["workers"])
+    try:
+        futures = [pool.submit(one, s) for s in segments]
+        for done, fut in enumerate(as_completed(futures), start=1):
+            seg, photos = fut.result()
+            yield done, seg, photos
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
 def run_area(lat: float, lon: float, radius: int, cfg: dict, provider):
     """Yield events: {"type": "segments"} (all segments, photos pending), one {"type": "segment"}
     per segment once its photos are chosen, then {"type": "done", "area": FeatureCollection}.
@@ -94,25 +117,9 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, provider):
     features = {s.id: feature(s, proj, None) for s in segments}
     yield {"type": "segments", "features": list(features.values()), "total": len(segments)}
 
-    lookup = make_lookup(provider, proj)
-    stats: dict = {}  # counts only; an occasional lost increment between threads does not matter
-    today = date.today()
-
-    def one(seg):
-        metas = photos_for_segment(seg, lookup, cfg, stats)
-        chosen = select(candidates_for(seg, metas, proj, indoor), cfg, today,
-                        contributor_fallback=seg.kind == "area")
-        return seg, [photo_props(c) for c in chosen if c.status == "kept"]
-
-    pool = ThreadPoolExecutor(max_workers=cfg["api"]["area"]["workers"])
-    try:
-        futures = [pool.submit(one, s) for s in segments]
-        for done, fut in enumerate(as_completed(futures), start=1):
-            seg, photos = fut.result()
-            features[seg.id] = feature(seg, proj, photos)
-            yield {"type": "segment", "feature": features[seg.id], "done": done, "total": len(segments)}
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    for done, seg, photos in lookup_photos(segments, proj, indoor, cfg, provider):
+        features[seg.id] = feature(seg, proj, photos)
+        yield {"type": "segment", "feature": features[seg.id], "done": done, "total": len(segments)}
 
     fc = {"type": "FeatureCollection", "features": [features[s.id] for s in segments]}
     yield {"type": "done", "area": fc, "metadata_calls": provider.metadata_calls}
@@ -141,9 +148,11 @@ def known_photos(fc: dict) -> set[tuple[str, float]]:
 
 
 def load_all_known(cfg: dict) -> set[tuple[str, float]]:
+    """Photos of every cached area and every cached route corridor (same file format)."""
     known: set = set()
-    d = cache_dir(cfg)
-    if d.exists():
+    for d in (cache_dir(cfg), REPO_ROOT / cfg["routes"]["cache_dir"]):
+        if not d.exists():
+            continue
         for path in d.glob("*.json"):
             try:
                 known |= known_photos(json.loads(path.read_text(encoding="utf-8"))["area"])
@@ -181,18 +190,22 @@ def save_thermal(key: str, result: dict, grid: np.ndarray, bounds: tuple, cfg: d
     tmp.replace(d / f"{key}.json")
 
 
-def run_thermal(fc: dict, lat: float, lon: float, radius: int, season: str, time: str, cfg: dict,
+def circle_polygon(lat: float, lon: float, radius: int, cfg: dict) -> dict:
+    """The circle as a GeoJSON polygon (lon/lat)."""
+    return mapping(LocalProjection(lat, lon).geom_to_lonlat(circle(radius, cfg["area"]["circle_points"])))
+
+
+def run_thermal(fc: dict, lat: float, lon: float, polygon: dict, season: str, time: str, cfg: dict,
                 runner=None) -> tuple[dict, np.ndarray, tuple]:
     """UTCI per segment for one window: {"season", "time", "station", "values": {id: °C or None}}."""
     proj = LocalProjection(lat, lon)
-    polygon = mapping(proj.geom_to_lonlat(circle(radius, cfg["area"]["circle_points"])))
     r = (runner or run_utci)(polygon, lat, lon, season, time, cfg)
     t = cfg["thermal"]
     values = segment_values(r["grid"], r["bounds"], fc["features"], proj, t["buffer_m"], t["percentile"])
     return {"season": season, "time": time, "station": r["station"], "values": values}, r["grid"], r["bounds"]
 
 
-def thermal_events(area: str, fc: dict, lat: float, lon: float, radius: int, season: str, time: str,
+def thermal_events(area: str, fc: dict, lat: float, lon: float, polygon: dict, season: str, time: str,
                    cfg: dict, allowed, runner=None):
     """Yield {"type": "stage", "stage": "thermal"}, then {"type": "thermal", ...} or
     {"type": "thermal_error", "message"}. allowed() is asked only before a new (billed) run."""
@@ -206,7 +219,7 @@ def thermal_events(area: str, fc: dict, lat: float, lon: float, radius: int, sea
         yield {"type": "thermal_error", "message": "Too many new thermal runs in a short time. Try again later."}
         return
     try:
-        result, grid, bounds = run_thermal(fc, lat, lon, radius, season, time, cfg, runner)
+        result, grid, bounds = run_thermal(fc, lat, lon, polygon, season, time, cfg, runner)
     except ThermalError as e:
         yield {"type": "thermal_error", "message": str(e)}
         return
