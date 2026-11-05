@@ -12,6 +12,32 @@ from shapely.geometry import shape
 from tool.geo import LocalProjection
 
 
+def thermal_state(utci: float, limits: dict) -> str:
+    """easy, mixed or hard from a feels-like value: the same rule as frontend/src/lib/thermal.js (brief §4)."""
+    h3, h2 = limits["heat"][:2]
+    c4, c3 = limits["cold"][1:3]
+    if utci > h2:
+        return "hard"
+    if utci > h3:
+        return "mixed"
+    if utci >= c4:
+        return "easy"
+    return "mixed" if utci >= c3 else "hard"
+
+
+def thermal_state(utci: float, limits: dict) -> str:
+    """easy, mixed or hard from a feels-like value: the same rule as frontend/src/lib/thermal.js (brief §4)."""
+    h3, h2 = limits["heat"][:2]
+    c4, c3 = limits["cold"][1:3]
+    if utci > h2:
+        return "hard"
+    if utci > h3:
+        return "mixed"
+    if utci >= c4:
+        return "easy"
+    return "mixed" if utci >= c3 else "hard"
+
+
 def cell_centres(shape_rc: tuple[int, int], bounds: tuple[float, float, float, float],
                  proj: LocalProjection) -> tuple[np.ndarray, np.ndarray]:
     """Local x/y in metres of every cell centre, as two (rows, cols) arrays."""

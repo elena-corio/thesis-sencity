@@ -3,6 +3,8 @@
 - POST /api/search   address and place search (Photon)
 - POST /api/area     street segments and their chosen photos for one circle (metadata only), then
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
+- POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
+                     corridor, then the shortest and the easiest way
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
 
 Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
@@ -22,9 +24,11 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from tool.config import load_config
+from tool.infrared import km_between
 from tool.photos.provider import get_provider
 
 from . import area as area_mod
+from . import routes as routes_mod
 from . import search as search_mod
 
 full_cfg = load_config()
@@ -128,8 +132,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
 
     def thermal(fc):
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
-        for event in area_mod.thermal_events(key, fc, body.lat, body.lon, body.radius, body.season, body.time,
-                                             full_cfg, allowed):
+        for event in area_mod.thermal_events(key, fc, body.lat, body.lon,
+                                             area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),
+                                             body.season, body.time, full_cfg, allowed):
             yield _ndjson(event)
 
     def events():
@@ -150,6 +155,91 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
             yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
             return
         yield from thermal(fc)
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+# Routes: two ways between two points
+
+class RoutePoint(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+
+
+class ThermalLimits(BaseModel):
+    """°C: heat [mixed, hard, worst] and cold [easy, mixed, hard, worst], as in the app's thermal.js."""
+    heat: list[float] = Field(..., min_length=3, max_length=3)
+    cold: list[float] = Field(..., min_length=4, max_length=4)
+
+
+class RoutesRequest(BaseModel):
+    start: RoutePoint
+    end: RoutePoint
+    limits: ThermalLimits
+    season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
+    time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
+
+
+@app.post("/api/routes")
+def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
+    """Streams newline-separated JSON events: "stage" (streets, thermal, routes), "segments" and "segment"
+    (progress of the photo lookups, with counts only), then "routes", or "error" or "thermal_error" (the
+    stream ends). Nothing is shown on the map before "routes" (brief §3, Routes 2)."""
+    r = full_cfg["routes"]
+    start, end = body.start.model_dump(), body.end.model_dump()
+    straight = km_between(start["lat"], start["lon"], end["lat"], end["lon"]) * 1000
+    if straight < r["min_walk_m"]:
+        raise HTTPException(422, "Start and end are too close together. Choose points further apart.")
+    if straight > r["max_walk_m"]:
+        raise HTTPException(422, f"Start and end are too far apart. Routes go up to {r['max_walk_m'] / 1000:.1f} km for now.")
+    key = routes_mod.route_key(start, end, full_cfg)
+    ip = _ip(request)
+    cached = routes_mod.load_cached(key, full_cfg)
+    if cached is None and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
+        raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
+    prov = provider() if cached is None else None
+    limits = body.limits.model_dump()
+    # A corridor may bill more tiles than one circle, up to its own limit.
+    thermal_cfg = {**full_cfg, "thermal": {**full_cfg["thermal"], "max_jobs": r["max_jobs"]}}
+
+    def events():
+        corridor = cached
+        if corridor is None:
+            try:
+                for event in routes_mod.build_corridor(start, end, full_cfg, prov):
+                    if event["type"] == "corridor":
+                        corridor = event
+                    else:
+                        yield _ndjson(event)
+            except routes_mod.RouteError as e:
+                yield _ndjson({"type": "error", "message": str(e)})
+                return
+            except (requests.RequestException, SystemExit) as e:
+                log.warning("routes failed: %s", type(e).__name__)
+                yield _ndjson({"type": "error", "message": "Could not load the streets between start and end. Try again."})
+                return
+            lat, lon = routes_mod.middle(start, end)
+            routes_mod.save_cached(key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
+        fc, zone = corridor["area"], corridor["zone"]
+        _known_photos.update(area_mod.known_photos(fc))
+        lat, lon = routes_mod.middle(start, end)
+        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        thermal = None
+        for event in area_mod.thermal_events(key, fc, lat, lon, zone, body.season, body.time, thermal_cfg, allowed):
+            if event["type"] == "thermal":
+                thermal = event
+            else:
+                yield _ndjson(event)
+        if thermal is None:
+            return
+        yield _ndjson({"type": "stage", "stage": "routes"})
+        try:
+            found = routes_mod.find_routes(fc, start, end, thermal["values"], limits, full_cfg)
+        except routes_mod.RouteError as e:
+            yield _ndjson({"type": "error", "message": str(e)})
+            return
+        yield _ndjson({"type": "routes", "season": thermal["season"], "time": thermal["time"],
+                       "station": thermal["station"], **found})
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 

@@ -1,6 +1,6 @@
 <script setup>
-// "Loading this area" (boards Flow 2, Flow 3): street photos, then thermal comfort (Infrared.city),
-// then rating (shown greyed: it does not exist yet). Streets light up on the map as their photos are
+// "Loading this area" (boards Flow 2, Flow 3): the streets, their photos, then thermal comfort
+// (Infrared.city), then rating (shown greyed: it does not exist yet). Streets light up on the map as their photos are
 // found, then in their thermal colour.
 import { computed, onMounted, ref } from 'vue'
 import { useAreaStore } from '../stores/area.js'
@@ -12,11 +12,12 @@ const cancelBtn = ref(null)
 // Started with the keyboard: focus Cancel, so Enter or Space can stop it.
 onMounted(() => { if (area.byKeyboard) cancelBtn.value?.focus() })
 
+const streetsDone = computed(() => area.load === 'ready' || area.progress.stage !== 'streets')
+const photosActive = computed(() => area.load === 'loading' && area.progress.stage !== 'streets')
 const photosDetail = computed(() => {
   const p = area.progress
-  if (area.load === 'error') return ''
   if (area.load === 'ready') return `${area.counts.all} of ${area.counts.all}`
-  return p.stage === 'streets' ? 'finding the streets…' : `${p.done} of ${p.total}`
+  return photosActive.value ? `${p.done} of ${p.total}` : ''
 })
 const share = computed(() => (area.progress.total ? area.progress.done / area.progress.total : 0))
 </script>
@@ -36,13 +37,19 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
     </div>
 
     <ul class="steps">
-      <li :class="{ active: area.load === 'loading', failed: area.load === 'error' }">
+      <li :class="{ active: area.load === 'loading' && !streetsDone, failed: area.load === 'error' && !streetsDone }">
+        <AppIcon :name="streetsDone ? 'check' : 'pending'" />
+        <span class="label">Streets</span>
+        <span class="detail" role="status">{{ streetsDone ? `${area.counts.all} found` : '' }}</span>
+        <!-- Finding the streets (OpenStreetMap) has no count: the bar slides until they are found. -->
+        <span v-if="area.load === 'loading' && !streetsDone" class="bar waiting" aria-hidden="true"><span /></span>
+      </li>
+      <li :class="{ next: !streetsDone, active: photosActive, failed: area.load === 'error' && streetsDone }">
         <AppIcon :name="area.load === 'ready' ? 'check' : 'pending'" />
         <span class="label">Street photos</span>
         <span class="detail" role="status">{{ photosDetail }}</span>
-        <!-- Finding the streets (OpenStreetMap) has no count: the bar slides until the photos start. -->
-        <span v-if="area.load === 'loading'" class="bar" :class="{ waiting: area.progress.stage === 'streets' }" aria-hidden="true">
-          <span :style="area.progress.stage === 'streets' ? {} : { width: `${Math.round(share * 100)}%` }" />
+        <span v-if="photosActive" class="bar" aria-hidden="true">
+          <span :style="{ width: `${Math.round(share * 100)}%` }" />
         </span>
       </li>
       <li :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">

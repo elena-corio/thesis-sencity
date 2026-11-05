@@ -17,7 +17,7 @@ cp .env.example .env                         # then fill in the key
 | Name | What |
 |---|---|
 | `GOOGLE_MAPS_API_KEY` | Google Maps Platform key with **Street View Static API** enabled. Backend only: never name it `VITE_*`, because Vite would put it in the browser bundle. |
-| `INFRARED_API_KEY` | Infrared.city key for thermal comfort. Each new area and season/time is billed: 10 tokens per 512 m tile (a circle up to ~250 m is usually 1 tile, 500 m up to 4). Backend only. |
+| `INFRARED_API_KEY` | Infrared.city key for thermal comfort. Each new area or route and season/time is billed: 10 tokens per 512 m tile (a circle up to ~250 m is usually 1 tile, 500 m up to 4; a route about 4–6, at most 8). Backend only. |
 
 All thresholds are in `config/tool.yaml`.
 
@@ -101,7 +101,8 @@ The backend the app talks to. `npm run dev` starts it for you (see Frontend); yo
 |---|---|
 | `POST /api/search` | Address and place search through Photon (komoot, OpenStreetMap data, no key). The text travels in the request body and is never logged. |
 | `POST /api/area` | Street segments and their chosen photos for one circle `{lat, lon, radius}`: the `tool.fetch_photos` pipeline, metadata calls only (free). It streams its progress, and the result is cached in `runs/areas/<key>.json` (segments and photo metadata only, no images). A cached area answers at once. |
-| `GET /api/photo/{pano_id}?heading=…` | One Street View image (640 × 640, fov 90, pitch 0, as in the study), streamed through and never written to disk. Only photos chosen for a loaded area can be fetched. Each is one paid image call (about $0.007); the browser keeps it for an hour (`Cache-Control: private`). |
+| `POST /api/routes` | Two walking routes between two points `{start, end, limits, season, time}`: the shortest, and the easiest at most 25% longer. It streams progress: streets, photos along the way (free), thermal comfort along a narrow corridor (billed, cached), then the two ways. Start and end travel in the body and are never logged or stored. |
+| `GET /api/photo/{pano_id}?heading=…` | One Street View image (640 × 640, fov 90, pitch 0, as in the study), streamed through and never written to disk. Only photos chosen for a loaded area or route can be fetched. Each is one paid image call (about $0.007); the browser keeps it for an hour (`Cache-Control: private`). |
 
 Access logs are off, and request bodies are never logged.
 
@@ -117,6 +118,8 @@ After the photos, `/api/area` runs **thermal comfort** for the circle (Infrared.
 
 A new area takes about a minute: most of it is the public Overpass server (OpenStreetMap), which is often busy. The photo lookups run in parallel and take a few seconds.
 
+A new **route** costs one thermal run on a corridor around its possible ways: about 4–6 tiles (40–60 tokens), at most `routes.max_jobs` (8, so 80 tokens), checked with the free preview before anything is billed. A new season or time for that route is another run; the same route and window, in either direction, is never paid for twice. It takes about 2.5 minutes before thermal (Overpass, then about 2,000 metadata calls), plus the simulation. Corridors are cached in `runs/routes/`, with no start or end in them. Settings are in the `routes` section of `config/tool.yaml`.
+
 ### Tests
 
 ```bash
@@ -124,11 +127,11 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 ```
 
-These test segment splitting, the selection rule, and the API: search (with a fake Photon), areas (from a fixed cached sample) and photos (the key never in the answer, nothing written to disk). They make no API calls.
+These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures) and photos (the key never in the answer, nothing written to disk). They make no API calls.
 
 ## Frontend
 
-The app: the map start screen, address search and the two-click area selection (boards Flow 1, 1b, 1c), in dark and light. Requires Node.js 20 or newer.
+The app: the map start screen, address search, the two-click area selection (boards Flow 1, 1b, 1c) and Routes (boards Routes 1–4), in dark and light. Requires Node.js 20 or newer.
 
 ```bash
 cd frontend
@@ -144,19 +147,28 @@ npm run dev                     # starts the API too, and opens http://localhost
 | `npm run dev` | Starts the API and the app, and opens http://localhost:5173/area in your browser; reloads on every change |
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
-| `npm test` | Unit tests for the radius maths (Vitest), no browser needed |
-| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, a placeholder image), so no Street View or Overpass calls are made. Starts the dev server itself if it is not running. |
+| `npm test` | Unit tests for the radius maths, thermal score and route stretches (Vitest), no browser needed |
+| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos; Routes, with its own fit check. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, made-up routes, a placeholder image), so no Street View, Overpass or Infrared.city calls are made. Starts the dev server itself if it is not running. |
 
 **Using the map:**
 - Search: type at least 3 letters of a street, address or place, then pick a suggestion with the mouse, or with the arrow keys and Enter. The map moves there. Esc closes the list, a second Esc clears the text.
 - Click to place the centre of your area, move to set the radius, then click again to fix it.
 - Drag the edge to adjust. Esc or a right-click starts again.
-- **Analyse this area** loads the streets and their photos (about a minute for a new area). The loading card shows the progress; streets light up as their photos are found. Cancel goes back to the circle.
+- **Analyse this area** loads the streets, then their photos (about a minute for a new area). The loading card shows the progress; streets light up as their photos are found. Cancel goes back to the circle.
 - Streets with photos are light teal with a soft glow; streets without a photo are thin and dim. Click a street to open its card: up to 3 photos with arrows, date and direction ("Looking north-east, July 2024"). Click the photo to enlarge it; arrow keys switch photos, Esc goes back. A street without a photo offers "Go to the nearest street with photos".
 - Photos load only when you open a street (each is one paid Street View call); nothing is fetched for the whole area.
 - Keyboard: after the area has loaded, Tab from the map goes through its streets in reading order (a dashed ring shows which); Enter opens the card, Esc closes it.
 - Keyboard: Tab to the map, then Enter places the centre at the map centre, the arrow keys change the radius in 10 m steps, and Enter fixes it.
 - Phone: tap the centre, then drag (the circle follows your finger; lift to fix it) or tap a second point. Press and drag also works with a mouse.
+
+**Using Routes:**
+- Open the **Routes** tab. Click where you start, then where you want to go, or type either place in the fields on the left. Points must be 50 m to 1.5 km apart. Choose the season and time first if you like.
+- With both points set, the "This walk" card shows start, end and the straight-line distance. Nothing is fetched or billed until you press **Analyse this walk**; **Start again** or Esc clears the points. Thermal comes last and is the billed step, so **Cancel** still stops it while the streets and photos load, and goes back to this card.
+- The two ways appear when they are ready: A (the shortest, continuous) and B (the easiest at most a quarter longer, dashed), coloured by Thermal. Senses and Overall follow with the rating.
+- The A and B buttons show or hide a route. Hovering one, or a section of a bar, finds it on the map.
+- Click a street on the map, or a section of a bar, to open its card, as in Area. The arrow keys or the buttons go to the previous or next street of that route; Esc goes back.
+- A new season or time asks again (billed unless cached). The ways on the map stay until the new ones arrive.
+- Keyboard: Tab to the map, Enter sets the start at the map centre, move the map with the arrow keys, and Enter sets the end; Enter again on **Analyse this walk** starts it. Tab reaches each route's bar once, and the arrow keys go along it. Phone: tap the points; the swap button is beside the fields.
 
 **Where things are set:**
 - Colours, fonts and sizes, including the map tint and mask: `frontend/src/styles/style.css`.
@@ -183,6 +195,8 @@ npm run dev                     # starts the API too, and opens http://localhost
 | The map stays empty, console says "Worker failed to load" | MapLibre must not be pre-bundled by Vite. Check that `vite.config.js` still has `optimizeDeps: { exclude: ['maplibre-gl'] }`, then delete `frontend/node_modules/.vite` and restart `npm run dev`. |
 | `Port 5173 is already in use` | Another dev server is running. Use it, or stop it and start again. |
 | Search says "Search is not available right now." | Look for `[api]` lines in the `npm run dev` terminal. "not started: no Python found" means the Python setup (`.venv`) is missing; "stopped (exit code …)" shows the error above it. If the API runs, Photon may be down; the map still works by clicking. |
+| "This walk is 1.7 km. Routes go up to 1.5 km for now." | The shortest way is over `routes.max_walk_m`, even if the straight line is shorter. Choose closer points, or raise the limit (it costs more tiles); keep `routes.maxM` in `frontend/src/config.js` the same. |
+| "This area needs 9 thermal runs; the limit is 8." | Even the shortest way needs too many tiles. Choose closer points, or raise `routes.max_jobs`. |
 | Search says "Too many searches." | More than 30 searches a minute from one address. Wait a moment. |
 | Playwright: "Executable doesn't exist" | Run `npx playwright install chromium` in `frontend/`. |
 | Map tiles missing in the screen checks | The checks load real tiles from OpenFreeMap and need internet. |

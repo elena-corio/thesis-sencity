@@ -2,13 +2,27 @@
 // Top hint for the two-click selection (boards Flow 1, 1b, 1c). "Click" becomes "tap" on a phone.
 import { computed } from 'vue'
 import { useAreaStore } from '../stores/area.js'
+import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 
-const props = defineProps({ phone: Boolean })
+const props = defineProps({ phone: Boolean, routesMode: Boolean })
 const area = useAreaStore()
+const routes = useRoutesStore()
 const verb = computed(() => (props.phone ? 'Tap' : 'Click'))
 
 const hint = computed(() => {
+  if (props.routesMode) {
+    if (routes.step === 'start') {
+      return { strong: `${verb.value} where you start`, rest: '', sub: props.phone ? '' : 'or type it on the left' }
+    }
+    if (routes.step === 'end') {
+      return { strong: `Start set. Now ${verb.value.toLowerCase()} where you want to go`, rest: '', sub: props.phone ? '' : 'or type it on the left' }
+    }
+    if (routes.previewing) {
+      return { strong: 'Walk set.', rest: ' Analyse it to find the two ways', sub: props.phone ? '' : 'Esc to start again' }
+    }
+    return null
+  }
   switch (area.step) {
     case 'centre':
       return { strong: `${verb.value} to place the centre`, rest: ' of your area', sub: 'Step 1 of 2: centre, then radius' }

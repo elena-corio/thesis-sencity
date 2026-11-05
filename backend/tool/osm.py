@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass, field
 
 import requests
+from shapely import STRtree
 from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.ops import linemerge, polygonize, unary_union
 
@@ -62,6 +63,66 @@ def fetch_buildings(lat: float, lon: float, radius_m: float, cfg: dict) -> dict:
 out geom;
 """
     return _post(query, osm)
+
+
+def _poly(ring_lonlat: list[tuple[float, float]]) -> str:
+    return " ".join(f"{lat:.6f} {lon:.6f}" for lon, lat in ring_lonlat)
+
+
+def fetch_ways_in(ring_lonlat: list[tuple[float, float]], cfg: dict) -> dict:
+    """Walkable ways inside a polygon (the search area of a route). Parks and squares are not asked for."""
+    osm = cfg["osm"]
+    hw = "|".join(osm["walkable_highways"])
+    query = f"""
+[out:json][timeout:{osm['timeout_s']}];
+way(poly:"{_poly(ring_lonlat)}")["highway"~"^({hw})$"];
+out geom;
+"""
+    return _post(query, osm)
+
+
+def fetch_buildings_in(ring_lonlat: list[tuple[float, float]], cfg: dict) -> dict:
+    """Building footprints inside a polygon, used to reject photos taken indoors."""
+    poly = _poly(ring_lonlat)
+    query = f"""
+[out:json][timeout:{cfg['osm']['timeout_s']}];
+(
+  way(poly:"{poly}")["building"];
+  relation(poly:"{poly}")["building"];
+);
+out geom;
+"""
+    return _post(query, cfg["osm"])
+
+
+def _poly(ring_lonlat: list[tuple[float, float]]) -> str:
+    return " ".join(f"{lat:.6f} {lon:.6f}" for lon, lat in ring_lonlat)
+
+
+def fetch_ways_in(ring_lonlat: list[tuple[float, float]], cfg: dict) -> dict:
+    """Walkable ways inside a polygon (the search area of a route). Parks and squares are not asked for."""
+    osm = cfg["osm"]
+    hw = "|".join(osm["walkable_highways"])
+    query = f"""
+[out:json][timeout:{osm['timeout_s']}];
+way(poly:"{_poly(ring_lonlat)}")["highway"~"^({hw})$"];
+out geom;
+"""
+    return _post(query, osm)
+
+
+def fetch_buildings_in(ring_lonlat: list[tuple[float, float]], cfg: dict) -> dict:
+    """Building footprints inside a polygon, used to reject photos taken indoors."""
+    poly = _poly(ring_lonlat)
+    query = f"""
+[out:json][timeout:{cfg['osm']['timeout_s']}];
+(
+  way(poly:"{poly}")["building"];
+  relation(poly:"{poly}")["building"];
+);
+out geom;
+"""
+    return _post(query, cfg["osm"])
 
 
 def _post(query: str, osm: dict) -> dict:
@@ -156,12 +217,15 @@ def parse(data: dict, proj: LocalProjection, cfg: dict):
     # Footways with no footway=* tag that run alongside a road are sidewalks drawn as plain footways.
     along = osm["alongside_road"]
     if road_lines:
-        road_zone = unary_union(road_lines).buffer(along["distance_m"])
+        # Only the roads near each footway are joined, so this stays fast over a whole route's streets.
+        road_buffers = [r.buffer(along["distance_m"]) for r in road_lines]
+        tree = STRtree(road_buffers)
         kept = []
         for w in ways:
             if w.tags.get("highway") == "footway" and "footway" not in w.tags:
                 line = LineString([node_xy[n] for n in w.nodes])
-                if line.length > 0 and line.intersection(road_zone).length / line.length >= along["min_share"]:
+                near = [road_buffers[int(i)] for i in tree.query(line)]
+                if near and line.length > 0 and line.intersection(unary_union(near)).length / line.length >= along["min_share"]:
                     dropped["footway alongside road"] = dropped.get("footway alongside road", 0) + 1
                     continue
             kept.append(w)

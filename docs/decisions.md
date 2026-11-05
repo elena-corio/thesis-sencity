@@ -2,6 +2,51 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-05 – Street names wrap instead of being cut (accepted)
+**Context.** Elena: the cut names bother her ("Stephansp…" on the card). Beside the photo the name has about 128 px at 20 px text, so one long word did not fit. Brief §3 asked for an ellipsis and a tooltip.
+**Decision (Elena asked; the way is proposed).** Names wrap everywhere they are shown as text: the place and stretch card, the preview, search suggestions and the hover label. The card's name is marked as German, so the browser hyphenates it where it has a dictionary, and otherwise breaks at any letter. The layout of board 2f stays. The Start and End fields are text inputs, which cannot wrap, so a long name there still ends in an ellipsis; the preview shows it in full.
+**Alternatives.** The name above the photo at full width (one line for almost every name, but it moves away from the board and pushes the card down). Smaller text (still cuts the longest names).
+**Consequences.** A very long name takes three or more lines beside the photo. Outside Vienna, a screen reader may read the card's name with German pronunciation.
+
+## 2026-11-05 – Routes: confirm before loading, single streets; Area: streets and photos as two rows (accepted)
+**Context.** Elena tried Routes. The search started by itself as soon as both points were set, unlike Area. Only long runs of road could be selected. The Area loading card had one row for streets and photos, the Routes card two.
+**Decision (Elena).**
+- *Confirm first:* both points set shows a preview, "This walk": start, end, straight-line distance, thermal window, **Analyse this walk** and Start again. Nothing is fetched or billed before Analyse, so a misclick costs nothing. Changes brief §3 and board Routes 2. This replaces "Automatic start" in the entry below.
+- *Single streets:* a stretch is one street segment of the route, as a street in Area, not a run of segments in the same state. Changes brief §3. This replaces the merged names, the hardest-value rule and the photos spread over segments in the entry below: the card now shows that street's own value and photos, as in Area.
+- *Area loading card:* separate rows for Streets and Street photos.
+- *No "Finding the two ways" row:* finding them takes about 0.1 s after thermal, so the row was never seen active. Changes brief §3 and board Routes 2.
+**Details (proposed).**
+- *Words:* "Analyse this walk", echoing "Analyse this area". A clicked point shows its coordinates in the preview, a searched one its name. Cancel, and Back after an error, return to the preview; both points stay.
+- *Swap:* in the preview it only swaps. With routes on the map it asks at once, since the same route either way round is already paid for (unless the season or time is new).
+- *Bar:* one section per street, with the 2 px gap only where the state changes, so it reads as on the board. This differs from the brief's "2 px gaps between sections" for the route bars only. With many streets a section can be only about 4 px wide, so on a phone the map is the easier place to pick a street.
+- *Keyboard:* the bar is one Tab stop, because a route can have 30 or more streets; the arrow keys go along it.
+- *Dashes:* route B's dashes are drawn over runs of the same state, so the pattern does not restart at every short segment. A hovered or selected B street turns solid.
+**Open (Elena).** Whether the streets being checked light up in teal while a route loads, as in Area. They would be candidates, not routes: 282 streets checked for 55 on the two ways on the first real route. For now the map stays plain, as in brief §3.
+**Consequences.** One more click per route. A very short street (a few metres between two junctions) is its own stretch, so the count can be high: 35 on the first real route.
+
+## 2026-11-05 – Routes: thermal only, up to 1.5 km, on the rated streets
+**Context.** Elena asked for the Routes mode (boards Routes 1–4, P3). Rating is not built, so only Thermal has real data. A route needs a thermal run along its way, billed per tile. The brief and the boards also disagree on a few points.
+**Decision (accepted, Elena).**
+- *Thermal only for now:* the whole flow is built. B is the way with the least "hard" Thermal. Senses and Overall stay inactive, and "Rating for your profile" stays greyed. The API's route finder takes a state per segment, so rating can plug in.
+- *Length (the board says about 3 km):* the walk may be up to 1.5 km and a run up to 8 tiles (`routes.max_walk_m`, `routes.max_jobs`). Both are in config.
+- *Network (changes brief §6):* routes run on the rated street lines, not a separate sidewalk graph, so every stretch has its own colour, photo and card. The route does not say which side of a street to walk on or where to cross.
+- *Routes 5, the 3D walk:* not built. The board contradicts brief §2 (no 3D buildings, flat view), and the brief does not describe it.
+**Details (proposed).**
+- *Finding the ways:* streets are read from an ellipse around start and end. Up to 8 tries find different ways at most 25% longer, each making the streets already used 1.4 × longer. Only streets within 40 m of those ways (the corridor) get photos and thermal comfort. On four real walks in Vienna (720–1,360 m in a straight line) that was 280–850 segments and 4–6 tiles. If the free `preview_area` says the corridor needs more than 8 tiles, the longest ways are dropped until it fits.
+- *A and B:* A is the shortest. B is the best of a fixed set: Dijkstra with hard streets counted 0.5 to 8 × longer, plus the ways above, keeping those at most 25% longer. Best means the least hard, then the least mixed or no value, then the shortest. If that is A, B is the next shortest that differs along at least 10% of its length, labelled "alternative" (Elena: "next shortest" took two lines), not "easiest". If there is none, only A is shown. A no-value street counts like a mixed one, so a gap never looks easier than a known easy street. This is close to the best way, not proven the best (the exact problem is hard).
+- *Gaps:* with sidewalks and crossings out of the data, a path can end a few metres short of a street. A dead end within 15 m of another street is joined by a short connector, which is added to the stretch before it. On real walks about one edge in six is a connector, so a route can occasionally cross something a person cannot (a fence, a low wall). Pedestrian areas mapped only as polygons are not walked through; streets and paths mapped across them are. Tunnels and underground passages stay out, as in the rated network.
+- *The score on the server:* the brief has the backend find the routes, and the state decides B, so the app sends its limits in the request and `tool/thermal.py` applies the same rule as `lib/thermal.js`. A test keeps the two tables equal. The limits will become personal: they are used for the answer and not kept.
+- *Automatic start (board Routes 2):* replaced the same day, see the entry above. A point more than 1.5 km from the other is refused before anything is asked.
+- *Privacy:* start and end can be a home and a workplace. They travel in the POST body and are never logged. The cache (`runs/routes/`) has a hashed file name and holds no start or end, but its streets and middle point do show roughly where the way runs. The privacy notice should say so. The two ways are found again for each request, never stored.
+- *Swap:* the cache key does not depend on the direction, so swapping start and end is not billed twice.
+- *Season and time:* as in Area: free before both points are set, inactive while loading, then a new window asks again. The ways stay on the map until the new ones arrive, and if it fails they stay and the card says why. A new window can give a different B.
+- *Stretch card:* it is the place card (brief §3, one card pattern), with the route bar above and coverage and previous / next below (these stay in view while the card scrolls). "Rate this place" waits for rating.
+- *Verdict:* a plain sentence from rules, no AI: "B is 3 minutes longer but avoids the hot stretch on Goldschmiedgasse", or "the hot part of Rotenturmstraße" when B walks another part of that street. The board's "the open square and the market" needs Senses.
+- *Screens:* a phone has no Ask or account button on Routes (board P3). Below 1200 px both panels stay, since Start and End are always needed; the left panel drops its explanations, the hint is hidden and the map uses the space below the panels if there is none between them. `/routes` and `/area` are one view, so the map stays when the tab changes, and each keeps its own state.
+- *Speed:* with this many streets, building the segments took 249 s. `merge_short` and the alongside-road test now use a spatial index (under 2 s). On a real 300 m circle the old and new code gave identical segments.
+**Alternatives.** The full sidewalk graph (more realistic directions, but each part must be matched to a street, which can go wrong at junctions). Thermal for the whole ellipse (up to about 30 tiles). Finding B in the browser (keeps the limits on the device, but the brief has the backend do it).
+**Consequences.** A new route takes about 2.5 minutes before thermal on the public Overpass server, plus the simulation. Up to about 60–80 tokens per new route and season or time; cached after that. A walk whose shortest way is over 1.5 km is refused even if the straight line is shorter: a 1.2 km straight line can already be too long in the old town. First real run (Graben to Schwedenplatz, summer 15:00, 4 tiles, about 40 tokens): A 911 m, 36% hard; B 975 m, 7% hard. The ground materials were skipped after 20 s, as the 2026-11-04 entry allows, so that result rests on buildings and trees only.
+
 ## 2026-11-04 – Thermal comfort on the streets (proposed details)
 **Context.** Elena asked for thermal comfort after the photos, as a layer (boards Flow 3 and 2e). The brief fixes the source (Infrared.city `thermal-comfort-index`), the nearest public station, a fixed window per season, the 75th percentile along each street and the two-sided 1–5 score. These details were open.
 **Decision.**
@@ -176,7 +221,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Context.** The brief says to use street centrelines and drop sidewalks and crossings, with the tag lists in config. The exact lists were left open.
 **Decision.** Walkable: `highway` = primary, secondary, tertiary, unclassified, residential, living_street, pedestrian, service, footway, path, steps, track, cycleway, bridleway. Dropped: `footway=sidewalk|crossing`, `service=driveway|parking_aisle`, `access=private|no`, `foot=no`, `tunnel=yes`, `indoor=yes`. A `highway=footway` with no `footway=*` tag is treated as a sidewalk when 80% of it lies within 12 m of a road centreline. Areas: `leisure=park`, `place=square`, and closed `highway=pedestrian` ways with `area=yes`.
 **Alternatives.** osmnx's "walk" network (heavier dependency, less control over sidewalks).
-**Consequences.** Underground passages (the U-Bahn station under Stephansplatz: 120 ways) are not rated. The sidewalk graph for routing is not built yet (Routes, later).
+**Consequences.** Underground passages (the U-Bahn station under Stephansplatz: 120 ways) are not rated. Routes run on these same lines, with no sidewalk graph (see 2026-11-05).
 
 ## 2026-11-01 – OSM data from the public Overpass API (accepted)
 **Context.** The brief says "streets come from OpenStreetMap" but not how.

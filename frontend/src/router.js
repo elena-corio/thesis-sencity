@@ -5,7 +5,8 @@ export default createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: '/area' },
-    { path: '/area', name: 'area', component: MapView },
+    // Area and Routes are one view around one map, so the map stays when the tab changes.
+    { path: '/:mode(area|routes)', name: 'map', component: MapView },
     { path: '/:pathMatch(.*)*', redirect: '/area' },
   ],
 })

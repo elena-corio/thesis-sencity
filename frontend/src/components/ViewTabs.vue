@@ -1,12 +1,14 @@
 <script setup>
 // Area / Routes / Profile. Top centre on desktop, bottom tab bar on a phone (brief §3).
-// Only Area works for now.
+// Area and Routes work; Profile does not yet.
+import { useRoute } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 
 defineProps({ phone: Boolean })
+const route = useRoute()
 const TABS = [
   { id: 'area', label: 'Area', icon: 'area', ready: true },
-  { id: 'routes', label: 'Routes', icon: 'route', ready: false },
+  { id: 'routes', label: 'Routes', icon: 'route', ready: true },
   { id: 'profile', label: 'Profile', icon: 'user', ready: false },
 ]
 </script>
@@ -14,7 +16,8 @@ const TABS = [
 <template>
   <nav :class="phone ? 'tabbar' : 'tabs panel'" aria-label="Views" :data-panel="phone ? 'tabbar' : 'tabs'">
     <template v-for="t in TABS" :key="t.id">
-      <RouterLink v-if="t.ready" to="/area" class="tab" :class="{ on: t.id === 'area' }" aria-current="page">
+      <RouterLink v-if="t.ready" :to="`/${t.id}`" class="tab" :class="{ on: route.params.mode === t.id }"
+                  :aria-current="route.params.mode === t.id ? 'page' : undefined">
         <span v-if="phone" class="tab-icon"><AppIcon :name="t.icon" /></span>
         <span>{{ t.label }}</span>
       </RouterLink>

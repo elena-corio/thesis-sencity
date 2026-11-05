@@ -7,12 +7,17 @@ import config from '../config.js'
 import { useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
+import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
+import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
 import { useAreaStore } from '../stores/area.js'
+import { useRoutesStore } from '../stores/routes.js'
 import { useThemeStore } from '../stores/theme.js'
 
+const props = defineProps({ routesMode: Boolean })
 const area = useAreaStore()
+const routes = useRoutesStore()
 const theme = useThemeStore()
 const finePointer = useMedia('(pointer: fine)')
 const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
@@ -43,11 +48,16 @@ const containerSize = computed(() => {
   return el ? { w: el.clientWidth, h: el.clientHeight } : { w: 0, h: 0 }
 })
 const crosshairPx = computed(() => {
-  if (area.step !== 'centre') return null
+  if (props.routesMode || area.step !== 'centre') return null
   return pointerPx.value ?? { x: containerSize.value.w / 2, y: containerSize.value.h / 2 }
 })
 
-const showChip = computed(() => area.step === 'radius' || (area.step === 'set' && edgePx.value))
+const showChip = computed(() => !props.routesMode && (area.step === 'radius' || (area.step === 'set' && edgePx.value)))
+const areaMarks = computed(() => !props.routesMode)
+// Routes: the Start ring and the End pin (boards Routes 1–4).
+const startPx = computed(() => (props.routesMode ? project(routes.start) : null))
+const endPx = computed(() => (props.routesMode ? project(routes.end) : null))
+const picking = computed(() => props.routesMode && routes.step !== 'set')
 const chipStyle = computed(() => {
   const p = edgePx.value
   if (!p) return {}
@@ -85,6 +95,16 @@ function setRadiusTo(point) {
 // Pointer input
 function onClick(e) {
   const p = lngLatToPoint(e.lngLat)
+  if (props.routesMode) {
+    if (picking.value) {
+      routes.pick(p)
+    } else if (routes.hasResult) {
+      const key = routeStretchAt(e.point)
+      if (key) routes.selectStretch(key, p)
+      else routes.back()
+    }
+    return
+  }
   if (area.step === 'centre') {
     area.placeCentre(p)
     if (finePointer.value) area.radiusTo(p) // the circle grows from the centre with the pointer
@@ -118,6 +138,68 @@ function segmentAt(point) {
   return (lines[0] ?? areas[0])?.properties.id ?? null
 }
 
+// Routes: a stretch under the pointer, the top one where the two ways share a street.
+function routeStretchAt(point) {
+  const m = map.value
+  if (!m.getLayer(ROUTE_HIT_LAYER)) return null
+  return m.queryRenderedFeatures(point, { layers: [ROUTE_HIT_LAYER] })[0]?.properties.key ?? null
+}
+function routeLayerState() {
+  return {
+    routes: routes.shown,
+    visible: routes.visible,
+    selected: routes.selected?.key ?? null,
+    hoverKey: routes.hoverKey,
+    hoverRoute: routes.hoverRoute,
+  }
+}
+function syncRoutes() {
+  if (!map.value) return
+  updateRouteLayers(map.value, props.routesMode ? routeLayerState() : { ...routeLayerState(), routes: [] })
+}
+watch(() => routes.shown, syncRoutes)
+watch(() => [routes.visible, routes.selected, routes.hoverKey, routes.hoverRoute], () => {
+  if (map.value) styleRoutes(map.value, routeLayerState())
+})
+watch(() => routes.selected, (s) => {
+  if (!s) return
+  restartPulse()
+  const stretch = routes.selectedStretch
+  if (stretch) nextTick(() => requestAnimationFrame(() => revealBounds(boundsOf(stretch.coordinates))))
+})
+
+function routePoints() {
+  const pins = [routes.start, routes.end].filter(Boolean).map((p) => [p.lon, p.lat])
+  return [...pins, ...routes.allStretches.flatMap((s) => s.coordinates)]
+}
+/** The whole way (or the pins) in the space the panels leave free. */
+function revealRoutes() {
+  const pts = routePoints()
+  if (pts.length && map.value) {
+    map.value.fitBounds(boundsOf(pts), { padding: freePadding(), maxZoom: map.value.getZoom(), animate: !reducedMotion.value })
+  }
+}
+watch(() => routes.routes, (r) => {
+  if (props.routesMode && r.length) nextTick(() => requestAnimationFrame(revealRoutes))
+})
+watch(() => routes.step, (s) => {
+  if (props.routesMode && s === 'set') nextTick(() => requestAnimationFrame(revealRoutes))
+})
+
+// Switching between Area and Routes: each shows only its own things on the one map.
+watch(() => props.routesMode, (on) => {
+  hoverId.value = null
+  routes.hoverKey = null
+  stopPulse()
+  if (map.value) {
+    syncLayers()
+    setSegments(map.value, on ? null : area.segments)
+    syncRoutes()
+    map.value.getCanvas().style.cursor = ''
+    map.value.getCanvas().setAttribute('aria-label', canvasLabel())
+  }
+})
+
 const hoverId = ref(null)
 watch(hoverId, (id, old) => {
   if (!map.value) return
@@ -137,12 +219,21 @@ watch(() => area.layer, (layer) => {
   if (map.value) setSegmentLayer(map.value, layer)
 })
 watch(() => area.segments, (fc) => {
-  if (map.value) setSegments(map.value, fc)
+  if (map.value && !props.routesMode) setSegments(map.value, fc)
   if (!fc) hoverId.value = null
 })
 
 const hoverPx = ref(null) // pointer position over a street, for the name label
+const routeHoverPx = ref(null)
 function onSegmentHover(e) {
+  if (props.routesMode) {
+    hoverId.value = null
+    const key = routes.hasResult ? routeStretchAt(e.point) : null
+    routes.hoverKey = key
+    routeHoverPx.value = key ? { x: e.point.x, y: e.point.y } : null
+    map.value.getCanvas().style.cursor = key ? 'pointer' : ''
+    return
+  }
   if (area.step !== 'analysed' || !area.segments) {
     hoverId.value = null
     return
@@ -155,6 +246,16 @@ function onSegmentHover(e) {
 // Name label: the full street name and type, beside the pointer (or at the keyboard-focused
 // street), in the tooltip style of the Profile board. Mouse and keyboard only, not touch.
 const tooltip = computed(() => {
+  if (props.routesMode) {
+    const stretch = routes.allStretches.find((s) => s.key === routes.hoverKey)
+    if (!stretch || !routeHoverPx.value || !finePointer.value) return null
+    return {
+      x: routeHoverPx.value.x,
+      y: routeHoverPx.value.y,
+      name: stretchFeature(stretch, routes.segments).properties.name,
+      type: formatLength(stretch.length_m),
+    }
+  }
   const id = focusedSegId.value ?? hoverId.value
   const px = focusedSegId.value ? focusRingPx.value : hoverPx.value
   if (!id || !px || (!focusedSegId.value && !finePointer.value)) return null
@@ -165,7 +266,10 @@ const tooltip = computed(() => {
 
 // Selection ring at the clicked point, with a soft pulse that stops after a few seconds or
 // on interaction; no pulse with reduced motion (brief §4).
-const ringPx = computed(() => (area.selectedId ? project(area.selectedPoint) : null))
+const ringPx = computed(() => {
+  if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
+  return area.selectedId ? project(area.selectedPoint) : null
+})
 const pulsing = ref(false)
 let pulseTimer
 function restartPulse() {
@@ -181,7 +285,7 @@ function stopPulse() {
 // Keyboard: segments in reading order (top to bottom, then left to right), in a hidden list.
 const focusedSegId = ref(null)
 const keyboardList = computed(() => {
-  if (area.step !== 'analysed' || !area.segments) return []
+  if (props.routesMode || area.step !== 'analysed' || !area.segments) return []
   const band = 0.0003 // about 30 m of latitude: one "line" of reading
   return area.segments.features
     .map((f) => ({ f, mid: midpoint(f.geometry) }))
@@ -228,7 +332,7 @@ function revealSelected(id) {
 function onMouseMove(e) {
   touchMode.value = false
   pointerPx.value = { x: e.point.x, y: e.point.y }
-  if (area.step === 'radius') setRadiusTo(lngLatToPoint(e.lngLat))
+  if (!props.routesMode && area.step === 'radius') setRadiusTo(lngLatToPoint(e.lngLat))
 }
 
 function onMouseOut() {
@@ -237,6 +341,7 @@ function onMouseOut() {
 
 function onContextMenu(e) {
   e.originalEvent.preventDefault()
+  if (props.routesMode) return
   if (area.step === 'radius' || area.step === 'set') area.reset()
 }
 
@@ -252,7 +357,7 @@ function pointInMap(e) {
 }
 function onSizeDown(e) {
   touchMoved = false
-  if (area.step !== 'radius' || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return
+  if (props.routesMode || area.step !== 'radius' || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return
   sizing = { id: e.pointerId, x: e.clientX, y: e.clientY }
   touchMode.value = e.pointerType !== 'mouse'
   map.value.dragPan.disable()
@@ -297,6 +402,15 @@ function endDrag() {
 // Keyboard (brief §6): Enter places the centre at the map centre, arrows change the radius
 // in 10 m steps, Enter fixes it. Arrow keys pan the map only before the centre is placed.
 function onKeyDown(e) {
+  if (props.routesMode) {
+    // Enter sets the next point at the map centre.
+    if (e.key !== 'Enter' || !picking.value) return
+    const c = map.value.getCenter()
+    routes.pick({ lat: c.lat, lon: c.lng }, 'Point at the map centre', true)
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
   if (e.key === 'Enter' && area.step === 'centre') {
     const c = map.value.getCenter()
     area.placeCentre({ lat: c.lat, lon: c.lng }, true)
@@ -315,6 +429,12 @@ function onKeyDown(e) {
 
 function onWindowKey(e) {
   if (e.key !== 'Escape' || e.defaultPrevented) return
+  if (props.routesMode) {
+    // Esc: back to the comparison, or start choosing again. While loading, Cancel does it.
+    if (routes.selected) routes.back(true)
+    else if (routes.load === 'idle' && routes.start) routes.reset()
+    return
+  }
   if (area.step === 'radius' || area.step === 'set') {
     area.reset()
     map.value?.getCanvas().focus()
@@ -326,7 +446,10 @@ function onWindowKey(e) {
 // Map
 function syncLayers() {
   if (!map.value) return
-  updateAreaLayers(map.value, { step: area.step, centre: area.centre, radius: area.radius, edge: edge.value })
+  // In Routes nothing of the area shows ("plain map with only the start and end pins").
+  updateAreaLayers(map.value, props.routesMode
+    ? { step: 'centre', centre: null, radius: 0, edge: null }
+    : { step: area.step, centre: area.centre, radius: area.radius, edge: edge.value })
 }
 
 watch(() => [area.step, area.centre, area.radius, edgeBearing.value], syncLayers)
@@ -341,25 +464,39 @@ watch(() => theme.resolved, (t) => {
 const TOP_PANELS = ['search', 'tabs', 'actions', 'hint', 'season-chip', 'time', 'ask']
 const BOTTOM_PANELS = ['season', 'controls', 'tabbar', 'attribution']
 
+const MIN_FREE_PX = 80
+
 function freePadding() {
   const W = window.innerWidth
   const H = window.innerHeight
   const gap = 16
   const pad = { top: gap, bottom: gap, left: gap, right: gap }
+  let sideBottom = 0 // the lowest edge of the side panels
   for (const el of document.querySelectorAll('[data-panel]')) {
     const r = el.getBoundingClientRect()
     if (!r.width || !r.height) continue
     const name = el.dataset.panel
-    const card = ['area-card', 'place-card', 'loading-card'].includes(name)
+    const card = ['area-card', 'place-card', 'loading-card', 'route-card'].includes(name)
     const sheet = card && r.width > W * 0.8
     if (TOP_PANELS.includes(name)) pad.top = Math.max(pad.top, r.bottom + gap)
     else if (BOTTOM_PANELS.includes(name) || sheet) pad.bottom = Math.max(pad.bottom, H - r.top + gap)
-    else if (name === 'layers') pad.left = Math.max(pad.left, r.right + gap)
-    else if (card) pad.right = Math.max(pad.right, W - r.left + gap)
+    else if (name === 'layers') {
+      pad.left = Math.max(pad.left, r.right + gap)
+      sideBottom = Math.max(sideBottom, r.bottom)
+    } else if (card) {
+      pad.right = Math.max(pad.right, W - r.left + gap)
+      sideBottom = Math.max(sideBottom, r.bottom)
+    }
+  }
+  // No room between the side panels (Routes on a tablet): use the space below them, if there is enough.
+  if (pad.left + pad.right > W - 2 * MIN_FREE_PX && H - sideBottom - gap - pad.bottom >= 2 * MIN_FREE_PX) {
+    pad.top = sideBottom + gap
+    pad.left = gap
+    pad.right = gap
   }
   // Leave at least a small window for the circle on very small screens.
-  if (pad.top + pad.bottom > H - 80) pad.bottom = Math.max(gap, H - 80 - pad.top)
-  if (pad.left + pad.right > W - 80) pad.left = gap
+  if (pad.top + pad.bottom > H - MIN_FREE_PX) pad.bottom = Math.max(gap, H - MIN_FREE_PX - pad.top)
+  if (pad.left + pad.right > W - MIN_FREE_PX) pad.left = gap
   return pad
 }
 
@@ -388,6 +525,7 @@ function revealBounds([[w, s], [e, n]]) {
 }
 
 watch(() => area.step, (step) => {
+  if (props.routesMode) return
   if (step === 'set' || step === 'analysed') nextTick(() => requestAnimationFrame(revealCircle))
 })
 
@@ -410,9 +548,11 @@ onMounted(() => {
   m.on('style.load', () => {
     addAreaLayers(m)
     addSegmentLayers(m, area.layer)
+    addRouteLayers(m)
     syncLayers()
-    setSegments(m, area.segments)
+    setSegments(m, props.routesMode ? null : area.segments)
     setSegmentState(m, area.selectedId, { selected: true }) // states are lost with the old style
+    syncRoutes()
   })
   m.on('move', () => { frame.value++ })
   m.on('movestart', stopPulse)
@@ -429,8 +569,7 @@ onMounted(() => {
   m.once('idle', () => { document.documentElement.dataset.mapReady = 'true' })
 
   const canvas = m.getCanvas()
-  canvas.setAttribute('aria-label',
-    'Map. Press Enter to place the centre of your area at the map centre, then the arrow keys to change the radius and Enter to fix it.')
+  canvas.setAttribute('aria-label', canvasLabel())
   container.value.addEventListener('keydown', onKeyDown, true)
   container.value.addEventListener('pointerdown', onSizeDown, true)
   container.value.addEventListener('pointermove', onSizeMove, true)
@@ -446,13 +585,26 @@ onBeforeUnmount(() => {
   map.value?.remove()
 })
 
+function canvasLabel() {
+  return props.routesMode
+    ? 'Map. Press Enter to set the start at the map centre, move the map with the arrow keys, then press Enter to set the end.'
+    : 'Map. Press Enter to place the centre of your area at the map centre, then the arrow keys to change the radius and Enter to fix it.'
+}
+
 // Controls used by the map buttons
 function zoomIn() { map.value?.zoomIn({ animate: !reducedMotion.value }) }
 function zoomOut() { map.value?.zoomOut({ animate: !reducedMotion.value }) }
 function recentre() {
   const m = map.value
   if (!m) return
-  if (area.centre && area.step !== 'centre') {
+  if (props.routesMode) {
+    const pts = routePoints()
+    if (pts.length) {
+      m.fitBounds(boundsOf(pts), { padding: freePadding(), animate: !reducedMotion.value })
+      return
+    }
+  }
+  if (!props.routesMode && area.centre && area.step !== 'centre') {
     m.fitBounds(circleBounds(), { padding: freePadding(), animate: !reducedMotion.value })
   } else {
     m.easeTo({ center: [config.start.lon, config.start.lat], zoom: config.start.zoom, animate: !reducedMotion.value })
@@ -483,7 +635,8 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
 
 <template>
   <div class="map-wrap" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag">
-    <div ref="container" class="map" :class="{ picking: area.step === 'centre' && finePointer, sizing: area.step === 'radius' }" />
+    <div ref="container" class="map"
+         :class="{ picking: areaMarks && area.step === 'centre' && finePointer, sizing: areaMarks && area.step === 'radius', 'route-pick': picking }" />
 
     <!-- Step 1: the crosshair follows the pointer (at the map centre for keyboard users). -->
     <div v-if="crosshairPx && finePointer" class="crosshair" aria-hidden="true"
@@ -492,13 +645,13 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
     </div>
 
     <!-- Centre of the area: thin crosshair with a dot (brief §4: the point that picks an area). -->
-    <div v-if="area.hasCircle && centrePx" class="crosshair centre" aria-hidden="true"
+    <div v-if="areaMarks && area.hasCircle && centrePx" class="crosshair centre" aria-hidden="true"
          :style="{ left: `${centrePx.x}px`, top: `${centrePx.y}px` }">
       <span class="dot" />
     </div>
 
     <!-- Edge handle: hollow while choosing, filled and draggable once set. -->
-    <div v-if="(area.step === 'radius' || area.step === 'set') && edgePx" class="handle"
+    <div v-if="areaMarks && (area.step === 'radius' || area.step === 'set') && edgePx" class="handle"
          :class="{ set: area.step === 'set', dragging }" aria-hidden="true"
          :style="{ left: `${edgePx.x}px`, top: `${edgePx.y}px` }"
          @pointerdown="startDrag" />
@@ -513,6 +666,15 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
         <span v-if="area.step === 'radius'">max {{ config.radius.max }} m</span>
       </template>
     </div>
+
+    <!-- Routes: Start (a ring) and End (a pin). -->
+    <div v-if="startPx" class="route-start" data-testid="route-start" aria-hidden="true"
+         :style="{ left: `${startPx.x}px`, top: `${startPx.y}px` }" />
+    <svg v-if="endPx" class="route-end" data-testid="route-end" viewBox="0 0 28 38" aria-hidden="true"
+         :style="{ left: `${endPx.x}px`, top: `${endPx.y}px` }">
+      <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 23 13 23s13-13.5 13-23C27 6.8 21.2 1 14 1z" />
+      <circle cx="14" cy="14" r="5" />
+    </svg>
 
     <!-- Selection ring: what the place card shows (brief §4). -->
     <div v-if="ringPx" class="ring" :class="{ pulsing }" aria-hidden="true"
@@ -579,15 +741,14 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
 .street-tip {
   position: absolute;
   transform: translate(var(--chip-offset), calc(-100% - var(--chip-offset)));
+  width: max-content;
   max-width: var(--tip-max-w);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-chip);
   background: var(--btn-selected-bg);
   color: var(--text-2);
   font-size: var(--fs-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   pointer-events: none;
   z-index: 5;
 }
@@ -595,6 +756,19 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
 .map { position: absolute; inset: 0; }
 .map.picking :deep(canvas) { cursor: none; }
 .map.sizing :deep(canvas) { cursor: crosshair; }
+.map.route-pick :deep(canvas) { cursor: crosshair; }
+
+.route-start {
+  position: absolute; width: var(--route-start-size); height: var(--route-start-size);
+  border: var(--space-1) solid var(--ring); border-radius: 50%; background: var(--ring-edge);
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.route-end {
+  position: absolute; width: var(--route-pin-w); height: var(--route-pin-h);
+  transform: translate(-50%, -100%); pointer-events: none;
+}
+.route-end path { fill: var(--ring); stroke: var(--ring-edge); stroke-width: var(--hairline); }
+.route-end circle { fill: var(--ring-edge); }
 
 .crosshair {
   position: absolute;
