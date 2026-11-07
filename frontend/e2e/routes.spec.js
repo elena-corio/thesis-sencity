@@ -241,6 +241,37 @@ test.describe('desktop', () => {
     await expect(page.getByRole('radio', { name: 'Winter' })).toHaveAttribute('aria-checked', 'true')
   })
 
+  test('a request the API cannot read shows a plain message, not its field errors', async ({ page }) => {
+    // What an API older than the app answers: 422 with a list of field errors (as FastAPI sends them).
+    await mockRoutes(page)
+    await page.route('**/api/routes', (route) => route.fulfill({
+      status: 422, contentType: 'application/json',
+      body: JSON.stringify({ detail: [{ type: 'too_short', loc: ['body', 'limits', 'heat'], msg: 'List should have at least 3 items' },
+        { type: 'too_short', loc: ['body', 'limits', 'cold'], msg: 'List should have at least 4 items' }] }),
+    }))
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await expect(card(page)).toContainText('Could not find the two ways. Check that the API is running, then try again.')
+    await expect(card(page)).not.toContainText('[object Object]')
+  })
+
+  test('a message from the API is shown as it is', async ({ page }) => {
+    await mockRoutes(page)
+    await page.route('**/api/routes', (route) => route.fulfill({
+      status: 422, contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Start and end are too close together. Choose points further apart.' }),
+    }))
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await expect(card(page)).toContainText('Start and end are too close together.')
+  })
+
   test('Area and Routes keep their own state on the one map', async ({ page }) => {
     await mockRoutes(page)
     await openRoutes(page, 'dark')

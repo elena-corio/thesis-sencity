@@ -204,7 +204,7 @@ export const useRoutesStore = defineStore('routes', () => {
       if (load.value === 'loading') failed(generic)
     } catch (err) {
       if (signal.aborted) return
-      failed(err.status === 429 || err.status === 422 ? err.message : generic)
+      failed((err.status === 429 || err.status === 422) && err.message ? err.message : generic)
     }
   }
 

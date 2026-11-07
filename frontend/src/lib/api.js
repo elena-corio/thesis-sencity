@@ -8,6 +8,17 @@ export class ApiError extends Error {
   }
 }
 
+/** The API's own message from an error answer, or '' when there is none we can show: a request the
+ *  API could not read sends `detail` as a list of field errors, which is not for people. */
+async function errorText(res) {
+  try {
+    const { detail } = await res.json()
+    return typeof detail === 'string' ? detail : ''
+  } catch {
+    return '' // not JSON
+  }
+}
+
 /**
  * Places for a search text, ranked toward the map centre.
  * The text goes in the request body, never in the URL.
@@ -24,9 +35,7 @@ export async function searchPlaces(q, near, signal) {
     signal,
   })
   if (!res.ok) {
-    let detail = ''
-    try { detail = (await res.json()).detail ?? '' } catch { /* not JSON */ }
-    throw new ApiError(res.status, detail)
+    throw new ApiError(res.status, await errorText(res))
   }
   return (await res.json()).results
 }
@@ -74,9 +83,7 @@ async function streamEvents(path, body, onEvent, signal) {
     signal,
   })
   if (!res.ok) {
-    let detail = ''
-    try { detail = (await res.json()).detail ?? '' } catch { /* not JSON */ }
-    throw new ApiError(res.status, detail)
+    throw new ApiError(res.status, await errorText(res))
   }
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
