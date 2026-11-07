@@ -109,7 +109,7 @@ flowchart LR
 | `src/components/PhotoViewer.vue` | Enlarged photo (2f+; phone P2+ as a full page): arrows, swipe, thumbnails, keyboard, focus trap |
 | `src/map/segments.js` | Segment layers (halo, core, dim, selected edge, invisible hit line) with hover and selection as feature-states; the Thermal layer lights every street with a value in its state colour |
 | `src/lib/thermal.js` | Feels-like °C to the two-sided 1–5 score and state (brief §4), the reason line, legend lines, walking minutes, adding thermal to the segments |
-| `src/lib/place.js` | Words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
+| `src/lib/place.js` | The place filter (All, Streets, Parks, Squares) and which one a segment belongs to; words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default thermal window |

@@ -7,4 +7,4 @@ Eight line icons for the senses, matched in size and weight. Use them everywhere
 - To change the weight for a context, change the outer `stroke-width` on icons without a `<g>` (hearing) and scale the inner value in the same proportion on the others.
 - Do not redraw or resize individual icons; they are balanced as a set.
 
-Files: hearing, sight, smell, touch, thermal, vestibular, body-awareness, inner-sensations.
+Files, in sense order: sight, hearing, smell, touch, thermal, vestibular, body-awareness (proprioceptive), inner-sensations (interoceptive).

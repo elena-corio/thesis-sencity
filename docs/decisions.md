@@ -2,6 +2,12 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-07 – Place filter: All, Streets, Parks, Squares (proposed)
+**Context.** Elena asked for a simpler place filter. The chips were All / Parks / Squares / Markets / Busy roads / Residential, still inactive placeholders. She also asked to move the app to the v8 sensory items (Sight before Hearing), but the app holds no sensory items yet: onboarding, profile, sense lists, prompts and EN/IT strings are not built.
+**Decision.** Chips All / Streets / Parks / Squares, from OSM: Streets = every highway way (pedestrian streets included, pedestrian areas excluded), Parks = `leisure=park`, Squares = `place=square` or a `highway=pedestrian` area. One helper, `placeGroup` in `src/lib/place.js`, maps a segment from its `place_type` and geometry; the area card's "Places here" uses it too. The chips stay inactive, as before (Elena asked for the list, not the filtering). The sense icons README lists the icons in the v8 order: sight, hearing, smell, touch, thermal, vestibular, proprioceptive, interoceptive.
+**Alternatives.** A new `place_group` property from the backend (cached areas would lack it until reloaded). Wiring the chips to the map now.
+**Consequences.** No backend change. When the sensory items are built, take the v8 list and order from the survey, keyed by sense code rather than position.
+
 ## 2026-11-05 – Street names wrap instead of being cut (accepted)
 **Context.** Elena: the cut names bother her ("Stephansp…" on the card). Beside the photo the name has about 128 px at 20 px text, so one long word did not fit. Brief §3 asked for an ellipsis and a tooltip.
 **Decision (Elena asked; the way is proposed).** Names wrap everywhere they are shown as text: the place and stretch card, the preview, search suggestions and the hover label. The card's name is marked as German, so the browser hyphenates it where it has a dictionary, and otherwise breaks at any letter. The layout of board 2f stays. The Start and End fields are text inputs, which cannot wrap, so a long name there still ends in an ellipsis; the preview shows it in full.
