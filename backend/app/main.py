@@ -167,9 +167,9 @@ class RoutePoint(BaseModel):
 
 
 class ThermalLimits(BaseModel):
-    """°C: heat [mixed, hard, worst] and cold [easy, mixed, hard, worst], as in the app's thermal.js."""
-    heat: list[float] = Field(..., min_length=3, max_length=3)
-    cold: list[float] = Field(..., min_length=4, max_length=4)
+    """°C, as in the app's config.js: heat [mixed above, hard above] and cold [easy from, hard below]."""
+    heat: list[float] = Field(..., min_length=2, max_length=2)
+    cold: list[float] = Field(..., min_length=2, max_length=2)
 
 
 class RoutesRequest(BaseModel):

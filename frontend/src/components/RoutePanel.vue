@@ -2,11 +2,12 @@
 // Start and End (boards Routes 1–4; phone P3 at the top with a swap button). On desktop this panel also
 // has "Colour the routes by" and the legend. Only Thermal exists until rating is built.
 import { computed, ref } from 'vue'
-import { thermalLegend } from '../lib/thermal.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import PlaceSearch from './PlaceSearch.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
+import SeasonTime from './SeasonTime.vue'
+import ThermalLegend from './ThermalLegend.vue'
 
 defineProps({
   phone: Boolean,
@@ -15,7 +16,9 @@ defineProps({
 const emit = defineEmits(['pick'])
 const routes = useRoutesStore()
 const menuOpen = ref(false)
-const LEGEND = thermalLegend().map((l) => ({ label: l.label, color: `var(--${l.state})` }))
+/** Feels-like values of the streets along the routes, for the season and time shown. */
+const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
+const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 const active = computed(() => routes.hasResult)
 const info = computed(() => routes.info)
 
@@ -70,15 +73,13 @@ function onPick(which, place) {
     <section class="colours">
       <h2 class="section-title">Colour the routes by</h2>
       <RouteLayerButtons />
+      <!-- Season and time matter for Thermal and Overall, not for Senses. -->
+      <SeasonTime v-if="routes.layer !== 'senses'" :store="routes" />
       <template v-if="active">
-        <p class="legend-title">Feels like temperature, hot or cold</p>
-        <ul class="legend">
-          <li v-for="s in LEGEND" :key="s.label"><span class="swatch" :style="{ background: s.color }" />{{ s.label }}</li>
-          <li><span class="swatch" :style="{ background: 'var(--no-photo)' }" />No value</li>
-        </ul>
+        <ThermalLegend :values="thermalValues" :extra="NO_VALUE" />
         <p class="note source">
           Simulated by Infrared.city for {{ info.season }}, {{ info.time }}<template v-if="info.station?.name">,
-          with weather from {{ info.station.name }}</template>. Standard limits, not personalised yet.
+          with weather from {{ info.station.name }}</template>.
           Senses and Overall follow when your photos are rated.
         </p>
       </template>

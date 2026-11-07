@@ -4,7 +4,7 @@ import config from '../config.js'
 import { loadRoutes } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
 import { haversine } from '../lib/geo.js'
-import { withThermal } from '../lib/thermal.js'
+import { thermalLimits, withThermal } from '../lib/thermal.js'
 
 /**
  * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
@@ -181,7 +181,7 @@ export const useRoutesStore = defineStore('routes', () => {
       await loadRoutes({
         start: { lat: start.value.lat, lon: start.value.lon },
         end: { lat: end.value.lat, lon: end.value.lon },
-        limits: config.thermalLimits,
+        limits: thermalLimits(),
         ...thermalWindow.value,
       }, (e) => {
         if (e.type === 'stage') progress.value = { ...progress.value, stage: e.stage }

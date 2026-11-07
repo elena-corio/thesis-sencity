@@ -13,29 +13,14 @@ from tool.geo import LocalProjection
 
 
 def thermal_state(utci: float, limits: dict) -> str:
-    """easy, mixed or hard from a feels-like value: the same rule as frontend/src/lib/thermal.js (brief §4)."""
-    h3, h2 = limits["heat"][:2]
-    c4, c3 = limits["cold"][1:3]
-    if utci > h2:
+    """easy, mixed or hard from a feels-like value: the same rule as frontend/src/lib/thermal.js (brief §4).
+    limits: heat [mixed above, hard above], cold [easy from, hard below], °C.
+    Easy from cold[0] to heat[0]; mixed up to heat[1] or down to cold[1] (so 0–9 °C is mixed); hard beyond."""
+    if utci > limits["heat"][1] or utci < limits["cold"][1]:
         return "hard"
-    if utci > h3:
+    if utci > limits["heat"][0] or utci < limits["cold"][0]:
         return "mixed"
-    if utci >= c4:
-        return "easy"
-    return "mixed" if utci >= c3 else "hard"
-
-
-def thermal_state(utci: float, limits: dict) -> str:
-    """easy, mixed or hard from a feels-like value: the same rule as frontend/src/lib/thermal.js (brief §4)."""
-    h3, h2 = limits["heat"][:2]
-    c4, c3 = limits["cold"][1:3]
-    if utci > h2:
-        return "hard"
-    if utci > h3:
-        return "mixed"
-    if utci >= c4:
-        return "easy"
-    return "mixed" if utci >= c3 else "hard"
+    return "easy"
 
 
 def cell_centres(shape_rc: tuple[int, int], bounds: tuple[float, float, float, float],

@@ -2,14 +2,26 @@
 // "This area" (boards Flow 1c, Flow 4): before analysis, with Analyse / Start again; once the area
 // has loaded, Change area, the street stretches of the selected layer as one stacked bar with counts
 // and %, places by type and Print area report (not built yet). Only Thermal exists so far, so "Why
-// hard" waits for Senses. A bottom sheet on a phone.
+// hard" waits for Senses. A bottom sheet on a phone. When the left panel gives way (phone and below
+// 1200 px), the card carries the layer choice and, under it, season and time (`controls`).
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import config from '../config.js'
 import { estimatePhotos, formatCoords } from '../lib/geo.js'
+import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
+import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
+import LayerButtons from './LayerButtons.vue'
+import MarkerPin from './MarkerPin.vue'
+import SeasonTime from './SeasonTime.vue'
 
-const props = defineProps({ phone: Boolean })
+const props = defineProps({
+  phone: Boolean,
+  /** The left panel is hidden: show the layer choice and season and time here. */
+  controls: Boolean,
+})
+/** Season and time matter for Thermal and Overall (and before analysis), not for Senses. */
+const showWindow = computed(() => props.controls && area.layer !== 'senses')
 const emit = defineEmits(['focus-map'])
 const area = useAreaStore()
 const analyseBtn = ref(null)
@@ -34,15 +46,24 @@ const stack = computed(() => {
 })
 const stackLabel = computed(() => stack.value.map((r) => `${r.label} ${r.n}`).join(', '))
 /** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one). */
-const PLACE_GROUPS = [{ label: 'Parks', types: ['park'] }, { label: 'Squares', types: ['square', 'pedestrian'] }]
+const PLACE_GROUPS = PLACE_FILTERS.filter((g) => g.id === 'parks' || g.id === 'squares')
 const placesHere = computed(() => PLACE_GROUPS.map((g) => {
-  const fs = features.value.filter((f) => f.geometry.type === 'Polygon' && g.types.includes(f.properties.place_type)
+  const fs = features.value.filter((f) => placeGroup(f.properties, f.geometry.type) === g.id
     && f.properties.thermal_state)
   if (!fs.length) return null
   const count = (st) => fs.filter((f) => f.properties.thermal_state === st).length
   const state = ['hard', 'mixed', 'easy'].reduce((best, st) => (count(st) > count(best) ? st : best))
   return { label: g.label, state, text: `${count(state)} of ${fs.length} ${state}` }
 }).filter(Boolean))
+
+// "Likely easiest for you": the marked places, numbered as their pins (suggestions now, chat later).
+const LEVEL_LABEL = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
+const showMarkers = computed(() => area.markerKind === 'chat' || area.layer === 'thermal')
+const markerRows = computed(() => area.markers.map((m) => {
+  const p = m.f.properties
+  return { m, id: p.id, name: p.name, type: typeLabel(p, m.f.geometry.type), temp: formatDegrees(p.utci),
+    level: LEVEL_LABEL[m.level], seen: area.seenIds.has(p.id) }
+}))
 
 // Keyboard: after Enter fixes the radius, focus goes to Analyse; after Analyse, to Change area.
 watch(() => area.step, async (step) => {
@@ -74,6 +95,7 @@ function startAgain() {
         <li><AppIcon name="thermometer" /> Thermal for {{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</li>
         <li><AppIcon name="clock" /> Ready in about a minute</li>
       </ul>
+      <SeasonTime v-if="showWindow" :store="area" />
       <div class="buttons">
         <button ref="analyseBtn" type="button" class="btn btn-primary grow" @click="area.analyse($event.detail === 0)">
           Analyse this area
@@ -87,6 +109,10 @@ function startAgain() {
         <button ref="changeBtn" type="button" class="btn" @click="startAgain">
           <AppIcon name="area" /> Change area
         </button>
+      </div>
+      <div v-if="controls" class="controls">
+        <LayerButtons />
+        <SeasonTime v-if="showWindow" :store="area" />
       </div>
 
       <template v-if="area.thermal === 'ready'">
@@ -106,6 +132,27 @@ function startAgain() {
         </ul>
         <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
         <p v-if="area.thermalError" class="thermal-error" role="status">{{ area.thermalError }}</p>
+
+        <section v-if="showMarkers" class="sub" data-testid="suggestions">
+          <div class="sub-head">
+            <h3 class="sub-title">{{ area.markerKind === 'chat' ? 'From your question' : 'Likely easiest for you' }}</h3>
+            <button v-if="area.markerKind === 'chat'" type="button" class="btn small-btn" @click="area.clearChatResults()">Clear</button>
+          </div>
+          <ol v-if="markerRows.length" class="markers">
+            <li v-for="r in markerRows" :key="r.id">
+              <button type="button" class="marker-row" :aria-label="`${r.m.n}. ${r.name}, ${r.type}, ${r.temp}, ${r.level}${r.seen ? ', seen' : ''}`"
+                      @click="area.selectMarker(r.m, $event.detail === 0)">
+                <MarkerPin :n="r.m.n" :level="r.m.level" />
+                <span class="marker-text">
+                  <span class="marker-name" lang="de">{{ r.name }}</span>
+                  <span class="muted">{{ r.type }} · {{ r.temp }} · <span :class="['state-text', r.m.level]">{{ r.level }}</span></span>
+                </span>
+                <AppIcon v-if="r.seen" name="check" class="seen" />
+              </button>
+            </li>
+          </ol>
+          <p v-else class="muted small">Nothing easy here at this time. Try another time or a nearby area.</p>
+        </section>
 
         <section v-if="placesHere.length" class="sub">
           <h3 class="sub-title">Places here</h3>
@@ -160,6 +207,18 @@ function startAgain() {
 .small { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 .sub { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .sub-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.sub-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.small-btn { min-height: var(--chip-h); padding: 0 var(--space-3); font-size: var(--fs-sm); }
+.markers { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+.marker-row {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--touch-phone);
+  padding: var(--space-1) var(--space-2);
+  border: 0; border-radius: var(--radius-btn); background: transparent; color: var(--text); text-align: left;
+}
+.marker-row:hover { background: var(--btn-selected-bg); }
+.marker-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-sm); }
+.marker-name { font-size: var(--fs-md); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.seen { color: var(--text-2); }
 .place-row { display: flex; justify-content: space-between; gap: var(--space-3); margin: var(--space-2) 0 0; }
 .state-text.easy { color: var(--easy); }
 .state-text.mixed { color: var(--mixed); }

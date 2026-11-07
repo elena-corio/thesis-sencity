@@ -17,7 +17,6 @@ import LayerPanel from '../components/LayerPanel.vue'
 import MapAttribution from '../components/MapAttribution.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import MapControls from '../components/MapControls.vue'
-import SeasonBar from '../components/SeasonBar.vue'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -37,7 +36,6 @@ const hasCard = computed(() => routesMode.value || area.step === 'set' || area.s
 const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
 // The hint needs the space between the panels; below 1200 px the route card says the same.
 const showHint = computed(() => !routesMode.value || wide.value)
-const windowStore = computed(() => (routesMode.value ? routes : area))
 
 const loadingCard = computed(() => area.step === 'analysed' &&
   (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
@@ -69,9 +67,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
         <PlaceCard v-if="area.selectedId" />
         <LoadingCard v-else-if="loadingCard" />
-        <AreaCard v-else @focus-map="mapRef?.focusMap()" />
+        <AreaCard v-else :controls="!showLeft" @focus-map="mapRef?.focusMap()" />
       </div>
-      <div class="slot s-season"><SeasonBar :store="windowStore" /></div>
       <div class="slot s-controls">
         <MapControls @zoom-in="mapRef?.zoomIn()" @zoom-out="mapRef?.zoomOut()" @recentre="mapRef?.recentre()" />
       </div>
@@ -83,9 +80,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <RoutePanel v-if="routesMode" phone :get-centre="getCentre" @pick="onPick" />
         <TopSearch v-else phone :get-centre="getCentre" @pick="onPick" />
       </div>
-      <div class="slot s-p-row">
-        <SeasonBar phone :store="windowStore" />
-        <button v-if="!routesMode" type="button" class="ask-round" aria-label="Ask" aria-disabled="true" title="Coming soon" data-panel="ask">
+      <!-- Season and time live in the sheet now (under the layer choice); this row keeps Ask. -->
+      <div v-if="!routesMode" class="slot s-p-row">
+        <button type="button" class="ask-round" aria-label="Ask" aria-disabled="true" title="Coming soon" data-panel="ask">
           <AppIcon name="chat" />
         </button>
       </div>
@@ -97,7 +94,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div v-else class="slot s-p-sheet">
         <PlaceCard v-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
         <LoadingCard v-else-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
-        <AreaCard v-else phone @focus-map="mapRef?.focusMap()">
+        <AreaCard v-else phone controls @focus-map="mapRef?.focusMap()">
           <MapAttribution class="in-sheet" in-sheet />
         </AreaCard>
       </div>
@@ -118,7 +115,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   --row-main: calc(var(--margin) + var(--topbar-h) + var(--gap));
   /* Bottom row (season bar, map controls) stays above the credits line. */
   --row-bottom: max(var(--space-5), calc(2 * var(--space-1) + var(--attribution-h)));
-  --main-bottom: calc(var(--row-bottom) + var(--topbar-h) + var(--gap));
+  /* The left panel reaches down to the bottom row (the season bar that used to sit there is gone). */
+  --main-bottom: var(--row-bottom);
   --reserve-left: calc(var(--margin) + var(--panel-left-w) + var(--gap));
   --reserve-right: calc(var(--margin) + var(--panel-right-w) + var(--gap));
   --p-top-h: var(--topbar-h);
@@ -158,11 +156,6 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 }
 .s-card > * { max-height: 100%; width: 100%; }
 
-.s-season {
-  bottom: var(--row-bottom); left: 50%; transform: translateX(-50%);
-  width: min(var(--seasonbar-w), calc(100vw - 2 * (var(--margin) + var(--control-size) + var(--space-2) + var(--gap))));
-}
-.s-season > * { width: 100%; }
 .s-controls { bottom: var(--row-bottom); right: var(--margin); }
 .s-attribution { bottom: var(--space-1); left: var(--margin); max-width: calc(100vw - 2 * var(--margin) - var(--control-size) - var(--space-2) - var(--gap)); }
 
@@ -172,7 +165,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 .s-p-row {
   top: calc(var(--margin) + var(--p-top-h) + var(--gap));
   left: var(--margin); right: var(--margin);
-  display: flex; gap: var(--gap);
+  display: flex; justify-content: flex-end; gap: var(--gap);
 }
 .ask-round {
   width: var(--touch-phone); height: var(--touch-phone); flex: none;
@@ -194,6 +187,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   display: flex;
   --p-row-bottom: calc(var(--margin) + var(--p-top-h) + 2 * var(--gap) + var(--touch-phone));
 }
+/* Routes on a phone have no Ask row: the sheet can start right under Start and End. */
+.routes-mode .s-p-sheet { --p-row-bottom: calc(var(--margin) + var(--p-top-h) + var(--gap)); }
 .s-p-sheet > * { width: 100%; max-height: 100%; }
 .in-sheet { margin-top: var(--space-3); }
 .s-p-attribution { left: var(--margin); right: var(--margin); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-1)); }

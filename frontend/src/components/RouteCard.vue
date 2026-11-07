@@ -9,6 +9,7 @@ import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
+import SeasonTime from './SeasonTime.vue'
 
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
@@ -125,10 +126,13 @@ function onLeave() { routes.hoverRoute = null }
 
     <!-- The comparison (board Routes 3). -->
     <template v-else-if="routes.hasResult">
-      <div v-if="phone" class="colour-by">
-        <span class="by-label">Colour by</span>
-        <RouteLayerButtons class="by-buttons" />
-      </div>
+      <template v-if="phone">
+        <div class="colour-by">
+          <span class="by-label">Colour by</span>
+          <RouteLayerButtons class="by-buttons" />
+        </div>
+        <SeasonTime v-if="routes.layer !== 'senses'" class="window" :store="routes" />
+      </template>
       <h2 id="route-title" class="title">Which way feels better?</h2>
       <div class="route-buttons" :class="{ one: routes.shown.length === 1 }">
         <button v-for="r in routes.shown" :key="r.id" type="button" class="route-btn" :class="{ on: routes.visible[r.id] }"
@@ -170,6 +174,8 @@ function onLeave() { routes.hoverRoute = null }
         <li><AppIcon name="thermometer" /> Thermal for {{ routes.thermalWindow.season }}, {{ routes.thermalWindow.time }}</li>
         <li><AppIcon name="clock" /> Ready in a few minutes</li>
       </ul>
+      <!-- Phone: the season and time are chosen here before Analyse (desktop: in the left panel). -->
+      <SeasonTime v-if="phone && routes.layer !== 'senses'" :store="routes" />
       <div class="buttons">
         <button ref="analyseBtn" type="button" class="btn btn-primary grow" @click="routes.find()">Analyse this walk</button>
         <button type="button" class="btn" @click="startAgain">Start again</button>
@@ -278,6 +284,7 @@ function onLeave() { routes.hoverRoute = null }
 .colour-by { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
 .by-label { flex: none; font-size: var(--fs-sm); color: var(--text-2); }
 .by-buttons { flex: 1; min-width: 0; margin-top: 0; }
+.window { margin: 0 0 var(--space-3); }
 
 .sheet {
   border-radius: var(--radius-panel) var(--radius-panel) 0 0; border-bottom: 0;

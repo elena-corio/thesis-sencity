@@ -12,7 +12,7 @@ Returning user: Welcome → Sign in → Map. Profile tab with no profile yet →
    - top centre: tabs Map / Compare / Profile
    - top right, one bar: About (?), Print, light/dark, Ask (opens chat), account (profile, log out)
    - left panel: layer (Thermal / Senses / Overall, one at a time), legend, personal note, place filters
-   - bottom centre: season chips + short time slider (only for Thermal and Overall)
+   - season chips + short time slider in the left panel under the layer (only for Thermal and Overall; no bottom bar since 2026-11-07)
    - bottom right, fixed: zoom +/−, top view
    - place card on click: square photo (click to enlarge, small icon), name, type, overall box ("hard because of heat (or cold)"), thermal and photo rating, might bother / might feel good with sense icons, "Based on N photos within 100 m. A prediction for your profile, not a reason." Scores: an Overall headline with no bar ("Hard · overall, because of heat (or cold)"), then two 1–5 bars, Thermal and Senses (pink→amber→cyan gradient, diamond at the score); the bar of the layer selected on the left is highlighted, and on Overall the bar that decided it.
    - selected-place marker: white dot + one thin ring
@@ -35,11 +35,11 @@ Returning user: Welcome → Sign in → Map. Profile tab with no profile yet →
 - If H3 is not supported, ratings only update the reliability line.
 
 ## Layers (one at a time)
-- **Thermal** (formerly Heat; covers hot and cold) – Infrared.city UTCI ("feels like" °C), chosen season/time, as a two-sided 1–5 score (brief §4): 9–26 °C easy (5), 0–9 easy (4), 26–32 or −13–0 mixed (3), 32–38 or −27–−13 hard (2), beyond hard (1). Personal limits: heat limits 3 °C lower if direct sun and heat bother a lot (A13), cold limits 3 °C higher if cold bothers a lot (tool-only item); sliders in the profile; untested. Legend: "Feels like, hot or cold".
+- **Thermal** (formerly Heat; covers hot and cold) – Infrared.city UTCI ("feels like" °C), chosen season/time, as three levels (brief §4; no 1–5 score): 9–26 °C easy, 26–32 or −13–9 mixed (0–9 °C is mixed), above 32 or below −13 hard; the card shows a temperature bar. Personal limits: heat limits 3 °C lower if direct sun and heat bother a lot (A13), cold limits 3 °C higher if cold bothers a lot (tool-only item); sliders in the profile; untested. Legend: "Feels like, hot or cold".
 - **Senses** – photo ratings by the persona as coloured street stretches. Thermal is NOT taken from photos in the tool (a photo shows one moment's weather); it stays in the study as is.
 - **Overall** – per street segment: thermal comfort is projected onto the streets (75th percentile of thermal comfort sampled along each ~50 m segment, where people walk), overall = worse of Thermal and Senses; the card says which decided it ("set by thermal"). Segments with no photo stay unlit. The Thermal layer is drawn street by street too (every street has a temperature, so none is unlit). Canvas boards 2b and 2e.
 - Dropped: wind (no wind question among the 8 senses), green, "you vs generic visitor".
-- Map shows 3 states; the card shows the 1–5 number.
+- Map shows 3 states; the card shows the 1–5 number for Senses and a temperature bar for Thermal.
 
 ## Interaction
 - **Linked highlighting on hover:** hovering something highlights everything related to it, everywhere on screen. Examples:

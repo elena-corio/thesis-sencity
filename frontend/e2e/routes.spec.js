@@ -53,7 +53,7 @@ test.describe('desktop', () => {
 
     // The points and the limits travel in the body; the URL has nothing in it.
     expect(mock.requests).toHaveLength(1)
-    expect(mock.requests[0].limits.heat).toEqual([26, 32, 38])
+    expect(mock.requests[0].limits).toEqual({ heat: [26, 32], cold: [9, -13] })
     expect(mock.urls[0]).toMatch(/\/api\/routes$/)
 
     // A section of a bar opens the stretch.
@@ -178,7 +178,7 @@ test.describe('desktop', () => {
     await expect(card(page)).toContainText('Comparing two ways')
     await expect(card(page)).toContainText('Rating for your profile')
     await expect(card(page)).not.toContainText('Finding the two ways')
-    await expect(page.getByRole('button', { name: 'Spring' })).toBeDisabled()
+    await expect(page.getByRole('radio', { name: 'Spring' })).toBeDisabled()
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/2-loading.png' })
     const count = await page.evaluate(() => window.__sencityMap.querySourceFeatures('sc-route').length)
@@ -225,20 +225,20 @@ test.describe('desktop', () => {
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
     // The window can still change in the preview, and that asks for nothing.
-    await page.getByRole('button', { name: 'Autumn' }).click()
-    await page.getByRole('button', { name: 'Summer' }).click()
+    await page.getByRole('radio', { name: 'Autumn' }).click()
+    await page.getByRole('radio', { name: 'Summer' }).click()
     expect(mock.requests).toHaveLength(0)
     await analyse(page)
     await expect(card(page)).toContainText('hard 40%')
-    await page.getByRole('button', { name: 'Winter' }).click()
+    await page.getByRole('radio', { name: 'Winter' }).click()
     await expect.poll(() => mock.requests.at(-1).season).toBe('winter')
-    await expect(page.getByRole('button', { name: 'Winter' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Winter' })).toHaveAttribute('aria-checked', 'true')
 
     mock.thermal = 'error'
-    await page.getByRole('button', { name: 'Spring' }).click()
+    await page.getByRole('radio', { name: 'Spring' }).click()
     await expect(card(page)).toContainText('No weather station')
     await expect(card(page)).toContainText('Which way feels better?')
-    await expect(page.getByRole('button', { name: 'Winter' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Winter' })).toHaveAttribute('aria-checked', 'true')
   })
 
   test('Area and Routes keep their own state on the one map', async ({ page }) => {
