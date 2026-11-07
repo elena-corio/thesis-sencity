@@ -21,6 +21,13 @@ export const useAreaStore = defineStore('area', () => {
   const analysed = ref(null)
   /** True when the last step was done with the keyboard, so focus can follow. */
   const byKeyboard = ref(false)
+  /** The centre's name when it was typed (an address or a place); '' when it was clicked. */
+  const centreLabel = ref('')
+  /** The input section (centre and radius) is open: from the hint's "type an address", or by the user. */
+  const inputsOpen = ref(false)
+  /** A focused input field ('centre'): the next map click fills it (see takeField). */
+  const fieldTarget = ref(null)
+  let disarmTimer = null
 
   const hasCircle = computed(() => step.value !== 'centre' && centre.value !== null)
 
@@ -314,7 +321,53 @@ export const useAreaStore = defineStore('area', () => {
     zoomToSelected.value = true
   }
 
+  /** A field was focused: the next map click fills it. Kept for a moment after it loses focus, since
+   *  clicking the map takes the focus away just before the click arrives. */
+  function armField(name) {
+    clearTimeout(disarmTimer)
+    fieldTarget.value = name
+  }
+  function disarmField(name) {
+    clearTimeout(disarmTimer)
+    disarmTimer = setTimeout(() => { if (fieldTarget.value === name) fieldTarget.value = null }, 1000)
+  }
+  function takeField() {
+    clearTimeout(disarmTimer)
+    const name = fieldTarget.value
+    fieldTarget.value = null
+    return name
+  }
+
+  /** Leave an analysed area: back to a set circle that can be changed and analysed again. */
+  function discardAnalysis() {
+    if (step.value !== 'analysed') return
+    controller?.abort()
+    controller = null
+    load.value = 'idle'
+    segments.value = null
+    resetThermal()
+    clearSelection()
+  }
+  /** The centre from the Centre field (an address or a place) or a map click into that field. Keeps
+   *  the radius; the circle is set at once (Flow 1c), ready to analyse. */
+  function setCentre(point, label = '', keyboard = false) {
+    discardAnalysis()
+    centre.value = { lat: point.lat, lon: point.lon }
+    centreLabel.value = label
+    capped.value = false
+    byKeyboard.value = keyboard
+    step.value = 'set'
+  }
+  /** The radius from the Radius choice. While the mouse is sizing the circle, it fixes it. */
+  function setRadius(r) {
+    if (step.value !== 'radius') discardAnalysis()
+    radius.value = r
+    capped.value = false
+    if (centre.value) step.value = 'set'
+  }
+
   function placeCentre(point, keyboard = false) {
+    centreLabel.value = ''
     centre.value = { lat: point.lat, lon: point.lon }
     radius.value = config.radius.default
     capped.value = false
@@ -362,12 +415,15 @@ export const useAreaStore = defineStore('area', () => {
     clearSelection()
     step.value = 'centre'
     centre.value = null
+    centreLabel.value = ''
+    inputsOpen.value = false
     capped.value = false
     radius.value = config.radius.default
   }
 
   return {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
+    centreLabel, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,

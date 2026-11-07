@@ -94,7 +94,8 @@ export function thermalSide(values, limits = STANDARD) {
 
 /**
  * Legend rows: Easy always with its range; Mixed and Hard only for the side shown ('heat', 'cold' or
- * 'both'; with both, each has two short lines). { state, label, lines }
+ * 'both'; with both, each has two short lines). Plain numbers: the legend's title carries the °C.
+ * { state, label, lines }
  */
 export function thermalLegend(limits = STANDARD, side = 'both') {
   const [hMixed, hHard] = limits.heat.map(deg)
@@ -102,9 +103,9 @@ export function thermalLegend(limits = STANDARD, side = 'both') {
   const heat = side !== 'cold'
   const cold = side !== 'heat'
   return [
-    { state: 'easy', label: 'Easy', lines: [`${cEasy} to ${hMixed} °C`] },
-    { state: 'mixed', label: 'Mixed', lines: [heat && `${hMixed} to ${hHard} °C`, cold && `${cHard} to ${cEasy} °C`].filter(Boolean) },
-    { state: 'hard', label: 'Hard', lines: [heat && `above ${hHard} °C`, cold && `below ${cHard} °C`].filter(Boolean) },
+    { state: 'easy', label: 'Easy', lines: [`${cEasy} to ${hMixed}`] },
+    { state: 'mixed', label: 'Mixed', lines: [heat && `${hMixed} to ${hHard}`, cold && `${cHard} to ${cEasy}`].filter(Boolean) },
+    { state: 'hard', label: 'Hard', lines: [heat && `above ${hHard}`, cold && `below ${cHard}`].filter(Boolean) },
   ]
 }
 

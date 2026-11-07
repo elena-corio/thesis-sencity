@@ -1,17 +1,24 @@
 <script setup>
-// "Which way feels better?" (boards Routes 1–3; phone P3): the three steps, the preview ("This walk",
-// nothing is asked for before Analyse, as in Area), the progress, or the comparison. A bottom sheet on a phone.
+// "Which way feels better?" (boards Routes 2–3; phone P3): the preview ("This walk", nothing is asked
+// for before Analyse, as in Area), the progress, or the comparison. A bottom sheet on a phone. While the
+// points are chosen there is no card: the map hint says what to do; Change in the inputs starts again.
+// Phone, as the area sheet: the walk inputs at the top (open), then Layer and season and time; "type an
+// address" in the hint opens the sheet with only the inputs ("Choose a walk").
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import config from '../config.js'
 import { formatCoords } from '../lib/geo.js'
 import { formatKm, formatLength } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
+import RouteInputs from './RouteInputs.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
 
-const props = defineProps({ phone: Boolean })
+const props = defineProps({
+  phone: Boolean,
+  getCentre: { type: Function, default: () => null },
+})
+const emit = defineEmits(['pick'])
 const routes = useRoutesStore()
 const cancelBtn = ref(null)
 const analyseBtn = ref(null)
@@ -19,10 +26,6 @@ const verb = computed(() => (props.phone ? 'Tap' : 'Click'))
 const pct = (x) => `${Math.round(x * 100)}%`
 
 const pointText = (p) => (p.named ? p.label : formatCoords(p))
-function startAgain() {
-  routes.reset()
-  routes.byKeyboard && document.querySelector('canvas')?.focus()
-}
 // Keyboard: after Enter sets the end, focus goes to Analyse, then to Cancel (as in Area).
 watch(() => routes.previewing, async (on) => {
   if (!on || !routes.byKeyboard) return
@@ -37,6 +40,11 @@ watch(() => routes.load, async (load) => {
 
 // Going back from a stretch: focus returns to its bar section.
 onMounted(() => {
+  // The card appears only once both points are set (no card while choosing): focus Analyse then too.
+  if (routes.byKeyboard && routes.previewing) {
+    nextTick(() => analyseBtn.value?.focus())
+    return
+  }
   if (routes.byKeyboard && routes.returnKey) {
     nextTick(() => document.querySelector(`[data-stretch="${CSS.escape(routes.returnKey)}"]`)?.focus())
   }
@@ -126,14 +134,15 @@ function onLeave() { routes.hoverRoute = null }
 
     <!-- The comparison (board Routes 3). -->
     <template v-else-if="routes.hasResult">
+      <h2 id="route-title" class="title">Which way feels better?</h2>
       <template v-if="phone">
+        <RouteInputs class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
         <div class="colour-by">
-          <span class="by-label">Colour by</span>
+          <span class="by-label">Layer</span>
           <RouteLayerButtons class="by-buttons" />
         </div>
         <SeasonTime v-if="routes.layer !== 'senses'" class="window" :store="routes" />
       </template>
-      <h2 id="route-title" class="title">Which way feels better?</h2>
       <div class="route-buttons" :class="{ one: routes.shown.length === 1 }">
         <button v-for="r in routes.shown" :key="r.id" type="button" class="route-btn" :class="{ on: routes.visible[r.id] }"
                 :aria-pressed="routes.visible[r.id]" :aria-label="`Route ${r.id}, ${r.id === 'A' ? 'shortest' : bName(r)}: show or hide`"
@@ -165,7 +174,8 @@ function onLeave() { routes.hoverRoute = null }
     <!-- Both points set: check before anything is fetched or billed (as Flow 1c in Area). -->
     <template v-else-if="routes.previewing">
       <h2 id="route-title" class="title">This walk</h2>
-      <dl class="points">
+      <RouteInputs v-if="phone" class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
+      <dl v-else class="points">
         <div><dt><span class="mark start" aria-hidden="true" />Start</dt><dd :title="pointText(routes.start)">{{ pointText(routes.start) }}</dd></div>
         <div><dt><span class="mark end" aria-hidden="true" />End</dt><dd :title="pointText(routes.end)">{{ pointText(routes.end) }}</dd></div>
       </dl>
@@ -178,29 +188,13 @@ function onLeave() { routes.hoverRoute = null }
       <SeasonTime v-if="phone && routes.layer !== 'senses'" :store="routes" />
       <div class="buttons">
         <button ref="analyseBtn" type="button" class="btn btn-primary grow" @click="routes.find()">Analyse this walk</button>
-        <button type="button" class="btn" @click="startAgain">Start again</button>
       </div>
     </template>
 
-    <!-- Choosing the points (board Routes 1). -->
-    <template v-else>
-      <h2 id="route-title" class="title">Which way feels better?</h2>
-      <ol class="choose">
-        <li :class="{ done: routes.start }">
-          <span class="num"><AppIcon v-if="routes.start" name="check" /><template v-else>1</template></span>
-          Choose where you start
-        </li>
-        <li :class="{ done: routes.end, now: routes.start && !routes.end }">
-          <span class="num">2</span>
-          Choose where you want to go
-        </li>
-        <li><span class="num">3</span> See two ways side by side</li>
-      </ol>
-      <p v-if="routes.pointError" class="note error" role="alert">{{ routes.pointError }}</p>
-      <p class="foot">
-        {{ verb }} on the map or search. Walking routes up to about {{ formatKm(config.routes.maxM) }}.
-        Photos and thermal comfort are loaded along both routes.
-      </p>
+    <!-- Phone: "type an address" opened the sheet before both points are set: only the inputs. -->
+    <template v-else-if="phone">
+      <h2 id="route-title" class="title">Choose a walk</h2>
+      <RouteInputs class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
     </template>
     <slot />
   </section>
@@ -213,15 +207,6 @@ function onLeave() { routes.hoverRoute = null }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .muted { color: var(--text-2); }
 
-.choose { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-3); }
-.choose li { display: flex; align-items: center; gap: var(--space-3); color: var(--text-2); }
-.choose li.now { color: var(--text); }
-.num {
-  width: var(--step-mark); height: var(--step-mark); flex: none; display: grid; place-items: center;
-  border: var(--hairline) solid var(--line); border-radius: 50%; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
-}
-.choose li.done .num { border-color: transparent; color: var(--easy); }
-.choose li.now .num { border-color: var(--text); }
 .foot { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .points { margin: var(--space-3) 0 0; display: grid; gap: var(--space-2); }
 .points > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); min-width: 0; }
@@ -281,6 +266,8 @@ function onLeave() { routes.hoverRoute = null }
 }
 .window-error { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 
+/* Phone: the inputs, then a divider before the layer and the rest (as in the area sheet). */
+.inputs { margin: var(--space-3) 0; padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
 .colour-by { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
 .by-label { flex: none; font-size: var(--fs-sm); color: var(--text-2); }
 .by-buttons { flex: 1; min-width: 0; margin-top: 0; }

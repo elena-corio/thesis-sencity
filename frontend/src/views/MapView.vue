@@ -30,12 +30,18 @@ const phone = useMedia('(max-width: 767px)')
 const wide = useMedia('(min-width: 1200px)')
 const mapRef = ref(null)
 
-const hasCard = computed(() => routesMode.value || area.step === 'set' || area.step === 'analysed')
+// Routes while the points are being chosen: no card, the map hint says what to do (the 3-step card is gone).
+const routeChoosing = computed(() => routes.step !== 'set' && !routes.hasResult && routes.load === 'idle')
+// Area: the card from a set circle on; on a phone also when "type an address" opened the inputs (sheet).
+// Routes on a phone, as Area: also when "type an address" opened the inputs (sheet).
+const hasCard = computed(() => (routesMode.value
+  ? !routeChoosing.value || (phone.value && routes.inputsOpen)
+  : area.step === 'set' || area.step === 'analysed' || (phone.value && area.inputsOpen)))
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 // Routes keeps both: Start and End are always needed, and the two panels fit from 768 px up.
 const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
 // The hint needs the space between the panels; below 1200 px the route card says the same.
-const showHint = computed(() => !routesMode.value || wide.value)
+const showHint = computed(() => !routesMode.value || wide.value || routeChoosing.value)
 
 const loadingCard = computed(() => area.step === 'analysed' &&
   (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
@@ -56,18 +62,18 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left">
         <RoutePanel v-if="routesMode" :get-centre="getCentre" @pick="onPick" />
-        <LayerPanel v-else />
+        <LayerPanel v-else :get-centre="getCentre" @pick="onPick" />
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>
       <div v-if="routesMode" class="slot s-card">
         <StretchCard v-if="routes.selectedStretch" />
-        <RouteCard v-else />
+        <RouteCard v-else-if="hasCard" />
       </div>
       <div v-else class="slot s-card">
         <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
         <PlaceCard v-if="area.selectedId" />
         <LoadingCard v-else-if="loadingCard" />
-        <AreaCard v-else :controls="!showLeft" @focus-map="mapRef?.focusMap()" />
+        <AreaCard v-else :controls="!showLeft" :get-centre="getCentre" @pick="onPick" />
       </div>
       <div class="slot s-controls">
         <MapControls @zoom-in="mapRef?.zoomIn()" @zoom-out="mapRef?.zoomOut()" @recentre="mapRef?.recentre()" />
@@ -76,25 +82,23 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
     </template>
 
     <template v-else>
-      <div class="slot s-p-top">
-        <RoutePanel v-if="routesMode" phone :get-centre="getCentre" @pick="onPick" />
-        <TopSearch v-else phone :get-centre="getCentre" @pick="onPick" />
-      </div>
-      <!-- Season and time live in the sheet now (under the layer choice); this row keeps Ask. -->
-      <div v-if="!routesMode" class="slot s-p-row">
+      <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
+      <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
+      <!-- Season and time live in the sheet (under the layer choice); this row keeps Ask. -->
+      <div class="slot s-p-row">
         <button type="button" class="ask-round" aria-label="Ask" aria-disabled="true" title="Coming soon" data-panel="ask">
           <AppIcon name="chat" />
         </button>
       </div>
-      <div v-if="!hasCard" class="slot s-p-hint"><StepHint phone /></div>
+      <div v-if="!hasCard" class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
       <div v-if="routesMode" class="slot s-p-sheet">
         <StretchCard v-if="routes.selectedStretch" phone><MapAttribution class="in-sheet" in-sheet /></StretchCard>
-        <RouteCard v-else phone><MapAttribution class="in-sheet" in-sheet /></RouteCard>
+        <RouteCard v-else-if="hasCard" phone :get-centre="getCentre" @pick="onPick"><MapAttribution class="in-sheet" in-sheet /></RouteCard>
       </div>
       <div v-else class="slot s-p-sheet">
         <PlaceCard v-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
         <LoadingCard v-else-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
-        <AreaCard v-else phone controls @focus-map="mapRef?.focusMap()">
+        <AreaCard v-else phone controls :get-centre="getCentre" @pick="onPick">
           <MapAttribution class="in-sheet" in-sheet />
         </AreaCard>
       </div>
@@ -121,8 +125,6 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   --reserve-right: calc(var(--margin) + var(--panel-right-w) + var(--gap));
   --p-top-h: var(--topbar-h);
 }
-/* Phone, Routes (board P3): Start and End take the place of the search bar. */
-.routes-mode { --p-top-h: calc(2 * var(--touch-phone) + 3 * var(--space-2) + 2 * var(--hairline)); }
 .slot { position: absolute; pointer-events: none; }
 .slot > * { pointer-events: auto; }
 
@@ -179,6 +181,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   display: flex; justify-content: center;
 }
 .s-p-hint > * { max-width: 100%; }
+
 .s-p-sheet {
   left: 0; right: 0;
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
@@ -187,8 +190,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   display: flex;
   --p-row-bottom: calc(var(--margin) + var(--p-top-h) + 2 * var(--gap) + var(--touch-phone));
 }
-/* Routes on a phone have no Ask row: the sheet can start right under Start and End. */
-.routes-mode .s-p-sheet { --p-row-bottom: calc(var(--margin) + var(--p-top-h) + var(--gap)); }
+
 .s-p-sheet > * { width: 100%; max-height: 100%; }
 .in-sheet { margin-top: var(--space-3); }
 .s-p-attribution { left: var(--margin); right: var(--margin); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-1)); }

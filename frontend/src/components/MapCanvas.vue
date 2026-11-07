@@ -98,13 +98,22 @@ function setRadiusTo(point) {
 function onClick(e) {
   const p = lngLatToPoint(e.lngLat)
   if (props.routesMode) {
-    if (picking.value) {
+    // A Start or End field had the focus: this click fills that field (otherwise the next empty one).
+    const field = routes.takeField()
+    if (field) {
+      routes.setPoint(field, p)
+    } else if (picking.value) {
       routes.pick(p)
     } else if (routes.hasResult) {
       const key = routeStretchAt(e.point)
       if (key) routes.selectStretch(key, p)
       else routes.back()
     }
+    return
+  }
+  // The Centre field had the focus and a circle exists: this click moves the centre (radius kept).
+  if (area.takeField() === 'centre' && area.step !== 'centre' && area.step !== 'radius') {
+    area.setCentre(p)
     return
   }
   if (area.step === 'centre') {
@@ -429,7 +438,7 @@ function onKeyDown(e) {
     // Enter sets the next point at the map centre.
     if (e.key !== 'Enter' || !picking.value) return
     const c = map.value.getCenter()
-    routes.pick({ lat: c.lat, lon: c.lng }, 'Point at the map centre', true)
+    routes.pick({ lat: c.lat, lon: c.lng }, null, true)
     e.preventDefault()
     e.stopPropagation()
     return

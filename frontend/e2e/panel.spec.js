@@ -16,6 +16,8 @@ test.describe('desktop', () => {
   test('Layer, then season and time, then Places, then the legend last; no floating bar', async ({ page }) => {
     await mockArea(page, { thermal: true })
     await openMap(page, 'dark')
+    // No legend before the area is loaded.
+    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
     await analyseCentre(page)
     const panel = page.locator('[data-panel="layers"]')
     await expect(panel.getByTestId('thermal-legend')).toBeVisible()
@@ -25,9 +27,9 @@ test.describe('desktop', () => {
     const block = panel.getByTestId('season-time')
     await expect(block).toContainText('Season and time')
     await expect(block).toContainText('Changes heat and cold')
-    // The side note is gone; the source note stays.
+    // No side note and no source line: the source is in the info tooltip and the map credits.
     await expect(panel).not.toContainText('side shown')
-    await expect(panel).toContainText('Simulated by Infrared.city')
+    await expect(panel).not.toContainText('Simulated by Infrared.city')
     // The slider runs from 9:00 to 21:00.
     const slider = block.getByRole('slider', { name: 'Time of day' })
     await expect(slider).toHaveAttribute('min', '9')

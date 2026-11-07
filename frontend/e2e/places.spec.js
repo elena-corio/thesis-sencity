@@ -113,24 +113,32 @@ test.describe('desktop', () => {
     await expect(thermalBtn).toBeEnabled()
     await expect(thermalBtn).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByRole('button', { name: 'Senses', exact: true })).toBeDisabled()
-    await expect(page.getByText('Feels like temperature, hot or cold')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^Thermal comfort °C/ })).toBeVisible()
     // Every value here is 9 °C or warmer: Easy with its range, then only the heat side.
     const legend = page.getByTestId('thermal-legend')
-    await expect(legend).toContainText('Easy, 9 to 26 °C')
-    await expect(legend).toContainText('Mixed, 26 to 32 °C')
-    await expect(legend).toContainText('Hard, above 32 °C')
+    await expect(legend).toContainText('Easy, 9 to 26')
+    await expect(legend).toContainText('Mixed, 26 to 32')
+    await expect(legend).toContainText('Hard, above 32')
     await expect(legend).not.toContainText('−13')
-    // The info button opens the full scale, heat and cold, on click (not hover).
-    const info = page.getByRole('button', { name: 'Show the full scale, heat and cold' })
-    await expect(info).toHaveAttribute('aria-expanded', 'false')
-    await info.click()
-    await expect(info).toHaveAttribute('aria-expanded', 'true')
-    const scale = page.getByRole('region', { name: 'Full scale, heat and cold' })
-    await expect(scale).toContainText('−13 to 9 °C')
-    await expect(scale).toContainText('below −13 °C')
-    await info.click()
-    await expect(scale).toHaveCount(0)
-    await expect(page.getByText(/with weather from Wien-Innere Stadt/)).toBeVisible()
+    await expect(legend).not.toContainText('°C') // the title carries the unit
+    // No source line and no "side shown" line under the legend.
+    const panel = page.locator('[data-panel="layers"]')
+    await expect(panel).not.toContainText('Simulated by Infrared.city')
+    await expect(panel).not.toContainText('side shown')
+    // The info icon: a tooltip on keyboard focus (and hover, and tap); Esc closes it.
+    const info = page.getByRole('img', { name: /^Feels-like temperature \(UTCI\)/ })
+    await expect(info).toHaveAttribute('tabindex', '0')
+    await expect(page.getByTestId('thermal-info')).toHaveCount(0)
+    await info.focus()
+    const tip = page.getByRole('tooltip')
+    await expect(tip).toContainText('Easy is 9 to 26 °C, where most people feel no heat or cold stress. Simulated by Infrared.city.')
+    await page.keyboard.press('Escape')
+    await expect(tip).toHaveCount(0)
+    await expect(page.getByText('Area set.')).toHaveCount(0) // Esc closed the tooltip only, not the area
+    await info.hover()
+    await expect(tip).toBeVisible()
+    await page.mouse.move(5, 5)
+    await expect(tip).toHaveCount(0)
 
     // Every street with a value is lit in its state colour, photo or not.
     await mapIdle(page)
@@ -273,7 +281,6 @@ test.describe('desktop', () => {
     await winter.click()
     await expect(card).toContainText('winter, 15:00')
     await expect(winter).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByText(/Simulated by Infrared\.city for winter, 15:00/)).toBeVisible()
     expect(areaRequests.map((r) => r.season)).toEqual(['winter'])
 
     // Arrow-key steps on the slider ask only once, for the last time.

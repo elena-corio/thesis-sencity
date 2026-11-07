@@ -18,7 +18,7 @@ const props = defineProps({
   /** Returns the map centre, used to rank nearby places first. */
   getCentre: { type: Function, default: () => null },
 })
-const emit = defineEmits(['pick', 'clear', 'open'])
+const emit = defineEmits(['pick', 'clear', 'open', 'focus', 'blur'])
 
 const query = ref(props.value)
 const results = ref([])
@@ -84,8 +84,12 @@ async function run() {
 function pick(i) {
   const r = results.value[i]
   if (!r) return
-  quiet = true
-  query.value = r.name
+  // Only a real change of the text triggers the watcher: picking "Linz" after typing "Linz" must not
+  // leave `quiet` set, or the next typing would be ignored.
+  if (query.value !== r.name) {
+    quiet = true
+    query.value = r.name
+  }
   open.value = false
   clearTimeout(timer)
   controller?.abort()
@@ -133,7 +137,7 @@ onBeforeUnmount(() => {
            autocomplete="off" spellcheck="false" :maxlength="100"
            role="combobox" aria-autocomplete="list" :aria-expanded="showDropdown"
            :aria-controls="listId" :aria-activedescendant="showDropdown ? activeId : undefined"
-           @keydown="onKeydown" @focus="open = true" @blur="open = false" />
+           @keydown="onKeydown" @focus="open = true; emit('focus')" @blur="open = false; emit('blur')" />
     <button v-if="query" type="button" class="clear" :aria-label="`Clear: ${label}`" @mousedown.prevent @click="clear">
       <AppIcon name="close" />
     </button>

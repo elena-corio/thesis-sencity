@@ -41,6 +41,14 @@ export async function searchPlaces(q, near, signal) {
 }
 
 /** "subway_entrance" → "Subway entrance" */
+// Results that are areas, not points (a city, a district): picking one in a Centre, Start or End
+// field only moves the map there. An address or a named place (a street, a square, a park) sets it.
+const AREA_KINDS = new Set(['country', 'state', 'region', 'province', 'county', 'city', 'town', 'village', 'hamlet',
+  'municipality', 'district', 'city_district', 'borough', 'suburb', 'quarter', 'neighbourhood', 'administrative', 'island'])
+export function isAreaPlace(place) {
+  return AREA_KINDS.has(place?.kind)
+}
+
 export function kindLabel(kind) {
   if (!kind) return ''
   const s = kind.replace(/_/g, ' ')

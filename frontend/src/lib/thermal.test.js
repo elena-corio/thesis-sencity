@@ -53,9 +53,9 @@ describe('legend', () => {
     expect(thermalSide([5, 30])).toBe('both')
   })
   it('Easy always with its range; Mixed and Hard only for the side shown', () => {
-    expect(lines('heat')).toEqual([['Easy', '9 to 26 °C'], ['Mixed', '26 to 32 °C'], ['Hard', 'above 32 °C']])
-    expect(lines('cold')).toEqual([['Easy', '9 to 26 °C'], ['Mixed', '−13 to 9 °C'], ['Hard', 'below −13 °C']])
-    expect(lines('both')).toEqual([['Easy', '9 to 26 °C'], ['Mixed', '26 to 32 °C', '−13 to 9 °C'], ['Hard', 'above 32 °C', 'below −13 °C']])
+    expect(lines('heat')).toEqual([['Easy', '9 to 26'], ['Mixed', '26 to 32'], ['Hard', 'above 32']])
+    expect(lines('cold')).toEqual([['Easy', '9 to 26'], ['Mixed', '−13 to 9'], ['Hard', 'below −13']])
+    expect(lines('both')).toEqual([['Easy', '9 to 26'], ['Mixed', '26 to 32', '−13 to 9'], ['Hard', 'above 32', 'below −13']])
   })
 })
 

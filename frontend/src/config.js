@@ -7,6 +7,7 @@ export default {
     default: 200, // when a radius is needed without the pointer (keyboard, search)
     rounding: 10, // chip value and stored radius are rounded to this (m)
     keyboardStep: 10, // arrow keys (m)
+    presets: [100, 200, 500], // the Radius choice in the area inputs (m); 200 is the default, 500 the maximum
   },
   circlePoints: 64,
 

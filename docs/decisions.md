@@ -2,6 +2,30 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-07 – Thermal legend: title, info tooltip, no source line; "Layer" in Routes (accepted)
+**Context.** Elena asked for a simpler legend and the same labels in Area and Routes.
+**Decision (Elena).**
+- *Bands:* unchanged from the entry on bands (easy 9 to 26, mixed 26 to 32 or −13 to 9, so 0–9 °C is mixed, hard beyond), standard for everyone from `thermalLimits` in config.
+- *Legend:* always the last block, after a divider, in the Area and Routes panels, and only once there is something to read: the area's thermal comfort is loaded, or the routes are ready (no placeholder legend or status line before). Title "Thermal comfort °C", no subtitle; the rows are plain numbers ("Easy, 9 to 26"); Mixed and Hard keep the side rule. No line on which side is shown and no source line: the source is in the tooltip and the map credits. The full-scale panel is gone.
+- *Info icon:* a plain 15 px icon after the title, focusable, with the tooltip text as its label. The tooltip shows on hover, keyboard focus and tap: "Feels-like temperature (UTCI). How hot or cold it feels on the body: air temperature, sun, shade, wind and humidity together. Easy is 9 to 26 °C, where most people feel no heat or cold stress. Simulated by Infrared.city." Esc, blur or a tap elsewhere close it (Esc closes only the tooltip). This is the one place the UI names UTCI (brief §4 updated).
+- *Labels:* "Colour the routes by" (Routes panel) and "Colour by" (phone) are now "Layer", with the button group labelled "Layer", as in Area.
+**Consequences.** The weather station's name and "A prediction, not a reason" no longer appear under the legend; the place card and the area card still say "a prediction, not a reason".
+
+## 2026-11-07 – Area and walk inputs: compact, typing on request, one Change (proposed)
+**Context.** Elena: clicking on the map stays the default; typing should be offered, not always open; one tap should clear an area or a walk; the route instructions repeated each other.
+**Decision (Elena; details marked proposed).**
+- *Top search:* only moves the map (city, street, place); it never sets a centre, start or end.
+- *Hints:* "Click to place the centre of your area, or type an address", "Click where you start, or type an address", "Now click where you want to go, or type an address". "type an address" opens the inputs and focuses the first empty field. A walk that is too short or too long says why in the hint (the 3-step card that showed it is gone).
+- *Inputs* (`AreaInputs`, `RouteInputs` on `InputSection`): at the top of the left panel, closed by default on desktop as one row ("Graben · 200 m", "Clicked point → …") with a chevron (`aria-expanded`); hidden before anything is set unless the hint opened them. Open: Centre and Radius, or Start and End. Map clicks still fill the next empty field; while a field has the focus, the next map click fills that one (kept 1 s after the click takes the focus). A city, town or district (Photon `osm_value`) only pans the map; an address or a named place sets the point. A clicked centre, start or end shows as its coordinates ("48.2097° N, 16.3708° E", also for Enter at the map centre), never "Clicked point"; no reverse geocoding (Elena asked for coordinates or an address).
+- *Radius (Elena):* 100, 200 and 500 m (`config.radius.presets`; 200 is the default, 100 loads fastest), plus the radius the mouse set. Not 1 km: 500 m is the API's maximum (cost and rate limits, brief §6); offering 1 km would mean raising it.
+- *Where (proposed):* on a phone and below 1200 px the left panel gives way to the card, so the area inputs sit at the top of the area card (open on a phone). On a phone, "type an address" opens the sheet with only the inputs.
+- *Routes on a phone, like Area (Elena):* the same top bar (the search only moves the map) and Ask row; no Start and End fields up there any more. The hint's "type an address" opens the sheet ("Choose a walk") with the inputs open and Start focused; once both points are set the sheet is "This walk" with the inputs row and Change on top, then Layer and season and time. The swap button lives in the open inputs (also on desktop). Picking a suggestion finishes that field: the next map click fills the next empty one.
+- *Change:* next to the row, clears centre and radius (or start and end), removes them from the map and goes back to clicking with the first hint. "Change area", its line in the card's foot, and "Start again" in the area and walk cards are removed; Esc still starts again while choosing.
+- *Removed:* "SenCity finds two ways…" in the Routes panel and the 3-step card while choosing points (no card then; the hint shows on every screen size).
+- *"How this works":* it does not exist yet (the About button is "Coming soon"). "The easiest way is at most a quarter longer than the shortest" goes there when it is built; until then it is not shown.
+- *Found on the way:* the search field ignored the next typing after a pick whose name equalled the typed text ("Linz" → Linz); fixed in `PlaceSearch`.
+**Consequences.** After Analyse, keyboard focus goes to the card's title (Change is no longer in the card). Brief §3 is updated where it named "Change area", "Start again" and the step card.
+
 ## 2026-11-07 – Try again goes on from the failed step (proposed)
 **Context.** Elena: when loading fails, Try again should rerun only the failed step. Before, a failure in the streets or photos lost everything (the next try fetched the streets and every photo again), and Try again after a thermal failure reloaded the whole area in the app.
 **Decision.**

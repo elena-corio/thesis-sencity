@@ -1,5 +1,5 @@
 <script setup>
-// "Colour the routes by": Senses, Thermal, Overall. Inactive until the routes are ready, and Senses and
+// Layer of the routes ("Layer", as in Area): Senses, Thermal, Overall. Inactive until the routes are ready, and Senses and
 // Overall stay inactive until rating is built.
 import { useRoutesStore } from '../stores/routes.js'
 
@@ -8,7 +8,7 @@ const LAYERS = [{ id: 'senses', label: 'Senses' }, { id: 'thermal', label: 'Ther
 </script>
 
 <template>
-  <div class="layers" :class="{ inactive: !routes.hasResult }">
+  <div class="layers" :class="{ inactive: !routes.hasResult }" role="group" aria-label="Layer">
     <button v-for="l in LAYERS" :key="l.id" type="button" class="seg" :class="{ on: routes.layer === l.id }"
             :disabled="l.id !== 'thermal' || !routes.hasResult" :aria-pressed="routes.layer === l.id"
             :title="l.id === 'thermal' ? undefined : 'Follows when your photos are rated'">

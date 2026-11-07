@@ -1,9 +1,10 @@
 <script setup>
-// "This area" (boards Flow 1c, Flow 4): before analysis, with Analyse / Start again; once the area
-// has loaded, Change area, the street stretches of the selected layer as one stacked bar with counts
+// "This area" (boards Flow 1c, Flow 4): before analysis, with Analyse; once the area has loaded, the
+// street stretches of the selected layer as one stacked bar with counts
 // and %, places by type and Print area report (not built yet). Only Thermal exists so far, so "Why
 // hard" waits for Senses. A bottom sheet on a phone. When the left panel gives way (phone and below
-// 1200 px), the card carries the layer choice and, under it, season and time (`controls`).
+// 1200 px), the card carries the area inputs (one row with Change; open on a phone), the layer choice
+// and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import config from '../config.js'
 import { estimatePhotos, formatCoords } from '../lib/geo.js'
@@ -11,6 +12,7 @@ import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
 import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
+import AreaInputs from './AreaInputs.vue'
 import LayerButtons from './LayerButtons.vue'
 import MarkerPin from './MarkerPin.vue'
 import SeasonTime from './SeasonTime.vue'
@@ -19,13 +21,16 @@ const props = defineProps({
   phone: Boolean,
   /** The left panel is hidden: show the layer choice and season and time here. */
   controls: Boolean,
+  getCentre: { type: Function, default: () => null },
 })
 /** Season and time matter for Thermal and Overall (and before analysis), not for Senses. */
 const showWindow = computed(() => props.controls && area.layer !== 'senses')
-const emit = defineEmits(['focus-map'])
+const emit = defineEmits(['pick'])
 const area = useAreaStore()
 const analyseBtn = ref(null)
-const changeBtn = ref(null)
+const titleEl = ref(null)
+/** Phone: "type an address" opened the inputs before a centre is set: the sheet shows only them. */
+const choosing = computed(() => area.step !== 'set' && area.step !== 'analysed')
 
 const place = computed(() => (area.step === 'analysed' ? area.analysed : { ...area.centre, radius: area.radius }))
 const photos = computed(() => estimatePhotos(area.radius, config.photosPerKm2))
@@ -65,28 +70,25 @@ const markerRows = computed(() => area.markers.map((m) => {
     level: LEVEL_LABEL[m.level], seen: area.seenIds.has(p.id) }
 }))
 
-// Keyboard: after Enter fixes the radius, focus goes to Analyse; after Analyse, to Change area.
+// Keyboard: after Enter fixes the radius, focus goes to Analyse; after Analyse, to the card's title.
 watch(() => area.step, async (step) => {
   if (!area.byKeyboard) return
   await nextTick()
   if (step === 'set') analyseBtn.value?.focus()
-  if (step === 'analysed') changeBtn.value?.focus()
+  if (step === 'analysed') titleEl.value?.focus()
 })
-// Back from a loading or place card with the keyboard: focus Change area.
-onMounted(() => { if (area.byKeyboard && area.step === 'analysed') changeBtn.value?.focus() })
-
-function startAgain() {
-  area.reset()
-  emit('focus-map')
-}
+// Back from a loading or place card with the keyboard: focus the card's title.
+onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value?.focus() })
 </script>
 
 <template>
-  <section v-if="area.step === 'set' || area.step === 'analysed'" class="card panel"
+  <section v-if="!choosing || (controls && area.inputsOpen)" class="card panel"
            :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
     <div v-if="phone" class="grip" aria-hidden="true" />
-    <h2 id="area-title" class="title">This area</h2>
-    <p class="meta">{{ formatCoords(place) }} · {{ place.radius }} m radius</p>
+    <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">{{ choosing ? 'Choose an area' : 'This area' }}</h2>
+    <p v-if="!controls && !choosing" class="meta">{{ formatCoords(place) }} · {{ place.radius }} m radius</p>
+    <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :phone="phone" :get-centre="getCentre"
+                @pan="emit('pick', $event)" />
 
     <template v-if="area.step === 'set'">
       <p v-if="phone" class="meta">Drag the edge of the circle to adjust.</p>
@@ -100,16 +102,10 @@ function startAgain() {
         <button ref="analyseBtn" type="button" class="btn btn-primary grow" @click="area.analyse($event.detail === 0)">
           Analyse this area
         </button>
-        <button type="button" class="btn" @click="startAgain">Start again</button>
       </div>
     </template>
 
-    <template v-else>
-      <div class="buttons change-row">
-        <button ref="changeBtn" type="button" class="btn" @click="startAgain">
-          <AppIcon name="area" /> Change area
-        </button>
-      </div>
+    <template v-else-if="area.step === 'analysed'">
       <div v-if="controls" class="controls">
         <LayerButtons />
         <SeasonTime v-if="showWindow" :store="area" />
@@ -170,7 +166,7 @@ function startAgain() {
 
       <p class="foot">
         {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.thermal === 'ready' ? 'why' : 'its photos' }}.
-        Change area: {{ props.phone ? 'tap' : 'click' }} a new centre, then the radius. Predictions, not reasons.
+        Predictions, not reasons.
       </p>
       <div class="buttons">
         <button v-if="area.thermal === 'error'" type="button" class="btn btn-primary" @click="area.retryThermal()">
@@ -191,7 +187,8 @@ function startAgain() {
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .summary { margin: var(--space-4) 0 0; }
-.change-row { margin-top: var(--space-3); }
+/* The inputs, then a divider before the layer and the rest. */
+.inputs { margin-top: var(--space-3); padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
 .stack-head { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); font-size: var(--fs-sm); }
 .stack {
   display: flex; gap: var(--hairline); height: var(--space-2); margin-top: var(--space-2);
