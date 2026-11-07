@@ -26,6 +26,8 @@ from tool.osm import build_segments, fetch_overpass, parse, parse_buildings
 from tool.selection import select
 from tool.thermal import segment_values
 
+from . import steps
+
 log = logging.getLogger("sencity.api")
 
 PLACE_TYPES = {"park": "park", "square": "square", "pedestrian": "pedestrian"}
@@ -101,25 +103,42 @@ def lookup_photos(segments: list, proj: LocalProjection, indoor, cfg: dict, prov
         pool.shutdown(wait=False, cancel_futures=True)
 
 
-def run_area(lat: float, lon: float, radius: int, cfg: dict, provider):
-    """Yield events: {"type": "segments"} (all segments, photos pending), one {"type": "segment"}
-    per segment once its photos are chosen, then {"type": "done", "area": FeatureCollection}.
-    Stops looking up photos as soon as the caller stops reading (the user pressed Cancel)."""
+def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str | None = None):
+    """Yield events: {"type": "segments"} (all segments; photos None while pending, with `done` already
+    found), one {"type": "segment"} per segment once its photos are chosen, then {"type": "done", "area":
+    FeatureCollection}. With a key, the finished steps of an earlier try are read back (app/steps.py):
+    the Overpass answer and the photos found so far, so only the missing calls are made; when a lookup
+    fails or the caller stops reading (Cancel), what was found is kept for the next try."""
     proj = LocalProjection(lat, lon)
     area_poly = circle(radius, cfg["area"]["circle_points"])
-    yield {"type": "stage", "stage": "streets"}
-    data = fetch_overpass(lat, lon, radius, cfg, with_buildings=True)
+    where = cache_dir(cfg)
+    data = steps.load(where, key, "osm") if key else None
+    if data is None:
+        yield {"type": "stage", "stage": "streets"}
+        data = fetch_overpass(lat, lon, radius, cfg, with_buildings=True)
+        if key:
+            steps.save(where, key, "osm", data)
     footprints = parse_buildings(data, proj, 0)
     ways, node_xy, areas, _dropped = parse(data, proj, cfg)
     segments = build_segments(ways, node_xy, areas, area_poly, cfg, footprints, {})
     indoor = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"])) if footprints is not None else None
 
-    features = {s.id: feature(s, proj, None) for s in segments}
-    yield {"type": "segments", "features": list(features.values()), "total": len(segments)}
+    found: dict = (steps.load(where, key, "photos") if key else None) or {}
+    features = {s.id: feature(s, proj, found.get(s.id)) for s in segments}
+    todo = [s for s in segments if s.id not in found]
+    total = len(segments)
+    yield {"type": "segments", "features": list(features.values()), "total": total, "done": total - len(todo)}
 
-    for done, seg, photos in lookup_photos(segments, proj, indoor, cfg, provider):
-        features[seg.id] = feature(seg, proj, photos)
-        yield {"type": "segment", "feature": features[seg.id], "done": done, "total": len(segments)}
+    finished = False
+    try:
+        for done, seg, photos in lookup_photos(todo, proj, indoor, cfg, provider):
+            found[seg.id] = photos
+            features[seg.id] = feature(seg, proj, photos)
+            yield {"type": "segment", "feature": features[seg.id], "done": total - len(todo) + done, "total": total}
+        finished = True
+    finally:
+        if key and not finished and found:
+            steps.save(where, key, "photos", found)
 
     fc = {"type": "FeatureCollection", "features": [features[s.id] for s in segments]}
     yield {"type": "done", "area": fc, "metadata_calls": provider.metadata_calls}

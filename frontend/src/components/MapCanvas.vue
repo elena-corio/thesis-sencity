@@ -8,12 +8,14 @@ import { useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
 import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
+import { addMarkerLayers, setMarkers } from '../map/markers.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
 import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useThemeStore } from '../stores/theme.js'
+import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
 const area = useAreaStore()
@@ -96,13 +98,22 @@ function setRadiusTo(point) {
 function onClick(e) {
   const p = lngLatToPoint(e.lngLat)
   if (props.routesMode) {
-    if (picking.value) {
+    // A Start or End field had the focus: this click fills that field (otherwise the next empty one).
+    const field = routes.takeField()
+    if (field) {
+      routes.setPoint(field, p)
+    } else if (picking.value) {
       routes.pick(p)
     } else if (routes.hasResult) {
       const key = routeStretchAt(e.point)
       if (key) routes.selectStretch(key, p)
       else routes.back()
     }
+    return
+  }
+  // The Centre field had the focus and a circle exists: this click moves the centre (radius kept).
+  if (area.takeField() === 'centre' && area.step !== 'centre' && area.step !== 'radius') {
+    area.setCentre(p)
     return
   }
   if (area.step === 'centre') {
@@ -193,7 +204,8 @@ watch(() => props.routesMode, (on) => {
   stopPulse()
   if (map.value) {
     syncLayers()
-    setSegments(map.value, on ? null : area.segments)
+    setSegments(map.value, on ? null : area.visibleSegments)
+    setMarkers(map.value, shownMarkers.value)
     syncRoutes()
     map.value.getCanvas().style.cursor = ''
     map.value.getCanvas().setAttribute('aria-label', canvasLabel())
@@ -211,14 +223,15 @@ watch(() => area.selectedId, (id, old) => {
   setSegmentState(map.value, old, { selected: false })
   setSegmentState(map.value, id, { selected: true })
   if (id) {
+    const zoom = area.zoomToSelected
     restartPulse()
-    nextTick(() => requestAnimationFrame(() => revealSelected(id)))
+    nextTick(() => requestAnimationFrame(() => revealSelected(id, zoom)))
   }
 })
 watch(() => area.layer, (layer) => {
   if (map.value) setSegmentLayer(map.value, layer)
 })
-watch(() => area.segments, (fc) => {
+watch(() => area.visibleSegments, (fc) => {
   if (map.value && !props.routesMode) setSegments(map.value, fc)
   if (!fc) hoverId.value = null
 })
@@ -264,6 +277,17 @@ const tooltip = computed(() => {
   return { x: px.x, y: px.y, name: f.properties.name, type: typeLabel(f.properties, f.geometry.type) }
 })
 
+// Marked places (suggestions, later chat results): highlighted on the map with a numbered pin
+// beside each. Hidden in Routes and while collapsed (another place was selected).
+const shownMarkers = computed(() =>
+  (props.routesMode || area.step !== 'analysed' || area.markersCollapsed ? [] : area.markers))
+const markerWord = computed(() => (area.markerKind === 'chat' ? 'Result' : 'Suggestion'))
+const pins = computed(() => shownMarkers.value
+  .filter((m) => m.f.properties.id !== area.selectedId)
+  .map((m) => ({ m, px: project(m.mid) }))
+  .filter((p) => p.px))
+watch(shownMarkers, (ms) => { if (map.value) setMarkers(map.value, ms) })
+
 // Selection ring at the clicked point, with a soft pulse that stops after a few seconds or
 // on interaction; no pulse with reduced motion (brief §4).
 const ringPx = computed(() => {
@@ -285,9 +309,9 @@ function stopPulse() {
 // Keyboard: segments in reading order (top to bottom, then left to right), in a hidden list.
 const focusedSegId = ref(null)
 const keyboardList = computed(() => {
-  if (props.routesMode || area.step !== 'analysed' || !area.segments) return []
+  if (props.routesMode || area.step !== 'analysed' || !area.visibleSegments) return []
   const band = 0.0003 // about 30 m of latitude: one "line" of reading
-  return area.segments.features
+  return area.visibleSegments.features
     .map((f) => ({ f, mid: midpoint(f.geometry) }))
     .sort((a, b) => Math.round(b.mid.lat / band) - Math.round(a.mid.lat / band) || a.mid.lon - b.mid.lon)
     .map(({ f, mid }) => {
@@ -323,10 +347,18 @@ watch(() => area.selectedId, (id) => {
   nextTick(() => container.value?.parentElement.querySelector(`[data-seg="${CSS.escape(opener)}"]`)?.focus())
 })
 
-function revealSelected(id) {
+/** A click on the map only pans if needed; a link on the card (zoom) also zooms to the street. */
+function revealSelected(id, zoom = false) {
   const f = area.segments?.features.find((s) => s.properties.id === id)
   if (!f || !map.value) return
-  revealBounds(bounds(f.geometry))
+  if (!zoom) {
+    revealBounds(bounds(f.geometry))
+    return
+  }
+  const m = map.value
+  m.fitBounds(bounds(f.geometry), {
+    padding: freePadding(), maxZoom: Math.max(m.getZoom(), config.nearby.zoom), animate: !reducedMotion.value,
+  })
 }
 
 function onMouseMove(e) {
@@ -406,7 +438,7 @@ function onKeyDown(e) {
     // Enter sets the next point at the map centre.
     if (e.key !== 'Enter' || !picking.value) return
     const c = map.value.getCenter()
-    routes.pick({ lat: c.lat, lon: c.lng }, 'Point at the map centre', true)
+    routes.pick({ lat: c.lat, lon: c.lng }, null, true)
     e.preventDefault()
     e.stopPropagation()
     return
@@ -548,14 +580,18 @@ onMounted(() => {
   m.on('style.load', () => {
     addAreaLayers(m)
     addSegmentLayers(m, area.layer)
+    addMarkerLayers(m)
     addRouteLayers(m)
     syncLayers()
-    setSegments(m, props.routesMode ? null : area.segments)
+    setSegments(m, props.routesMode ? null : area.visibleSegments)
+    setMarkers(m, shownMarkers.value)
     setSegmentState(m, area.selectedId, { selected: true }) // states are lost with the old style
     syncRoutes()
   })
   m.on('move', () => { frame.value++ })
-  m.on('movestart', stopPulse)
+  // Only the person's own pan or zoom stops the pulse; the app's camera moves (going to a nearby
+  // street, revealing a selection) carry no originalEvent and keep it.
+  m.on('movestart', (e) => { if (e.originalEvent) stopPulse() })
   m.on('mousemove', onSegmentHover)
   m.on('mouseout', () => {
     hoverPx.value = null
@@ -676,6 +712,15 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
       <circle cx="14" cy="14" r="5" />
     </svg>
 
+    <!-- Numbered pins of the marked places: a 44 px button around the visible badge, centred on the
+         middle of its stretch. The selected one gives way to the selection ring. -->
+    <button v-for="p in pins" :key="p.m.f.properties.id" type="button" class="marker-btn"
+            :data-marker="p.m.n" :aria-label="`${markerWord} ${p.m.n}: ${p.m.f.properties.name}`"
+            :aria-pressed="area.selectedId === p.m.f.properties.id"
+            :style="{ left: `${p.px.x}px`, top: `${p.px.y}px` }" @click="area.selectMarker(p.m, $event.detail === 0)">
+      <MarkerPin :n="p.m.n" :level="p.m.level" />
+    </button>
+
     <!-- Selection ring: what the place card shows (brief §4). -->
     <div v-if="ringPx" class="ring" :class="{ pulsing }" aria-hidden="true"
          :style="{ left: `${ringPx.x}px`, top: `${ringPx.y}px` }">
@@ -736,6 +781,13 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
   to { transform: scale(2); opacity: 0; }
 }
 .ring.focus { box-shadow: none; border-style: dashed; }
+
+.marker-btn {
+  position: absolute; display: grid; place-items: center;
+  width: var(--touch-phone); height: var(--touch-phone); padding: 0;
+  border: 0; border-radius: 50%; background: transparent;
+  transform: translate(-50%, -50%); /* centred on the middle of the stretch */
+}
 
 /* Street name on hover: the tooltip style of the Profile board ("Sight"). */
 .street-tip {

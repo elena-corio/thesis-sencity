@@ -30,6 +30,7 @@ from tool.photos.provider import get_provider
 from . import area as area_mod
 from . import routes as routes_mod
 from . import search as search_mod
+from . import steps
 
 full_cfg = load_config()
 cfg = full_cfg["api"]
@@ -126,7 +127,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg)
     ip = _ip(request)
     cached = area_mod.load_cached(key, full_cfg)
-    if cached is None and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
+    # Going on from a failed try is not a new area (its finished steps are kept, app/steps.py).
+    resuming = cached is None and steps.exists(area_mod.cache_dir(full_cfg), key)
+    if cached is None and not resuming and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new areas in a short time. Wait a while and try again.")
     prov = provider() if cached is None else None
 
@@ -144,10 +147,11 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
             return
         fc = None
         try:
-            for event in area_mod.run_area(body.lat, body.lon, body.radius, full_cfg, prov):
+            for event in area_mod.run_area(body.lat, body.lon, body.radius, full_cfg, prov, key):
                 if event["type"] == "done":
                     fc = event["area"]
                     area_mod.save_cached(key, body.lat, body.lon, body.radius, fc, full_cfg)
+                    steps.clear(area_mod.cache_dir(full_cfg), key)
                     _known_photos.update(area_mod.known_photos(fc))
                 yield _ndjson(event)
         except (requests.RequestException, SystemExit) as e:
@@ -167,9 +171,9 @@ class RoutePoint(BaseModel):
 
 
 class ThermalLimits(BaseModel):
-    """°C: heat [mixed, hard, worst] and cold [easy, mixed, hard, worst], as in the app's thermal.js."""
-    heat: list[float] = Field(..., min_length=3, max_length=3)
-    cold: list[float] = Field(..., min_length=4, max_length=4)
+    """°C, as in the app's config.js: heat [mixed above, hard above] and cold [easy from, hard below]."""
+    heat: list[float] = Field(..., min_length=2, max_length=2)
+    cold: list[float] = Field(..., min_length=2, max_length=2)
 
 
 class RoutesRequest(BaseModel):
@@ -195,7 +199,8 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
     key = routes_mod.route_key(start, end, full_cfg)
     ip = _ip(request)
     cached = routes_mod.load_cached(key, full_cfg)
-    if cached is None and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
+    resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), key)
+    if cached is None and not resuming and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
     prov = provider() if cached is None else None
     limits = body.limits.model_dump()
@@ -206,7 +211,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         corridor = cached
         if corridor is None:
             try:
-                for event in routes_mod.build_corridor(start, end, full_cfg, prov):
+                for event in routes_mod.build_corridor(start, end, full_cfg, prov, key):
                     if event["type"] == "corridor":
                         corridor = event
                     else:
@@ -220,6 +225,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
                 return
             lat, lon = routes_mod.middle(start, end)
             routes_mod.save_cached(key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
+            steps.clear(routes_mod.cache_dir(full_cfg), key)
         fc, zone = corridor["area"], corridor["zone"]
         _known_photos.update(area_mod.known_photos(fc))
         lat, lon = routes_mod.middle(start, end)

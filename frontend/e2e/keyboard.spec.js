@@ -56,7 +56,8 @@ test('select an area with the keyboard only', async ({ page }) => {
   await expect(page.getByText('220 m radius')).toBeVisible()
 
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('button', { name: 'Change area' })).toBeFocused()
+  // After Analyse, focus goes to the card's title (Change is in the inputs row of the left panel).
+  await expect(page.getByRole('heading', { name: 'This area' })).toBeFocused()
 })
 
 test('arrow keys stop at 500 m and 50 m; Esc starts again', async ({ page }) => {

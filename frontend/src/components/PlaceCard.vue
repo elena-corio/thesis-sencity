@@ -1,14 +1,16 @@
 <script setup>
 // Place card (boards 2f, 2g; phone P2): the selected segment's photo and name. On the Thermal layer
 // (board 2e) the photo stays (Elena's choice) and the rest is thermal comfort only: how warm or cold it
-// feels, the state and why, the 1–5 bar and a cooler (or warmer) street nearby. No photo ratings yet.
+// feels, the state and why, a temperature bar (the legend's side) and a cooler (or warmer) street nearby.
+// No photo ratings yet.
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { photoUrl } from '../lib/api.js'
 import { formatMonth } from '../lib/geo.js'
-import { credit, nearest, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
-import { formatDegrees, isCold, thermalReason, walkMinutes } from '../lib/thermal.js'
+import { easierThermalNearby } from '../lib/nearby.js'
+import { credit, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
+import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 import PhotoViewer from './PhotoViewer.vue'
@@ -34,6 +36,7 @@ const fromArea = computed(() => ({
 }))
 const src = computed(() => props.source ?? fromArea.value)
 const backBtn = ref(null)
+const fromBtn = ref(null)
 const enlargeBtn = ref(null)
 const index = ref(0)
 const viewerOpen = ref(false)
@@ -47,13 +50,28 @@ const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.ge
 const dates = computed(() => [...new Set(photos.value.map((ph) => formatMonth(ph.date)))].join(', '))
 const STATE_LABEL = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
 const thermalView = computed(() => src.value.layer === 'thermal' && p.value?.utci != null)
-const cold = computed(() => thermalView.value && isCold(p.value.utci))
-/** The nearest street that feels better (a higher score), for "Cooler street nearby"; none if already easy. */
+// The thermal limits this card rates with (the standard ones, "Thermal · general"); the nearby street
+// and the map suggestions use the same.
+const limits = computed(() => thermalLimits())
+// Too cold: the nearby street is then a warmer one, otherwise (too warm) a cooler one.
+const cold = computed(() => thermalView.value && isCold(p.value.utci, limits.value))
+/** "Hard: above 32 °C", only the side that applies. */
+const verdict = computed(() => thermalView.value && thermalVerdict(p.value.utci, limits.value))
+/** The temperature bar follows the legend's side rule, from the values on screen (the area or the routes). */
+const side = computed(() => thermalSide((src.value.features ?? []).map((f) => f.properties.utci).filter((v) => v != null), limits.value))
+const bar = computed(() => thermalBar(limits.value, side.value))
+const gradient = computed(() =>
+  `linear-gradient(to right, ${bar.value.stops.map((s) => `var(--${s.state}) ${s.at}%`).join(', ')})`)
+const deg = (v) => `${String(v).replace('-', '−')}`
+/** "Cooler street nearby": a street within a short walk, at least one level better (lib/nearby.js).
+ *  Only for a street selected on the map, since following it selects that street on the map. */
 const better = computed(() => {
-  if (!thermalView.value || !src.value.features || p.value.thermal_state === 'easy') return null
-  const score = p.value.thermal_score
-  return nearest(feature.value, src.value.features, (f) => f.properties.thermal_score > score)
+  if (props.source || !thermalView.value) return null
+  return easierThermalNearby(feature.value, src.value.features, limits.value)
 })
+const betterLabel = computed(() => better.value &&
+  `Go to ${better.value.f.properties.name}, ${walkMinutes(better.value.d)} min away, ${formatDegrees(better.value.f.properties.utci)}`)
+const cameFrom = computed(() => (!props.source && area.cameFrom?.id !== area.selectedId ? area.cameFrom : null))
 const alongWord = computed(() => (feature.value?.geometry.type === 'Polygon' ? 'in this place' : 'along this street'))
 
 watch(() => src.value.key, () => {
@@ -83,9 +101,10 @@ function onImgError(i) {
   failed.value = new Set([...failed.value, i])
 }
 
-// Opened with the keyboard: focus starts on "Back to area".
-onMounted(() => { if (src.value.byKeyboard) backBtn.value?.focus() })
-watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) nextTick(() => backBtn.value?.focus()) })
+// Opened with the keyboard: focus starts on "Back to <street>" after a nearby link, else "Back to area".
+const focusStart = () => (fromBtn.value ?? backBtn.value)?.focus()
+onMounted(() => { if (src.value.byKeyboard) focusStart() })
+watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) nextTick(focusStart) })
 </script>
 
 <template>
@@ -94,6 +113,9 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <div v-if="props.phone" class="grip" aria-hidden="true" />
     <button ref="backBtn" type="button" class="back" @click="src.back($event.detail === 0)">
       <AppIcon name="chevronLeft" /> {{ src.backLabel }}
+    </button>
+    <button v-if="cameFrom" ref="fromBtn" type="button" class="back from" @click="area.goBack($event.detail === 0)">
+      <AppIcon name="chevronLeft" /> <span>Back to <span lang="de">{{ cameFrom.name }}</span></span>
     </button>
     <slot name="head" />
 
@@ -139,22 +161,31 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <p class="temp"><strong>{{ formatDegrees(p.utci) }}</strong> feels like</p>
         <p class="verdict">
           <span class="swatch" :style="{ background: `var(--${p.thermal_state})` }" />
-          <strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong>
-          <span class="muted">{{ thermalReason(p.utci) }}</span>
+          <span><strong :class="['state-label', p.thermal_state]">{{ verdict.label }}:</strong> <span class="muted">{{ verdict.why }}</span></span>
         </p>
-        <div class="scale" role="img" :aria-label="`Thermal: ${STATE_LABEL[p.thermal_state]}, ${p.thermal_score} of 5`">
+        <div class="scale" data-testid="thermal-bar">
           <div class="scale-head">
             <span>Thermal · general</span>
-            <span><strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong> · {{ p.thermal_score }} of 5</span>
+            <strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong>
           </div>
-          <div class="track"><span class="diamond" :style="{ left: `${(p.thermal_score - 1) * 25}%` }" /></div>
-          <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
+          <div class="track" role="img" :aria-label="barLabel(p.utci, side)" :style="{ background: gradient }">
+            <span class="diamond" :style="{ left: `${barPosition(p.utci, bar)}%` }" />
+          </div>
+          <div class="bar-ticks" aria-hidden="true">
+            <span v-for="(t, i) in bar.ticks" :key="t.value" :class="{ first: i === 0, last: i === bar.ticks.length - 1 }"
+                  :style="{ left: `${t.at}%` }">{{ deg(t.value) }}<template v-if="i === bar.ticks.length - 1"> °C</template></span>
+          </div>
         </div>
         <div v-if="better" class="nearby">
           <p class="nearby-title">{{ cold ? 'Warmer' : 'Cooler' }} street nearby</p>
-          <button type="button" class="nearby-link" @click="area.select(better.f.properties.id, better.mid)">
+          <button type="button" class="nearby-link" :aria-label="betterLabel"
+                  @click="area.goNearby(better.f.properties.id, better.mid, $event.detail === 0)">
             <span class="swatch" :style="{ background: `var(--${better.f.properties.thermal_state})` }" />
-            {{ better.f.properties.name }}, {{ walkMinutes(better.d) }} min away, {{ formatDegrees(better.f.properties.utci) }}
+            <span class="nearby-text">
+              <span class="nearby-name" lang="de">{{ better.f.properties.name }}</span>
+              <span class="muted">{{ walkMinutes(better.d) }} min away · {{ formatDegrees(better.f.properties.utci) }}</span>
+            </span>
+            <AppIcon name="chevronRight" class="nearby-chevron" />
           </button>
         </div>
         <p class="foot">A simulation of sun, shade and wind, not a measurement. A prediction, not a reason.</p>
@@ -210,23 +241,30 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
   border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
 }
 .scale-head { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-sm); }
-.track {
-  position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
-}
+.track { position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill); }
 .diamond {
   position: absolute; top: 50%; width: var(--handle-size); height: var(--handle-size);
   transform: translate(-50%, -50%) rotate(45deg);
   background: var(--ring); border: var(--hairline) solid var(--ring-edge);
 }
-.ticks { display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--text-muted); }
+/* Scale ends and band borders (°C), each under its place on the bar; the ends align to the bar's ends. */
+.bar-ticks { position: relative; height: calc(var(--fs-xs) * var(--lh)); margin: var(--space-2) var(--space-1) 0; font-size: var(--fs-xs); color: var(--text-muted); }
+.bar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar-ticks .first { transform: none; }
+.bar-ticks .last { transform: translateX(-100%); }
 .nearby { margin-top: var(--space-4); }
 .nearby-title { margin: 0; font-weight: var(--fw-semibold); }
 .nearby-link {
-  display: flex; align-items: center; gap: var(--space-2); min-height: var(--touch); padding: 0;
-  border: 0; background: transparent; color: var(--text); text-align: left;
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--touch-phone);
+  margin-top: var(--space-2); padding: var(--space-2) var(--space-3);
+  border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
+  background: transparent; color: var(--text); text-align: left;
 }
-.nearby-link:hover { text-decoration: underline; }
+.nearby-link:hover .nearby-name { text-decoration: underline; }
+.nearby-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-sm); }
+.nearby-name { font-size: var(--fs-md); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.nearby-chevron { flex: none; color: var(--text-2); }
+.back.from { display: flex; text-align: left; overflow-wrap: anywhere; }
 .foot {
   margin: var(--space-4) 0 0; padding-top: var(--space-4); border-top: var(--hairline) solid var(--line);
   font-size: var(--fs-sm); color: var(--text-2);

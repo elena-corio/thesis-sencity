@@ -74,7 +74,7 @@ def test_cached_area_answers_at_once_without_calls(client, monkeypatch):
 
 
 def test_new_area_streams_progress_and_is_cached(client, monkeypatch):
-    def fake_run(lat, lon, radius, cfg, prov):
+    def fake_run(lat, lon, radius, cfg, prov, key=None):
         pending = [{**f, "properties": {**f["properties"], "photos": None}} for f in SAMPLE["features"]]
         yield {"type": "segments", "features": pending, "total": 2}
         for i, f in enumerate(SAMPLE["features"], start=1):

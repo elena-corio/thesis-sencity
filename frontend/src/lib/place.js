@@ -11,6 +11,24 @@ export function typeLabel(props, geometryType) {
   }
 }
 
+/** The place filter, in order. 'all' shows every segment. */
+export const PLACE_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'streets', label: 'Streets' },
+  { id: 'parks', label: 'Parks' },
+  { id: 'squares', label: 'Squares' },
+]
+
+/**
+ * Which filter a segment belongs to, from its OSM tags: 'parks' (leisure=park), 'squares'
+ * (place=square, or a highway=pedestrian area) or 'streets' (every highway way, pedestrian
+ * streets included). Areas are Polygons; streets are lines.
+ */
+export function placeGroup(props, geometryType) {
+  if (geometryType !== 'Polygon') return 'streets'
+  return props.place_type === 'park' ? 'parks' : 'squares'
+}
+
 /** "78 m" for a street, "0.6 ha" or "850 m²" for a park or square. */
 export function sizeLabel(props) {
   if (props.length_m != null) return `${Math.round(props.length_m)} m`

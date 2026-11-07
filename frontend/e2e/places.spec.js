@@ -113,9 +113,32 @@ test.describe('desktop', () => {
     await expect(thermalBtn).toBeEnabled()
     await expect(thermalBtn).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByRole('button', { name: 'Senses', exact: true })).toBeDisabled()
-    await expect(page.getByText('Feels like temperature, hot or cold')).toBeVisible()
-    await expect(page.getByText('Easy, 0 to 26 °C')).toBeVisible()
-    await expect(page.getByText(/with weather from Wien-Innere Stadt/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^Thermal comfort °C/ })).toBeVisible()
+    // Every value here is 9 °C or warmer: Easy with its range, then only the heat side.
+    const legend = page.getByTestId('thermal-legend')
+    await expect(legend).toContainText('Easy, 9 to 26')
+    await expect(legend).toContainText('Mixed, 26 to 32')
+    await expect(legend).toContainText('Hard, above 32')
+    await expect(legend).not.toContainText('−13')
+    await expect(legend).not.toContainText('°C') // the title carries the unit
+    // No source line and no "side shown" line under the legend.
+    const panel = page.locator('[data-panel="layers"]')
+    await expect(panel).not.toContainText('Simulated by Infrared.city')
+    await expect(panel).not.toContainText('side shown')
+    // The info icon: a tooltip on keyboard focus (and hover, and tap); Esc closes it.
+    const info = page.getByRole('img', { name: /^Feels-like temperature \(UTCI\)/ })
+    await expect(info).toHaveAttribute('tabindex', '0')
+    await expect(page.getByTestId('thermal-info')).toHaveCount(0)
+    await info.focus()
+    const tip = page.getByRole('tooltip')
+    await expect(tip).toContainText('Easy is 9 to 26 °C, where most people feel no heat or cold stress. Simulated by Infrared.city.')
+    await page.keyboard.press('Escape')
+    await expect(tip).toHaveCount(0)
+    await expect(page.getByText('Area set.')).toHaveCount(0) // Esc closed the tooltip only, not the area
+    await info.hover()
+    await expect(tip).toBeVisible()
+    await page.mouse.move(5, 5)
+    await expect(tip).toHaveCount(0)
 
     // Every street with a value is lit in its state colour, photo or not.
     await mapIdle(page)
@@ -142,21 +165,113 @@ test.describe('desktop', () => {
     await place.getByRole('button', { name: 'Back to area' }).click()
     const hard = AREA.features.find((f) => THERMAL[f.properties.id] === 36)
     await openSegment(page, hard.properties.id)
-    await expect(place.getByTestId('thermal')).toContainText('Hard')
-    await expect(place.getByTestId('thermal')).toContainText('above 32 °C')
-    await expect(place.getByRole('img', { name: 'Thermal: Hard, 2 of 5' })).toBeVisible()
+    await expect(place.getByTestId('thermal')).toContainText('Hard: above 32 °C')
+    // A temperature bar on the heat side (every value here is 9 °C or warmer), no 1–5 score.
+    await expect(place.getByRole('img', { name: 'Feels like 36 °C on the heat side of the scale' })).toBeVisible()
+    for (const t of ['9', '26', '32', '40']) await expect(place.getByTestId('thermal-bar')).toContainText(t)
+    await expect(place.getByTestId('thermal')).not.toContainText('of 5')
     await expect(place.getByTestId('thermal')).toContainText('Cooler street nearby')
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/places-dark-thermal-card.png' })
-    await place.locator('.nearby-link').click()
+    // Following it selects that street (same state as a map click), zooms to it, and keeps the layer.
+    const link = place.getByRole('button', { name: /^Go to .+, \d+ min away, \d+ °C$/ })
+    await expect(link).toBeVisible()
+    const box = await link.boundingBox()
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    const zoomBefore = await page.evaluate(() => window.__sencityMap.getZoom())
+    await link.click()
     await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
+    // The ring pulses on the new street, even while the map moves there (the pulse lasts 6 s).
+    await expect(page.locator('.ring.pulsing')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('[data-seg][aria-pressed="true"]')).toHaveCount(1)
+    await mapIdle(page)
+    expect(await page.evaluate(() => window.__sencityMap.getZoom())).toBeGreaterThanOrEqual(zoomBefore)
+
+    // "Back to <street>" returns to the hard street, and is gone there.
+    const back = place.getByRole('button', { name: `Back to ${hard.properties.name}` })
+    await expect(back).toBeVisible()
+    await back.click()
+    await expect(place.getByTestId('thermal')).toContainText('above 32 °C')
+    await expect(place.getByRole('button', { name: /^Back to (?!area)/ })).toHaveCount(0)
+
+    // With the keyboard, focus lands on "Back to <street>" after following the link.
+    await link.focus()
+    await page.keyboard.press('Enter')
+    await expect(back).toBeFocused()
+
+    // An easy street has no nearby block at all.
+    const easy = AREA.features.find((f) => THERMAL[f.properties.id] === 22)
+    await openSegment(page, easy.properties.id)
+    await expect(place.getByTestId('thermal')).toContainText('Easy: 9 to 26 °C')
+    await expect(place.locator('.nearby')).toHaveCount(0)
   })
 
-  test('the season and time bar turns on with thermal and asks for the new window', async ({ page }) => {
+  test('suggestions: likely easiest places, numbered pins, seen tick, collapse and the Places filter', async ({ page }) => {
     await mockArea(page, { thermal: true })
     await openMap(page, 'dark')
-    const bar = page.locator('[data-panel="season"]')
-    const winter = bar.getByRole('button', { name: 'Winter' })
+    await analyseCentre(page)
+    const list = page.getByTestId('suggestions')
+    await expect(list).toContainText('Likely easiest for you')
+    const rows = list.getByRole('listitem')
+    const n = await rows.count()
+    expect(n).toBeGreaterThan(0)
+    expect(n).toBeLessThanOrEqual(3)
+    // One pin per row, a 44 px button, numbered as the list; every suggestion is easy.
+    const pins = page.locator('[data-marker]')
+    await expect(pins).toHaveCount(n)
+    const first = page.getByRole('button', { name: /^Suggestion 1: / })
+    expect((await first.boundingBox()).height).toBeGreaterThanOrEqual(44)
+    await expect(rows.first()).toContainText('Easy')
+    // The highlighted stretches are drawn above the street colours.
+    await mapIdle(page)
+    expect(await page.evaluate(() => window.__sencityMap.getSource('sc-mark').serialize().data.features.length)).toBe(n)
+    await page.screenshot({ path: 'e2e/screens/places-dark-suggestions.png' })
+
+    // A pin opens that place's card; the other pins stay. Nothing about suggestions in the card.
+    const name = (await first.getAttribute('aria-label')).replace(/^Suggestion 1: /, '')
+    const pinBox = await first.boundingBox()
+    await first.click()
+    const place = page.locator('[data-panel="place-card"]')
+    await expect(place.locator('#place-title')).toHaveText(name)
+    // The selection ring takes the pin's place; the other pins stay.
+    await expect(pins).toHaveCount(n - 1)
+    const ringBox = await page.locator('.ring:not(.focus)').boundingBox()
+    expect(Math.abs(ringBox.x + ringBox.width / 2 - (pinBox.x + pinBox.width / 2))).toBeLessThan(2)
+    expect(Math.abs(ringBox.y + ringBox.height / 2 - (pinBox.y + pinBox.height / 2))).toBeLessThan(2)
+    await expect(place).not.toContainText('uggestion')
+    await place.getByRole('button', { name: 'Back to area' }).click()
+    await expect(list.getByRole('button', { name: /, seen$/ })).toHaveCount(1)
+
+    // A street that is not suggested hides the pins and highlights, with no popup; Back to area brings them back.
+    const marked = new Set(await page.evaluate(() => window.__sencityMap.getSource('sc-mark').serialize().data.features.map((f) => f.properties.id)))
+    const other = AREA.features.find((f) => !marked.has(f.properties.id))
+    await openSegment(page, other.properties.id)
+    await expect(pins).toHaveCount(0)
+    await mapIdle(page)
+    expect(await page.evaluate(() => window.__sencityMap.getSource('sc-mark').serialize().data.features.length)).toBe(0)
+    await expect(page.getByRole('button', { name: /suggestion/i })).toHaveCount(0)
+    await place.getByRole('button', { name: 'Back to area' }).click()
+    await expect(pins).toHaveCount(n)
+
+    // Places filter: Parks limits the map and the suggestions to parks.
+    await page.getByRole('button', { name: 'Parks', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Parks', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await mapIdle(page)
+    const kinds = await page.evaluate(() => window.__sencityMap.getSource('sc-seg').serialize().data.features.map((f) => f.properties.place_type))
+    expect(kinds.every((k) => k === 'park')).toBe(true)
+    const parkRows = await rows.count()
+    if (parkRows) await expect(rows.first()).toContainText('Park')
+    else await expect(list).toContainText('Nothing easy here at this time. Try another time or a nearby area.')
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await expect(rows).toHaveCount(n)
+  })
+
+  test('season and time in the left panel turn on with thermal and ask for the new window', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await openMap(page, 'dark')
+    const bar = page.getByTestId('season-time')
+    const winter = bar.getByRole('radio', { name: 'Winter' })
     await analyseCentre(page)
     await expect(winter).toBeEnabled()
     const card = page.locator('[data-panel="area-card"]')
@@ -165,8 +280,7 @@ test.describe('desktop', () => {
     areaRequests.length = 0
     await winter.click()
     await expect(card).toContainText('winter, 15:00')
-    await expect(winter).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByText(/Simulated by Infrared\.city for winter, 15:00/)).toBeVisible()
+    await expect(winter).toHaveAttribute('aria-checked', 'true')
     expect(areaRequests.map((r) => r.season)).toEqual(['winter'])
 
     // Arrow-key steps on the slider ask only once, for the last time.
@@ -177,15 +291,15 @@ test.describe('desktop', () => {
     await page.keyboard.press('ArrowRight')
     await expect(card).toContainText('winter, 17:00')
     expect(areaRequests.map((r) => r.time)).toEqual(['17:00'])
-    await expect(bar.getByRole('button', { name: 'Winter' })).toBeEnabled()
+    await expect(bar.getByRole('radio', { name: 'Winter' })).toBeEnabled()
   })
 
   test('a season chosen before analysis costs nothing and Analyse uses it', async ({ page }) => {
     areaRequests.length = 0
     await mockArea(page, { thermal: true })
     await openMap(page, 'dark')
-    const bar = page.locator('[data-panel="season"]')
-    await bar.getByRole('button', { name: 'Winter' }).click()
+    const bar = page.getByTestId('season-time')
+    await bar.getByRole('radio', { name: 'Winter' }).click()
     await bar.getByRole('slider', { name: 'Time of day' }).fill('9')
     await page.waitForTimeout(1000) // longer than the wait before a loaded area asks again
     expect(areaRequests).toHaveLength(0)
@@ -199,12 +313,12 @@ test.describe('desktop', () => {
     await mockArea(page, { thermal: 'fail-winter' })
     await openMap(page, 'dark')
     await analyseCentre(page)
-    const bar = page.locator('[data-panel="season"]')
-    await bar.getByRole('button', { name: 'Winter' }).click()
+    const bar = page.getByTestId('season-time')
+    await bar.getByRole('radio', { name: 'Winter' }).click()
     const card = page.locator('[data-panel="area-card"]')
     await expect(card).toContainText('Too many new thermal runs')
     await expect(card).toContainText('summer, 15:00')
-    await expect(bar.getByRole('button', { name: 'Summer' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(bar.getByRole('radio', { name: 'Summer' })).toHaveAttribute('aria-checked', 'true')
   })
 
   test('a thermal failure keeps the photos and offers Try again', async ({ page }) => {
@@ -216,6 +330,83 @@ test.describe('desktop', () => {
     await expect(card.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toBeDisabled()
     await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
+  })
+
+  test('Try again after the photos failed goes on from there, not from the beginning', async ({ page }) => {
+    // First try: the streets and half of the photos, then an error. Second try: what the API sends when
+    // it goes on (no streets step; the photos found so far, then the rest).
+    const half = Math.floor(AREA.features.length / 2)
+    const pending = (fs) => fs.map((f, i) => (i < half ? f : { ...f, properties: { ...f.properties, photos: null } }))
+    const tries = []
+    await page.route('**/api/area', async (route) => {
+      tries.push(route.request().postDataJSON())
+      const total = AREA.features.length
+      const lines = tries.length === 1
+        ? [{ type: 'stage', stage: 'streets' },
+            { type: 'segments', features: AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } })), total, done: 0 },
+            ...AREA.features.slice(0, half).map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total })),
+            { type: 'error', message: 'Could not load street photos for this area. Try again.' }]
+        : [{ type: 'segments', features: pending(AREA.features), total, done: half },
+            ...AREA.features.slice(half).map((f, i) => ({ type: 'segment', feature: f, done: half + i + 1, total })),
+            { type: 'done', area: AREA }]
+      if (tries.length > 1) await new Promise((r) => setTimeout(r, 400)) // the retry is on screen a moment
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+    })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(page.getByText('Could not load street photos')).toBeVisible()
+    // The streets stay on the map while it failed.
+    expect(await page.evaluate(() => window.__sencityMap.getSource('sc-seg').serialize().data.features.length)).toBe(AREA.features.length)
+
+    // Try again: the photo count goes on from where it stopped, the streets stay on the map.
+    let lowest = Infinity
+    await page.exposeFunction('__seen', (n) => { lowest = Math.min(lowest, n) })
+    await page.evaluate(() => {
+      const obs = new MutationObserver(() => {
+        const m = document.querySelector('[data-panel="loading-card"]')?.textContent.match(/(\d+) of \d+/)
+        if (m) window.__seen(Number(m[1]))
+      })
+      obs.observe(document.body, { subtree: true, childList: true, characterData: true })
+    })
+    await loading.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
+    expect(tries).toHaveLength(2)
+    expect(Number.isFinite(lowest)).toBe(true) // the count was on screen during the retry
+    expect(lowest).toBeGreaterThanOrEqual(half) // and never went back to 0 of N
+  })
+
+  test('Try again after thermal failed asks for thermal only and keeps the map', async ({ page }) => {
+    const tries = []
+    await page.route('**/api/area', async (route) => {
+      const asked = route.request().postDataJSON()
+      tries.push(asked)
+      const pending = AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } }))
+      const lines = tries.length === 1
+        ? [{ type: 'segments', features: pending, total: pending.length, done: 0 },
+            ...AREA.features.map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total: AREA.features.length })),
+            { type: 'done', area: AREA }, { type: 'stage', stage: 'thermal' },
+            { type: 'thermal_error', message: 'Thermal comfort could not be loaded. Try again.' }]
+        : [{ type: 'done', area: AREA, cached: true }, { type: 'stage', stage: 'thermal' },
+            { type: 'thermal', season: asked.season, time: asked.time, values: THERMAL, station: { name: 'Wien-Innere Stadt', distance_km: 1.2 } }]
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+    })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('Thermal comfort could not be loaded. Try again.')
+    // The streets never leave the map during the retry.
+    await page.evaluate(() => {
+      window.__emptied = false
+      const src = window.__sencityMap.getSource('sc-seg')
+      const set = src.setData.bind(src)
+      src.setData = (d) => { if (!d?.features?.length) window.__emptied = true; return set(d) }
+    })
+    await card.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(tries).toHaveLength(2)
+    expect(await page.evaluate(() => window.__emptied)).toBe(false)
   })
 
   test('Cancel while loading goes back to the set circle', async ({ page }) => {

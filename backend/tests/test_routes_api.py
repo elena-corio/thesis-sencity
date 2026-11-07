@@ -11,7 +11,7 @@ from app import routes as routes_mod
 from tool.infrared import ThermalError
 
 # Two ways between the two points below: south along y = 48.2080 (short), or north via y = 48.2083.
-LIMITS = {"heat": [26, 32, 38], "cold": [9, 0, -13, -27]}
+LIMITS = {"heat": [26, 32], "cold": [9, -13]}
 START = {"lat": 48.2080, "lon": 16.3700}
 END = {"lat": 48.2080, "lon": 16.3740}
 REQ = {"start": START, "end": END, "limits": LIMITS}
@@ -163,7 +163,7 @@ def test_cache_does_not_keep_the_start_or_the_end(client, monkeypatch):
 def test_limits_decide_which_streets_are_hard(client, monkeypatch):
     monkeypatch.setattr(area_mod, "run_utci", fake_utci([]))
     # With a higher heat limit nothing is hard, so A is already easiest.
-    done = events(client.post("/api/routes", json={**REQ, "limits": {"heat": [40, 42, 44], "cold": LIMITS["cold"]}}))[-1]
+    done = events(client.post("/api/routes", json={**REQ, "limits": {"heat": [40, 42], "cold": LIMITS["cold"]}}))[-1]
     assert done["routes"][0]["hard_share"] == 0
     assert done["routes"][1]["kind"] == "second"
     assert done["verdict"].startswith("A is already the easiest way")

@@ -3,8 +3,8 @@ import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
 import { loadRoutes } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
-import { haversine } from '../lib/geo.js'
-import { withThermal } from '../lib/thermal.js'
+import { formatCoords, haversine } from '../lib/geo.js'
+import { thermalLimits, withThermal } from '../lib/thermal.js'
 
 /**
  * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
@@ -17,6 +17,11 @@ export const useRoutesStore = defineStore('routes', () => {
    *  @type {import('vue').Ref<{lat:number, lon:number, label:string, named:boolean} | null>} */
   const start = ref(null)
   const end = ref(null)
+  /** The input section (Start and End) is open: from the hint's "type an address", or by the user. */
+  const inputsOpen = ref(false)
+  /** A focused input field ('start' or 'end'): the next map click fills it (see takeField). */
+  const fieldTarget = ref(null)
+  let disarmTimer = null
   /** 'idle' | 'loading' | 'ready' | 'error' */
   const load = ref('idle')
   const progress = ref({ stage: 'streets', done: 0, total: 0 })
@@ -80,7 +85,24 @@ export const useRoutesStore = defineStore('routes', () => {
   }
 
   /** Set the next empty point: the first click is Start, the second End (brief §3). */
-  function pick(point, label = 'Clicked point', keyboard = false) {
+  /** A field was focused: the next map click fills it (kept a moment after the click takes the focus). */
+  function armField(name) {
+    clearTimeout(disarmTimer)
+    fieldTarget.value = name
+  }
+  function disarmField(name) {
+    clearTimeout(disarmTimer)
+    disarmTimer = setTimeout(() => { if (fieldTarget.value === name) fieldTarget.value = null }, 1000)
+  }
+  function takeField() {
+    clearTimeout(disarmTimer)
+    const name = fieldTarget.value
+    fieldTarget.value = null
+    return name
+  }
+
+  /** A point from the map (a click, or Enter at the map centre): shown as its coordinates. */
+  function pick(point, label = null, keyboard = false) {
     byKeyboard.value = keyboard
     if (!start.value) setPoint('start', point, label)
     else if (!end.value) setPoint('end', point, label)
@@ -92,7 +114,8 @@ export const useRoutesStore = defineStore('routes', () => {
     load.value = 'idle'
     error.value = ''
     pointError.value = ''
-    const next = { lat: point.lat, lon: point.lon, label, named }
+    // A clicked point has no name: show its coordinates ("48.2097° N, 16.3708° E").
+    const next = { lat: point.lat, lon: point.lon, label: label || formatCoords(point), named }
     if (which === 'start') start.value = next
     else end.value = next
     if (start.value && end.value) distanceAllowed(which)
@@ -142,6 +165,7 @@ export const useRoutesStore = defineStore('routes', () => {
     pointError.value = ''
     start.value = null
     end.value = null
+    inputsOpen.value = false
   }
 
   function apply(e) {
@@ -168,24 +192,32 @@ export const useRoutesStore = defineStore('routes', () => {
     }
   }
 
-  async function find() {
+  /** Find the two ways. resume: "Try again" after a failure keeps the progress on screen; the API goes
+   *  on from the failed step (its finished steps and the corridor are kept). */
+  async function find({ resume = false } = {}) {
     stopLoading()
     controller = new AbortController()
     const { signal } = controller
     load.value = 'loading'
     error.value = ''
     windowError.value = ''
-    progress.value = { stage: 'streets', done: 0, total: 0 }
+    if (resume) {
+      const { failed: _f, ...kept } = progress.value
+      progress.value = kept
+    } else {
+      progress.value = { stage: 'streets', done: 0, total: 0 }
+    }
     const generic = 'Could not find the two ways. Check that the API is running, then try again.'
     try {
       await loadRoutes({
         start: { lat: start.value.lat, lon: start.value.lon },
         end: { lat: end.value.lat, lon: end.value.lon },
-        limits: config.thermalLimits,
+        limits: thermalLimits(),
         ...thermalWindow.value,
       }, (e) => {
         if (e.type === 'stage') progress.value = { ...progress.value, stage: e.stage }
-        else if (e.type === 'segments') progress.value = { stage: 'photos', done: 0, total: e.total }
+        // A retry goes on from the photos already found (the API keeps the finished steps).
+        else if (e.type === 'segments') progress.value = { stage: 'photos', done: e.done ?? 0, total: e.total }
         else if (e.type === 'segment') progress.value = { stage: 'photos', done: e.done, total: e.total }
         else if (e.type === 'routes') apply(e)
         else if (e.type === 'thermal_error' || e.type === 'error') {
@@ -196,7 +228,7 @@ export const useRoutesStore = defineStore('routes', () => {
       if (load.value === 'loading') failed(generic)
     } catch (err) {
       if (signal.aborted) return
-      failed(err.status === 429 || err.status === 422 ? err.message : generic)
+      failed((err.status === 429 || err.status === 422) && err.message ? err.message : generic)
     }
   }
 
@@ -252,6 +284,7 @@ export const useRoutesStore = defineStore('routes', () => {
   }
 
   return {
+    inputsOpen, fieldTarget, armField, disarmField, takeField,
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,

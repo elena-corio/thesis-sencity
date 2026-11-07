@@ -3,7 +3,9 @@ import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
 import { ApiError, loadArea } from '../lib/api.js'
 import { haversine, limitRadius } from '../lib/geo.js'
-import { withThermal } from '../lib/thermal.js'
+import { placeGroup } from '../lib/place.js'
+import { thermalSuggestions } from '../lib/suggest.js'
+import { thermalLimits, withThermal } from '../lib/thermal.js'
 
 /**
  * Two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c).
@@ -19,6 +21,13 @@ export const useAreaStore = defineStore('area', () => {
   const analysed = ref(null)
   /** True when the last step was done with the keyboard, so focus can follow. */
   const byKeyboard = ref(false)
+  /** The centre's name when it was typed (an address or a place); '' when it was clicked. */
+  const centreLabel = ref('')
+  /** The input section (centre and radius) is open: from the hint's "type an address", or by the user. */
+  const inputsOpen = ref(false)
+  /** A focused input field ('centre'): the next map click fills it (see takeField). */
+  const fieldTarget = ref(null)
+  let disarmTimer = null
 
   const hasCircle = computed(() => step.value !== 'centre' && centre.value !== null)
 
@@ -46,6 +55,10 @@ export const useAreaStore = defineStore('area', () => {
   const selectedId = ref(null)
   /** Where the selection ring sits: the click point, or the segment's middle. */
   const selectedPoint = ref(null)
+  /** The street a "Cooler street nearby" link was followed from: { id, point, name } or null. */
+  const cameFrom = ref(null)
+  /** True when the selection came from a link on the card: the map zooms to it, not only pans. */
+  const zoomToSelected = ref(false)
   let controller = null
 
   const selected = computed(() =>
@@ -55,25 +68,80 @@ export const useAreaStore = defineStore('area', () => {
     return { all: fs.length, withPhotos: fs.filter((f) => f.properties.photos?.length).length }
   })
 
+  // Places filter (left panel): 'all' | 'streets' | 'parks' | 'squares'. It filters the map and the
+  // suggestions; the area card's counts stay for the whole area.
+  const placeFilter = ref('all')
+  const visibleSegments = computed(() => {
+    const fc = segments.value
+    if (!fc || placeFilter.value === 'all') return fc
+    return { type: 'FeatureCollection',
+      features: fc.features.filter((f) => placeGroup(f.properties, f.geometry.type) === placeFilter.value) }
+  })
+
+  // Markers: numbered places on the map and in the area card (brief §3, "Likely easiest for you").
+  // Suggestions follow the area, season and time (the thermal values on the segments) and the
+  // Places filter, on the Thermal layer only. Each: { n, f, mid, type, level }.
+  const suggestions = computed(() => {
+    if (layer.value !== 'thermal' || !visibleSegments.value) return []
+    return thermalSuggestions(visibleSegments.value.features,
+      { limits: thermalLimits(), filter: placeFilter.value, centre: analysed.value })
+  })
+  /** Hook for the chat: its places replace the suggestions with the same markers, until cleared. */
+  const chatMarkers = shallowRef(null)
+  const markers = computed(() => chatMarkers.value ?? suggestions.value)
+  /** 'chat' | 'suggestions': what the markers are (the list title and the Clear action follow it). */
+  const markerKind = computed(() => (chatMarkers.value ? 'chat' : 'suggestions'))
+  /** Hidden on the map after selecting a place that is not marked, until "Back to area". */
+  const markersCollapsed = ref(false)
+  /** Marked places whose card was opened ("seen" tick in the list). */
+  const seenIds = ref(new Set())
+  const isMarked = (id) => markers.value.some((m) => m.f.properties.id === id)
+  /** For the chat (not built yet): show its places with the same markers. Same shape as suggestions. */
+  function showChatResults(list) {
+    chatMarkers.value = list.map((m, i) => ({ ...m, n: i + 1 }))
+    markersCollapsed.value = false
+    seenIds.value = new Set()
+  }
+  function clearChatResults() {
+    chatMarkers.value = null
+    markersCollapsed.value = false
+    seenIds.value = new Set()
+  }
+  function setPlaceFilter(id) {
+    placeFilter.value = id
+    // A selected place the filter now hides closes its card.
+    if (selected.value && id !== 'all' && placeGroup(selected.value.properties, selected.value.geometry.type) !== id) {
+      clearSelection()
+    }
+  }
+
   function setFeature(feature) {
     const fs = segments.value.features.map((f) => (f.properties.id === feature.properties.id ? feature : f))
     segments.value = { type: 'FeatureCollection', features: fs }
   }
 
-  async function startLoad() {
+  /** Load the analysed area. resume: "Try again" after a failure keeps what is on the map and the
+   *  progress; the API goes on from the failed step (its finished steps are kept, app/steps.py). */
+  async function startLoad({ resume = false } = {}) {
     controller?.abort()
     controller = new AbortController()
     const signal = controller.signal
     load.value = 'loading'
     loadError.value = ''
-    segments.value = null
-    progress.value = { stage: 'streets', done: 0, total: 0 }
+    if (!resume) {
+      segments.value = null
+      progress.value = { stage: 'streets', done: 0, total: 0 }
+      // A new area: its own markers.
+      chatMarkers.value = null
+      markersCollapsed.value = false
+      seenIds.value = new Set()
+    }
     resetThermal()
     try {
       await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
         if (e.type === 'segments') {
           segments.value = { type: 'FeatureCollection', features: e.features }
-          progress.value = { stage: 'photos', done: 0, total: e.total }
+          progress.value = { stage: 'photos', done: e.done ?? 0, total: e.total }
         } else if (e.type === 'segment') {
           setFeature(e.feature)
           progress.value = { stage: 'photos', done: e.done, total: e.total }
@@ -116,6 +184,32 @@ export const useAreaStore = defineStore('area', () => {
     thermalInfo.value = { season: e.season, time: e.time, station: e.station }
     thermal.value = 'ready'
     layer.value = 'thermal'
+  }
+
+  /** "Try again" after the streets or photos failed: go on from there, not from the beginning. */
+  function retryLoad() {
+    return startLoad({ resume: true })
+  }
+
+  /** "Try again" after thermal comfort failed: ask for thermal only. The area is cached by then, so
+   *  the API answers it at once; the streets and photos stay on the map as they are. */
+  async function retryThermal() {
+    controller?.abort()
+    controller = new AbortController()
+    const signal = controller.signal
+    const failed = 'Thermal comfort could not be loaded. Try again.'
+    thermal.value = 'loading'
+    thermalError.value = ''
+    try {
+      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+        if (e.type === 'thermal') applyThermal(e)
+        else if (e.type === 'thermal_error') { thermal.value = 'error'; thermalError.value = e.message }
+        else if (e.type === 'error') throw new ApiError(500, e.message)
+      }, signal)
+      if (thermal.value === 'loading') { thermal.value = 'error'; thermalError.value = failed }
+    } catch {
+      if (!signal.aborted) { thermal.value = 'error'; thermalError.value = failed }
+    }
   }
 
   /** Back to the season and time on screen: the streets keep their colours. */
@@ -185,15 +279,95 @@ export const useAreaStore = defineStore('area', () => {
   }
 
   function select(id, point) {
+    // A marked place: the selection ring takes the place of its pin, wherever it was clicked.
+    const marker = markers.value.find((m) => m.f.properties.id === id)
     selectedId.value = id
-    selectedPoint.value = point
+    selectedPoint.value = marker ? marker.mid : point
+    cameFrom.value = null
+    zoomToSelected.value = false
+    // A marked place: the others stay visible, and it gets the "seen" tick. Any other place hides them.
+    if (isMarked(id)) {
+      seenIds.value = new Set([...seenIds.value, id])
+      markersCollapsed.value = false
+    } else if (markers.value.length) {
+      markersCollapsed.value = true
+    }
+  }
+  /** Select a marked place from its pin or list row. */
+  function selectMarker(marker, keyboard = false) {
+    byKeyboard.value = keyboard
+    select(marker.f.properties.id, marker.mid)
   }
   function clearSelection() {
     selectedId.value = null
     selectedPoint.value = null
+    cameFrom.value = null
+    markersCollapsed.value = false // "Back to area" brings the markers back
+  }
+  /** "Cooler street nearby": select that street, zoom to it, and remember the one we came from. */
+  function goNearby(id, point, keyboard = false) {
+    const from = selected.value && { id: selectedId.value, point: selectedPoint.value, name: selected.value.properties.name }
+    select(id, point)
+    cameFrom.value = from
+    byKeyboard.value = keyboard
+    zoomToSelected.value = true
+  }
+  /** "Back to <street>": the street the nearby link was followed from. */
+  function goBack(keyboard = false) {
+    const from = cameFrom.value
+    if (!from) return
+    select(from.id, from.point)
+    byKeyboard.value = keyboard
+    zoomToSelected.value = true
+  }
+
+  /** A field was focused: the next map click fills it. Kept for a moment after it loses focus, since
+   *  clicking the map takes the focus away just before the click arrives. */
+  function armField(name) {
+    clearTimeout(disarmTimer)
+    fieldTarget.value = name
+  }
+  function disarmField(name) {
+    clearTimeout(disarmTimer)
+    disarmTimer = setTimeout(() => { if (fieldTarget.value === name) fieldTarget.value = null }, 1000)
+  }
+  function takeField() {
+    clearTimeout(disarmTimer)
+    const name = fieldTarget.value
+    fieldTarget.value = null
+    return name
+  }
+
+  /** Leave an analysed area: back to a set circle that can be changed and analysed again. */
+  function discardAnalysis() {
+    if (step.value !== 'analysed') return
+    controller?.abort()
+    controller = null
+    load.value = 'idle'
+    segments.value = null
+    resetThermal()
+    clearSelection()
+  }
+  /** The centre from the Centre field (an address or a place) or a map click into that field. Keeps
+   *  the radius; the circle is set at once (Flow 1c), ready to analyse. */
+  function setCentre(point, label = '', keyboard = false) {
+    discardAnalysis()
+    centre.value = { lat: point.lat, lon: point.lon }
+    centreLabel.value = label
+    capped.value = false
+    byKeyboard.value = keyboard
+    step.value = 'set'
+  }
+  /** The radius from the Radius choice. While the mouse is sizing the circle, it fixes it. */
+  function setRadius(r) {
+    if (step.value !== 'radius') discardAnalysis()
+    radius.value = r
+    capped.value = false
+    if (centre.value) step.value = 'set'
   }
 
   function placeCentre(point, keyboard = false) {
+    centreLabel.value = ''
     centre.value = { lat: point.lat, lon: point.lon }
     radius.value = config.radius.default
     capped.value = false
@@ -241,14 +415,19 @@ export const useAreaStore = defineStore('area', () => {
     clearSelection()
     step.value = 'centre'
     centre.value = null
+    centreLabel.value = ''
+    inputsOpen.value = false
     capped.value = false
     radius.value = config.radius.default
   }
 
   return {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
+    centreLabel, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer,
-    startLoad, cancelLoad, select, clearSelection,
+    startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
+    placeFilter, visibleSegments, setPlaceFilter,
+    suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,
   }
 })

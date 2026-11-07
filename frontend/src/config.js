@@ -7,6 +7,7 @@ export default {
     default: 200, // when a radius is needed without the pointer (keyboard, search)
     rounding: 10, // chip value and stored radius are rounded to this (m)
     keyboardStep: 10, // arrow keys (m)
+    presets: [100, 200, 500], // the Radius choice in the area inputs (m); 200 is the default, 500 the maximum
   },
   circlePoints: 64,
 
@@ -24,16 +25,30 @@ export default {
 
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },
-  // Feels-like °C to the two-sided 1–5 score (brief §4, standard UTCI stress categories):
-  // above heat[2] → 1, heat[1] → 2, heat[0] → 3; from cold[0] up to heat[0] → 5 (no stress);
-  // cold[1]–cold[0] → 4, cold[2]–cold[1] → 3, cold[3]–cold[2] → 2, below cold[3] → 1.
-  // Personal limits (from the profile) will shift these; not yet.
-  thermalLimits: { heat: [26, 32, 38], cold: [9, 0, -13, -27] },
+  // Thermal limits, the standard ones for everyone (no profiles yet): every one lives here, and
+  // lib/thermal.js thermalLimits() is the only reader. Feels-like °C, standard UTCI stress categories.
+  // Easy from cold[0] to heat[0] (no thermal stress); mixed from heat[0] to heat[1] (moderate heat) or
+  // cold[1] to cold[0] (slight and moderate cold, so 0–9 °C is mixed); hard above heat[1] or below
+  // cold[1]. Thermal has no 1–5 score, only these three levels. The comfort target is the middle of
+  // the easy range in use: (9 + 26) / 2 = 17.5 °C here.
+  thermalLimits: { heat: [26, 32], cold: [9, -13] },
+  // The temperature bar on the place card: its ends (°C). Heat side from cold[0] to max, cold side from
+  // min to heat[0], both sides from min to max; a value beyond an end sits at that end.
+  thermalBar: { min: -20, max: 40 },
   // Walking speed for "2 min away" on the place card (about 4.8 km/h).
   walkMetresPerMinute: 80,
+  // "Cooler street nearby" on the place card (lib/nearby.js): only streets within maxM (straight line
+  // between the middles of the two stretches); going there zooms in up to `zoom`.
+  nearby: { maxM: 300, zoom: 17 },
+  // "Likely easiest for you" on the Thermal layer (lib/suggest.js): at most `count` places, each at
+  // least minApartM from the others (between middles); places whose distance from the comfort target
+  // differs by at most `margin` °C count as close, and then a type not picked yet goes first.
+  suggest: { count: 3, minApartM: 150, margin: 1 },
   // Wait this long after the last season or time change before asking for it (each new one is billed).
   thermalDebounceMs: 700,
   seasons: ['spring', 'summer', 'autumn', 'winter'],
+  // Hours on the time slider (whole hours, local standard time of the weather file).
+  thermalHours: { min: 9, max: 21 },
 
   // Routes (brief §3): the limits of the API (config/tool.yaml, routes), checked here before asking.
   routes: {

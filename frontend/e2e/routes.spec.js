@@ -20,8 +20,10 @@ test.describe('desktop', () => {
 
     const { a, b } = routeClicks(page.viewportSize())
     await page.mouse.click(a.x, a.y)
-    await expect(page.getByText('Start set. Now click where you want to go')).toBeVisible()
-    await expect(page.getByRole('combobox', { name: 'Start' })).toHaveValue('Clicked point')
+    await expect(page.getByText('Now click where you want to go')).toBeVisible()
+    // The inputs are one closed row in the left panel: the clicked point's coordinates, then "…".
+    await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E → …/)
+    await expect(page.locator('body')).not.toContainText('Clicked point')
     await expect(page.getByTestId('route-start')).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/routes/1-start-set.png' })
     expect(mock.requests).toHaveLength(0) // nothing is asked for one point
@@ -37,10 +39,13 @@ test.describe('desktop', () => {
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/1b-preview.png' })
     expect(mock.requests).toHaveLength(0)
+    // No legend before the routes are ready; then it is the last block of the panel.
+    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
     await analyse(page)
 
     await expect(card(page)).toContainText('Which way feels better?')
     await expect(card(page)).toContainText('hard 40%')
+    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toContainText('Thermal comfort °C')
     await expect(card(page)).toContainText('hard 0%')
     await expect(card(page)).toContainText('avoids the hot stretch on Heissgasse')
     await expect(card(page)).toContainText('Predictions, not reasons')
@@ -53,7 +58,7 @@ test.describe('desktop', () => {
 
     // The points and the limits travel in the body; the URL has nothing in it.
     expect(mock.requests).toHaveLength(1)
-    expect(mock.requests[0].limits.heat).toEqual([26, 32, 38])
+    expect(mock.requests[0].limits).toEqual({ heat: [26, 32], cold: [9, -13] })
     expect(mock.urls[0]).toMatch(/\/api\/routes$/)
 
     // A section of a bar opens the stretch.
@@ -162,8 +167,8 @@ test.describe('desktop', () => {
     const { a, b } = routeClicks(page.viewportSize())
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
-    await expect(card(page)).toContainText('Routes go up to 1.5 km for now')
-    await expect(page.getByRole('combobox', { name: 'End' })).toHaveValue('')
+    await expect(page.locator('[data-panel="hint"]')).toContainText('Routes go up to 1.5 km for now')
+    await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E → …/)
     await expect(page.getByTestId('route-end')).toHaveCount(0)
     expect(mock.requests).toHaveLength(0)
   })
@@ -178,17 +183,19 @@ test.describe('desktop', () => {
     await expect(card(page)).toContainText('Comparing two ways')
     await expect(card(page)).toContainText('Rating for your profile')
     await expect(card(page)).not.toContainText('Finding the two ways')
-    await expect(page.getByRole('button', { name: 'Spring' })).toBeDisabled()
+    await expect(page.getByRole('radio', { name: 'Spring' })).toBeDisabled()
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/2-loading.png' })
     const count = await page.evaluate(() => window.__sencityMap.querySourceFeatures('sc-route').length)
     expect(count).toBe(0)
     await card(page).getByRole('button', { name: 'Cancel', exact: true }).last().click()
     await expect(card(page)).toContainText('This walk')
-    await expect(page.getByRole('combobox', { name: 'End' })).toHaveValue('Clicked point')
-    await expect(page.getByRole('combobox', { name: 'Start' })).toHaveValue('Clicked point')
-    await card(page).getByRole('button', { name: 'Start again' }).click()
-    await expect(card(page)).toContainText('Choose where you start')
+    await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E → \d+\.\d+° N, \d+\.\d+° E/)
+    // Change clears both points at once and goes back to clicking, with the first hint.
+    await page.getByRole('button', { name: /^Change walk/ }).click()
+    await expect(page.getByText('Click where you start')).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+    await expect(page.getByTestId('inputs')).toHaveCount(0)
     await expect(page.getByTestId('route-start')).toHaveCount(0)
   })
 
@@ -225,20 +232,51 @@ test.describe('desktop', () => {
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
     // The window can still change in the preview, and that asks for nothing.
-    await page.getByRole('button', { name: 'Autumn' }).click()
-    await page.getByRole('button', { name: 'Summer' }).click()
+    await page.getByRole('radio', { name: 'Autumn' }).click()
+    await page.getByRole('radio', { name: 'Summer' }).click()
     expect(mock.requests).toHaveLength(0)
     await analyse(page)
     await expect(card(page)).toContainText('hard 40%')
-    await page.getByRole('button', { name: 'Winter' }).click()
+    await page.getByRole('radio', { name: 'Winter' }).click()
     await expect.poll(() => mock.requests.at(-1).season).toBe('winter')
-    await expect(page.getByRole('button', { name: 'Winter' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Winter' })).toHaveAttribute('aria-checked', 'true')
 
     mock.thermal = 'error'
-    await page.getByRole('button', { name: 'Spring' }).click()
+    await page.getByRole('radio', { name: 'Spring' }).click()
     await expect(card(page)).toContainText('No weather station')
     await expect(card(page)).toContainText('Which way feels better?')
-    await expect(page.getByRole('button', { name: 'Winter' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Winter' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  test('a request the API cannot read shows a plain message, not its field errors', async ({ page }) => {
+    // What an API older than the app answers: 422 with a list of field errors (as FastAPI sends them).
+    await mockRoutes(page)
+    await page.route('**/api/routes', (route) => route.fulfill({
+      status: 422, contentType: 'application/json',
+      body: JSON.stringify({ detail: [{ type: 'too_short', loc: ['body', 'limits', 'heat'], msg: 'List should have at least 3 items' },
+        { type: 'too_short', loc: ['body', 'limits', 'cold'], msg: 'List should have at least 4 items' }] }),
+    }))
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await expect(card(page)).toContainText('Could not find the two ways. Check that the API is running, then try again.')
+    await expect(card(page)).not.toContainText('[object Object]')
+  })
+
+  test('a message from the API is shown as it is', async ({ page }) => {
+    await mockRoutes(page)
+    await page.route('**/api/routes', (route) => route.fulfill({
+      status: 422, contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Start and end are too close together. Choose points further apart.' }),
+    }))
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await expect(card(page)).toContainText('Start and end are too close together.')
   })
 
   test('Area and Routes keep their own state on the one map', async ({ page }) => {
@@ -264,12 +302,15 @@ test.describe('desktop', () => {
       { name: 'Graben', detail: 'Innere Stadt, Wien', lat: 48.2086, lon: 16.3695, kind: 'pedestrian' },
     ] } }))
     await openRoutes(page, 'dark')
+    // The fields open from the hint's "type an address", which focuses Start.
+    await page.getByRole('button', { name: 'type an address' }).click()
     const start = page.getByRole('combobox', { name: 'Start' })
+    await expect(start).toBeFocused()
     await start.fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).click()
     await expect(start).toHaveValue('Graben')
     await expect(page.getByTestId('route-start')).toBeVisible()
-    await expect(page.getByText('Start set. Now click')).toBeVisible()
+    await expect(page.getByText('Now click where you want to go')).toBeVisible()
     const end = page.getByRole('combobox', { name: 'End' })
     await end.fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).click()
@@ -281,7 +322,7 @@ test.describe('desktop', () => {
     await openRoutes(page, 'dark')
     await page.locator('canvas').focus()
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('combobox', { name: 'Start' })).toHaveValue('Point at the map centre')
+    await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E/)
     await page.evaluate(() => window.__sencityMap.jumpTo({ center: [16.376, 48.2085] }))
     await page.keyboard.press('Enter')
     await expect(page.getByRole('button', { name: 'Analyse this walk' })).toBeFocused()
@@ -346,7 +387,8 @@ test.describe('phone', () => {
     await page.screenshot({ path: 'e2e/screens/routes/P3-preview.png' })
     await analyse(page)
     await expect(card(page)).toContainText('Which way feels better?')
-    await expect(card(page)).toContainText('Colour by')
+    await expect(card(page)).toContainText('Layer')
+    await expect(card(page).getByRole('group', { name: 'Layer' })).toBeVisible()
     await expect(card(page)).toContainText('Tap a stretch')
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/P3-result.png' })

@@ -6,7 +6,7 @@ from tool.thermal import thermal_state
 
 CFG = {"length_ratio": 1.25, "candidates": 8, "candidate_penalty": 1.4, "easiest_weights": [0.5, 1, 2, 4, 8],
        "mixed_weight": 0.25, "min_difference_share": 0.1}
-LIMITS = {"heat": [26, 32, 38], "cold": [9, 0, -13, -27]}
+LIMITS = {"heat": [26, 32], "cold": [9, -13]}
 
 
 def ladder():
@@ -115,6 +115,8 @@ def test_same_answer_every_time():
 
 def test_thermal_state_matches_the_app():
     # The same table as frontend/src/lib/thermal.test.js.
-    for utci, state in [(39, "hard"), (33, "hard"), (32, "mixed"), (27, "mixed"), (26, "easy"), (5, "easy"),
-                        (0, "easy"), (-1, "mixed"), (-13, "mixed"), (-14, "hard"), (-30, "hard")]:
+    # 0–9 °C is mixed (slight cold), not easy.
+    for utci, state in [(39, "hard"), (33, "hard"), (32, "mixed"), (27, "mixed"), (26, "easy"), (9, "easy"),
+                        (8.9, "mixed"), (5, "mixed"), (0, "mixed"), (-1, "mixed"), (-13, "mixed"), (-14, "hard"),
+                        (-30, "hard")]:
         assert thermal_state(utci, LIMITS) == state, utci

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formatKm, formatLength, runsOf, stretchesOf, stretchFeature, stretchMiddle } from './routes.js'
 
 const seg = (id, state, extra = {}) => [id, {
-  properties: { id, name: id, named: true, length_m: 100, photos: [], thermal_state: state, thermal_score: state === 'hard' ? 2 : 5, utci: state === 'hard' ? 35 : 20, ...extra },
+  properties: { id, name: id, named: true, length_m: 100, photos: [], thermal_state: state, utci: state === 'hard' ? 35 : 20, ...extra },
 }]
 const part = (id, from, to, length = 100) => ({ segment_id: id, length_m: length, coordinates: [[from, 48], [to, 48]] })
 
@@ -48,9 +48,9 @@ describe('stretches', () => {
 describe('the stretch as a place', () => {
   it('is its segment, with the length walked (a snapped start walks only part of it)', () => {
     const photos = [{ pano_id: 'a', heading: 10 }]
-    const byId = new Map([seg('Graben', 'hard', { length_m: 80, utci: 33, thermal_score: 2, photos })])
+    const byId = new Map([seg('Graben', 'hard', { length_m: 80, utci: 33, photos })])
     const f = stretchFeature({ key: 'A-0', segmentId: 'Graben', length_m: 30, coordinates: [[0, 48], [1, 48]] }, byId)
-    expect(f.properties).toMatchObject({ id: 'A-0', name: 'Graben', length_m: 30, utci: 33, thermal_score: 2, photos })
+    expect(f.properties).toMatchObject({ id: 'A-0', name: 'Graben', length_m: 30, utci: 33, photos })
   })
 
   it('has no thermal value when its segment has none', () => {

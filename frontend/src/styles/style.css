@@ -8,6 +8,7 @@
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
+  --fw-bold: 700;
   --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed (§3) */
   --fs-sm: 0.875rem;    /* 14 px, section titles */
   --fs-md: 1rem;
@@ -28,18 +29,17 @@
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */
-  --seasonbar-w: 560px;
   --control-size: 44px;         /* map zoom buttons */
   --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
   --tabs-half: 140px;           /* half the width of the Area / Routes / Profile tabs */
   --attribution-h: 1.25rem;     /* one line of map credits; grows with the system font size */
   --chip-h: 34px;               /* place-type chips */
   --swatch-h: 5px;              /* legend swatches */
-  --range-min-w: 60px;          /* time slider */
   --hairline: 1px;
   --touch: 40px;                /* minimum target (§9) */
   --touch-phone: 44px;          /* minimum target on a phone (§3) */
   --icon: 20px;
+  --icon-sm: 15px;              /* the info icon next to a title */
   --icon-stroke: 1.75;
   --logo-size: 34px;
   --crosshair-size: 44px;
@@ -103,7 +103,6 @@
   --route-mark: 14px;              /* the same marks beside the phone's fields and in the preview */
   --route-point-label: 72px;       /* "Start" and "End" in the preview */
   --route-sample-w: 24px;          /* line sample in the route buttons */
-  --step-mark: 28px;               /* numbered steps on the route card */
 
   /* State bars (brief §3: all share one style) */
   --bar-h: 10px;
@@ -119,6 +118,17 @@
   --ring-pulse-s: 2.4s;
   --bar-slide-s: 1.4s;
   --tip-max-w: 320px;              /* street name label on hover */             /* loading bar while the streets are being found */
+
+  /* Markers: numbered pins and highlighted places for suggestions (and later chat results).
+     Same in both themes: a solid pin in the level colour with a dark edge and a dark number. */
+  --marker-edge: #13232a;
+  --marker-text: #13232a;
+  --marker-outline: #ffffff;       /* light outline around a highlighted stretch */
+  --marker-size: 28px;             /* the visible pin; its button is a --touch-phone target */
+  --marker-border: 3px;
+  --map-marker-width: 6;           /* highlighted stretch: thicker than a normal street */
+  --map-marker-outline-width: 10;
+  --map-marker-area-opacity: 0.35; /* fill of a highlighted park or square */
 
   /* Place card and enlarged photo */
   --card-photo: 168px;
@@ -211,7 +221,6 @@
     --margin: 16px;
     --panel-left-w: 300px;
     --panel-right-w: 340px;
-    --seasonbar-w: 520px;
   }
 }
 
