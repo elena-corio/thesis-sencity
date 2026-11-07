@@ -325,6 +325,83 @@ test.describe('desktop', () => {
     await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
   })
 
+  test('Try again after the photos failed goes on from there, not from the beginning', async ({ page }) => {
+    // First try: the streets and half of the photos, then an error. Second try: what the API sends when
+    // it goes on (no streets step; the photos found so far, then the rest).
+    const half = Math.floor(AREA.features.length / 2)
+    const pending = (fs) => fs.map((f, i) => (i < half ? f : { ...f, properties: { ...f.properties, photos: null } }))
+    const tries = []
+    await page.route('**/api/area', async (route) => {
+      tries.push(route.request().postDataJSON())
+      const total = AREA.features.length
+      const lines = tries.length === 1
+        ? [{ type: 'stage', stage: 'streets' },
+            { type: 'segments', features: AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } })), total, done: 0 },
+            ...AREA.features.slice(0, half).map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total })),
+            { type: 'error', message: 'Could not load street photos for this area. Try again.' }]
+        : [{ type: 'segments', features: pending(AREA.features), total, done: half },
+            ...AREA.features.slice(half).map((f, i) => ({ type: 'segment', feature: f, done: half + i + 1, total })),
+            { type: 'done', area: AREA }]
+      if (tries.length > 1) await new Promise((r) => setTimeout(r, 400)) // the retry is on screen a moment
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+    })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(page.getByText('Could not load street photos')).toBeVisible()
+    // The streets stay on the map while it failed.
+    expect(await page.evaluate(() => window.__sencityMap.getSource('sc-seg').serialize().data.features.length)).toBe(AREA.features.length)
+
+    // Try again: the photo count goes on from where it stopped, the streets stay on the map.
+    let lowest = Infinity
+    await page.exposeFunction('__seen', (n) => { lowest = Math.min(lowest, n) })
+    await page.evaluate(() => {
+      const obs = new MutationObserver(() => {
+        const m = document.querySelector('[data-panel="loading-card"]')?.textContent.match(/(\d+) of \d+/)
+        if (m) window.__seen(Number(m[1]))
+      })
+      obs.observe(document.body, { subtree: true, childList: true, characterData: true })
+    })
+    await loading.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
+    expect(tries).toHaveLength(2)
+    expect(Number.isFinite(lowest)).toBe(true) // the count was on screen during the retry
+    expect(lowest).toBeGreaterThanOrEqual(half) // and never went back to 0 of N
+  })
+
+  test('Try again after thermal failed asks for thermal only and keeps the map', async ({ page }) => {
+    const tries = []
+    await page.route('**/api/area', async (route) => {
+      const asked = route.request().postDataJSON()
+      tries.push(asked)
+      const pending = AREA.features.map((f) => ({ ...f, properties: { ...f.properties, photos: null } }))
+      const lines = tries.length === 1
+        ? [{ type: 'segments', features: pending, total: pending.length, done: 0 },
+            ...AREA.features.map((f, i) => ({ type: 'segment', feature: f, done: i + 1, total: AREA.features.length })),
+            { type: 'done', area: AREA }, { type: 'stage', stage: 'thermal' },
+            { type: 'thermal_error', message: 'Thermal comfort could not be loaded. Try again.' }]
+        : [{ type: 'done', area: AREA, cached: true }, { type: 'stage', stage: 'thermal' },
+            { type: 'thermal', season: asked.season, time: asked.time, values: THERMAL, station: { name: 'Wien-Innere Stadt', distance_km: 1.2 } }]
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+    })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    const card = page.locator('[data-panel="area-card"]')
+    await expect(card).toContainText('Thermal comfort could not be loaded. Try again.')
+    // The streets never leave the map during the retry.
+    await page.evaluate(() => {
+      window.__emptied = false
+      const src = window.__sencityMap.getSource('sc-seg')
+      const set = src.setData.bind(src)
+      src.setData = (d) => { if (!d?.features?.length) window.__emptied = true; return set(d) }
+    })
+    await card.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(tries).toHaveLength(2)
+    expect(await page.evaluate(() => window.__emptied)).toBe(false)
+  })
+
   test('Cancel while loading goes back to the set circle', async ({ page }) => {
     await mockArea(page, { hold: true })
     await openMap(page, 'dark')

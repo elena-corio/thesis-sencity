@@ -76,7 +76,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
     </p>
 
     <div class="buttons">
-      <button v-if="area.load === 'error'" type="button" class="btn btn-primary" @click="area.startLoad()">Try again</button>
+      <button v-if="area.load === 'error'" type="button" class="btn btn-primary" @click="area.retryLoad()">Try again</button>
       <button ref="cancelBtn" type="button" class="btn" @click="area.cancelLoad()">Cancel</button>
     </div>
     <slot />

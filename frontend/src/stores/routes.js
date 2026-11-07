@@ -168,14 +168,21 @@ export const useRoutesStore = defineStore('routes', () => {
     }
   }
 
-  async function find() {
+  /** Find the two ways. resume: "Try again" after a failure keeps the progress on screen; the API goes
+   *  on from the failed step (its finished steps and the corridor are kept). */
+  async function find({ resume = false } = {}) {
     stopLoading()
     controller = new AbortController()
     const { signal } = controller
     load.value = 'loading'
     error.value = ''
     windowError.value = ''
-    progress.value = { stage: 'streets', done: 0, total: 0 }
+    if (resume) {
+      const { failed: _f, ...kept } = progress.value
+      progress.value = kept
+    } else {
+      progress.value = { stage: 'streets', done: 0, total: 0 }
+    }
     const generic = 'Could not find the two ways. Check that the API is running, then try again.'
     try {
       await loadRoutes({
@@ -185,7 +192,8 @@ export const useRoutesStore = defineStore('routes', () => {
         ...thermalWindow.value,
       }, (e) => {
         if (e.type === 'stage') progress.value = { ...progress.value, stage: e.stage }
-        else if (e.type === 'segments') progress.value = { stage: 'photos', done: 0, total: e.total }
+        // A retry goes on from the photos already found (the API keeps the finished steps).
+        else if (e.type === 'segments') progress.value = { stage: 'photos', done: e.done ?? 0, total: e.total }
         else if (e.type === 'segment') progress.value = { stage: 'photos', done: e.done, total: e.total }
         else if (e.type === 'routes') apply(e)
         else if (e.type === 'thermal_error' || e.type === 'error') {

@@ -117,7 +117,7 @@ function onLeave() { routes.hoverRoute = null }
       </p>
       <p v-else class="note">The two ways appear once the streets between start and end are ready. A new route takes a few minutes.</p>
       <div class="buttons">
-        <button v-if="routes.load === 'error'" type="button" class="btn btn-primary" @click="routes.find()">Try again</button>
+        <button v-if="routes.load === 'error'" type="button" class="btn btn-primary" @click="routes.find({ resume: true })">Try again</button>
         <button ref="cancelBtn" type="button" class="btn" @click="routes.cancel()">
           {{ routes.load === 'error' ? 'Back' : 'Cancel' }}
         </button>

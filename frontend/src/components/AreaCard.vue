@@ -173,7 +173,7 @@ function startAgain() {
         Change area: {{ props.phone ? 'tap' : 'click' }} a new centre, then the radius. Predictions, not reasons.
       </p>
       <div class="buttons">
-        <button v-if="area.thermal === 'error'" type="button" class="btn btn-primary" @click="area.startLoad()">
+        <button v-if="area.thermal === 'error'" type="button" class="btn btn-primary" @click="area.retryThermal()">
           Try again
         </button>
         <button type="button" class="btn" aria-disabled="true" title="Coming soon">

@@ -28,6 +28,7 @@ from tool.routing import Graph, alternatives, build_graph, find_b, parts, shares
 from tool.thermal import proj_geom, thermal_state
 
 from . import area as area_mod
+from . import steps
 
 log = logging.getLogger("sencity.api")
 
@@ -117,16 +118,25 @@ def fit_zone(paths: list, proj: LocalProjection, cfg: dict) -> Polygon:
     return zone
 
 
-def build_corridor(start: dict, end: dict, cfg: dict, provider):
-    """Yield progress events, then {"type": "corridor", "area": FeatureCollection, "zone": polygon}."""
+def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None = None):
+    """Yield progress events, then {"type": "corridor", "area": FeatureCollection, "zone": polygon}.
+    With a key, the finished steps of an earlier try are read back (app/steps.py): the streets, the
+    building footprints and the photos found so far; when a lookup fails or the caller stops reading,
+    what was found is kept for the next try. Start and end are not written: only the key and streets."""
     r = cfg["routes"]
+    where = cache_dir(cfg)
     lat, lon = middle(start, end)
     proj = LocalProjection(lat, lon)
     a, b = proj.to_xy(start["lon"], start["lat"]), proj.to_xy(end["lon"], end["lat"])
 
-    yield {"type": "stage", "stage": "streets"}
     ellipse = search_ellipse(a, b, cfg)
-    ways, node_xy, _areas, _dropped = parse(fetch_ways_in(ring_lonlat(ellipse, proj), cfg), proj, cfg)
+    ways_data = steps.load(where, key, "ways") if key else None
+    if ways_data is None:
+        yield {"type": "stage", "stage": "streets"}
+        ways_data = fetch_ways_in(ring_lonlat(ellipse, proj), cfg)
+        if key:
+            steps.save(where, key, "ways", ways_data)
+    ways, node_xy, _areas, _dropped = parse(ways_data, proj, cfg)
     segments = build_segments(ways, node_xy, [], ellipse, cfg, None, {})
 
     graph = build_graph([(s.id, s.geom) for s in segments], r["connect_gap_m"])
@@ -149,19 +159,31 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider):
 
     buildings = None
     try:
-        footprints = parse_buildings(fetch_buildings_in(ring_lonlat(zone.simplify(10.0), proj), cfg), proj, 0)
+        bdata = steps.load(where, key, "buildings") if key else None
+        if bdata is None:
+            bdata = fetch_buildings_in(ring_lonlat(zone.simplify(10.0), proj), cfg)
+            if key:
+                steps.save(where, key, "buildings", bdata)
+        footprints = parse_buildings(bdata, proj, 0)
         if footprints is not None:
             buildings = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"]))
     except Exception as e:  # noqa: BLE001 (the indoor test improves the photos; the route works without it)
         log.warning("route buildings unavailable: %s", type(e).__name__)
 
     total = len(corridor)
-    yield {"type": "segments", "total": total}
-    features = {}
-    for done, seg, photos in area_mod.lookup_photos(corridor, proj, buildings, cfg, provider):
-        features[seg.id] = area_mod.feature(seg, proj, photos)
-        yield {"type": "segment", "done": done, "total": total}
-    fc = {"type": "FeatureCollection", "features": [features[s.id] for s in corridor]}
+    found: dict = (steps.load(where, key, "photos") if key else None) or {}
+    todo = [s for s in corridor if s.id not in found]
+    yield {"type": "segments", "total": total, "done": total - len(todo)}
+    finished = False
+    try:
+        for done, seg, photos in area_mod.lookup_photos(todo, proj, buildings, cfg, provider):
+            found[seg.id] = photos
+            yield {"type": "segment", "done": total - len(todo) + done, "total": total}
+        finished = True
+    finally:
+        if key and not finished and found:
+            steps.save(where, key, "photos", found)
+    fc = {"type": "FeatureCollection", "features": [area_mod.feature(s, proj, found[s.id]) for s in corridor]}
     yield {"type": "corridor", "area": fc, "zone": mapping(proj.geom_to_lonlat(zone))}
 
 

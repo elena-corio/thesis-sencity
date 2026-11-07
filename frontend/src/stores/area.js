@@ -113,24 +113,28 @@ export const useAreaStore = defineStore('area', () => {
     segments.value = { type: 'FeatureCollection', features: fs }
   }
 
-  async function startLoad() {
+  /** Load the analysed area. resume: "Try again" after a failure keeps what is on the map and the
+   *  progress; the API goes on from the failed step (its finished steps are kept, app/steps.py). */
+  async function startLoad({ resume = false } = {}) {
     controller?.abort()
     controller = new AbortController()
     const signal = controller.signal
     load.value = 'loading'
     loadError.value = ''
-    segments.value = null
-    progress.value = { stage: 'streets', done: 0, total: 0 }
-    // A new area: its own markers.
-    chatMarkers.value = null
-    markersCollapsed.value = false
-    seenIds.value = new Set()
+    if (!resume) {
+      segments.value = null
+      progress.value = { stage: 'streets', done: 0, total: 0 }
+      // A new area: its own markers.
+      chatMarkers.value = null
+      markersCollapsed.value = false
+      seenIds.value = new Set()
+    }
     resetThermal()
     try {
       await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
         if (e.type === 'segments') {
           segments.value = { type: 'FeatureCollection', features: e.features }
-          progress.value = { stage: 'photos', done: 0, total: e.total }
+          progress.value = { stage: 'photos', done: e.done ?? 0, total: e.total }
         } else if (e.type === 'segment') {
           setFeature(e.feature)
           progress.value = { stage: 'photos', done: e.done, total: e.total }
@@ -173,6 +177,32 @@ export const useAreaStore = defineStore('area', () => {
     thermalInfo.value = { season: e.season, time: e.time, station: e.station }
     thermal.value = 'ready'
     layer.value = 'thermal'
+  }
+
+  /** "Try again" after the streets or photos failed: go on from there, not from the beginning. */
+  function retryLoad() {
+    return startLoad({ resume: true })
+  }
+
+  /** "Try again" after thermal comfort failed: ask for thermal only. The area is cached by then, so
+   *  the API answers it at once; the streets and photos stay on the map as they are. */
+  async function retryThermal() {
+    controller?.abort()
+    controller = new AbortController()
+    const signal = controller.signal
+    const failed = 'Thermal comfort could not be loaded. Try again.'
+    thermal.value = 'loading'
+    thermalError.value = ''
+    try {
+      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+        if (e.type === 'thermal') applyThermal(e)
+        else if (e.type === 'thermal_error') { thermal.value = 'error'; thermalError.value = e.message }
+        else if (e.type === 'error') throw new ApiError(500, e.message)
+      }, signal)
+      if (thermal.value === 'loading') { thermal.value = 'error'; thermalError.value = failed }
+    } catch {
+      if (!signal.aborted) { thermal.value = 'error'; thermalError.value = failed }
+    }
   }
 
   /** Back to the season and time on screen: the streets keep their colours. */
@@ -340,7 +370,7 @@ export const useAreaStore = defineStore('area', () => {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer,
-    startLoad, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
+    startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,
     suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,
   }
