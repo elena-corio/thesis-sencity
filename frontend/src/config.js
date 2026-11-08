@@ -16,7 +16,7 @@ export default {
 
   mapStyles: {
     light: 'https://tiles.openfreemap.org/styles/positron',
-    dark: 'https://tiles.openfreemap.org/styles/dark',
+    dark: 'https://tiles.openfreemap.org/styles/positron', // the same map, in dark colours: see map/base.js
   },
 
   // "About N street photos" before loading: a cheap estimate, no API calls.

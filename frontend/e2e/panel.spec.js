@@ -74,6 +74,19 @@ test.describe('desktop', () => {
     await expect(loading).not.toContainText('Rating for your profile')
   })
 
+  test('dark mode recolours the light base map, and light mode leaves it as it comes', async ({ page }) => {
+    await openMap(page, 'dark')
+    const road = () => page.evaluate(() => {
+      const m = window.__sencityMap
+      return m.isStyleLoaded() ? m.getPaintProperty('highway_minor', 'line-color') : null
+    })
+    await expect.poll(road).toBe('#4b5156')
+    await page.getByRole('button', { name: 'Switch to light mode' }).click()
+    await expect.poll(road).toBe('hsl(0,0%,88%)')
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click()
+    await expect.poll(road).toBe('#4b5156') // again after the style swap
+  })
+
   test('Layer, Places, Radius and Season are the same kind of button, in two weights', async ({ page }) => {
     await openMap(page, 'dark')
     await page.getByRole('button', { name: 'type an address' }).click()

@@ -158,6 +158,22 @@
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   --backdrop: rgba(9, 18, 22, 0.55);
 
+  /* The base map in dark colours (map/base.js); light mode sets none of these */
+  --map-base-ground: #1d2022;
+  --map-base-water: #14191d;
+  --map-base-park: #252b27;
+  --map-base-building: #2b2f32;
+  --map-base-building-edge: #3a3f43;
+  --map-base-path: #383d41;
+  --map-base-road: #4b5156;
+  --map-base-road-major: #5d6469;
+  --map-base-road-casing: #3a3f43;
+  --map-base-rail: #4b5156;
+  --map-base-name: #c3c9cc;
+  --map-base-name-halo: #14171a;
+  --map-base-place: #d6dbdd;
+  --map-base-water-name: #9db4c8;
+
   /* Map overlay (§2): teal tint, dimmed outside, lit inside, circle */
   --map-tint: #0d2a32;
   --map-tint-opacity: 0.15;

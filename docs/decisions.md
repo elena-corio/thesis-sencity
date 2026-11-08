@@ -2,6 +2,11 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – Dark mode: the light base map in dark colours (proposed)
+**Context.** Elena: the dark base map is barely readable. OpenFreeMap Dark is almost black (minor streets about 1.1:1 against the ground, buildings about 1:1, street names about 2.4:1). With its colours lifted it read better, but its street names are capitals and its squares are drawn differently from light mode. She wants exactly the light map, darker, with light names.
+**Decision (Elena; the colours proposed).** Dark mode uses Positron too. `map/base.js` recolours it after every style load, by rules on the layer names, from `--map-base-*` in `style.css` (dark theme only). Still grey, as the brief asks, apart from a faint tint on parks and water names. This replaces OpenFreeMap Dark from the map decision (brief §2).
+**Alternatives.** OpenFreeMap Dark, lifted (capitals, other squares); Positron as it is (it is the light map); Positron under a dark mask (mid-grey, not dark); Fiord (slate blue, against the grey rule); a CSS `invert` (would also invert our own layers, drawn on the same canvas).
+
 ## 2026-11-08 – Left panel: final order, layer-aware loading, one kind of choice button (proposed)
 **Context.** Elena: a final order for the left panel, only what the chosen layer needs is loaded, and uniform controls (updated boards).
 **Decision (Elena; details marked proposed).**

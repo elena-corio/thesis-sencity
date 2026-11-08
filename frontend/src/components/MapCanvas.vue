@@ -6,6 +6,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import config from '../config.js'
 import { useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
+import { darkenBaseMap } from '../map/base.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
 import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
 import { addMarkerLayers, setMarkers } from '../map/markers.js'
@@ -578,6 +579,7 @@ onMounted(() => {
   map.value = m
 
   m.on('style.load', () => {
+    darkenBaseMap(m)
     addAreaLayers(m)
     addSegmentLayers(m, area.mapLayer)
     addMarkerLayers(m)
