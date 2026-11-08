@@ -1,10 +1,9 @@
 <script setup>
-// "This area" (board Flow 4). Analyse is under the inputs (left panel, or this sheet on a phone before
-// analysis). Once the area has loaded: the street stretches of the selected layer as one stacked bar with counts
-// and %, places by type and Print area report (not built yet). Only Thermal exists so far, so "Why
-// hard" waits for Senses. A bottom sheet on a phone. When the left panel gives way (phone and below
-// 1200 px), the card carries the area inputs (one row with Change; open on a phone), the layer choice
-// and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
+// "This area" (board Flow 4), once the area is analysed: the street stretches of the selected layer as one
+// stacked bar with counts and %, places by type and Print area report (not built yet). Only Thermal exists
+// so far, so "Why hard" waits for Senses. On a phone it is in the Results tab of the sheet. When the left
+// panel gives way (below 1200 px), the card carries the area inputs (one row with Change), the layer
+// choice and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
 import { computed, onMounted, ref } from 'vue'
 import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
 import { formatDegrees } from '../lib/thermal.js'
@@ -23,11 +22,9 @@ const props = defineProps({
 })
 /** Season and time matter for Thermal and Overall (and before analysis), not for Senses. */
 const showWindow = computed(() => props.controls && area.layer !== 'senses')
-const emit = defineEmits(['pick'])
+const emit = defineEmits(['pick', 'recentre'])
 const area = useAreaStore()
 const titleEl = ref(null)
-/** Phone: "type an address" opened the inputs before a centre is set: the sheet shows only them. */
-const choosing = computed(() => area.step !== 'set' && area.step !== 'analysed')
 
 const ROWS = [
   { id: 'easy', label: 'Easy', color: 'var(--easy)' },
@@ -70,21 +67,17 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 </script>
 
 <template>
-  <section v-if="!choosing || (controls && area.inputsOpen)" class="card panel"
-           :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
-    <div v-if="phone" class="grip" aria-hidden="true" />
-    <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">{{ choosing ? 'Choose an area' : 'This area' }}</h2>
+  <section class="card panel" :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
+    <div class="title-row">
+      <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">This area</h2>
+      <button v-if="phone" type="button" class="icon-btn" aria-label="Re-centre the map" @click="emit('recentre')">
+        <AppIcon name="locate" />
+      </button>
+    </div>
     <p v-if="!controls && area.step === 'analysed'" class="meta"><span lang="de">{{ area.centreName }}</span> · {{ area.analysed.radius }} m radius</p>
-    <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :phone="phone" :get-centre="getCentre"
-                @pan="emit('pick', $event)" />
+    <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :get-centre="getCentre" @pan="emit('pick', $event)" />
 
-    <template v-if="area.step === 'set'">
-      <p class="meta">Drag the edge of the circle to adjust.</p>
-      <LayerButtons />
-      <SeasonTime v-if="showWindow" :store="area" />
-    </template>
-
-    <template v-else-if="area.step === 'analysed'">
+    <template v-if="area.step === 'analysed'">
       <div v-if="controls" class="controls">
         <LayerButtons />
         <SeasonTime v-if="showWindow" :store="area" />
@@ -204,14 +197,9 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 .buttons { display: flex; gap: var(--space-3); margin-top: var(--space-4); flex-wrap: wrap; }
 .buttons .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
 
-.sheet {
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
-  border-bottom: 0;
-  padding: var(--space-2) var(--space-4) var(--space-4);
-}
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* Inside the phone sheet, which is the panel and does the scrolling. */
+.card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .btn { min-height: var(--touch-phone); }
-.grip {
-  width: var(--space-5); height: var(--space-1); margin: 0 auto var(--space-3);
-  border-radius: var(--radius-pill); background: var(--line);
-}
+.sheet .icon-btn { width: var(--touch-phone); height: var(--touch-phone); }
 </style>

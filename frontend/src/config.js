@@ -59,6 +59,11 @@ export default {
   // Hours on the time slider (whole hours, local standard time of the weather file).
   thermalHours: { min: 9, max: 21 },
 
+  // Phone sheet: when the map re-fits after a change of height (just after the transition), and dragging:
+  // startPx before it counts as a drag, minPx to open or minimise.
+  sheetSettleMs: 220,
+  sheetDrag: { startPx: 6, minPx: 40 },
+
   // Routes (brief §3): the limits of the API (config/tool.yaml, routes), checked here before asking.
   routes: {
     minM: 50, // start and end closer than this are not a route

@@ -80,6 +80,10 @@ export const useAreaStore = defineStore('area', () => {
     const fs = segments.value?.features ?? []
     return { all: fs.length, withPhotos: fs.filter((f) => f.properties.photos?.length).length }
   })
+  /** The legend waits for its data; a new season or time keeps it, as the old values stay on the map. */
+  const legendReady = computed(() => (layer.value === 'thermal'
+    ? !!thermalInfo.value
+    : step.value === 'analysed' && load.value === 'ready'))
   /** Something is loading: the layer waits. */
   const busy = computed(() => load.value === 'loading' || thermal.value === 'loading')
 
@@ -466,7 +470,7 @@ export const useAreaStore = defineStore('area', () => {
     centreLabel, centreName, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
-    busy,
+    busy, legendReady,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,
     suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,

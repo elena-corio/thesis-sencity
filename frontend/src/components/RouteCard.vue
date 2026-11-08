@@ -1,23 +1,14 @@
 <script setup>
-// "Which way feels better?" (boards Routes 2–3; phone P3): the progress or the comparison. A bottom sheet
-// on a phone. Before Analyse there is no card: Start, End and Analyse are in the left panel, and the map
-// hint says what to do. Phone, as the area sheet: the walk inputs and Analyse at the top (open), then
-// Layer and season and time; "type an address" in the hint opens the sheet with only the inputs
-// ("Choose a walk"), and both points set make it "This walk".
+// "Which way feels better?" (boards Routes 2–3; phone P3): the progress or the comparison. In the Results
+// tab of the sheet on a phone. Before Analyse there is no card: Start, End and Analyse are in the left
+// panel (Settings on a phone), and the map hint says what to do.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
-import RouteInputs from './RouteInputs.vue'
-import RouteLayerButtons from './RouteLayerButtons.vue'
-import SeasonTime from './SeasonTime.vue'
 
-const props = defineProps({
-  phone: Boolean,
-  getCentre: { type: Function, default: () => null },
-})
-const emit = defineEmits(['pick'])
+const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
 const cancelBtn = ref(null)
 const verb = computed(() => (props.phone ? 'Tap' : 'Click'))
@@ -69,14 +60,19 @@ const coverage = computed(() => {
   return `Thermal along ${each('thermal_share')}, photos along ${each('photo_share')}.`
 })
 
+// Phone (board P3): the walk (not built yet) starts from the easiest way; the other is the second choice.
+const walk = computed(() => {
+  const [a, b] = routes.shown
+  if (!b) return { main: a.id, other: null }
+  return b.kind === 'easiest' ? { main: b.id, other: a.id } : { main: a.id, other: b.id }
+})
+
 function onEnter(id) { routes.hoverRoute = id }
 function onLeave() { routes.hoverRoute = null }
 </script>
 
 <template>
   <section class="card panel" :class="{ sheet: phone }" data-panel="route-card" data-scrollable aria-labelledby="route-title">
-    <div v-if="phone" class="grip" aria-hidden="true" />
-
     <!-- Loading (board Routes 2): no routes on the map yet. -->
     <template v-if="loading">
       <div class="head">
@@ -127,14 +123,6 @@ function onLeave() { routes.hoverRoute = null }
     <!-- The comparison (board Routes 3). -->
     <template v-else-if="routes.hasResult">
       <h2 id="route-title" class="title">Which way feels better?</h2>
-      <template v-if="phone">
-        <RouteInputs class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
-        <div class="colour-by">
-          <span class="by-label">Layer</span>
-          <RouteLayerButtons class="by-buttons" />
-        </div>
-        <SeasonTime v-if="routes.layer !== 'senses'" class="window" :store="routes" />
-      </template>
       <div class="route-buttons" :class="{ one: routes.shown.length === 1 }">
         <button v-for="r in routes.shown" :key="r.id" type="button" class="route-btn" :class="{ on: routes.visible[r.id] }"
                 :aria-pressed="routes.visible[r.id]" :aria-label="`Route ${r.id}, ${r.id === 'A' ? 'shortest' : bName(r)}: show or hide`"
@@ -161,19 +149,10 @@ function onLeave() { routes.hoverRoute = null }
       <p class="foot">
         {{ coverage }} {{ verb }} a stretch on the map or a section of a bar to see it. Predictions, not reasons.
       </p>
-    </template>
-
-    <!-- Phone, both points set: the inputs with Analyse; the season and time are chosen here too. -->
-    <template v-else-if="routes.previewing">
-      <h2 id="route-title" class="title">This walk</h2>
-      <RouteInputs class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
-      <SeasonTime v-if="routes.layer !== 'senses'" :store="routes" />
-    </template>
-
-    <!-- Phone: "type an address" opened the sheet before both points are set: only the inputs. -->
-    <template v-else-if="phone">
-      <h2 id="route-title" class="title">Choose a walk</h2>
-      <RouteInputs class="inputs" phone id-suffix="-phone" :get-centre="getCentre" @pan="emit('pick', $event)" />
+      <div v-if="phone" class="walk">
+        <button type="button" class="btn btn-primary" aria-disabled="true" title="Coming soon">Walk route {{ walk.main }}</button>
+        <button v-if="walk.other" type="button" class="btn" aria-disabled="true" title="Coming soon">Walk {{ walk.other }}</button>
+      </div>
     </template>
     <slot />
   </section>
@@ -234,21 +213,15 @@ function onLeave() { routes.hoverRoute = null }
 }
 .window-error { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 
-/* Phone: the inputs, then a divider before the layer and the rest (as in the area sheet). */
-.inputs { margin: var(--space-3) 0; padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
-.colour-by { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
-.by-label { flex: none; font-size: var(--fs-sm); color: var(--text-2); }
-.by-buttons { flex: 1; min-width: 0; margin-top: 0; }
-.window { margin: 0 0 var(--space-3); }
+.walk { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
+.walk .btn:only-child { grid-column: 1 / -1; }
 
-.sheet {
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0; border-bottom: 0;
-  padding: var(--space-2) var(--space-4) var(--space-4);
-}
+/* Inside the phone sheet, which is the panel and does the scrolling. */
+.card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .btn { min-height: var(--touch-phone); }
+.sheet .icon-btn { width: var(--touch-phone); height: var(--touch-phone); }
 /* Phone (board P3): tighter, so the routes stay in view above the sheet. */
 .sheet .route, .sheet .verdict, .sheet .route-buttons { margin-top: var(--space-2); }
 .sheet .route + .route { padding-top: var(--space-2); }
 .sheet .foot { margin-top: var(--space-2); }
-.grip { width: var(--space-5); height: var(--space-1); margin: 0 auto var(--space-3); border-radius: var(--radius-pill); background: var(--line); }
 </style>

@@ -60,5 +60,5 @@ function onKey(e) {
   font-size: var(--fs-2xs); font-variant-numeric: tabular-nums;
 }
 /* Fingers need the full target, whatever the weight (brief §3). */
-@media (pointer: coarse) { .thick .choice, .thin .choice { min-height: var(--touch-phone); } }
+@media (pointer: coarse), (max-width: 767px) { .thick .choice, .thin .choice { min-height: var(--touch-phone); } }
 </style>

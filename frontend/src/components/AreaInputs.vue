@@ -24,7 +24,7 @@ const emit = defineEmits(['pan', 'menu'])
 const area = useAreaStore()
 
 const fieldId = computed(() => `area-centre${props.idSuffix}-input`)
-const expanded = ref(props.phone || area.inputsOpen)
+const expanded = ref(area.inputsOpen)
 watch(() => area.inputsOpen, (open) => { if (open) expanded.value = true })
 const visible = computed(() => !!area.centre || area.inputsOpen || props.phone)
 const placeholder = computed(() => `Search an address, or ${props.phone ? 'tap' : 'click on'} the map`)
@@ -57,6 +57,7 @@ function onPick(place) {
 function change() {
   area.reset()
   expanded.value = props.phone
+  area.inputsOpen = props.phone // a phone goes to Settings with the fields open
 }
 </script>
 

@@ -406,22 +406,24 @@ for (const [width, height] of [[360, 640], [768, 1024], [1440, 900]]) {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', hasTouch: true })
 
-  test('fields and swap at the top, the comparison in the sheet (board P3)', async ({ page }) => {
+  test('Analyse under Settings, the comparison under Results (board P3)', async ({ page }) => {
     const mock = await mockRoutes(page)
     await openRoutes(page, 'dark')
     const { a, b } = routeClicks(page.viewportSize(), true)
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
-    await expect(card(page)).toContainText('This walk')
+    const sheet = page.locator('[data-panel="sheet"]')
+    await expect(analyseBtn(page)).toBeEnabled()
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/P3-preview.png' })
     await analyse(page)
     await expect(card(page)).toContainText('Which way feels better?')
-    await expect(card(page)).toContainText('Layer')
-    await expect(card(page).getByRole('radiogroup', { name: 'Layer' })).toBeVisible()
     await expect(card(page)).toContainText('Tap a stretch')
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/P3-result.png' })
+    await sheet.getByRole('tab', { name: /^Settings/ }).click()
+    await expect(sheet.getByRole('radiogroup', { name: 'Layer' })).toBeVisible()
+    await page.getByTestId('inputs').getByRole('button', { name: 'Point on map → Point on map' }).click()
     await page.getByRole('button', { name: 'Swap start and end' }).click()
     await expect.poll(() => mock.requests.length).toBe(2)
     expect(mock.requests[1].start).toEqual(mock.requests[0].end)

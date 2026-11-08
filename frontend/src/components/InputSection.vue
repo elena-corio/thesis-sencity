@@ -53,6 +53,6 @@ const bodyId = useId()
 .chevron.open { transform: rotate(180deg); }
 .change { flex: none; min-height: var(--touch); padding: 0 var(--space-3); }
 .body { margin-top: var(--space-2); }
-@media (pointer: coarse) { .summary, .change { min-height: var(--touch-phone); } }
+@media (pointer: coarse), (max-width: 767px) { .summary, .change { min-height: var(--touch-phone); } }
 @media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }
 </style>

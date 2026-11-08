@@ -65,7 +65,7 @@ for (const theme of ['dark', 'light']) {
       expect(await layoutProblems(page)).toEqual([])
 
       await page.getByRole('button', { name: 'Analyse this area' }).tap()
-      await expect(page.getByRole('button', { name: 'Change area' })).toBeVisible()
+      await expect(page.locator('[data-panel="area-card"]')).toContainText('street stretches')
       await mapIdle(page)
       await page.screenshot({ path: `${SHOTS}/phone-${theme}-2-analysed.png` })
 

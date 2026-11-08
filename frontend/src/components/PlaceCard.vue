@@ -110,7 +110,6 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 <template>
   <section v-if="feature" class="card panel" :class="{ sheet: props.phone }" data-panel="place-card" data-scrollable
            aria-labelledby="place-title">
-    <div v-if="props.phone" class="grip" aria-hidden="true" />
     <button ref="backBtn" type="button" class="back" @click="src.back($event.detail === 0)">
       <AppIcon name="chevronLeft" /> {{ src.backLabel }}
     </button>
@@ -337,16 +336,10 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 }
 .why { margin: var(--space-4) 0 var(--space-3); }
 
-.sheet {
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0; border-bottom: 0;
-  padding: var(--space-2) var(--space-4) var(--space-4);
-}
+/* Inside the phone sheet, which is the panel and does the scrolling. */
+.card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .photo { width: var(--card-photo-phone); }
 /* Phone (board P2): only the enlarge badge on the small photo; arrows and thumbnails are in the full page. */
 .sheet .arrow, .sheet .counter, .sheet .thumbs { display: none; }
 .sheet .btn, .sheet .back { min-height: var(--touch-phone); }
-.grip {
-  width: var(--space-5); height: var(--space-1); margin: 0 auto var(--space-2);
-  border-radius: var(--radius-pill); background: var(--line);
-}
 </style>

@@ -10,6 +10,8 @@ import RouteLayerButtons from './RouteLayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
 
 defineProps({
+  /** The Settings tab of the phone sheet: no panel of its own, and the legend floats on the map instead. */
+  phone: Boolean,
   getCentre: { type: Function, default: () => null },
 })
 const emit = defineEmits(['pick'])
@@ -21,9 +23,9 @@ const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 </script>
 
 <template>
-  <aside class="panel left" :class="{ 'menu-open': menuOpen }" data-panel="layers" data-scrollable
-         aria-label="Start, end and colours">
-    <RouteInputs :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
+  <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
+         data-scrollable aria-label="Start, end and colours">
+    <RouteInputs :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
 
     <section class="colours">
       <h2 class="section-title">Layer</h2>
@@ -31,7 +33,7 @@ const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
       <!-- Season and time matter for Thermal and Overall, not for Senses. -->
       <SeasonTime v-if="routes.layer !== 'senses'" :store="routes" />
     </section>
-    <section v-if="routes.hasResult" class="legend-section" aria-label="Legend">
+    <section v-if="routes.hasResult && !phone" class="legend-section" aria-label="Legend">
       <LayerLegend :layer="routes.layer" :values="thermalValues" :extra="NO_VALUE" />
     </section>
   </aside>

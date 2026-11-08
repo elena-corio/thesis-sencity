@@ -27,6 +27,9 @@
   --gap: 12px;                  /* between floating panels */
   --topbar-h: 52px;
   --tabbar-h: 64px;
+  --sheet-min: 76px;            /* phone sheet, minimised (board P1c) */
+  --sheet-open: 44dvh;          /* open, always this height (with the tab bar, half the screen); long content scrolls */
+  --sheet-above: 120px;         /* the legend strip and credits over the sheet's top edge */
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */

@@ -59,5 +59,5 @@ output {
   background: var(--btn-selected-bg); font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
 }
 .wait { margin: var(--space-1) 0 0; }
-@media (pointer: coarse) { .time { min-height: var(--touch-phone); } }
+@media (pointer: coarse), (max-width: 767px) { .time { min-height: var(--touch-phone); } }
 </style>

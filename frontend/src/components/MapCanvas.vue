@@ -494,8 +494,8 @@ watch(() => theme.resolved, (t) => {
 
 // Once the circle is fixed, the card (or the phone sheet) appears: pan so the whole circle
 // stays visible in the space the panels leave free.
-const TOP_PANELS = ['search', 'tabs', 'actions', 'hint', 'season-chip', 'time', 'ask']
-const BOTTOM_PANELS = ['season', 'controls', 'tabbar', 'attribution']
+const TOP_PANELS = ['search', 'tabs', 'actions', 'hint']
+const BOTTOM_PANELS = ['controls', 'tabbar', 'attribution', 'sheet', 'legend']
 
 const MIN_FREE_PX = 80
 
@@ -509,6 +509,7 @@ function freePadding() {
     const r = el.getBoundingClientRect()
     if (!r.width || !r.height) continue
     const name = el.dataset.panel
+    if (name !== 'legend' && el.parentElement.closest('[data-panel="sheet"]')) continue // a card inside the phone sheet
     const card = ['area-card', 'place-card', 'loading-card', 'route-card'].includes(name)
     const sheet = card && r.width > W * 0.8
     if (TOP_PANELS.includes(name)) pad.top = Math.max(pad.top, r.bottom + gap)
@@ -668,7 +669,21 @@ function flyToPlace(place) {
   }
 }
 
-defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace })
+/** Keep what is shown in the free space, after the phone sheet has changed height. */
+function reveal() {
+  if (!map.value) return
+  if (props.routesMode) {
+    const stretch = routes.selectedStretch
+    if (stretch) revealBounds(boundsOf(stretch.coordinates))
+    else revealRoutes()
+  } else if (area.selectedId) {
+    revealSelected(area.selectedId)
+  } else if (area.centre && area.step !== 'centre') {
+    revealCircle()
+  }
+}
+
+defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, reveal })
 </script>
 
 <template>

@@ -63,8 +63,11 @@ export async function layoutProblems(page) {
     if (de.scrollHeight > innerHeight + 1 || de.scrollWidth > innerWidth + 1) {
       problems.push(`page scrolls: ${de.scrollWidth}×${de.scrollHeight} in ${innerWidth}×${innerHeight}`)
     }
+    // Cards inside the phone sheet scroll inside it; the sheet itself is checked.
+    const sheet = document.querySelector('[data-panel="sheet"]')
     const panels = [...document.querySelectorAll('[data-panel]')]
       .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden')
+      .filter((el) => el === sheet || el.dataset.panel === 'legend' || !sheet?.contains(el))
     const rects = panels.map((el) => ({ name: el.dataset.panel, r: el.getBoundingClientRect(), el }))
     for (const { name, r, el } of rects) {
       if (r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) {

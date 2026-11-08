@@ -6,7 +6,6 @@ import { useRoute } from 'vue-router'
 import { useMedia } from '../composables.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
-import AppIcon from '../components/AppIcon.vue'
 import AreaCard from '../components/AreaCard.vue'
 import LoadingCard from '../components/LoadingCard.vue'
 import PlaceCard from '../components/PlaceCard.vue'
@@ -17,6 +16,7 @@ import LayerPanel from '../components/LayerPanel.vue'
 import MapAttribution from '../components/MapAttribution.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import MapControls from '../components/MapControls.vue'
+import PhoneSheet from '../components/PhoneSheet.vue'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -32,11 +32,8 @@ const mapRef = ref(null)
 
 // Nothing asked for yet: Start, End and Analyse are in the left panel, the map hint says what to do.
 const routeIdle = computed(() => !routes.hasResult && routes.load === 'idle')
-// The right card only shows loading and results. A phone has no left panel, so there the sheet also
-// holds the inputs and Analyse: once the area or walk is set, or "type an address" opened them.
-const hasCard = computed(() => (routesMode.value
-  ? !routeIdle.value || (phone.value && (routes.inputsOpen || routes.previewing))
-  : area.step === 'analysed' || (phone.value && (area.step === 'set' || area.inputsOpen))))
+// The right card only shows loading and results (a phone has one sheet instead of both panels).
+const hasCard = computed(() => (routesMode.value ? !routeIdle.value : area.step === 'analysed'))
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 // Routes keeps both: Start and End are always needed, and the two panels fit from 768 px up.
 const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
@@ -84,25 +81,11 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
     <template v-else>
       <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
       <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
-      <!-- Season and time live in the sheet (under the layer choice); this row keeps Ask. -->
-      <div class="slot s-p-row">
-        <button type="button" class="ask-round" aria-label="Ask" aria-disabled="true" title="Coming soon" data-panel="ask">
-          <AppIcon name="chat" />
-        </button>
+      <div class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
+      <div class="slot s-p-sheet">
+        <PhoneSheet :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
+                    @settled="mapRef?.reveal()" />
       </div>
-      <div v-if="!hasCard" class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
-      <div v-if="routesMode" class="slot s-p-sheet">
-        <StretchCard v-if="routes.selectedStretch" phone><MapAttribution class="in-sheet" in-sheet /></StretchCard>
-        <RouteCard v-else-if="hasCard" phone :get-centre="getCentre" @pick="onPick"><MapAttribution class="in-sheet" in-sheet /></RouteCard>
-      </div>
-      <div v-else class="slot s-p-sheet">
-        <PlaceCard v-if="area.selectedId" phone><MapAttribution class="in-sheet" in-sheet /></PlaceCard>
-        <LoadingCard v-else-if="loadingCard" phone><MapAttribution class="in-sheet" in-sheet /></LoadingCard>
-        <AreaCard v-else phone controls :get-centre="getCentre" @pick="onPick">
-          <MapAttribution class="in-sheet" in-sheet />
-        </AreaCard>
-      </div>
-      <div v-if="!hasCard" class="slot s-p-attribution"><MapAttribution /></div>
       <div class="slot s-p-tabs"><ViewTabs phone /></div>
     </template>
   </div>
@@ -164,19 +147,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 
 /* Phone (board P1) */
 .s-p-top { top: var(--margin); left: var(--margin); right: var(--margin); }
-.s-p-row {
-  top: calc(var(--margin) + var(--p-top-h) + var(--gap));
-  left: var(--margin); right: var(--margin);
-  display: flex; justify-content: flex-end; gap: var(--gap);
-}
-.ask-round {
-  width: var(--touch-phone); height: var(--touch-phone); flex: none;
-  display: grid; place-items: center;
-  border: 0; border-radius: var(--radius-btn);
-  background: var(--btn-primary-bg); color: var(--btn-primary-text);
-}
 .s-p-hint {
-  top: calc(var(--margin) + var(--p-top-h) + var(--gap) + var(--touch-phone) + var(--gap));
+  top: calc(var(--margin) + var(--p-top-h) + var(--gap));
   left: var(--margin); right: var(--margin);
   display: flex; justify-content: center;
 }
@@ -185,14 +157,6 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 .s-p-sheet {
   left: 0; right: 0;
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-  /* The sheet starts below the season row (the hint gives way to the sheet on a phone). */
-  max-height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - var(--p-row-bottom));
-  display: flex;
-  --p-row-bottom: calc(var(--margin) + var(--p-top-h) + 2 * var(--gap) + var(--touch-phone));
 }
-
-.s-p-sheet > * { width: 100%; max-height: 100%; }
-.in-sheet { margin-top: var(--space-3); }
-.s-p-attribution { left: var(--margin); right: var(--margin); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-1)); }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
 </style>

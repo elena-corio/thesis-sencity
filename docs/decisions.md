@@ -2,6 +2,19 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
+**Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
+**Decision (Elena; details marked proposed).**
+- *Top bar:* logo (home), search (only moves the map), Ask (40 px, accent) and account in one row. The floating Ask is gone. Season and time are in the sheet.
+- *Sheet (`PhoneSheet`):* tabs Settings (the desktop left panel) and Results (the desktop right card), a handle and a minimise button. Minimised shows a line per tab. Analyse leads to Results, a tapped street or suggestion to its card, Change or "type an address" to the open fields; otherwise the chosen tab stays. Dragging its top changes the height.
+- *Heights (Elena):* minimised (76 px) or open at one fixed height, 44% of the screen, which with the tab bar is half of it. Long content scrolls inside. There is no taller height: opening a street made the sheet jump and stay tall. On a short screen the top bar and the legend limit it.
+- *Breakpoint (proposed):* the existing phone width, below 768 px (brief §3), not a new one at about 700.
+- *Legend:* a strip with the title and swatches, riding just above the sheet. It appears only after analysis, as on desktop (2026-11-08). On Thermal its grey reads "No value", since Thermal lights every street with a value, photo or not.
+- *Map credits (proposed):* they must stay visible, so they ride on the sheet too, above the legend.
+- *Map:* the sheet and the legend count as covered space when the map fits the circle, route or selected street, and it fits again after each change of height.
+- *Not built yet:* Ask and the Walk buttons show as on the boards, marked "Coming soon", as the chat and the walk do not exist.
+- *Touch:* every control in the sheet is at least 44 px high at phone width, including the thin buttons (the 30 px of the desktop entry applies to larger screens).
+
 ## 2026-11-08 – A clicked point is named by reverse geocoding (proposed)
 **Context.** Elena: a centre, start or end set by clicking should show a name, not coordinates. This replaces "no reverse geocoding" in the 2026-11-07 entry on the inputs.
 **Decision (Elena; details marked proposed).**

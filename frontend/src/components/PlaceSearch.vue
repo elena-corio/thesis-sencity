@@ -179,6 +179,7 @@ input::-webkit-search-cancel-button { display: none; }
   display: grid; place-items: center;
   border: 0; border-radius: var(--radius-btn); background: transparent; color: var(--text-2);
 }
+@media (pointer: coarse), (max-width: 767px) { .clear { width: var(--touch-phone); height: var(--touch-phone); } }
 
 /* Results scroll inside their own panel (brief §3). */
 .dropdown {

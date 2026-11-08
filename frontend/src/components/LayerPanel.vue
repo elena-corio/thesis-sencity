@@ -1,6 +1,7 @@
 <script setup>
 // Left panel (boards Flow 1c, 2, 2e), controls first and the legend last: the area inputs and Analyse →
-// Layer → Season and time (for Thermal and Overall) → Places → the legend of the chosen layer.
+// Layer → Season and time (for Thermal and Overall) → Places → the legend of the chosen layer. On a phone
+// it is the Settings tab of the sheet: no panel of its own, and the legend floats on the map instead.
 import { computed, ref } from 'vue'
 import { PLACE_FILTERS } from '../lib/place.js'
 import { useAreaStore } from '../stores/area.js'
@@ -10,7 +11,7 @@ import LayerButtons from './LayerButtons.vue'
 import LayerLegend from './LayerLegend.vue'
 import SeasonTime from './SeasonTime.vue'
 
-defineProps({ getCentre: { type: Function, default: () => null } })
+defineProps({ phone: Boolean, getCentre: { type: Function, default: () => null } })
 const emit = defineEmits(['pick'])
 const area = useAreaStore()
 const menuOpen = ref(false)
@@ -21,13 +22,12 @@ const thermalValues = computed(() => (area.segments?.features ?? []).map((f) => 
 const showWindow = computed(() => area.layer !== 'senses')
 /** The Places buttons filter the map and the suggestions once the area's streets are loaded. */
 const placesReady = computed(() => area.step === 'analysed' && area.load === 'ready')
-/** The legend waits for its data; a new season or time keeps it, as the old values stay on the map. */
-const showLegend = computed(() => (area.layer === 'thermal' ? !!area.thermalInfo : placesReady.value))
 </script>
 
 <template>
-  <aside class="panel left" :class="{ 'menu-open': menuOpen }" data-panel="layers" data-scrollable aria-label="Area, layers and places">
-    <AreaInputs class="area-inputs" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
+  <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
+         data-scrollable aria-label="Area, layers and places">
+    <AreaInputs class="area-inputs" :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
     <section>
       <h2 class="section-title">Layer</h2>
       <LayerButtons />
@@ -36,7 +36,7 @@ const showLegend = computed(() => (area.layer === 'thermal' ? !!area.thermalInfo
       <ChoiceButtons class="chips" label="Show places" :options="PLACE_FILTERS" :value="area.placeFilter"
                      :disabled="!placesReady" @choose="area.setPlaceFilter" />
     </section>
-    <section v-if="showLegend" class="legend-section" aria-label="Legend">
+    <section v-if="area.legendReady && !phone" class="legend-section" aria-label="Legend">
       <LayerLegend :layer="area.layer" :values="thermalValues" />
     </section>
   </aside>
