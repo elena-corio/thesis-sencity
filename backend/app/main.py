@@ -1,6 +1,7 @@
 """SenCity API (FastAPI).
 
 - POST /api/search   address and place search (Photon)
+- POST /api/reverse  the name of a point clicked on the map (Photon)
 - POST /api/area     street segments and their chosen photos for one circle (metadata only), then
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
@@ -98,6 +99,25 @@ def search(body: SearchRequest, request: Request) -> dict:
         # Log the failure type only, never the query.
         log.warning("search provider failed: %s", type(e).__name__)
         raise HTTPException(502, "Search is not available right now.") from None
+
+
+class ReverseRequest(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+
+
+@app.post("/api/reverse")
+def reverse(body: ReverseRequest, request: Request) -> dict:
+    """The name of a point clicked on the map: {"name": "Mariahilfer Straße"}, or null when there is none."""
+    s = cfg["search"]
+    if _rate_limited("reverse", _ip(request), s["reverse_rate_per_minute"], 60):
+        raise HTTPException(429, "Too many points in a short time. Wait a moment and try again.")
+    try:
+        return {"name": search_mod.reverse(body.lat, body.lon, s)}
+    except requests.RequestException as e:
+        # Log the failure type only, never the point.
+        log.warning("reverse geocoding failed: %s", type(e).__name__)
+        raise HTTPException(502, "Place names are not available right now.") from None
 
 
 # Area: segments and photos

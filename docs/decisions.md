@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – A clicked point is named by reverse geocoding (proposed)
+**Context.** Elena: a centre, start or end set by clicking should show a name, not coordinates. This replaces "no reverse geocoding" in the 2026-11-07 entry on the inputs.
+**Decision (Elena; details marked proposed).**
+- *Name:* the nearest street or house address, by its street name without the number; else the park or square the point is inside; else "Point on map". One line with an ellipsis, the full name in the tooltip and the aria-label.
+- *Coordinates:* only small and grey under the name in the open fields. The right-hand area card shows the name too.
+- *Provider (proposed):* Photon, already used for search and needing no key, through `POST /api/reverse`, so the browser never contacts it and nothing about the person is sent: only the point, rounded to about 10 m.
+- *Which results count (proposed):* only real streets and house addresses within 100 m. Photon also gives things inside a park (a memorial in the Stadtpark) the name of a nearby street, so those are ignored and the park's name is used.
+- *Fair use:* at most one call per second from the server, a limit per IP, and answers cached in memory only (1000 points), never on disk or in a log. The label is "Point on map" until the name arrives, and stays so if the lookup fails.
+
 ## 2026-11-08 – Dark mode: the light base map in dark colours (proposed)
 **Context.** Elena: the dark base map is barely readable. OpenFreeMap Dark is almost black (minor streets about 1.1:1 against the ground, buildings about 1:1, street names about 2.4:1). With its colours lifted it read better, but its street names are capitals and its squares are drawn differently from light mode. She wants exactly the light map, darker, with light names.
 **Decision (Elena; the colours proposed).** Dark mode uses Positron too. `map/base.js` recolours it after every style load, by rules on the layer names, from `--map-base-*` in `style.css` (dark theme only). Still grey, as the brief asks, apart from a faint tint on parks and water names. This replaces OpenFreeMap Dark from the map decision (brief §2).

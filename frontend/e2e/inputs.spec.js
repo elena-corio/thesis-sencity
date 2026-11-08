@@ -80,6 +80,44 @@ test.describe('desktop', () => {
     await expect(page.locator('[data-panel="loading-card"]')).toContainText('Loading this area')
   })
 
+  test('area: a clicked point shows its street name, and the coordinates only under the open field', async ({ page }) => {
+    await mockArea(page)
+    await openMap(page, 'dark')
+    const asked = []
+    await page.route('**/api/reverse', (route) => {
+      asked.push(route.request().postDataJSON())
+      return route.fulfill({ json: { name: 'Mariahilfer Straße' } })
+    })
+    const p = points(page.viewportSize())
+    await placeCentre(page, p)
+    await page.mouse.click(p.edge.x, p.edge.y)
+    const row = inputs(page).getByRole('button', { name: /^Mariahilfer Straße · \d+ m$/ })
+    await expect(row).toBeVisible()
+    await expect(row.locator('.text')).toHaveAttribute('title', /^Mariahilfer Straße · \d+ m$/)
+    expect(Object.keys(asked[0]).sort()).toEqual(['lat', 'lon']) // only the point
+    const coords = inputs(page).getByTestId('coords')
+    await expect(coords).toBeHidden()
+    await row.click()
+    await expect(coords).toBeVisible()
+    await expect(coords).toHaveText(/^\d+\.\d+° N, \d+\.\d+° E$/)
+    await expect(page.getByRole('combobox', { name: 'Centre' })).toHaveValue('Mariahilfer Straße')
+  })
+
+  test('routes: the row reads start → end; a failed lookup stays "Point on map"', async ({ page }) => {
+    await mockRoutes(page)
+    await openRoutes(page, 'dark')
+    let n = 0
+    await page.route('**/api/reverse', (route) => (n++ === 0
+      ? route.fulfill({ json: { name: 'Stephansplatz' } })
+      : route.fulfill({ status: 502, json: { detail: 'Place names are not available right now.' } })))
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await expect(inputs(page)).toContainText('Stephansplatz → …')
+    await page.mouse.click(b.x, b.y)
+    await expect(page.getByRole('button', { name: 'Analyse the routes' })).toBeEnabled()
+    await expect(inputs(page)).toContainText('Stephansplatz → Point on map')
+  })
+
   test('area: after clicking on the map the inputs are one closed row that opens', async ({ page }) => {
     await mockArea(page)
     await openMap(page, 'dark')
@@ -87,11 +125,11 @@ test.describe('desktop', () => {
     await placeCentre(page, p)
     await page.mouse.click(p.edge.x, p.edge.y)
     await expect(page.getByText('Area set.')).toBeVisible()
-    const row = inputs(page).getByRole('button', { name: /° N, .* · \d+ m$/ })
+    const row = inputs(page).getByRole('button', { name: /^Point on map · \d+ m$/ })
     await expect(row).toHaveAttribute('aria-expanded', 'false')
     // One line, however long the value (board G3); the whole value stays readable in the tooltip.
     const text = row.locator('.text')
-    await expect(text).toHaveAttribute('title', /° N, .* · \d+ m$/)
+    await expect(text).toHaveAttribute('title', /^Point on map · \d+ m$/)
     const { height, line } = await text.evaluate((el) => {
       const r = document.createRange()
       r.selectNodeContents(el)
@@ -118,13 +156,13 @@ test.describe('desktop', () => {
     const { a, b } = routeClicks(page.viewportSize())
     await page.mouse.click(a.x, a.y)
     await expect(page.getByText('Now click where you want to go,')).toBeVisible()
-    await expect(inputs(page)).toContainText(/\d+\.\d+° N, \d+\.\d+° E → …/)
+    await expect(inputs(page)).toContainText('Point on map → …')
     await page.mouse.click(b.x, b.y)
     await expect(page.getByRole('button', { name: 'Analyse the routes' })).toBeEnabled()
     await expect(page.locator('[data-panel="route-card"]')).toHaveCount(0)
 
     // Open the row, focus Start: the next map click moves the start, not a new point.
-    await inputs(page).getByRole('button', { name: /^\d+\.\d+° N, \d+\.\d+° E → \d+\.\d+° N, \d+\.\d+° E$/ }).click()
+    await inputs(page).getByRole('button', { name: 'Point on map → Point on map' }).click()
     const startPin = page.getByTestId('route-start')
     const was = await startPin.boundingBox()
     await page.getByRole('combobox', { name: 'Start' }).focus()
@@ -186,7 +224,7 @@ test.describe('phone', () => {
     const { b } = routeClicks(page.viewportSize(), true)
     await page.mouse.click(b.x, 120 + b.y / 2)
     await expect(sheet).toContainText('This walk')
-    await expect(sheet.getByTestId('inputs')).toContainText(/Graben → \d+\.\d+° N, \d+\.\d+° E/)
+    await expect(sheet.getByTestId('inputs')).toContainText('Graben → Point on map')
     await expect(sheet.getByRole('button', { name: 'Change walk: clear the start and end' })).toBeVisible()
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])

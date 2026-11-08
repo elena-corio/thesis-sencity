@@ -29,7 +29,7 @@ watch(() => area.inputsOpen, (open) => { if (open) expanded.value = true })
 const visible = computed(() => !!area.centre || area.inputsOpen || props.phone)
 const placeholder = computed(() => `Search an address, or ${props.phone ? 'tap' : 'click on'} the map`)
 const fallback = computed(() => (props.phone ? 'tap the map' : 'click on the map'))
-const centreText = computed(() => (area.centre ? area.centreLabel || formatCoords(area.centre) : ''))
+const centreText = computed(() => (area.centre ? area.centreName : ''))
 const summary = computed(() => (area.centre ? `${centreText.value} · ${area.radius} m` : 'Choose an area'))
 /** 100, 200 and 500 m (config.radius.presets), plus the current radius when the mouse set another one. */
 const radii = computed(() => [...new Set([...config.radius.presets, area.radius])].sort((a, b) => a - b)
@@ -70,6 +70,7 @@ function change() {
                    @pick="onPick" @focus="area.armField('centre')" @blur="area.disarmField('centre')"
                    @open="emit('menu', $event)" @enter="area.analyse(true)" />
     </div>
+    <p v-if="area.centre" class="coords" data-testid="coords">{{ formatCoords(area.centre) }}</p>
     <p class="field-label">Radius</p>
     <ChoiceButtons label="Radius" :options="radii" :value="area.radius" @choose="area.setRadius" />
     <template #action>
@@ -82,6 +83,7 @@ function change() {
 <style scoped>
 .field-label { margin: var(--space-3) 0 var(--space-1); font-size: var(--fs-sm); color: var(--text-2); }
 .field-label:first-child { margin-top: 0; }
+.coords { margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--text-muted); }
 .field {
   position: relative; display: flex; align-items: center;
   min-height: var(--touch-phone); padding: 0 var(--space-1) 0 var(--space-3);

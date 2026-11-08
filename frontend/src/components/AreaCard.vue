@@ -6,7 +6,6 @@
 // 1200 px), the card carries the area inputs (one row with Change; open on a phone), the layer choice
 // and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
 import { computed, onMounted, ref } from 'vue'
-import { formatCoords } from '../lib/geo.js'
 import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
 import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
@@ -75,7 +74,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
            :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
     <div v-if="phone" class="grip" aria-hidden="true" />
     <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">{{ choosing ? 'Choose an area' : 'This area' }}</h2>
-    <p v-if="!controls && area.step === 'analysed'" class="meta">{{ formatCoords(area.analysed) }} · {{ area.analysed.radius }} m radius</p>
+    <p v-if="!controls && area.step === 'analysed'" class="meta"><span lang="de">{{ area.centreName }}</span> · {{ area.analysed.radius }} m radius</p>
     <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :phone="phone" :get-centre="getCentre"
                 @pan="emit('pick', $event)" />
 

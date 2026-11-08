@@ -23,7 +23,7 @@ const bodyId = useId()
 <template>
   <section class="inputs" data-testid="inputs">
     <div class="row">
-      <button type="button" class="summary" :aria-expanded="expanded" :aria-controls="bodyId" @click="emit('toggle')">
+      <button type="button" class="summary" :aria-label="summary" :aria-expanded="expanded" :aria-controls="bodyId" @click="emit('toggle')">
         <AppIcon :name="icon" class="lead" />
         <span class="text" lang="de" :title="summary">{{ summary }}</span>
         <AppIcon name="chevronDown" class="chevron" :class="{ open: expanded }" />

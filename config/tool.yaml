@@ -152,6 +152,13 @@ api:
     limit: 5
     timeout_s: 5
     rate_per_minute: 30        # per IP, keeps us within Photon's fair use
+    # Naming a point clicked on the map (reverse geocoding, also Photon).
+    reverse_url: https://photon.komoot.io/reverse
+    reverse_radius_km: 0.1     # a street further than this does not name the point
+    reverse_limit: 20          # things inside a park come first, so ask for enough to reach the park itself
+    reverse_min_interval_s: 1  # at most one call per second from this server (fair use)
+    reverse_cache_size: 1000   # points kept, in memory only
+    reverse_rate_per_minute: 30  # per IP
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
     workers: 8                   # segments looked up in parallel (metadata calls are free)

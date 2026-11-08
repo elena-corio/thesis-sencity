@@ -3,7 +3,7 @@
 How the tool is built **now**:
 - **Backend:** fetching street photo candidates for one circle.
 - **Frontend:** the map start screen, address search and the two-click area selection.
-- **API:** `POST /api/search` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
+- **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 
@@ -29,7 +29,7 @@ flowchart LR
   APP["Browser: SenCity app (frontend/)"] -- "tile requests (map view)" --> OFM["OpenFreeMap tiles"]
   APP -- "font request" --> GF["Google Fonts (Inter)"]
   APP -- "search text ⚠ may be personal (an own address) + map centre, in the POST body" --> API["SenCity API (FastAPI)"]
-  API -- "search text + map centre (from the API's address, not the user's)" --> PH["Photon (komoot)"]
+  API -- "search text + map centre, or a rounded clicked point (from the API's address, not the user's)" --> PH["Photon (komoot)"]
   PH -- "places: name, address parts, point, extent" --> API
   API -- "up to 5 places" --> APP
   APP -- "circle: lat, lon, radius (POST body)" --> API
@@ -72,8 +72,8 @@ flowchart LR
 | `backend/tool/infrared.py` | Infrared.city run for one circle and window: job count check, nearest station, buildings, trees, ground, UTCI grid (billed) |
 | `backend/tool/thermal.py` | Pure: `thermal_state` (the app's band rule, for the routes), grid cell centres, the percentile of the cells along each segment |
 | `backend/tool/geo.py`, `config.py` | Local metric projection, circle, bearings; config and `.env` loading |
-| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/area`, `/api/routes`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
-| `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent) |
+| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/reverse`, `/api/area`, `/api/routes`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
+| `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent); the name of a clicked point (spaced calls, in-memory cache) |
 | `backend/app/steps.py` | The finished steps of a load that did not complete (Overpass answer, photos per segment), read back by the next try for the same key |
 | `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
 | `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
@@ -101,7 +101,7 @@ flowchart LR
 | `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}`; loading the area (progress, cancel, errors), its segments, the Places filter (`placeFilter`, `visibleSegments`); the markers (`suggestions` on the Thermal layer, `chatMarkers` hook with `showChatResults` / `clearChatResults`, `markersCollapsed` (hidden after selecting an unmarked place), `seenIds`); the selected segment (and `cameFrom`, the street a nearby link was followed from; `goNearby`, `goBack`); thermal comfort (state, window, station) and the layer on the map |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |
 | `src/components/TopSearch.vue` | Logo + search (`PlaceSearch`); picking moves the map |
-| `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `loadArea` and `loadRoutes` (read the streamed events), `photoUrl`; error type, place-type labels |
+| `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `pointName`, `loadArea` and `loadRoutes` (read the streamed events), `photoUrl`; error type, place-type labels |
 | `src/components/ViewTabs.vue`, `TopActions.vue` | Area / Routes / Profile (bottom tab bar on a phone); About, Print, light/dark (one click), Ask, account |
 | `src/components/AccountMenu.vue`, `AppearanceSwitch.vue` | Account menu (board P5) with the System / Light / Dark switch |
 | `src/components/LayerPanel.vue`, `MapControls.vue`, `MapAttribution.vue` | Left panel, controls first and the legend last: the area inputs (`AreaInputs`), Layer, Season and time (not for Senses), Places buttons (All / Streets / Parks / Squares filter the map and the suggestions once the area is loaded), then the legend of the chosen layer (`LayerLegend`); zoom and re-centre; credits |
@@ -140,6 +140,8 @@ flowchart LR
 
 **Search** (`POST /api/search`): request `{ q: string (3–100 characters), lat: number | null, lon: number | null }` (the map centre ranks nearby places first). Response `{ results: [{ name: string, detail: string, lat: number, lon: number, kind: string, bbox?: [[west, south], [east, north]] }] }`, up to 5. Errors: 422 (too long), 429 (rate limit), 502 (Photon unavailable).
 
+**Reverse** (`POST /api/reverse`): request `{ lat: number, lon: number }`. Response `{ name: string | null }`. Errors: 429 (rate limit), 502 (Photon unavailable).
+
 **Area** (`POST /api/area`, request `{ lat: number, lon: number, radius: number (50–500), season?: "spring" | "summer" | "autumn" | "winter", time?: "HH:00" }`, default summer 15:00): newline-separated JSON events. `{type: "segments", features, total}` gives all segments with `photos: null` (still looking). Then one `{type: "segment", feature, done, total}` per segment with its photos. Then `{type: "done", area: FeatureCollection, cached?: true}`, or `{type: "error", message}` (the stream ends). A cached area starts with "done". After "done": `{type: "stage", stage: "thermal"}`, then `{type: "thermal", season, time, station: {name, distance_km}, values: {segment id: °C | null}}` or `{type: "thermal_error", message}`.
 
 **Street segment, app** (a feature of that FeatureCollection; `id` is also the feature id): geometry LineString (street) or Polygon (park, square, pedestrian area), WGS84. Properties: `id` str · `name` str (OSM name, or the way type if unnamed) · `named` bool · `place_type` "street" | "pedestrian" | "park" | "square" · `way_type` str (OSM highway or area tag) · `length_m` float (streets) or `area_m2` float (areas) · `photos` null | [{ `pano_id` str, `lat`, `lon` float, `heading` float (°), `date` "YYYY-MM", `contributor` bool }] (0–3, best first).
@@ -174,7 +176,7 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Infrared.city API (api.infrared.city) | Thermal comfort (UTCI) for one circle and window: weather station lookup, public buildings, trees and ground materials, the simulation (billed, 10 tokens per 512 m tile) | Infrared.city | API usage per key; it receives the circle and the window from our API, nothing about the person |
-| Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre from our API, never the user's IP |
+| Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre, or a clicked point rounded to about 10 m, from our API, never the user's IP |
 
 ## Configuration
 

@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
-import { ApiError, loadArea } from '../lib/api.js'
-import { haversine, limitRadius } from '../lib/geo.js'
+import { ApiError, loadArea, pointName } from '../lib/api.js'
+import { POINT_LABEL, haversine, limitRadius } from '../lib/geo.js'
 import { placeGroup } from '../lib/place.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
@@ -21,8 +21,14 @@ export const useAreaStore = defineStore('area', () => {
   const analysed = ref(null)
   /** True when the last step was done with the keyboard, so focus can follow. */
   const byKeyboard = ref(false)
-  /** The centre's name when it was typed (an address or a place); '' when it was clicked. */
+  /** The centre's name: typed, or found for a clicked point; '' until that is known, or if there is none. */
   const centreLabel = ref('')
+  const centreName = computed(() => centreLabel.value || POINT_LABEL)
+  /** Name a clicked centre. The answer is dropped if the centre has moved meanwhile. */
+  async function nameCentre(point) {
+    const name = await pointName(point)
+    if (name && centre.value?.lat === point.lat && centre.value?.lon === point.lon) centreLabel.value = name
+  }
   /** The input section (centre and radius) is open: from the hint's "type an address", or by the user. */
   const inputsOpen = ref(false)
   /** A focused input field ('centre'): the next map click fills it (see takeField). */
@@ -389,6 +395,7 @@ export const useAreaStore = defineStore('area', () => {
     capped.value = false
     byKeyboard.value = keyboard
     step.value = 'set'
+    if (!label) nameCentre(point)
   }
   /** The radius from the Radius choice. While the mouse is sizing the circle, it fixes it. */
   function setRadius(r) {
@@ -405,6 +412,7 @@ export const useAreaStore = defineStore('area', () => {
     capped.value = false
     byKeyboard.value = keyboard
     step.value = 'radius'
+    nameCentre(point)
   }
 
   /** Radius from a point on the map: ground distance, rounded, snapped and capped. */
@@ -455,7 +463,7 @@ export const useAreaStore = defineStore('area', () => {
 
   return {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
-    centreLabel, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
+    centreLabel, centreName, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
     busy,

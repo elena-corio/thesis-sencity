@@ -6,6 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
 import { isAreaPlace } from '../lib/api.js'
+import { formatCoords } from '../lib/geo.js'
 import { formatKm, formatLength } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AnalyseAction from './AnalyseAction.vue'
@@ -66,6 +67,7 @@ function change() {
                    @pick="onPick('start', $event)" @clear="routes.clearPoint('start')" @open="emit('menu', $event)"
                    @focus="routes.armField('start')" @blur="routes.disarmField('start')" />
     </div>
+    <p v-if="routes.start" class="coords" data-testid="coords">{{ formatCoords(routes.start) }}</p>
     <p class="field-label">End</p>
     <div class="field">
       <PlaceSearch :field-id="id('end')" label="End" :placeholder="placeholder"
@@ -73,6 +75,7 @@ function change() {
                    @pick="onPick('end', $event)" @clear="routes.clearPoint('end')" @open="emit('menu', $event)"
                    @focus="routes.armField('end')" @blur="routes.disarmField('end')" @enter="routes.analyse(true)" />
     </div>
+    <p v-if="routes.end" class="coords" data-testid="coords">{{ formatCoords(routes.end) }}</p>
     <div class="under">
       <!-- Phone: the sheet covers the hint, so the reason shows here (desktop: in the hint). -->
       <p v-if="phone && routes.pointError" class="error" role="alert">{{ routes.pointError }}</p>
@@ -90,6 +93,7 @@ function change() {
 <style scoped>
 .field-label { margin: var(--space-3) 0 var(--space-1); font-size: var(--fs-sm); color: var(--text-2); }
 .field-label:first-child { margin-top: 0; }
+.coords { margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--text-muted); }
 .field {
   position: relative; display: flex; align-items: center;
   min-height: var(--touch-phone); padding: 0 var(--space-1) 0 var(--space-3);

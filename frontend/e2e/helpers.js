@@ -1,7 +1,11 @@
 import { expect } from '@playwright/test'
 
+/** No place names unless a test sets its own: a clicked point reads "Point on map". */
+const noPlaceNames = (page) => page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+
 /** Open /area in a theme and wait until the map has drawn once. */
 export async function openMap(page, theme) {
+  await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)
@@ -180,6 +184,7 @@ export async function openSegment(page, id) {
 // Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
 // mixed), three on B (easy, mixed, easy), built around the points the app sends.
 export async function openRoutes(page, theme) {
+  await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)
