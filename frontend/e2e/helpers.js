@@ -1,7 +1,11 @@
 import { expect } from '@playwright/test'
 
+/** No place names unless a test sets its own: a clicked point reads "Point on map". */
+const noPlaceNames = (page) => page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+
 /** Open /area in a theme and wait until the map has drawn once. */
 export async function openMap(page, theme) {
+  await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)
@@ -59,8 +63,11 @@ export async function layoutProblems(page) {
     if (de.scrollHeight > innerHeight + 1 || de.scrollWidth > innerWidth + 1) {
       problems.push(`page scrolls: ${de.scrollWidth}×${de.scrollHeight} in ${innerWidth}×${innerHeight}`)
     }
+    // Cards inside the phone sheet scroll inside it; the sheet itself is checked.
+    const sheet = document.querySelector('[data-panel="sheet"]')
     const panels = [...document.querySelectorAll('[data-panel]')]
       .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden')
+      .filter((el) => el === sheet || el.dataset.panel === 'legend' || !sheet?.contains(el))
     const rects = panels.map((el) => ({ name: el.dataset.panel, r: el.getBoundingClientRect(), el }))
     for (const { name, r, el } of rects) {
       if (r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) {
@@ -180,6 +187,7 @@ export async function openSegment(page, id) {
 // Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
 // mixed), three on B (easy, mixed, easy), built around the points the app sends.
 export async function openRoutes(page, theme) {
+  await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)

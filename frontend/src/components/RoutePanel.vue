@@ -1,15 +1,17 @@
 <script setup>
 // Routes left panel (boards Routes 1–4; desktop and tablet; on a phone the sheet has the same). The walk
-// inputs (one row, opened to type), then Layer, season and time, and the legend last (after a divider,
-// once the routes are ready). Only Thermal exists until rating is built.
+// inputs and Analyse, then Layer, season and time, and the legend last, after a divider. Only Thermal
+// exists until rating is built.
 import { computed, ref } from 'vue'
 import { useRoutesStore } from '../stores/routes.js'
+import LayerLegend from './LayerLegend.vue'
 import RouteInputs from './RouteInputs.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
-import ThermalLegend from './ThermalLegend.vue'
 
 defineProps({
+  /** The Settings tab of the phone sheet: no panel of its own, and the legend floats on the map instead. */
+  phone: Boolean,
   getCentre: { type: Function, default: () => null },
 })
 const emit = defineEmits(['pick'])
@@ -18,13 +20,12 @@ const menuOpen = ref(false)
 /** Feels-like values of the streets along the routes, for the season and time shown. */
 const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
 const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
-const active = computed(() => routes.hasResult)
 </script>
 
 <template>
-  <aside class="panel left" :class="{ 'menu-open': menuOpen }" data-panel="layers" data-scrollable
-         aria-label="Start, end and colours">
-    <RouteInputs :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
+  <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
+         data-scrollable aria-label="Start, end and colours">
+    <RouteInputs :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
 
     <section class="colours">
       <h2 class="section-title">Layer</h2>
@@ -32,9 +33,8 @@ const active = computed(() => routes.hasResult)
       <!-- Season and time matter for Thermal and Overall, not for Senses. -->
       <SeasonTime v-if="routes.layer !== 'senses'" :store="routes" />
     </section>
-    <!-- The legend only once the routes are ready (the source is in its tooltip). -->
-    <section v-if="active" class="legend-section" aria-label="Legend">
-      <ThermalLegend :values="thermalValues" :extra="NO_VALUE" />
+    <section v-if="routes.hasResult && !phone" class="legend-section" aria-label="Legend">
+      <LayerLegend :layer="routes.layer" :values="thermalValues" :extra="NO_VALUE" />
     </section>
   </aside>
 </template>

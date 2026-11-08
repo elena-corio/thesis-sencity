@@ -9,7 +9,8 @@
   --fw-medium: 500;
   --fw-semibold: 600;
   --fw-bold: 700;
-  --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed (§3) */
+  --fs-2xs: 0.75rem;    /* 12 px, only on the thin choice buttons */
+  --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed elsewhere (§3) */
   --fs-sm: 0.875rem;    /* 14 px, section titles */
   --fs-md: 1rem;
   --fs-lg: 1.25rem;     /* card titles */
@@ -26,6 +27,9 @@
   --gap: 12px;                  /* between floating panels */
   --topbar-h: 52px;
   --tabbar-h: 64px;
+  --sheet-min: 76px;            /* phone sheet, minimised (board P1c) */
+  --sheet-open: 44dvh;          /* open, always this height (with the tab bar, half the screen); long content scrolls */
+  --sheet-above: 120px;         /* the legend strip and credits over the sheet's top edge */
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */
@@ -33,7 +37,8 @@
   --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
   --tabs-half: 140px;           /* half the width of the Area / Routes / Profile tabs */
   --attribution-h: 1.25rem;     /* one line of map credits; grows with the system font size */
-  --chip-h: 34px;               /* place-type chips */
+  --chip-h: 34px;               /* small buttons in a card */
+  --choice-thin-h: 30px;        /* thin choice buttons: Places, Radius, Season */
   --swatch-h: 5px;              /* legend swatches */
   --hairline: 1px;
   --touch: 40px;                /* minimum target (§9) */
@@ -100,8 +105,6 @@
   --route-pin-w: 28px;             /* the End pin */
   --route-pin-h: 38px;
   --route-start-size: 22px;        /* the Start ring */
-  --route-mark: 14px;              /* the same marks beside the phone's fields and in the preview */
-  --route-point-label: 72px;       /* "Start" and "End" in the preview */
   --route-sample-w: 24px;          /* line sample in the route buttons */
 
   /* State bars (brief §3: all share one style) */
@@ -157,6 +160,22 @@
   --no-photo: #2b4a52;
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   --backdrop: rgba(9, 18, 22, 0.55);
+
+  /* The base map in dark colours (map/base.js); light mode sets none of these */
+  --map-base-ground: #1d2022;
+  --map-base-water: #14191d;
+  --map-base-park: #252b27;
+  --map-base-building: #2b2f32;
+  --map-base-building-edge: #3a3f43;
+  --map-base-path: #383d41;
+  --map-base-road: #4b5156;
+  --map-base-road-major: #5d6469;
+  --map-base-road-casing: #3a3f43;
+  --map-base-rail: #4b5156;
+  --map-base-name: #c3c9cc;
+  --map-base-name-halo: #14171a;
+  --map-base-place: #d6dbdd;
+  --map-base-water-name: #9db4c8;
 
   /* Map overlay (§2): teal tint, dimmed outside, lit inside, circle */
   --map-tint: #0d2a32;

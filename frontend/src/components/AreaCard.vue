@@ -1,13 +1,10 @@
 <script setup>
-// "This area" (boards Flow 1c, Flow 4): before analysis, with Analyse; once the area has loaded, the
-// street stretches of the selected layer as one stacked bar with counts
-// and %, places by type and Print area report (not built yet). Only Thermal exists so far, so "Why
-// hard" waits for Senses. A bottom sheet on a phone. When the left panel gives way (phone and below
-// 1200 px), the card carries the area inputs (one row with Change; open on a phone), the layer choice
-// and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import config from '../config.js'
-import { estimatePhotos, formatCoords } from '../lib/geo.js'
+// "This area" (board Flow 4), once the area is analysed: the street stretches of the selected layer as one
+// stacked bar with counts and %, places by type and Print area report (not built yet). Only Thermal exists
+// so far, so "Why hard" waits for Senses. On a phone it is in the Results tab of the sheet. When the left
+// panel gives way (below 1200 px), the card carries the area inputs (one row with Change), the layer
+// choice and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
+import { computed, onMounted, ref } from 'vue'
 import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
 import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
@@ -25,15 +22,10 @@ const props = defineProps({
 })
 /** Season and time matter for Thermal and Overall (and before analysis), not for Senses. */
 const showWindow = computed(() => props.controls && area.layer !== 'senses')
-const emit = defineEmits(['pick'])
+const emit = defineEmits(['pick', 'recentre'])
 const area = useAreaStore()
-const analyseBtn = ref(null)
 const titleEl = ref(null)
-/** Phone: "type an address" opened the inputs before a centre is set: the sheet shows only them. */
-const choosing = computed(() => area.step !== 'set' && area.step !== 'analysed')
 
-const place = computed(() => (area.step === 'analysed' ? area.analysed : { ...area.centre, radius: area.radius }))
-const photos = computed(() => estimatePhotos(area.radius, config.photosPerKm2))
 const ROWS = [
   { id: 'easy', label: 'Easy', color: 'var(--easy)' },
   { id: 'mixed', label: 'Mixed', color: 'var(--mixed)' },
@@ -70,48 +62,28 @@ const markerRows = computed(() => area.markers.map((m) => {
     level: LEVEL_LABEL[m.level], seen: area.seenIds.has(p.id) }
 }))
 
-// Keyboard: after Enter fixes the radius, focus goes to Analyse; after Analyse, to the card's title.
-watch(() => area.step, async (step) => {
-  if (!area.byKeyboard) return
-  await nextTick()
-  if (step === 'set') analyseBtn.value?.focus()
-  if (step === 'analysed') titleEl.value?.focus()
-})
-// Back from a loading or place card with the keyboard: focus the card's title.
+// After loading, or back from a place card, with the keyboard: focus the card's title.
 onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value?.focus() })
 </script>
 
 <template>
-  <section v-if="!choosing || (controls && area.inputsOpen)" class="card panel"
-           :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
-    <div v-if="phone" class="grip" aria-hidden="true" />
-    <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">{{ choosing ? 'Choose an area' : 'This area' }}</h2>
-    <p v-if="!controls && !choosing" class="meta">{{ formatCoords(place) }} · {{ place.radius }} m radius</p>
-    <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :phone="phone" :get-centre="getCentre"
-                @pan="emit('pick', $event)" />
+  <section class="card panel" :class="{ sheet: phone }" data-panel="area-card" data-scrollable aria-labelledby="area-title">
+    <div class="title-row">
+      <h2 id="area-title" ref="titleEl" class="title" tabindex="-1">This area</h2>
+      <button v-if="phone" type="button" class="icon-btn" aria-label="Re-centre the map" @click="emit('recentre')">
+        <AppIcon name="locate" />
+      </button>
+    </div>
+    <p v-if="!controls && area.step === 'analysed'" class="meta"><span lang="de">{{ area.centreName }}</span> · {{ area.analysed.radius }} m radius</p>
+    <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :get-centre="getCentre" @pan="emit('pick', $event)" />
 
-    <template v-if="area.step === 'set'">
-      <p v-if="phone" class="meta">Drag the edge of the circle to adjust.</p>
-      <ul class="facts">
-        <li><AppIcon name="image" /> About {{ photos }} street photos</li>
-        <li><AppIcon name="thermometer" /> Thermal for {{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</li>
-        <li><AppIcon name="clock" /> Ready in about a minute</li>
-      </ul>
-      <SeasonTime v-if="showWindow" :store="area" />
-      <div class="buttons">
-        <button ref="analyseBtn" type="button" class="btn btn-primary grow" @click="area.analyse($event.detail === 0)">
-          Analyse this area
-        </button>
-      </div>
-    </template>
-
-    <template v-else-if="area.step === 'analysed'">
+    <template v-if="area.step === 'analysed'">
       <div v-if="controls" class="controls">
         <LayerButtons />
         <SeasonTime v-if="showWindow" :store="area" />
       </div>
 
-      <template v-if="area.thermal === 'ready'">
+      <template v-if="area.mapLayer === 'thermal' && area.thermal === 'ready'">
         <div class="stack-head">
           <span>Thermal · {{ area.counts.all }} street stretches</span>
           <span class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
@@ -165,7 +137,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
       </template>
 
       <p class="foot">
-        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.thermal === 'ready' ? 'why' : 'its photos' }}.
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
         Predictions, not reasons.
       </p>
       <div class="buttons">
@@ -222,21 +194,12 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 .state-text.hard { color: var(--hard-text); }
 .thermal-error { margin: var(--space-4) 0 0; font-size: var(--fs-sm); }
 .foot { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
-.facts { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2); }
-.facts li { display: flex; align-items: center; gap: var(--space-3); color: var(--text); }
-.facts :deep(.icon) { color: var(--text-2); }
 .buttons { display: flex; gap: var(--space-3); margin-top: var(--space-4); flex-wrap: wrap; }
 .buttons .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
-.grow { flex: 1; }
 
-.sheet {
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
-  border-bottom: 0;
-  padding: var(--space-2) var(--space-4) var(--space-4);
-}
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* Inside the phone sheet, which is the panel and does the scrolling. */
+.card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .btn { min-height: var(--touch-phone); }
-.grip {
-  width: var(--space-5); height: var(--space-1); margin: 0 auto var(--space-3);
-  border-radius: var(--radius-pill); background: var(--line);
-}
+.sheet .icon-btn { width: var(--touch-phone); height: var(--touch-phone); }
 </style>

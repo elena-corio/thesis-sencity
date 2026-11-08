@@ -36,29 +36,86 @@ test.describe('desktop', () => {
     await page.getByRole('option', { name: /Linz/ }).click()
     await expect.poll(async () => (await mapCentre(page)).lng).not.toBeCloseTo(before.lng, 1)
     await expect(page.getByText('Click to place the centre of your area,')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Analyse this area' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeDisabled()
 
     // An address or a named place sets the centre, with the radius chosen (200 m by default).
     await centre.fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).click()
-    await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeEnabled()
     await expect(inputs(page)).toContainText('Graben · 200 m')
-    await inputs(page).getByRole('button', { name: '500 m' }).click()
+    await inputs(page).getByRole('radio', { name: '500 m' }).click()
     await expect(inputs(page)).toContainText('Graben · 500 m')
-    await expect(page.getByText('500 m radius')).toBeVisible()
+    // The estimate follows the current values.
+    await expect(inputs(page)).toContainText('About 1460 street photos, thermal for summer, 15:00. Ready in about a minute.')
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/inputs-dark-area-typed.png' })
 
-    // The area card has no Change area or Start again of its own.
+    // Before analysis the right side is empty, and Start again is gone (Change does the same).
     const card = page.locator('[data-panel="area-card"]')
-    await expect(card.getByRole('button', { name: /Change area|Start again/ })).toHaveCount(0)
+    await expect(card).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Start again' })).toHaveCount(0)
 
     // Change clears the centre and radius at once and goes back to clicking, with the first hint.
     await page.getByRole('button', { name: 'Change area: clear the centre and radius' }).click()
     await expect(page.getByText('Click to place the centre of your area,')).toBeVisible()
     await expect(inputs(page)).toHaveCount(0)
     await expect(card).toHaveCount(0)
+  })
+
+  test('area: Enter in Centre picks the suggestion, then starts the analysis', async ({ page }) => {
+    await mockArea(page, { hold: true })
+    await mockSearch(page)
+    await openMap(page, 'dark')
+    await page.getByRole('button', { name: 'type an address' }).click()
+    const centre = page.getByRole('combobox', { name: 'Centre' })
+    await centre.press('Enter') // nothing set: nothing happens
+    await expect(page.locator('[data-panel="loading-card"]')).toHaveCount(0)
+    await centre.fill('Graben')
+    await expect(page.getByRole('option', { name: /Graben/ })).toBeVisible()
+    await centre.press('Enter') // picks the suggestion
+    await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeEnabled()
+    await expect(page.locator('[data-panel="loading-card"]')).toHaveCount(0)
+    await centre.press('Enter') // starts
+    await expect(page.locator('[data-panel="loading-card"]')).toContainText('Loading this area')
+  })
+
+  test('area: a clicked point shows its street name, and the coordinates only under the open field', async ({ page }) => {
+    await mockArea(page)
+    await openMap(page, 'dark')
+    const asked = []
+    await page.route('**/api/reverse', (route) => {
+      asked.push(route.request().postDataJSON())
+      return route.fulfill({ json: { name: 'Mariahilfer Straße' } })
+    })
+    const p = points(page.viewportSize())
+    await placeCentre(page, p)
+    await page.mouse.click(p.edge.x, p.edge.y)
+    const row = inputs(page).getByRole('button', { name: /^Mariahilfer Straße · \d+ m$/ })
+    await expect(row).toBeVisible()
+    await expect(row.locator('.text')).toHaveAttribute('title', /^Mariahilfer Straße · \d+ m$/)
+    expect(Object.keys(asked[0]).sort()).toEqual(['lat', 'lon']) // only the point
+    const coords = inputs(page).getByTestId('coords')
+    await expect(coords).toBeHidden()
+    await row.click()
+    await expect(coords).toBeVisible()
+    await expect(coords).toHaveText(/^\d+\.\d+° N, \d+\.\d+° E$/)
+    await expect(page.getByRole('combobox', { name: 'Centre' })).toHaveValue('Mariahilfer Straße')
+  })
+
+  test('routes: the row reads start → end; a failed lookup stays "Point on map"', async ({ page }) => {
+    await mockRoutes(page)
+    await openRoutes(page, 'dark')
+    let n = 0
+    await page.route('**/api/reverse', (route) => (n++ === 0
+      ? route.fulfill({ json: { name: 'Stephansplatz' } })
+      : route.fulfill({ status: 502, json: { detail: 'Place names are not available right now.' } })))
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await expect(inputs(page)).toContainText('Stephansplatz → …')
+    await page.mouse.click(b.x, b.y)
+    await expect(page.getByRole('button', { name: 'Analyse the routes' })).toBeEnabled()
+    await expect(inputs(page)).toContainText('Stephansplatz → Point on map')
   })
 
   test('area: after clicking on the map the inputs are one closed row that opens', async ({ page }) => {
@@ -68,17 +125,26 @@ test.describe('desktop', () => {
     await placeCentre(page, p)
     await page.mouse.click(p.edge.x, p.edge.y)
     await expect(page.getByText('Area set.')).toBeVisible()
-    const row = inputs(page).getByRole('button', { name: /° N, .* · \d+ m$/ })
+    const row = inputs(page).getByRole('button', { name: /^Point on map · \d+ m$/ })
     await expect(row).toHaveAttribute('aria-expanded', 'false')
+    // One line, however long the value (board G3); the whole value stays readable in the tooltip.
+    const text = row.locator('.text')
+    await expect(text).toHaveAttribute('title', /^Point on map · \d+ m$/)
+    const { height, line } = await text.evaluate((el) => {
+      const r = document.createRange()
+      r.selectNodeContents(el)
+      return { height: r.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 24 }
+    })
+    expect(height).toBeLessThan(line * 1.5)
     await expect(page.getByRole('combobox', { name: 'Centre' })).toBeHidden()
     await row.click()
     await expect(row).toHaveAttribute('aria-expanded', 'true')
     await expect(page.getByRole('combobox', { name: 'Centre' })).toBeVisible()
     // The radius set by the mouse is offered next to 100, 200 and 500 m, and chosen.
-    const radii = inputs(page).getByRole('group', { name: 'Radius' }).getByRole('button')
+    const radii = inputs(page).getByRole('radiogroup', { name: 'Radius' }).getByRole('radio')
     await expect(radii).toHaveCount(4)
     await expect(radii.first()).toHaveText('100 m')
-    await expect(radii.filter({ has: page.locator('[aria-pressed="true"]') }).or(inputs(page).locator('[aria-pressed="true"]'))).toHaveCount(1)
+    await expect(inputs(page).locator('[aria-checked="true"]')).toHaveCount(1)
   })
 
   test('routes: no step card or extra sentence while choosing; a focused field takes the next click', async ({ page }) => {
@@ -90,12 +156,13 @@ test.describe('desktop', () => {
     const { a, b } = routeClicks(page.viewportSize())
     await page.mouse.click(a.x, a.y)
     await expect(page.getByText('Now click where you want to go,')).toBeVisible()
-    await expect(inputs(page)).toContainText(/\d+\.\d+° N, \d+\.\d+° E → …/)
+    await expect(inputs(page)).toContainText('Point on map → …')
     await page.mouse.click(b.x, b.y)
-    await expect(page.locator('[data-panel="route-card"]')).toContainText('This walk')
+    await expect(page.getByRole('button', { name: 'Analyse the routes' })).toBeEnabled()
+    await expect(page.locator('[data-panel="route-card"]')).toHaveCount(0)
 
     // Open the row, focus Start: the next map click moves the start, not a new point.
-    await inputs(page).getByRole('button', { name: /^\d+\.\d+° N, \d+\.\d+° E → \d+\.\d+° N, \d+\.\d+° E$/ }).click()
+    await inputs(page).getByRole('button', { name: 'Point on map → Point on map' }).click()
     const startPin = page.getByTestId('route-start')
     const was = await startPin.boundingBox()
     await page.getByRole('combobox', { name: 'Start' }).focus()
@@ -118,8 +185,9 @@ test.describe('phone', () => {
     await mockSearch(page)
     await openMap(page, 'light')
     await page.getByRole('button', { name: 'type an address' }).tap()
-    const sheet = page.locator('[data-panel="area-card"]')
-    await expect(sheet).toContainText('Choose an area')
+    const sheet = page.locator('[data-panel="sheet"]')
+    await expect(sheet.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true')
+    await expect(sheet.getByTestId('inputs')).toContainText('Choose an area')
     await expect(sheet.getByRole('combobox', { name: 'Centre' })).toBeFocused()
     await sheet.getByRole('combobox', { name: 'Centre' }).fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).tap()
@@ -146,18 +214,18 @@ test.describe('phone', () => {
     await expect(page.getByRole('combobox', { name: 'Search a street or place' })).toBeVisible()
     await expect(page.locator('#route-start-phone-input')).toHaveCount(0)
     await page.getByRole('button', { name: 'type an address' }).tap()
-    const sheet = page.locator('[data-panel="route-card"]')
-    await expect(sheet).toContainText('Choose a walk')
+    const sheet = page.locator('[data-panel="sheet"]')
+    await expect(sheet.getByTestId('inputs')).toContainText('Choose a walk')
     const start = sheet.getByRole('combobox', { name: 'Start' })
     await expect(start).toBeFocused()
     await start.fill('Graben')
     await page.getByRole('option', { name: /Graben/ }).tap()
     await expect(sheet.getByTestId('inputs')).toContainText('Graben → …')
-    // The end by tapping the map: the sheet becomes "This walk", with the inputs row and Change on top.
+    // The end by tapping the map, above the sheet: the row shows both points, with Change next to it.
     const { b } = routeClicks(page.viewportSize(), true)
-    await page.mouse.click(b.x, 120 + b.y / 2)
-    await expect(sheet).toContainText('This walk')
-    await expect(sheet.getByTestId('inputs')).toContainText(/Graben → \d+\.\d+° N, \d+\.\d+° E/)
+    await page.mouse.click(b.x, 230)
+    await expect(sheet.getByRole('button', { name: 'Analyse the routes' })).toBeEnabled()
+    await expect(sheet.getByTestId('inputs')).toContainText('Graben → Point on map')
     await expect(sheet.getByRole('button', { name: 'Change walk: clear the start and end' })).toBeVisible()
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])

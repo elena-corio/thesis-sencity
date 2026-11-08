@@ -16,12 +16,21 @@ export default {
 
   mapStyles: {
     light: 'https://tiles.openfreemap.org/styles/positron',
-    dark: 'https://tiles.openfreemap.org/styles/dark',
+    dark: 'https://tiles.openfreemap.org/styles/positron', // the same map, in dark colours: see map/base.js
   },
 
   // "About N street photos" before loading: a cheap estimate, no API calls.
   // Kept photos per km² from the Stephansplatz 200 m run (234 photos in 0.126 km²).
   photosPerKm2: 1860,
+
+  // Whether a layer needs the billed thermal run. Photos always load; the Thermal layer skips ratings.
+  layers: {
+    senses: { thermal: false },
+    thermal: { thermal: true },
+    overall: { thermal: true },
+  },
+  // The layer Area opens on.
+  layerDefault: 'thermal',
 
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },
@@ -49,6 +58,11 @@ export default {
   seasons: ['spring', 'summer', 'autumn', 'winter'],
   // Hours on the time slider (whole hours, local standard time of the weather file).
   thermalHours: { min: 9, max: 21 },
+
+  // Phone sheet: when the map re-fits after a change of height (just after the transition), and dragging:
+  // startPx before it counts as a drag, minPx to open or minimise.
+  sheetSettleMs: 220,
+  sheetDrag: { startPx: 6, minPx: 40 },
 
   // Routes (brief §3): the limits of the API (config/tool.yaml, routes), checked here before asking.
   routes: {

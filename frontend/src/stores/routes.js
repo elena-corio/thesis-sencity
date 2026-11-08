@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
-import { loadRoutes } from '../lib/api.js'
+import { loadRoutes, pointName } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
-import { formatCoords, haversine } from '../lib/geo.js'
+import { POINT_LABEL, haversine } from '../lib/geo.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 
 /**
@@ -101,7 +101,16 @@ export const useRoutesStore = defineStore('routes', () => {
     return name
   }
 
-  /** A point from the map (a click, or Enter at the map centre): shown as its coordinates. */
+  /** Name a clicked point, wherever it is by then (Swap may have moved it); dropped if it has gone. */
+  async function namePoint(point) {
+    const name = await pointName(point)
+    if (!name) return
+    for (const p of [start, end]) {
+      if (p.value?.lat === point.lat && p.value?.lon === point.lon && !p.value.named) p.value = { ...p.value, label: name }
+    }
+  }
+
+  /** A point from the map (a click, or Enter at the map centre): named once the lookup answers. */
   function pick(point, label = null, keyboard = false) {
     byKeyboard.value = keyboard
     if (!start.value) setPoint('start', point, label)
@@ -114,11 +123,11 @@ export const useRoutesStore = defineStore('routes', () => {
     load.value = 'idle'
     error.value = ''
     pointError.value = ''
-    // A clicked point has no name: show its coordinates ("48.2097° N, 16.3708° E").
-    const next = { lat: point.lat, lon: point.lon, label: label || formatCoords(point), named }
+    const next = { lat: point.lat, lon: point.lon, label: label || POINT_LABEL, named }
     if (which === 'start') start.value = next
     else end.value = next
-    if (start.value && end.value) distanceAllowed(which)
+    if (start.value && end.value && !distanceAllowed(which)) return
+    if (!label) namePoint(next)
   }
 
   /** Refuse points too close or too far before asking the API. The point just chosen is cleared. */
@@ -232,6 +241,13 @@ export const useRoutesStore = defineStore('routes', () => {
     }
   }
 
+  /** The Analyse button, or Enter in the End field: only once both points are set and nothing is asked yet. */
+  function analyse(keyboard = false) {
+    if (!previewing.value) return
+    byKeyboard.value = keyboard
+    find()
+  }
+
   /** Cancel loading. With routes on the map they stay; otherwise back to the preview, as in Area. */
   function cancel() {
     stopLoading()
@@ -288,6 +304,6 @@ export const useRoutesStore = defineStore('routes', () => {
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
-    pick, setPoint, clearPoint, swap, reset, find, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
+    pick, setPoint, clearPoint, swap, reset, find, analyse, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
   }
 })

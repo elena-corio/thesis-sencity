@@ -1,8 +1,9 @@
 <script setup>
 // Logo + search. Suggestions appear while typing (through the API, Photon); picking one moves
-// the map there. On a phone the account button sits in the same bar (board P1).
+// the map there. On a phone the logo links home, and Ask and the account button sit in the same bar (board P1).
 import { computed, ref } from 'vue'
 import AccountMenu from './AccountMenu.vue'
+import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
 import PlaceSearch from './PlaceSearch.vue'
 
@@ -25,10 +26,16 @@ const fieldId = computed(() => (props.phone ? 'search-results-phone-input' : 'se
 
 <template>
   <div class="bar panel" data-panel="search">
-    <AppLogo />
-    <span class="divider" aria-hidden="true" />
+    <RouterLink v-if="phone" to="/area" class="home" aria-label="SenCity, home"><AppLogo /></RouterLink>
+    <template v-else>
+      <AppLogo />
+      <span class="divider" aria-hidden="true" />
+    </template>
     <PlaceSearch :field-id="fieldId" label="Search a street or place" placeholder="Search a street or place"
                  with-icon :get-centre="getCentre" @pick="emit('pick', $event)" />
+    <button v-if="phone" type="button" class="btn btn-primary ask" aria-label="Ask" aria-disabled="true" title="Coming soon">
+      <AppIcon name="chat" />
+    </button>
     <div v-if="phone" class="account">
       <button ref="accountBtn" type="button" class="avatar" data-menu-button
               :aria-expanded="menuOpen" aria-haspopup="dialog" aria-label="Your account"
@@ -47,6 +54,10 @@ const fieldId = computed(() => (props.phone ? 'search-results-phone-input' : 'se
   padding: 0 var(--space-2) 0 var(--space-3);
 }
 .divider { width: var(--hairline); align-self: stretch; margin: var(--space-3) 0; background: var(--line); }
+.home { display: grid; place-items: center; flex: none; min-width: var(--touch-phone); min-height: var(--touch-phone); }
+/* 40 px to see, with the 44 px target of a phone around it. */
+.ask { position: relative; display: grid; place-items: center; flex: none; width: var(--touch); min-height: var(--touch); padding: 0; }
+.ask::after { content: ""; position: absolute; inset: calc((var(--touch) - var(--touch-phone)) / 2); }
 .account { position: relative; }
 .avatar {
   width: var(--touch-phone); height: var(--touch-phone);

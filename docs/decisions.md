@@ -2,6 +2,55 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
+**Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
+**Decision (Elena; details marked proposed).**
+- *Top bar:* logo (home), search (only moves the map), Ask (40 px, accent) and account in one row. The floating Ask is gone. Season and time are in the sheet.
+- *Sheet (`PhoneSheet`):* tabs Settings (the desktop left panel) and Results (the desktop right card), a handle and a minimise button. Minimised shows a line per tab. Analyse leads to Results, a tapped street or suggestion to its card, Change or "type an address" to the open fields; otherwise the chosen tab stays. Dragging its top changes the height.
+- *Heights (Elena):* minimised (76 px) or open at one fixed height, 44% of the screen, which with the tab bar is half of it. Long content scrolls inside. There is no taller height: opening a street made the sheet jump and stay tall. On a short screen the top bar and the legend limit it.
+- *Breakpoint (proposed):* the existing phone width, below 768 px (brief §3), not a new one at about 700.
+- *Legend:* a strip with the title and swatches, riding just above the sheet. It appears only after analysis, as on desktop (2026-11-08). On Thermal its grey reads "No value", since Thermal lights every street with a value, photo or not.
+- *Map credits (proposed):* they must stay visible, so they ride on the sheet too, above the legend.
+- *Map:* the sheet and the legend count as covered space when the map fits the circle, route or selected street, and it fits again after each change of height.
+- *Not built yet:* Ask and the Walk buttons show as on the boards, marked "Coming soon", as the chat and the walk do not exist.
+- *Touch:* every control in the sheet is at least 44 px high at phone width, including the thin buttons (the 30 px of the desktop entry applies to larger screens).
+
+## 2026-11-08 – A clicked point is named by reverse geocoding (proposed)
+**Context.** Elena: a centre, start or end set by clicking should show a name, not coordinates. This replaces "no reverse geocoding" in the 2026-11-07 entry on the inputs.
+**Decision (Elena; details marked proposed).**
+- *Name:* the nearest street or house address, by its street name without the number; else the park or square the point is inside; else "Point on map". One line with an ellipsis, the full name in the tooltip and the aria-label.
+- *Coordinates:* only small and grey under the name in the open fields. The right-hand area card shows the name too.
+- *Provider (proposed):* Photon, already used for search and needing no key, through `POST /api/reverse`, so the browser never contacts it and nothing about the person is sent: only the point, rounded to about 10 m.
+- *Which results count (proposed):* only real streets and house addresses within 100 m. Photon also gives things inside a park (a memorial in the Stadtpark) the name of a nearby street, so those are ignored and the park's name is used.
+- *Fair use:* at most one call per second from the server, a limit per IP, and answers cached in memory only (1000 points), never on disk or in a log. The label is "Point on map" until the name arrives, and stays so if the lookup fails.
+
+## 2026-11-08 – Dark mode: the light base map in dark colours (proposed)
+**Context.** Elena: the dark base map is barely readable. OpenFreeMap Dark is almost black (minor streets about 1.1:1 against the ground, buildings about 1:1, street names about 2.4:1). With its colours lifted it read better, but its street names are capitals and its squares are drawn differently from light mode. She wants exactly the light map, darker, with light names.
+**Decision (Elena; the colours proposed).** Dark mode uses Positron too. `map/base.js` recolours it after every style load, by rules on the layer names, from `--map-base-*` in `style.css` (dark theme only). Still grey, as the brief asks, apart from a faint tint on parks and water names. This replaces OpenFreeMap Dark from the map decision (brief §2).
+**Alternatives.** OpenFreeMap Dark, lifted (capitals, other squares); Positron as it is (it is the light map); Positron under a dark mask (mid-grey, not dark); Fiord (slate blue, against the grey rule); a CSS `invert` (would also invert our own layers, drawn on the same canvas).
+
+## 2026-11-08 – Left panel: final order, layer-aware loading, one kind of choice button (proposed)
+**Context.** Elena: a final order for the left panel, only what the chosen layer needs is loaded, and uniform controls (updated boards).
+**Decision (Elena; details marked proposed).**
+- *Order:* inputs row → Analyse and its line → divider → Layer → Season and time (Thermal, Overall) → Places (Area) → divider → legend with its title ("Sensory comfort", "Thermal comfort °C" with the info icon, "Overall comfort"). The legend appears only once its data is loaded, in Area and Routes, as in the 2026-11-07 entry (Elena; the boards show it earlier).
+- *Loading (Elena):* photos are never skipped, in Area or Routes. Senses skips thermal comfort (`layer` in `POST /api/area`), and Thermal skips ratings. Changing layer later loads only what is missing, after the same short wait as a season change. The line under Analyse follows the layer. The loading card lists only the steps the layer needs, so "Rating for your profile" is gone on Thermal.
+- *Default (Elena):* Area always opens on Thermal, with the thermal legend. The first idea, the layer last used, is dropped.
+- *Senses and Overall (Elena):* inactive in Area and Routes until the ratings are built. Reusing ratings by pano ID, and Senses in Routes skipping thermal, come with that step.
+- *Controls:* `ChoiceButtons`, separate bordered buttons (`role="radiogroup"`, `role="radio"`) in two weights: thick for Layer, thin for Places, Radius and Season (30 px high, 12 px text, 4 px gap; selected: lighter border, filled). 12 px is the one exception to the 13 px minimum in brief §3 (Elena). On touch screens both stay 44 px high, the brief's minimum target (proposed).
+
+## 2026-11-08 – Analyse moves to the left panel; the right side is only loading and results (proposed)
+**Context.** Elena: all controls on the left, the right side only for loading and results (board Flow 1c).
+**Decision (Elena; details marked proposed).**
+- *Area:* the "This area" summary card before analysis is gone. Under the inputs row: a full-width primary **Analyse this area**, disabled until the centre and radius are set, and one muted line, "About N street photos, thermal for {season}, {time}. Ready in about a minute.", from the current values.
+- *Routes:* the "This walk" preview card is gone on desktop and tablet. Under the row: **Analyse the routes** (was "Analyse this walk"), disabled until both points are set, with "Walking routes up to about 1.5 km." (the limit in the config). Nothing starts before the button; Swap and a new season or time on routes already shown still ask again by themselves.
+- *Line when both points are set (proposed):* "{distance} in a straight line, thermal for {season}, {time}. Ready in a few minutes." There is no photo estimate for a walk before its streets are known.
+- *Row (boards Flow 1c, G3):* the inputs row is a bordered field with a small icon at its start, in Area and Routes. Its text is regular weight and always one line; a value too long for it ends in "…", with the whole value in a tooltip and in the open fields.
+- *Keyboard:* Enter in the last text field (Centre, End) starts the analysis when it is enabled. If a suggestion is on offer for newly typed text, the first Enter picks it and the next one starts. Radius is a set of buttons, so Enter there still chooses the radius.
+- *Placement (proposed):* the button follows the inputs. When the row is open it comes after the fields. It shows wherever the row shows, so not before anything is set unless "type an address" opened the inputs. It is hidden during loading and on a result, and comes back once the area or walk changes or loading is cancelled.
+- *Tablet, 768 to 1199 px (proposed):* before analysis there is no card, so the left panel stays with the inputs and Analyse; the card replaces it from Analyse on, as before.
+- *Phone (proposed):* no left panel, so the sheet keeps the inputs and Analyse ("This area", "This walk").
+**Consequences.** Brief §3 is updated for Flow 1c and Compare 1b. Keyboard focus still goes to Analyse once set, then to Cancel. The bottom season bar and the legend placeholder on the Flow 1c board stay superseded by the 2026-11-07 entries.
+
 ## 2026-11-07 – Thermal legend: title, info tooltip, no source line; "Layer" in Routes (accepted)
 **Context.** Elena asked for a simpler legend and the same labels in Area and Routes.
 **Decision (Elena).**

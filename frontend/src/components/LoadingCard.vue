@@ -25,7 +25,6 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
 <template>
   <section class="card panel" :class="{ sheet: phone }" data-panel="loading-card" data-scrollable
            aria-labelledby="loading-title">
-    <div v-if="phone" class="grip" aria-hidden="true" />
     <div class="head">
       <div>
         <h2 id="loading-title" class="title">Loading this area</h2>
@@ -52,14 +51,15 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
           <span :style="{ width: `${Math.round(share * 100)}%` }" />
         </span>
       </li>
-      <li :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
+      <!-- Only the steps the chosen layer needs: Senses skips thermal, Thermal skips the rating. -->
+      <li v-if="area.needs.thermal" :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
         <AppIcon :name="area.thermal === 'ready' ? 'check' : 'pending'" />
         <span class="label">Thermal</span>
         <span class="detail" role="status">{{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</span>
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
-      <li class="next">
+      <li v-if="area.layer !== 'thermal'" class="next">
         <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>
@@ -118,13 +118,8 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
 .note.error { color: var(--text); }
 .buttons { display: flex; gap: var(--space-3); margin-top: var(--space-4); flex-wrap: wrap; }
 
-.sheet {
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0; border-bottom: 0;
-  padding: var(--space-2) var(--space-4) var(--space-4);
-}
+/* Inside the phone sheet, which is the panel and does the scrolling. */
+.card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .btn { min-height: var(--touch-phone); }
-.grip {
-  width: var(--space-5); height: var(--space-1); margin: 0 auto var(--space-3);
-  border-radius: var(--radius-pill); background: var(--line);
-}
+.sheet .icon-btn { width: var(--touch-phone); height: var(--touch-phone); }
 </style>

@@ -1,17 +1,17 @@
 <script setup>
-// Left panel (boards Flow 1, Flow 3, 2e), controls first and the legend last: the area inputs (one row,
-// opened to type) → Layer → Season and time (for Thermal and Overall, and before analysis, where Analyse
-// uses the choice) → Places → Legend (only once the area's thermal comfort is loaded).
-// Inactive until an area is loaded: the panel stays visible, only the controls fade (brief §3 Map flow).
+// Left panel (boards Flow 1c, 2, 2e), controls first and the legend last: the area inputs and Analyse →
+// Layer → Season and time (for Thermal and Overall) → Places → the legend of the chosen layer. On a phone
+// it is the Settings tab of the sheet: no panel of its own, and the legend floats on the map instead.
 import { computed, ref } from 'vue'
 import { PLACE_FILTERS } from '../lib/place.js'
 import { useAreaStore } from '../stores/area.js'
 import AreaInputs from './AreaInputs.vue'
+import ChoiceButtons from './ChoiceButtons.vue'
 import LayerButtons from './LayerButtons.vue'
+import LayerLegend from './LayerLegend.vue'
 import SeasonTime from './SeasonTime.vue'
-import ThermalLegend from './ThermalLegend.vue'
 
-defineProps({ getCentre: { type: Function, default: () => null } })
+defineProps({ phone: Boolean, getCentre: { type: Function, default: () => null } })
 const emit = defineEmits(['pick'])
 const area = useAreaStore()
 const menuOpen = ref(false)
@@ -20,29 +20,24 @@ const thermalValues = computed(() => (area.segments?.features ?? []).map((f) => 
 
 /** Season and time matter for Thermal and Overall, not for Senses (photo ratings). */
 const showWindow = computed(() => area.layer !== 'senses')
-const showThermal = computed(() => area.layer === 'thermal')
-/** The Places chips filter the map and the suggestions once the area's streets are loaded. */
+/** The Places buttons filter the map and the suggestions once the area's streets are loaded. */
 const placesReady = computed(() => area.step === 'analysed' && area.load === 'ready')
 </script>
 
 <template>
-  <aside class="panel left" :class="{ 'menu-open': menuOpen }" data-panel="layers" data-scrollable aria-label="Area, layers and places">
-    <AreaInputs class="area-inputs" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
+  <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
+         data-scrollable aria-label="Area, layers and places">
+    <AreaInputs class="area-inputs" :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
     <section>
       <h2 class="section-title">Layer</h2>
       <LayerButtons />
       <SeasonTime v-if="showWindow" :store="area" />
       <h2 class="section-title places-title">Places</h2>
-      <div class="chips" :class="{ inactive: !placesReady }" role="group" aria-label="Show places">
-        <button v-for="p in PLACE_FILTERS" :key="p.id" type="button" class="chip" :class="{ on: area.placeFilter === p.id }"
-                :disabled="!placesReady" :aria-pressed="area.placeFilter === p.id" @click="area.setPlaceFilter(p.id)">
-          {{ p.label }}
-        </button>
-      </div>
+      <ChoiceButtons class="chips" label="Show places" :options="PLACE_FILTERS" :value="area.placeFilter"
+                     :disabled="!placesReady" @choose="area.setPlaceFilter" />
     </section>
-    <!-- The legend only once the thermal comfort of the area is loaded (the source is in its tooltip). -->
-    <section v-if="showThermal" class="legend-section" aria-label="Legend">
-      <ThermalLegend :values="thermalValues" />
+    <section v-if="area.legendReady && !phone" class="legend-section" aria-label="Legend">
+      <LayerLegend :layer="area.layer" :values="thermalValues" />
     </section>
   </aside>
 </template>
@@ -56,11 +51,5 @@ section + section { border-top: var(--hairline) solid var(--line); margin-top: v
 /* The inputs row and the first controls: a little less room above the Layer title. */
 .area-inputs + section { padding-top: var(--space-1); }
 .places-title { margin-top: var(--space-4); }
-.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
-.chip {
-  min-height: var(--chip-h); padding: 0 var(--space-3);
-  border: var(--hairline) solid var(--line); border-radius: var(--radius-pill);
-  background: transparent; font-size: var(--fs-sm);
-}
-.chip.on { background: var(--btn-selected-bg); }
+.chips { margin-top: var(--space-3); }
 </style>

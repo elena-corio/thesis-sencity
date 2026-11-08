@@ -1,5 +1,5 @@
 <script setup>
-// Credits (brief §2). Inside the phone sheet it scrolls with the sheet, so it is not a panel there.
+// Credits (brief §2). On a phone they ride on top of the sheet, so they are not a panel of their own there.
 defineProps({ inSheet: Boolean })
 </script>
 

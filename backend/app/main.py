@@ -1,6 +1,7 @@
 """SenCity API (FastAPI).
 
 - POST /api/search   address and place search (Photon)
+- POST /api/reverse  the name of a point clicked on the map (Photon)
 - POST /api/area     street segments and their chosen photos for one circle (metadata only), then
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
@@ -100,6 +101,25 @@ def search(body: SearchRequest, request: Request) -> dict:
         raise HTTPException(502, "Search is not available right now.") from None
 
 
+class ReverseRequest(BaseModel):
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+
+
+@app.post("/api/reverse")
+def reverse(body: ReverseRequest, request: Request) -> dict:
+    """The name of a point clicked on the map: {"name": "Mariahilfer Straße"}, or null when there is none."""
+    s = cfg["search"]
+    if _rate_limited("reverse", _ip(request), s["reverse_rate_per_minute"], 60):
+        raise HTTPException(429, "Too many points in a short time. Wait a moment and try again.")
+    try:
+        return {"name": search_mod.reverse(body.lat, body.lon, s)}
+    except requests.RequestException as e:
+        # Log the failure type only, never the point.
+        log.warning("reverse geocoding failed: %s", type(e).__name__)
+        raise HTTPException(502, "Place names are not available right now.") from None
+
+
 # Area: segments and photos
 
 class AreaRequest(BaseModel):
@@ -108,6 +128,8 @@ class AreaRequest(BaseModel):
     radius: int = Field(..., ge=full_cfg["area"]["radius_min_m"], le=full_cfg["area"]["radius_max_m"])
     season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
     time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
+    # Photos always load. Senses skips the billed thermal run (Thermal skips ratings, once they exist).
+    layer: str = Field("overall", pattern="^(senses|thermal|overall)$")
 
 
 # (pano ID, heading) pairs of every cached area: /photo fetches nothing else.
@@ -123,7 +145,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     """Streams newline-separated JSON events: "segments" (all segments, photos pending), "segment"
     (one segment with its photos, with done/total), "done" with the FeatureCollection, then the
     thermal stage: "thermal" (UTCI per segment) or "thermal_error". A cached area sends "done" at
-    once; cached thermal comfort comes straight after it. If the app cancels, the lookups stop."""
+    once; cached thermal comfort comes straight after it. If the app cancels, the lookups stop.
+    The photos always load; the Senses layer skips the thermal stage."""
+    needs_thermal = body.layer != "senses"
     key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg)
     ip = _ip(request)
     cached = area_mod.load_cached(key, full_cfg)
@@ -134,6 +158,8 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     prov = provider() if cached is None else None
 
     def thermal(fc):
+        if not needs_thermal:
+            return
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
         for event in area_mod.thermal_events(key, fc, body.lat, body.lon,
                                              area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),

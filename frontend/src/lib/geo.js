@@ -76,6 +76,8 @@ export function estimatePhotos(radius, perKm2) {
 }
 
 /** "48.2085° N, 16.3721° E" */
+export const POINT_LABEL = 'Point on map'
+
 export function formatCoords({ lat, lon }) {
   const ns = lat >= 0 ? 'N' : 'S'
   const ew = lon >= 0 ? 'E' : 'W'

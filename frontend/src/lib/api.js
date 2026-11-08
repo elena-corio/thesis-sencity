@@ -40,6 +40,21 @@ export async function searchPlaces(q, near, signal) {
   return (await res.json()).results
 }
 
+/** The name of a point clicked on the map, or null (none near, or the lookup failed). Only the point is
+ *  sent, in the body, and to our own API. */
+export async function pointName({ lat, lon }) {
+  try {
+    const res = await fetch(`${config.apiBase}/api/reverse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lon }),
+    })
+    return res.ok ? (await res.json()).name : null
+  } catch {
+    return null
+  }
+}
+
 /** "subway_entrance" → "Subway entrance" */
 // Results that are areas, not points (a city, a district): picking one in a Centre, Start or End
 // field only moves the map there. An address or a named place (a street, a square, a park) sets it.
@@ -62,7 +77,8 @@ export function kindLabel(kind) {
  * · {type: "done", area} · {type: "error", message}; then {type: "stage", stage: "thermal"}
  * · {type: "thermal", season, time, station, values} or {type: "thermal_error", message}.
  * Abort the signal to cancel.
- * @param {{lat:number, lon:number, radius:number, season?:string, time?:string}} area
+ * The photos always load; layer 'senses' skips thermal comfort.
+ * @param {{lat:number, lon:number, radius:number, season?:string, time?:string, layer?:string}} area
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
  */
