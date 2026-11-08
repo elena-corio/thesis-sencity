@@ -78,13 +78,14 @@ test.describe('desktop', () => {
     await openMap(page, 'dark')
     const road = () => page.evaluate(() => {
       const m = window.__sencityMap
-      return m.isStyleLoaded() ? m.getPaintProperty('highway_minor', 'line-color') : null
+      return m.getLayer('highway_minor') ? m.getPaintProperty('highway_minor', 'line-color') : null
     })
-    await expect.poll(road).toBe('#4b5156')
+    const timeout = 20_000 // a style swap waits for the tile server
+    await expect.poll(road, { timeout }).toBe('#4b5156')
     await page.getByRole('button', { name: 'Switch to light mode' }).click()
-    await expect.poll(road).toBe('hsl(0,0%,88%)')
+    await expect.poll(road, { timeout }).toBe('hsl(0,0%,88%)')
     await page.getByRole('button', { name: 'Switch to dark mode' }).click()
-    await expect.poll(road).toBe('#4b5156') // again after the style swap
+    await expect.poll(road, { timeout }).toBe('#4b5156') // again after the style swap
   })
 
   test('Layer, Places, Radius and Season are the same kind of button, in two weights', async ({ page }) => {
