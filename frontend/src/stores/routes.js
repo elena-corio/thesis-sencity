@@ -232,6 +232,13 @@ export const useRoutesStore = defineStore('routes', () => {
     }
   }
 
+  /** The Analyse button, or Enter in the End field: only once both points are set and nothing is asked yet. */
+  function analyse(keyboard = false) {
+    if (!previewing.value) return
+    byKeyboard.value = keyboard
+    find()
+  }
+
   /** Cancel loading. With routes on the map they stay; otherwise back to the preview, as in Area. */
   function cancel() {
     stopLoading()
@@ -288,6 +295,6 @@ export const useRoutesStore = defineStore('routes', () => {
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
-    pick, setPoint, clearPoint, swap, reset, find, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
+    pick, setPoint, clearPoint, swap, reset, find, analyse, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
   }
 })

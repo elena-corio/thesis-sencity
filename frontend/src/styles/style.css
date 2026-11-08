@@ -100,8 +100,6 @@
   --route-pin-w: 28px;             /* the End pin */
   --route-pin-h: 38px;
   --route-start-size: 22px;        /* the Start ring */
-  --route-mark: 14px;              /* the same marks beside the phone's fields and in the preview */
-  --route-point-label: 72px;       /* "Start" and "End" in the preview */
   --route-sample-w: 24px;          /* line sample in the route buttons */
 
   /* State bars (brief §3: all share one style) */

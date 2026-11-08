@@ -25,7 +25,7 @@ for (const theme of ['dark', 'light']) {
       await mapIdle(page)
       await page.screenshot({ path: `${SHOTS}/desktop-${theme}-1b-radius.png` })
 
-      // Step 1c: second click fixes the circle; card with Analyse / Start again.
+      // Step 1c: second click fixes the circle; Analyse in the left panel.
       await page.mouse.click(p.edge.x, p.edge.y)
       await expect(page.getByText('Area set.')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeVisible()

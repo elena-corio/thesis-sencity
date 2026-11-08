@@ -13,6 +13,8 @@ defineProps({
   canChange: Boolean,
   /** What Change clears, for screen readers: "Change area: clear the centre and radius". */
   changeLabel: { type: String, required: true },
+  /** The small icon at the start of the row (board Flow 1c). */
+  icon: { type: String, required: true },
 })
 const emit = defineEmits(['toggle', 'change'])
 const bodyId = useId()
@@ -22,7 +24,8 @@ const bodyId = useId()
   <section class="inputs" data-testid="inputs">
     <div class="row">
       <button type="button" class="summary" :aria-expanded="expanded" :aria-controls="bodyId" @click="emit('toggle')">
-        <span class="text" lang="de">{{ summary }}</span>
+        <AppIcon :name="icon" class="lead" />
+        <span class="text" lang="de" :title="summary">{{ summary }}</span>
         <AppIcon name="chevronDown" class="chevron" :class="{ open: expanded }" />
       </button>
       <button v-if="canChange" type="button" class="btn change" :aria-label="changeLabel" @click="emit('change')">Change</button>
@@ -30,6 +33,8 @@ const bodyId = useId()
     <div v-show="expanded" :id="bodyId" class="body">
       <slot />
     </div>
+    <!-- Stays visible when the row is closed. -->
+    <slot name="action" />
   </section>
 </template>
 
@@ -37,10 +42,13 @@ const bodyId = useId()
 .row { display: flex; align-items: center; gap: var(--space-2); }
 .summary {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2);
-  min-height: var(--touch); padding: 0 var(--space-2) 0 0;
-  border: 0; background: transparent; color: var(--text); text-align: left; font-weight: var(--fw-semibold);
+  min-height: var(--touch); padding: 0 var(--space-3);
+  border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
+  background: transparent; color: var(--text); text-align: left;
 }
-.text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lead { flex: none; color: var(--text-2); }
+/* One line, as the fields on boards G2 and G3; the full value is in the tooltip and the open fields. */
+.text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chevron { flex: none; color: var(--text-2); transition: transform var(--transition); }
 .chevron.open { transform: rotate(180deg); }
 .change { flex: none; min-height: var(--touch); padding: 0 var(--space-3); }

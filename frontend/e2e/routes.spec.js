@@ -3,7 +3,8 @@
 import { expect, test } from '@playwright/test'
 import { layoutProblems, mapIdle, mockRoutes, openRoutes, routeClicks } from './helpers.js'
 
-const analyse = (page) => page.getByRole('button', { name: 'Analyse this walk' }).click()
+const analyseBtn = (page) => page.getByRole('button', { name: 'Analyse the routes' })
+const analyse = (page) => analyseBtn(page).click()
 
 const card = (page) => page.locator('[data-panel="route-card"]')
 const stretch = (page) => page.locator('[data-panel="place-card"]')
@@ -27,13 +28,15 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('route-start')).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/routes/1-start-set.png' })
     expect(mock.requests).toHaveLength(0) // nothing is asked for one point
+    await expect(analyseBtn(page)).toBeDisabled()
+    await expect(page.locator('[data-panel="layers"]')).toContainText('Walking routes up to about 3 km.')
 
     await page.mouse.click(b.x, b.y)
 
-    // Both points set: a preview, and nothing is asked for until Analyse.
-    await expect(card(page)).toContainText('This walk')
-    await expect(card(page)).toContainText('in a straight line')
-    await expect(card(page)).toContainText('Thermal for summer, 15:00')
+    // Both points set: Analyse is on the left, no card on the right, nothing asked for until Analyse.
+    await expect(analyseBtn(page)).toBeEnabled()
+    await expect(card(page)).toHaveCount(0)
+    await expect(page.locator('[data-panel="layers"]')).toContainText(/in a straight line, thermal for summer, 15:00\. Ready in a few minutes\./)
     await expect(page.getByTestId('route-end')).toBeVisible()
     await expect(page.getByText('Walk set.')).toBeVisible()
     await mapIdle(page)
@@ -189,7 +192,8 @@ test.describe('desktop', () => {
     const count = await page.evaluate(() => window.__sencityMap.querySourceFeatures('sc-route').length)
     expect(count).toBe(0)
     await card(page).getByRole('button', { name: 'Cancel', exact: true }).last().click()
-    await expect(card(page)).toContainText('This walk')
+    await expect(card(page)).toHaveCount(0)
+    await expect(analyseBtn(page)).toBeEnabled()
     await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E → \d+\.\d+° N, \d+\.\d+° E/)
     // Change clears both points at once and goes back to clicking, with the first hint.
     await page.getByRole('button', { name: /^Change walk/ }).click()
@@ -317,6 +321,31 @@ test.describe('desktop', () => {
     await expect(page.getByText('Start and end are only')).toBeVisible() // the same point twice
   })
 
+  test('Enter in End picks the suggestion, then starts the analysis; focus goes to Cancel', async ({ page }) => {
+    const mock = await mockRoutes(page, { hold: true })
+    await page.route('**/api/search', (route) => {
+      const q = route.request().postDataJSON().q
+      const place = q.startsWith('Graben')
+        ? { name: 'Graben', detail: 'Innere Stadt, Wien', lat: 48.2086, lon: 16.3695, kind: 'pedestrian' }
+        : { name: 'Karlsplatz', detail: 'Wieden, Wien', lat: 48.2005, lon: 16.3695, kind: 'square' }
+      return route.fulfill({ json: { results: [place] } })
+    })
+    await openRoutes(page, 'dark')
+    await page.getByRole('button', { name: 'type an address' }).click()
+    await page.getByRole('combobox', { name: 'Start' }).fill('Graben')
+    await page.getByRole('option', { name: /Graben/ }).click()
+    const end = page.getByRole('combobox', { name: 'End' })
+    await end.fill('Karlsplatz')
+    await expect(page.getByRole('option', { name: /Karlsplatz/ })).toBeVisible()
+    await end.press('Enter') // picks the suggestion
+    await expect(analyseBtn(page)).toBeEnabled()
+    expect(mock.requests).toHaveLength(0)
+    await end.press('Enter') // starts
+    await expect(card(page)).toContainText('Comparing two ways')
+    await expect.poll(() => mock.requests.length).toBe(1)
+    await expect(card(page).getByRole('button', { name: 'Cancel', exact: true }).last()).toBeFocused()
+  })
+
   test('keyboard: Enter sets both points, sections and arrows work without a pointer', async ({ page }) => {
     await mockRoutes(page)
     await openRoutes(page, 'dark')
@@ -325,7 +354,7 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('inputs')).toContainText(/\d+\.\d+° N, \d+\.\d+° E/)
     await page.evaluate(() => window.__sencityMap.jumpTo({ center: [16.376, 48.2085] }))
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('button', { name: 'Analyse this walk' })).toBeFocused()
+    await expect(analyseBtn(page)).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(card(page)).toContainText('Which way feels better?')
     // The bar is one Tab stop, and the arrow keys go along it.
@@ -417,7 +446,7 @@ for (const theme of ['dark', 'light']) {
         expect(await layoutProblems(page), 'start set').toEqual([])
         await page.evaluate(() => window.__sencityMap.jumpTo({ center: [16.376, 48.2085] }))
         await page.keyboard.press('Enter')
-        await expect(card(page)).toContainText('This walk')
+        await expect(analyseBtn(page)).toBeEnabled()
         await mapIdle(page)
         expect(await layoutProblems(page), 'preview').toEqual([])
         await page.screenshot({ path: `e2e/screens/routes/fit/${width}x${height}-${theme}-preview.png` })

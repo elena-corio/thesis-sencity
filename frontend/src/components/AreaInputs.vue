@@ -6,8 +6,9 @@
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
 import { isAreaPlace } from '../lib/api.js'
-import { formatCoords } from '../lib/geo.js'
+import { estimatePhotos, formatCoords } from '../lib/geo.js'
 import { useAreaStore } from '../stores/area.js'
+import AnalyseAction from './AnalyseAction.vue'
 import InputSection from './InputSection.vue'
 import PlaceSearch from './PlaceSearch.vue'
 
@@ -31,10 +32,15 @@ const centreText = computed(() => (area.centre ? area.centreLabel || formatCoord
 const summary = computed(() => (area.centre ? `${centreText.value} · ${area.radius} m` : 'Choose an area'))
 /** 100, 200 and 500 m (config.radius.presets), plus the current radius when the mouse set another one. */
 const radii = computed(() => [...new Set([...config.radius.presets, area.radius])].sort((a, b) => a - b))
+const ready = computed(() => area.step === 'set' && !!area.centre)
+const note = computed(() => {
+  const { season, time } = area.thermalWindow
+  return `About ${estimatePhotos(area.radius, config.photosPerKm2)} street photos, thermal for ${season}, ${time}. Ready in about a minute.`
+})
 
 function toggle() {
   expanded.value = !expanded.value
-  if (!expanded.value) area.inputsOpen = false
+  area.inputsOpen = expanded.value // kept when the inputs move between the card and the left panel
 }
 function onPick(place) {
   if (isAreaPlace(place)) {
@@ -51,20 +57,24 @@ function change() {
 </script>
 
 <template>
-  <InputSection v-if="visible" :summary="summary" :expanded="expanded" :can-change="!!area.centre"
+  <InputSection v-if="visible" icon="area" :summary="summary" :expanded="expanded" :can-change="!!area.centre"
                 change-label="Change area: clear the centre and radius" @toggle="toggle" @change="change">
     <p class="field-label">Centre</p>
     <div class="field">
       <PlaceSearch :field-id="fieldId" label="Centre" :placeholder="placeholder"
                    :fallback="fallback" :value="centreText" :get-centre="getCentre"
                    @pick="onPick" @focus="area.armField('centre')" @blur="area.disarmField('centre')"
-                   @open="emit('menu', $event)" />
+                   @open="emit('menu', $event)" @enter="area.analyse(true)" />
     </div>
     <p class="field-label">Radius</p>
     <div class="radii" role="group" aria-label="Radius">
       <button v-for="r in radii" :key="r" type="button" class="chip" :class="{ on: area.radius === r }"
               :aria-pressed="area.radius === r" @click="area.setRadius(r)">{{ r }} m</button>
     </div>
+    <template #action>
+      <AnalyseAction v-if="area.step !== 'analysed'" label="Analyse this area" :note="note" :ready="ready"
+                     :by-keyboard="area.byKeyboard" @analyse="area.analyse" />
+    </template>
   </InputSection>
 </template>
 

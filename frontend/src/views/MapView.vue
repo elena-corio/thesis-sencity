@@ -30,18 +30,18 @@ const phone = useMedia('(max-width: 767px)')
 const wide = useMedia('(min-width: 1200px)')
 const mapRef = ref(null)
 
-// Routes while the points are being chosen: no card, the map hint says what to do (the 3-step card is gone).
-const routeChoosing = computed(() => routes.step !== 'set' && !routes.hasResult && routes.load === 'idle')
-// Area: the card from a set circle on; on a phone also when "type an address" opened the inputs (sheet).
-// Routes on a phone, as Area: also when "type an address" opened the inputs (sheet).
+// Nothing asked for yet: Start, End and Analyse are in the left panel, the map hint says what to do.
+const routeIdle = computed(() => !routes.hasResult && routes.load === 'idle')
+// The right card only shows loading and results. A phone has no left panel, so there the sheet also
+// holds the inputs and Analyse: once the area or walk is set, or "type an address" opened them.
 const hasCard = computed(() => (routesMode.value
-  ? !routeChoosing.value || (phone.value && routes.inputsOpen)
-  : area.step === 'set' || area.step === 'analysed' || (phone.value && area.inputsOpen)))
+  ? !routeIdle.value || (phone.value && (routes.inputsOpen || routes.previewing))
+  : area.step === 'analysed' || (phone.value && (area.step === 'set' || area.inputsOpen))))
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 // Routes keeps both: Start and End are always needed, and the two panels fit from 768 px up.
 const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
 // The hint needs the space between the panels; below 1200 px the route card says the same.
-const showHint = computed(() => !routesMode.value || wide.value || routeChoosing.value)
+const showHint = computed(() => !routesMode.value || wide.value || routeIdle.value)
 
 const loadingCard = computed(() => area.step === 'analysed' &&
   (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
@@ -73,7 +73,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
         <PlaceCard v-if="area.selectedId" />
         <LoadingCard v-else-if="loadingCard" />
-        <AreaCard v-else :controls="!showLeft" :get-centre="getCentre" @pick="onPick" />
+        <AreaCard v-else-if="hasCard" :controls="!showLeft" :get-centre="getCentre" @pick="onPick" />
       </div>
       <div class="slot s-controls">
         <MapControls @zoom-in="mapRef?.zoomIn()" @zoom-out="mapRef?.zoomOut()" @recentre="mapRef?.recentre()" />

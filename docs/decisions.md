@@ -2,6 +2,19 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – Analyse moves to the left panel; the right side is only loading and results (proposed)
+**Context.** Elena: all controls on the left, the right side only for loading and results (board Flow 1c).
+**Decision (Elena; details marked proposed).**
+- *Area:* the "This area" summary card before analysis is gone. Under the inputs row: a full-width primary **Analyse this area**, disabled until the centre and radius are set, and one muted line, "About N street photos, thermal for {season}, {time}. Ready in about a minute.", from the current values.
+- *Routes:* the "This walk" preview card is gone on desktop and tablet. Under the row: **Analyse the routes** (was "Analyse this walk"), disabled until both points are set, with "Walking routes up to about 3 km.". Nothing starts before the button; Swap and a new season or time on routes already shown still ask again by themselves.
+- *Line when both points are set (proposed):* "{distance} in a straight line, thermal for {season}, {time}. Ready in a few minutes." There is no photo estimate for a walk before its streets are known.
+- *Row (boards Flow 1c, G3):* the inputs row is a bordered field with a small icon at its start, in Area and Routes. Its text is regular weight and always one line; a value too long for it ends in "…", with the whole value in a tooltip and in the open fields.
+- *Keyboard:* Enter in the last text field (Centre, End) starts the analysis when it is enabled. If a suggestion is on offer for newly typed text, the first Enter picks it and the next one starts. Radius is a set of buttons, so Enter there still chooses the radius.
+- *Placement (proposed):* the button follows the inputs. When the row is open it comes after the fields. It shows wherever the row shows, so not before anything is set unless "type an address" opened the inputs. It is hidden during loading and on a result, and comes back once the area or walk changes or loading is cancelled.
+- *Tablet, 768 to 1199 px (proposed):* before analysis there is no card, so the left panel stays with the inputs and Analyse; the card replaces it from Analyse on, as before.
+- *Phone (proposed):* no left panel, so the sheet keeps the inputs and Analyse ("This area", "This walk").
+**Consequences.** Brief §3 is updated for Flow 1c and Compare 1b. Keyboard focus still goes to Analyse once set, then to Cancel. The bottom season bar and the legend placeholder on the Flow 1c board stay superseded by the 2026-11-07 entries.
+
 ## 2026-11-07 – Thermal legend: title, info tooltip, no source line; "Layer" in Routes (accepted)
 **Context.** Elena asked for a simpler legend and the same labels in Area and Routes.
 **Decision (Elena).**

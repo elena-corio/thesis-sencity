@@ -18,7 +18,8 @@ const props = defineProps({
   /** Returns the map centre, used to rank nearby places first. */
   getCentre: { type: Function, default: () => null },
 })
-const emit = defineEmits(['pick', 'clear', 'open', 'focus', 'blur'])
+// enter: Enter was pressed on a value already chosen (no suggestion to pick).
+const emit = defineEmits(['pick', 'clear', 'open', 'focus', 'blur', 'enter'])
 
 const query = ref(props.value)
 const results = ref([])
@@ -106,7 +107,9 @@ function onKeydown(e) {
     open.value = true
     active.value = (active.value - 1 + n) % n
   } else if (e.key === 'Enter') {
-    if (showDropdown.value && n) pick(active.value >= 0 ? active.value : 0)
+    const typed = query.value !== props.value
+    if (showDropdown.value && n && (typed || active.value >= 0)) pick(active.value >= 0 ? active.value : 0)
+    else if (!typed) emit('enter')
   } else if (e.key === 'Escape') {
     // Handled here, so Esc in a search field never resets the area or the route.
     if (showDropdown.value) open.value = false

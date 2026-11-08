@@ -53,7 +53,7 @@ test('select an area with the keyboard only', async ({ page }) => {
 
   await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeFocused()
-  await expect(page.getByText('220 m radius')).toBeVisible()
+  await expect(page.getByTestId('inputs')).toContainText('· 220 m')
 
   await page.keyboard.press('Enter')
   // After Analyse, focus goes to the card's title (Change is in the inputs row of the left panel).

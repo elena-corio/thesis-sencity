@@ -5,7 +5,9 @@
 // address or a named place sets the point. While a field has the focus, the next map click fills it.
 import { computed, ref, watch } from 'vue'
 import { isAreaPlace } from '../lib/api.js'
+import { formatLength } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
+import AnalyseAction from './AnalyseAction.vue'
 import AppIcon from './AppIcon.vue'
 import InputSection from './InputSection.vue'
 import PlaceSearch from './PlaceSearch.vue'
@@ -30,6 +32,12 @@ const summary = computed(() => {
   if (!routes.start && !routes.end) return 'Choose a walk'
   return `${routes.start?.label ?? '…'} → ${routes.end?.label ?? '…'}`
 })
+const showAnalyse = computed(() => !routes.hasResult && routes.load === 'idle')
+const note = computed(() => {
+  if (!routes.previewing) return 'Walking routes up to about 3 km.'
+  const { season, time } = routes.thermalWindow
+  return `${formatLength(routes.aerialDistance)} in a straight line, thermal for ${season}, ${time}. Ready in a few minutes.`
+})
 
 function toggle() {
   expanded.value = !expanded.value
@@ -48,7 +56,7 @@ function change() {
 </script>
 
 <template>
-  <InputSection v-if="visible" :summary="summary" :expanded="expanded" :can-change="!!(routes.start || routes.end)"
+  <InputSection v-if="visible" icon="route" :summary="summary" :expanded="expanded" :can-change="!!(routes.start || routes.end)"
                 change-label="Change walk: clear the start and end" @toggle="toggle" @change="change">
     <p class="field-label">Start</p>
     <div class="field">
@@ -62,7 +70,7 @@ function change() {
       <PlaceSearch :field-id="id('end')" label="End" :placeholder="placeholder"
                    :fallback="fallback" :value="routes.end?.label ?? ''" :get-centre="getCentre"
                    @pick="onPick('end', $event)" @clear="routes.clearPoint('end')" @open="emit('menu', $event)"
-                   @focus="routes.armField('end')" @blur="routes.disarmField('end')" />
+                   @focus="routes.armField('end')" @blur="routes.disarmField('end')" @enter="routes.analyse(true)" />
     </div>
     <div class="under">
       <!-- Phone: the sheet covers the hint, so the reason shows here (desktop: in the hint). -->
@@ -71,6 +79,10 @@ function change() {
         <AppIcon name="swap" /> Swap start and end
       </button>
     </div>
+    <template #action>
+      <AnalyseAction v-if="showAnalyse" label="Analyse the routes" :note="note" :ready="routes.previewing"
+                     :by-keyboard="routes.byKeyboard" @analyse="routes.analyse" />
+    </template>
   </InputSection>
 </template>
 
