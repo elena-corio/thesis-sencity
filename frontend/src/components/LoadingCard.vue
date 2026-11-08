@@ -52,14 +52,15 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
           <span :style="{ width: `${Math.round(share * 100)}%` }" />
         </span>
       </li>
-      <li :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
+      <!-- Only the steps the chosen layer needs: Senses skips thermal, Thermal skips the rating. -->
+      <li v-if="area.needs.thermal" :class="{ next: area.thermal === 'idle', active: area.thermal === 'loading', failed: area.thermal === 'error' }">
         <AppIcon :name="area.thermal === 'ready' ? 'check' : 'pending'" />
         <span class="label">Thermal</span>
         <span class="detail" role="status">{{ area.thermalWindow.season }}, {{ area.thermalWindow.time }}</span>
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
-      <li class="next">
+      <li v-if="area.layer !== 'thermal'" class="next">
         <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>

@@ -4,8 +4,9 @@
 // is set unless the hint's "type an address" opened it. A city or district only moves the map; an
 // address or a named place sets the point. While a field has the focus, the next map click fills it.
 import { computed, ref, watch } from 'vue'
+import config from '../config.js'
 import { isAreaPlace } from '../lib/api.js'
-import { formatLength } from '../lib/routes.js'
+import { formatKm, formatLength } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AnalyseAction from './AnalyseAction.vue'
 import AppIcon from './AppIcon.vue'
@@ -34,7 +35,7 @@ const summary = computed(() => {
 })
 const showAnalyse = computed(() => !routes.hasResult && routes.load === 'idle')
 const note = computed(() => {
-  if (!routes.previewing) return 'Walking routes up to about 3 km.'
+  if (!routes.previewing) return `Walking routes up to about ${formatKm(config.routes.maxM)}.`
   const { season, time } = routes.thermalWindow
   return `${formatLength(routes.aerialDistance)} in a straight line, thermal for ${season}, ${time}. Ready in a few minutes.`
 })

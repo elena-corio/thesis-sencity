@@ -9,7 +9,8 @@
   --fw-medium: 500;
   --fw-semibold: 600;
   --fw-bold: 700;
-  --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed (§3) */
+  --fs-2xs: 0.75rem;    /* 12 px, only on the thin choice buttons */
+  --fs-xs: 0.8125rem;   /* 13 px, the smallest text allowed elsewhere (§3) */
   --fs-sm: 0.875rem;    /* 14 px, section titles */
   --fs-md: 1rem;
   --fs-lg: 1.25rem;     /* card titles */
@@ -33,7 +34,8 @@
   --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
   --tabs-half: 140px;           /* half the width of the Area / Routes / Profile tabs */
   --attribution-h: 1.25rem;     /* one line of map credits; grows with the system font size */
-  --chip-h: 34px;               /* place-type chips */
+  --chip-h: 34px;               /* small buttons in a card */
+  --choice-thin-h: 30px;        /* thin choice buttons: Places, Radius, Season */
   --swatch-h: 5px;              /* legend swatches */
   --hairline: 1px;
   --touch: 40px;                /* minimum target (§9) */

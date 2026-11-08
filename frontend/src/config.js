@@ -23,6 +23,15 @@ export default {
   // Kept photos per km² from the Stephansplatz 200 m run (234 photos in 0.126 km²).
   photosPerKm2: 1860,
 
+  // Whether a layer needs the billed thermal run. Photos always load; the Thermal layer skips ratings.
+  layers: {
+    senses: { thermal: false },
+    thermal: { thermal: true },
+    overall: { thermal: true },
+  },
+  // The layer Area opens on.
+  layerDefault: 'thermal',
+
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },
   // Thermal limits, the standard ones for everyone (no profiles yet): every one lives here, and

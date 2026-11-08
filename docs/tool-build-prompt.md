@@ -54,7 +54,7 @@ Returning user: Welcome → Sign in → Map. Profile tab with no profile yet →
 - When space runs out on a card that normally fits (place, area, compare), first **reduce by priority** rather than scroll: (1) state and reason ("Hard, overall because of heat (or cold)"), (2) the layer bar(s), (3) might bother / feel good, (4) rate this place, (5) secondary lines (scale numbers 1–5, coverage, hints). Lower-priority parts collapse into a "More" toggle or move to a second step, in this order; only if it still does not fit (very small or zoomed screens) the card scrolls inside itself. Same for the area card (counts → why hard → places → Change area) and the compare panel (bars and verdict → coverage).
 - Long sets are split into steps where that reads better than a list: onboarding blocks show as many items as fit (on a phone 4 per screen, "Part 1 of 2"). The chat, About and search results scroll inside their own panel.
 - Panels on the left and right must never overlap each other or the centre controls: below ~1200 px wide the right card replaces the left panel's lower sections, below 768 px everything becomes bottom sheets.
-- Text never shrinks below 13 px to fit; drop content instead. Long street names are never cut: they wrap, hyphenated where the browser can.
+- Text never shrinks below 13 px to fit (the one exception, since 2026-11-08: 12 px on the thin choice buttons); drop content instead. Long street names are never cut: they wrap, hyphenated where the browser can.
 - The map pans so the selected street stays visible above or beside the open card.
 
 **One card pattern for map and compare.** The place card (map) and the stretch card (compare) are the same component:

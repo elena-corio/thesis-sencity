@@ -29,7 +29,7 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/routes/1-start-set.png' })
     expect(mock.requests).toHaveLength(0) // nothing is asked for one point
     await expect(analyseBtn(page)).toBeDisabled()
-    await expect(page.locator('[data-panel="layers"]')).toContainText('Walking routes up to about 3 km.')
+    await expect(page.locator('[data-panel="layers"]')).toContainText('Walking routes up to about 1.5 km.')
 
     await page.mouse.click(b.x, b.y)
 
@@ -184,7 +184,8 @@ test.describe('desktop', () => {
     await page.mouse.click(b.x, b.y)
     await analyse(page)
     await expect(card(page)).toContainText('Comparing two ways')
-    await expect(card(page)).toContainText('Rating for your profile')
+    await expect(card(page)).toContainText('Street photos')
+    await expect(card(page)).not.toContainText('Rating for your profile')
     await expect(card(page)).not.toContainText('Finding the two ways')
     await expect(page.getByRole('radio', { name: 'Spring' })).toBeDisabled()
     await mapIdle(page)
@@ -417,7 +418,7 @@ test.describe('phone', () => {
     await analyse(page)
     await expect(card(page)).toContainText('Which way feels better?')
     await expect(card(page)).toContainText('Layer')
-    await expect(card(page).getByRole('group', { name: 'Layer' })).toBeVisible()
+    await expect(card(page).getByRole('radiogroup', { name: 'Layer' })).toBeVisible()
     await expect(card(page)).toContainText('Tap a stretch')
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/P3-result.png' })

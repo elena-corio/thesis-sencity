@@ -49,8 +49,15 @@ export const useAreaStore = defineStore('area', () => {
   /** The bar can be used before analysis (the choice is free) and whenever nothing is loading. */
   const windowActive = computed(() => step.value !== 'analysed' ||
     (load.value === 'ready' && (thermal.value === 'ready' || thermal.value === 'error')))
-  /** Layer on the map: null (photos only, before any rating) or 'thermal'. Senses and Overall come with rating. */
-  const layer = ref(null)
+  /** The chosen layer, before or after Analyse: 'senses' | 'thermal' | 'overall'. Decides what is loaded. */
+  const layer = ref(config.layerDefault)
+  /** What the chosen layer needs: { thermal }. */
+  const needs = computed(() => config.layers[layer.value])
+  /** What the map colours by: 'thermal', or null (photos only, as Senses and Overall have no ratings yet). */
+  const mapLayer = computed(() => (layer.value === 'thermal' && thermalInfo.value ? 'thermal' : null))
+  /** A later layer is loading its missing part: Cancel keeps the area. */
+  const switching = ref(false)
+  let layerTimer = null
   /** Selected segment id (the place card shows it). */
   const selectedId = ref(null)
   /** Where the selection ring sits: the click point, or the segment's middle. */
@@ -67,6 +74,8 @@ export const useAreaStore = defineStore('area', () => {
     const fs = segments.value?.features ?? []
     return { all: fs.length, withPhotos: fs.filter((f) => f.properties.photos?.length).length }
   })
+  /** Something is loading: the layer waits. */
+  const busy = computed(() => load.value === 'loading' || thermal.value === 'loading')
 
   // Places filter (left panel): 'all' | 'streets' | 'parks' | 'squares'. It filters the map and the
   // suggestions; the area card's counts stay for the whole area.
@@ -82,7 +91,7 @@ export const useAreaStore = defineStore('area', () => {
   // Suggestions follow the area, season and time (the thermal values on the segments) and the
   // Places filter, on the Thermal layer only. Each: { n, f, mid, type, level }.
   const suggestions = computed(() => {
-    if (layer.value !== 'thermal' || !visibleSegments.value) return []
+    if (mapLayer.value !== 'thermal' || !visibleSegments.value) return []
     return thermalSuggestions(visibleSegments.value.features,
       { limits: thermalLimits(), filter: placeFilter.value, centre: analysed.value })
   })
@@ -138,7 +147,7 @@ export const useAreaStore = defineStore('area', () => {
     }
     resetThermal()
     try {
-      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+      await loadArea({ ...analysed.value, ...thermalWindow.value, layer: layer.value }, (e) => {
         if (e.type === 'segments') {
           segments.value = { type: 'FeatureCollection', features: e.features }
           progress.value = { stage: 'photos', done: e.done ?? 0, total: e.total }
@@ -183,7 +192,6 @@ export const useAreaStore = defineStore('area', () => {
     segments.value = withThermal(segments.value, e.values)
     thermalInfo.value = { season: e.season, time: e.time, station: e.station }
     thermal.value = 'ready'
-    layer.value = 'thermal'
   }
 
   /** "Try again" after the streets or photos failed: go on from there, not from the beginning. */
@@ -201,7 +209,7 @@ export const useAreaStore = defineStore('area', () => {
     thermal.value = 'loading'
     thermalError.value = ''
     try {
-      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+      await loadArea({ ...analysed.value, ...thermalWindow.value, layer: 'thermal' }, (e) => {
         if (e.type === 'thermal') applyThermal(e)
         else if (e.type === 'thermal_error') { thermal.value = 'error'; thermalError.value = e.message }
         else if (e.type === 'error') throw new ApiError(500, e.message)
@@ -229,7 +237,7 @@ export const useAreaStore = defineStore('area', () => {
     thermal.value = 'loading'
     thermalError.value = ''
     try {
-      await loadArea({ ...analysed.value, ...thermalWindow.value }, (e) => {
+      await loadArea({ ...analysed.value, ...thermalWindow.value, layer: 'thermal' }, (e) => {
         if (e.type === 'thermal') applyThermal(e)
         else if (e.type === 'thermal_error') keepShownWindow(e.message)
         else if (e.type === 'error') throw new ApiError(500, e.message)
@@ -256,16 +264,40 @@ export const useAreaStore = defineStore('area', () => {
 
   function resetThermal() {
     clearTimeout(windowTimer)
+    clearTimeout(layerTimer)
     thermal.value = 'idle'
     thermalError.value = ''
     thermalInfo.value = null
-    layer.value = null
+    switching.value = false
   }
 
-  /** Cancel loading: back to the set circle (Flow 1c). */
+  /** After a change of layer, load only what the new one still lacks. */
+  async function loadMissing() {
+    if (step.value !== 'analysed' || load.value !== 'ready' || busy.value) return
+    if (!needs.value.thermal || thermal.value === 'ready') return
+    switching.value = true
+    await retryThermal()
+    switching.value = false
+  }
+
+  /** The Layer buttons. Before Analyse this only records the choice. On an analysed area it loads what is
+   *  missing, after a moment, so arrow keys passing over a layer do not start a billed run. */
+  function setLayer(id) {
+    if (busy.value) return
+    layer.value = id
+    clearTimeout(layerTimer)
+    if (step.value === 'analysed') layerTimer = setTimeout(loadMissing, config.thermalDebounceMs)
+  }
+
+  /** Cancel loading: back to the set circle (Flow 1c), or, for a change of layer, to the area as it was. */
   function cancelLoad() {
     controller?.abort()
     controller = null
+    if (switching.value) {
+      switching.value = false
+      if (thermal.value === 'loading') thermal.value = 'idle'
+      return
+    }
     // Only another season or time was loading: keep the area and what it showed.
     if (load.value === 'ready' && thermalInfo.value) {
       keepShownWindow()
@@ -425,7 +457,8 @@ export const useAreaStore = defineStore('area', () => {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
     centreLabel, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
-    thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer,
+    thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
+    busy,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,
     suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,

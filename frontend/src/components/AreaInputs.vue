@@ -9,6 +9,7 @@ import { isAreaPlace } from '../lib/api.js'
 import { estimatePhotos, formatCoords } from '../lib/geo.js'
 import { useAreaStore } from '../stores/area.js'
 import AnalyseAction from './AnalyseAction.vue'
+import ChoiceButtons from './ChoiceButtons.vue'
 import InputSection from './InputSection.vue'
 import PlaceSearch from './PlaceSearch.vue'
 
@@ -31,11 +32,14 @@ const fallback = computed(() => (props.phone ? 'tap the map' : 'click on the map
 const centreText = computed(() => (area.centre ? area.centreLabel || formatCoords(area.centre) : ''))
 const summary = computed(() => (area.centre ? `${centreText.value} · ${area.radius} m` : 'Choose an area'))
 /** 100, 200 and 500 m (config.radius.presets), plus the current radius when the mouse set another one. */
-const radii = computed(() => [...new Set([...config.radius.presets, area.radius])].sort((a, b) => a - b))
+const radii = computed(() => [...new Set([...config.radius.presets, area.radius])].sort((a, b) => a - b)
+  .map((r) => ({ id: r, label: `${r} m` })))
 const ready = computed(() => area.step === 'set' && !!area.centre)
+/** The estimate for what the chosen layer will load. */
 const note = computed(() => {
   const { season, time } = area.thermalWindow
-  return `About ${estimatePhotos(area.radius, config.photosPerKm2)} street photos, thermal for ${season}, ${time}. Ready in about a minute.`
+  const thermal = area.needs.thermal ? `, thermal for ${season}, ${time}` : ''
+  return `About ${estimatePhotos(area.radius, config.photosPerKm2)} street photos${thermal}. Ready in about a minute.`
 })
 
 function toggle() {
@@ -67,10 +71,7 @@ function change() {
                    @open="emit('menu', $event)" @enter="area.analyse(true)" />
     </div>
     <p class="field-label">Radius</p>
-    <div class="radii" role="group" aria-label="Radius">
-      <button v-for="r in radii" :key="r" type="button" class="chip" :class="{ on: area.radius === r }"
-              :aria-pressed="area.radius === r" @click="area.setRadius(r)">{{ r }} m</button>
-    </div>
+    <ChoiceButtons label="Radius" :options="radii" :value="area.radius" @choose="area.setRadius" />
     <template #action>
       <AnalyseAction v-if="area.step !== 'analysed'" label="Analyse this area" :note="note" :ready="ready"
                      :by-keyboard="area.byKeyboard" @analyse="area.analyse" />
@@ -87,12 +88,4 @@ function change() {
   border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
   background: var(--ground);
 }
-.radii { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.chip {
-  min-height: var(--chip-h); padding: 0 var(--space-3);
-  border: var(--hairline) solid var(--line); border-radius: var(--radius-pill);
-  background: transparent; font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
-}
-.chip.on { background: var(--btn-selected-bg); font-weight: var(--fw-semibold); }
-@media (pointer: coarse) { .chip { min-height: var(--touch-phone); } }
 </style>

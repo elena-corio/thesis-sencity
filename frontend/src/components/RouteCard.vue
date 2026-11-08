@@ -104,7 +104,7 @@ function onLeave() { routes.hoverRoute = null }
           <span class="detail">{{ routes.thermalWindow.season }}, {{ routes.thermalWindow.time }}</span>
           <span v-if="rowState('thermal') === 'active'" class="progress waiting" aria-hidden="true"><span /></span>
         </li>
-        <li class="next">
+        <li v-if="routes.layer !== 'thermal'" class="next">
           <AppIcon name="pending" /><span class="label">Rating for your profile</span>
         </li>
       </ul>

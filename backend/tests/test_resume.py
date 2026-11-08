@@ -83,6 +83,25 @@ def test_area_try_again_goes_on_from_the_failed_photos(setup):
     assert not steps.exists(where, key)
 
 
+def test_senses_skips_thermal_and_photos_are_never_skipped(setup):
+    client, prov, calls, _tmp = setup
+    prov.broken = False
+
+    # Senses: the streets and photos, and no thermal run.
+    senses = events(client.post("/api/area", json={**AREA_REQ, "layer": "senses"}))
+    types = [e["type"] for e in senses]
+    assert prov.asked
+    assert "thermal" not in types and types[-1] == "done"
+
+    # Then Thermal: the simulation, on the photos already found.
+    asked = len(prov.asked)
+    thermal = events(client.post("/api/area", json={**AREA_REQ, "layer": "thermal"}))
+    assert thermal[-1]["type"] == "thermal"
+    assert len(prov.asked) == asked and calls["overpass"] == 1
+    done = next(e for e in thermal if e["type"] == "done")
+    assert all(f["properties"]["photos"] is not None for f in done["area"]["features"])
+
+
 def test_a_retry_is_not_counted_as_a_new_area(setup, monkeypatch):
     client, prov, _calls, _tmp = setup
     monkeypatch.setitem(main.cfg["area"], "rate_per_hour", 1)

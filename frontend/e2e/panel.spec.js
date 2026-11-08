@@ -24,6 +24,14 @@ test.describe('desktop', () => {
     expect(await inOrder(page, ['[data-panel="layers"] [aria-label="Layer"]', '[data-panel="layers"] [data-testid="season-time"]',
       '[data-panel="layers"] [aria-label="Show places"]', '[data-panel="layers"] [data-testid="thermal-legend"]'])).toBe(true)
     await expect(page.locator('[data-panel="season"]')).toHaveCount(0)
+    // Season and time sit about evenly between Layer and Places, with a little more room above.
+    const gaps = await panel.evaluate((el) => {
+      const box = (s) => el.querySelector(s).getBoundingClientRect()
+      return { above: box('[data-testid="season-time"]').top - box('[aria-label="Layer"]').bottom,
+        below: box('.places-title').top - box('[data-testid="season-time"] output').bottom }
+    })
+    expect(gaps.above).toBeGreaterThanOrEqual(gaps.below)
+    expect(gaps.above - gaps.below).toBeLessThanOrEqual(4)
     const block = panel.getByTestId('season-time')
     await expect(block).toContainText('Season and time')
     await expect(block).toContainText('Changes heat and cold')
@@ -46,6 +54,41 @@ test.describe('desktop', () => {
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/panel-dark-left.png' })
   })
+
+  test('Area opens on Thermal, Senses and Overall are inactive, and the loading skips only the rating', async ({ page }) => {
+    await mockArea(page, { hold: true })
+    await openMap(page, 'dark')
+    const panel = page.locator('[data-panel="layers"]')
+    const radio = (name) => panel.getByRole('radio', { name, exact: true })
+    await expect(radio('Thermal')).toHaveAttribute('aria-checked', 'true')
+    await expect(radio('Senses')).toBeDisabled()
+    await expect(radio('Overall')).toBeDisabled()
+    await expect(panel.locator('[aria-label="Legend"]')).toHaveCount(0)
+
+    const asked = page.waitForRequest('**/api/area')
+    await analyseCentre(page)
+    expect((await asked).postDataJSON().layer).toBe('thermal')
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading).toContainText('Street photos')
+    await expect(loading).toContainText('Thermal')
+    await expect(loading).not.toContainText('Rating for your profile')
+  })
+
+  test('Layer, Places, Radius and Season are the same kind of button, in two weights', async ({ page }) => {
+    await openMap(page, 'dark')
+    await page.getByRole('button', { name: 'type an address' }).click()
+    const panel = page.locator('[data-panel="layers"]')
+    for (const name of ['Layer', 'Radius', 'Show places', 'Season and time']) {
+      await expect(panel.getByRole('radiogroup', { name })).toBeVisible()
+    }
+    const size = (name) => panel.getByRole('radiogroup', { name }).getByRole('radio').first().evaluate((el) => ({
+      height: el.offsetHeight, font: getComputedStyle(el).fontSize,
+    }))
+    expect(await size('Radius')).toEqual({ height: 30, font: '12px' })
+    expect(await size('Show places')).toEqual({ height: 30, font: '12px' })
+    expect(await size('Season and time')).toEqual({ height: 30, font: '12px' })
+    expect((await size('Layer')).height).toBe(40)
+  })
 })
 
 for (const [name, viewport, phone] of [['phone', { width: 390, height: 844 }, true], ['tablet', { width: 1024, height: 768 }, false]]) {
@@ -57,7 +100,7 @@ for (const [name, viewport, phone] of [['phone', { width: 390, height: 844 }, tr
       await openMap(page, 'light')
       await analyseCentre(page)
       const card = page.locator('[data-panel="area-card"]')
-      await expect(card.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+      await expect(card.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
       const block = card.getByTestId('season-time')
       await expect(block).toBeVisible()
       expect(await inOrder(page, ['[data-panel="area-card"] [aria-label="Layer"]', '[data-panel="area-card"] [data-testid="season-time"]'])).toBe(true)

@@ -81,6 +81,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 
     <template v-if="area.step === 'set'">
       <p class="meta">Drag the edge of the circle to adjust.</p>
+      <LayerButtons />
       <SeasonTime v-if="showWindow" :store="area" />
     </template>
 
@@ -90,7 +91,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <SeasonTime v-if="showWindow" :store="area" />
       </div>
 
-      <template v-if="area.thermal === 'ready'">
+      <template v-if="area.mapLayer === 'thermal' && area.thermal === 'ready'">
         <div class="stack-head">
           <span>Thermal · {{ area.counts.all }} street stretches</span>
           <span class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
@@ -144,7 +145,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
       </template>
 
       <p class="foot">
-        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.thermal === 'ready' ? 'why' : 'its photos' }}.
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
         Predictions, not reasons.
       </p>
       <div class="buttons">

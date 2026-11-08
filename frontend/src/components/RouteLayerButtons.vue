@@ -1,29 +1,23 @@
 <script setup>
-// Layer of the routes ("Layer", as in Area): Senses, Thermal, Overall. Inactive until the routes are ready, and Senses and
-// Overall stay inactive until rating is built.
+// Layer of the routes, as in Area. Only Thermal for now: the easiest way is found from the states along it,
+// so Senses and Overall wait until photos are rated.
 import { useRoutesStore } from '../stores/routes.js'
+import ChoiceButtons from './ChoiceButtons.vue'
 
 const routes = useRoutesStore()
-const LAYERS = [{ id: 'senses', label: 'Senses' }, { id: 'thermal', label: 'Thermal' }, { id: 'overall', label: 'Overall' }]
+const SOON = 'Follows when your photos are rated'
+const LAYERS = [
+  { id: 'senses', label: 'Senses', disabled: true, title: SOON },
+  { id: 'thermal', label: 'Thermal' },
+  { id: 'overall', label: 'Overall', disabled: true, title: SOON },
+]
 </script>
 
 <template>
-  <div class="layers" :class="{ inactive: !routes.hasResult }" role="group" aria-label="Layer">
-    <button v-for="l in LAYERS" :key="l.id" type="button" class="seg" :class="{ on: routes.layer === l.id }"
-            :disabled="l.id !== 'thermal' || !routes.hasResult" :aria-pressed="routes.layer === l.id"
-            :title="l.id === 'thermal' ? undefined : 'Follows when your photos are rated'">
-      {{ l.label }}
-    </button>
-  </div>
+  <ChoiceButtons class="layers" weight="thick" label="Layer" :options="LAYERS" :value="routes.layer"
+                 :disabled="routes.load === 'loading'" />
 </template>
 
 <style scoped>
-.layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin-top: var(--space-3); }
-.seg {
-  min-height: var(--touch); padding: 0 var(--space-1);
-  border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
-  background: transparent; font-size: var(--fs-md);
-}
-.seg.on { background: var(--btn-selected-bg); color: var(--text); font-weight: var(--fw-semibold); }
-.layers:not(.inactive) .seg:disabled { opacity: var(--inactive-opacity); }
+.layers { margin-top: var(--space-3); }
 </style>

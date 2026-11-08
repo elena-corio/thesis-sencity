@@ -62,7 +62,8 @@ export function kindLabel(kind) {
  * · {type: "done", area} · {type: "error", message}; then {type: "stage", stage: "thermal"}
  * · {type: "thermal", season, time, station, values} or {type: "thermal_error", message}.
  * Abort the signal to cancel.
- * @param {{lat:number, lon:number, radius:number, season?:string, time?:string}} area
+ * The photos always load; layer 'senses' skips thermal comfort.
+ * @param {{lat:number, lon:number, radius:number, season?:string, time?:string, layer?:string}} area
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
  */

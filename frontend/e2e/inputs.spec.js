@@ -43,7 +43,7 @@ test.describe('desktop', () => {
     await page.getByRole('option', { name: /Graben/ }).click()
     await expect(page.getByRole('button', { name: 'Analyse this area' })).toBeEnabled()
     await expect(inputs(page)).toContainText('Graben · 200 m')
-    await inputs(page).getByRole('button', { name: '500 m' }).click()
+    await inputs(page).getByRole('radio', { name: '500 m' }).click()
     await expect(inputs(page)).toContainText('Graben · 500 m')
     // The estimate follows the current values.
     await expect(inputs(page)).toContainText('About 1460 street photos, thermal for summer, 15:00. Ready in about a minute.')
@@ -103,10 +103,10 @@ test.describe('desktop', () => {
     await expect(row).toHaveAttribute('aria-expanded', 'true')
     await expect(page.getByRole('combobox', { name: 'Centre' })).toBeVisible()
     // The radius set by the mouse is offered next to 100, 200 and 500 m, and chosen.
-    const radii = inputs(page).getByRole('group', { name: 'Radius' }).getByRole('button')
+    const radii = inputs(page).getByRole('radiogroup', { name: 'Radius' }).getByRole('radio')
     await expect(radii).toHaveCount(4)
     await expect(radii.first()).toHaveText('100 m')
-    await expect(radii.filter({ has: page.locator('[aria-pressed="true"]') }).or(inputs(page).locator('[aria-pressed="true"]'))).toHaveCount(1)
+    await expect(inputs(page).locator('[aria-checked="true"]')).toHaveCount(1)
   })
 
   test('routes: no step card or extra sentence while choosing; a focused field takes the next click', async ({ page }) => {

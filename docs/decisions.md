@@ -2,11 +2,20 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-08 – Left panel: final order, layer-aware loading, one kind of choice button (proposed)
+**Context.** Elena: a final order for the left panel, only what the chosen layer needs is loaded, and uniform controls (updated boards).
+**Decision (Elena; details marked proposed).**
+- *Order:* inputs row → Analyse and its line → divider → Layer → Season and time (Thermal, Overall) → Places (Area) → divider → legend with its title ("Sensory comfort", "Thermal comfort °C" with the info icon, "Overall comfort"). The legend appears only once its data is loaded, in Area and Routes, as in the 2026-11-07 entry (Elena; the boards show it earlier).
+- *Loading (Elena):* photos are never skipped, in Area or Routes. Senses skips thermal comfort (`layer` in `POST /api/area`), and Thermal skips ratings. Changing layer later loads only what is missing, after the same short wait as a season change. The line under Analyse follows the layer. The loading card lists only the steps the layer needs, so "Rating for your profile" is gone on Thermal.
+- *Default (Elena):* Area always opens on Thermal, with the thermal legend. The first idea, the layer last used, is dropped.
+- *Senses and Overall (Elena):* inactive in Area and Routes until the ratings are built. Reusing ratings by pano ID, and Senses in Routes skipping thermal, come with that step.
+- *Controls:* `ChoiceButtons`, separate bordered buttons (`role="radiogroup"`, `role="radio"`) in two weights: thick for Layer, thin for Places, Radius and Season (30 px high, 12 px text, 4 px gap; selected: lighter border, filled). 12 px is the one exception to the 13 px minimum in brief §3 (Elena). On touch screens both stay 44 px high, the brief's minimum target (proposed).
+
 ## 2026-11-08 – Analyse moves to the left panel; the right side is only loading and results (proposed)
 **Context.** Elena: all controls on the left, the right side only for loading and results (board Flow 1c).
 **Decision (Elena; details marked proposed).**
 - *Area:* the "This area" summary card before analysis is gone. Under the inputs row: a full-width primary **Analyse this area**, disabled until the centre and radius are set, and one muted line, "About N street photos, thermal for {season}, {time}. Ready in about a minute.", from the current values.
-- *Routes:* the "This walk" preview card is gone on desktop and tablet. Under the row: **Analyse the routes** (was "Analyse this walk"), disabled until both points are set, with "Walking routes up to about 3 km.". Nothing starts before the button; Swap and a new season or time on routes already shown still ask again by themselves.
+- *Routes:* the "This walk" preview card is gone on desktop and tablet. Under the row: **Analyse the routes** (was "Analyse this walk"), disabled until both points are set, with "Walking routes up to about 1.5 km." (the limit in the config). Nothing starts before the button; Swap and a new season or time on routes already shown still ask again by themselves.
 - *Line when both points are set (proposed):* "{distance} in a straight line, thermal for {season}, {time}. Ready in a few minutes." There is no photo estimate for a walk before its streets are known.
 - *Row (boards Flow 1c, G3):* the inputs row is a bordered field with a small icon at its start, in Area and Routes. Its text is regular weight and always one line; a value too long for it ends in "…", with the whole value in a tooltip and in the open fields.
 - *Keyboard:* Enter in the last text field (Centre, End) starts the analysis when it is enabled. If a suggestion is on offer for newly typed text, the first Enter picks it and the next one starts. Radius is a set of buttons, so Enter there still chooses the radius.

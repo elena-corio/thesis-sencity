@@ -228,7 +228,7 @@ watch(() => area.selectedId, (id, old) => {
     nextTick(() => requestAnimationFrame(() => revealSelected(id, zoom)))
   }
 })
-watch(() => area.layer, (layer) => {
+watch(() => area.mapLayer, (layer) => {
   if (map.value) setSegmentLayer(map.value, layer)
 })
 watch(() => area.visibleSegments, (fc) => {
@@ -579,7 +579,7 @@ onMounted(() => {
 
   m.on('style.load', () => {
     addAreaLayers(m)
-    addSegmentLayers(m, area.layer)
+    addSegmentLayers(m, area.mapLayer)
     addMarkerLayers(m)
     addRouteLayers(m)
     syncLayers()

@@ -109,10 +109,9 @@ test.describe('desktop', () => {
     await mockArea(page, { thermal: true })
     await openMap(page, 'dark')
     await analyseCentre(page)
-    const thermalBtn = page.getByRole('button', { name: 'Thermal', exact: true })
+    const thermalBtn = page.getByRole('radio', { name: 'Thermal', exact: true })
     await expect(thermalBtn).toBeEnabled()
-    await expect(thermalBtn).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('button', { name: 'Senses', exact: true })).toBeDisabled()
+    await expect(thermalBtn).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('heading', { name: /^Thermal comfort °C/ })).toBeVisible()
     // Every value here is 9 °C or warmer: Easy with its range, then only the heat side.
     const legend = page.getByTestId('thermal-legend')
@@ -183,7 +182,7 @@ test.describe('desktop', () => {
     await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
     // The ring pulses on the new street, even while the map moves there (the pulse lasts 6 s).
     await expect(page.locator('.ring.pulsing')).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(page.locator('[data-seg][aria-pressed="true"]')).toHaveCount(1)
     await mapIdle(page)
     expect(await page.evaluate(() => window.__sencityMap.getZoom())).toBeGreaterThanOrEqual(zoomBefore)
@@ -255,15 +254,15 @@ test.describe('desktop', () => {
     await expect(pins).toHaveCount(n)
 
     // Places filter: Parks limits the map and the suggestions to parks.
-    await page.getByRole('button', { name: 'Parks', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'Parks', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('radio', { name: 'Parks', exact: true }).click()
+    await expect(page.getByRole('radio', { name: 'Parks', exact: true })).toHaveAttribute('aria-checked', 'true')
     await mapIdle(page)
     const kinds = await page.evaluate(() => window.__sencityMap.getSource('sc-seg').serialize().data.features.map((f) => f.properties.place_type))
     expect(kinds.every((k) => k === 'park')).toBe(true)
     const parkRows = await rows.count()
     if (parkRows) await expect(rows.first()).toContainText('Park')
     else await expect(list).toContainText('Nothing easy here at this time. Try another time or a nearby area.')
-    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await page.getByRole('radio', { name: 'All', exact: true }).click()
     await expect(rows).toHaveCount(n)
   })
 
@@ -328,7 +327,7 @@ test.describe('desktop', () => {
     const card = page.locator('[data-panel="area-card"]')
     await expect(card).toContainText('Thermal comfort could not be loaded. Try again.')
     await expect(card.getByRole('button', { name: 'Try again' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toBeDisabled()
+    await expect(page.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByText(`${AREA.features.length} street stretches`)).toBeVisible()
   })
 
@@ -404,7 +403,7 @@ test.describe('desktop', () => {
       src.setData = (d) => { if (!d?.features?.length) window.__emptied = true; return set(d) }
     })
     await card.getByRole('button', { name: 'Try again' }).click()
-    await expect(page.getByRole('button', { name: 'Thermal', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
     expect(tries).toHaveLength(2)
     expect(await page.evaluate(() => window.__emptied)).toBe(false)
   })

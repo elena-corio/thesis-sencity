@@ -37,7 +37,7 @@ const TABS = [
   border: var(--hairline) solid transparent; background: transparent;
   color: var(--text-2); font-size: var(--fs-md); font-weight: var(--fw-medium); text-decoration: none;
 }
-.tabs .tab.on { background: var(--btn-selected-bg); color: var(--text); border-color: var(--line); }
+.tabs .tab.on { background: var(--btn-selected-bg); color: var(--text); border-color: var(--text-muted); }
 
 .tabbar {
   display: grid; grid-template-columns: repeat(3, 1fr);

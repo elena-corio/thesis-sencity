@@ -108,6 +108,8 @@ class AreaRequest(BaseModel):
     radius: int = Field(..., ge=full_cfg["area"]["radius_min_m"], le=full_cfg["area"]["radius_max_m"])
     season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
     time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
+    # Photos always load. Senses skips the billed thermal run (Thermal skips ratings, once they exist).
+    layer: str = Field("overall", pattern="^(senses|thermal|overall)$")
 
 
 # (pano ID, heading) pairs of every cached area: /photo fetches nothing else.
@@ -123,7 +125,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     """Streams newline-separated JSON events: "segments" (all segments, photos pending), "segment"
     (one segment with its photos, with done/total), "done" with the FeatureCollection, then the
     thermal stage: "thermal" (UTCI per segment) or "thermal_error". A cached area sends "done" at
-    once; cached thermal comfort comes straight after it. If the app cancels, the lookups stop."""
+    once; cached thermal comfort comes straight after it. If the app cancels, the lookups stop.
+    The photos always load; the Senses layer skips the thermal stage."""
+    needs_thermal = body.layer != "senses"
     key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg)
     ip = _ip(request)
     cached = area_mod.load_cached(key, full_cfg)
@@ -134,6 +138,8 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     prov = provider() if cached is None else None
 
     def thermal(fc):
+        if not needs_thermal:
+            return
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
         for event in area_mod.thermal_events(key, fc, body.lat, body.lon,
                                              area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),
