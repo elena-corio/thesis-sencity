@@ -70,10 +70,9 @@
   --hard: #c2306a;
   --warning: var(--mixed);
 
-  /* Senses: the 1–5 comfort scale of a prediction, on its marker, bar and legend (same in both themes) */
-  --senses-low: #f0557e;
-  --senses-high: #40c5e8;
-  --senses-spin-s: 1s;             /* the marker while the model answers */
+  --senses-spin-s: 1s;             /* a Senses card while its rating is on the way */
+  --map-senses-dot-radius: 6;      /* a rated place on the map */
+  --map-senses-dot-stroke: 2;
 
   /* Inactive controls (§3 Map flow) */
   --inactive-opacity: 0.4;

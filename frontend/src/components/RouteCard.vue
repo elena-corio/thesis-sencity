@@ -7,6 +7,7 @@ import { formatKm } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
+import SensesPanel from './SensesPanel.vue'
 
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
@@ -100,7 +101,7 @@ function onLeave() { routes.hoverRoute = null }
           <span class="detail">{{ routes.thermalWindow.season }}, {{ routes.thermalWindow.time }}</span>
           <span v-if="rowState('thermal') === 'active'" class="progress waiting" aria-hidden="true"><span /></span>
         </li>
-        <li v-if="routes.layer !== 'thermal'" class="next">
+        <li v-if="routes.layer === 'overall'" class="next">
           <AppIcon name="pending" /><span class="label">Rating for your profile</span>
         </li>
       </ul>
@@ -137,14 +138,15 @@ function onLeave() { routes.hoverRoute = null }
           <span :class="['sample', r.id]" aria-hidden="true" />
           <strong>{{ r.id }}</strong>
           <span class="muted">{{ formatKm(r.length_m) }} · {{ r.minutes }} min</span>
-          <span class="hard" :class="hardColour(r)">hard {{ pct(r.hard_share) }}</span>
+          <span v-if="routes.layer === 'thermal'" class="hard" :class="hardColour(r)">hard {{ pct(r.hard_share) }}</span>
         </p>
         <div class="bar-row">
-          <span class="muted bar-label">Thermal</span>
+          <span class="muted bar-label">{{ routes.layer === 'senses' ? 'Senses' : 'Thermal' }}</span>
           <RouteBar :route="r" />
         </div>
       </div>
-      <p class="verdict">{{ routes.verdict }}</p>
+      <p v-if="routes.layer === 'thermal'" class="verdict">{{ routes.verdict }}</p>
+      <SensesPanel scope="routes" />
       <p v-if="routes.windowError" class="window-error" role="status">{{ routes.windowError }}</p>
       <p class="foot">
         {{ coverage }} {{ verb }} a stretch on the map or a section of a bar to see it. Predictions, not reasons.

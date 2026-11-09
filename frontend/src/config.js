@@ -30,12 +30,15 @@ export default {
     overall: { thermal: true },
   },
   // The layer Area opens on.
-  layerDefault: 'thermal',
+  layerDefault: 'senses',
 
   // The app's language: which label of model/app_v0/elements.json is shown ('en' or 'it').
   language: 'en',
-  // The words of a 1–5 comfort rating, from 1 to 5.
-  comfortWords: ['not at all comfortable', 'not very comfortable', 'somewhat comfortable', 'fairly comfortable', 'very comfortable'],
+  // The words of a comfort rating of 2, 3 and 4. Those of 1 and 5 are the survey's, from model/app_v0/.
+  comfortWords: { 2: 'not very comfortable', 3: 'somewhat comfortable', 4: 'fairly comfortable' },
+  // The recommendation panel in Senses (lib/senses.js): how many to list, and at least this far apart (between
+  // middles), so one long street does not fill the list; how many bothering elements to name for a place to avoid.
+  sensesRecommend: { count: 3, avoid: 3, minApartM: 75, mainBothers: 2 },
 
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },

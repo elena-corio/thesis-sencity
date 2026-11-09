@@ -52,7 +52,7 @@ test.describe('desktop', () => {
     await expect(card(page)).toContainText('hard 0%')
     await expect(card(page)).toContainText('avoids the hot stretch on Heissgasse')
     await expect(card(page)).toContainText('Predictions, not reasons')
-    await expect(card(page)).not.toContainText('persona')
+    await expect(card(page)).not.toContainText(/persona\b/) // "personal" is the required label
     await expect(page.getByRole('button', { name: /Route A, shortest/ })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('[data-route="A"] .section')).toHaveCount(5)
     await expect(page.locator('[data-route="B"] .section')).toHaveCount(3)

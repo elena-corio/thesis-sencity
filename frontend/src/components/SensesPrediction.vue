@@ -1,33 +1,46 @@
 <script setup>
-// The general prediction on the place card (board 2c): waiting, the failure with Retry, or the rating on its
-// 1–5 bar, what might bother and feel good with sense icons, and the model's explanation. Model text is shown
-// as text only.
+// One place on the Senses layer (board 2c), from the ratings already here, with no new call: waiting, could not
+// be rated (with Retry), or the rating on its 1–5 bar, what might bother and feel good with sense icons, and the
+// model's explanation of the photo shown. Model text is shown as text only.
 import { computed } from 'vue'
-import { comfortLabel, elementLabel, statusLine } from '../lib/senses.js'
+import { GENERAL_LABEL, comfortLabel, elementLabel, levelWord } from '../lib/senses.js'
 import AppIcon from './AppIcon.vue'
 import SenseIcon from './SenseIcon.vue'
 
 const props = defineProps({
-  /** The prediction of the photo on the card (stores/senses.js). */
-  entry: { type: Object, required: true },
+  /** The place, combined from its photos (lib/senses.js). */
+  place: { type: Object, required: true },
+  /** The rating of the photo on the card, if it has one. */
+  shown: { type: Object, default: null },
+  photoNumber: { type: Number, default: 1 },
+  /** "along this street" or "in this place" */
+  along: { type: String, default: 'along this street' },
 })
 defineEmits(['retry'])
-const r = computed(() => props.entry.result)
 const rows = (elements) => elements.map((e) => ({ code: e.code, icon: e.sense, ...elementLabel(e) }))
 const lists = computed(() => [
-  { title: 'Might bother', kind: 'bother', items: rows(r.value.bothers) },
-  { title: 'Might feel good', kind: 'good', items: rows(r.value.feels_good) },
+  { title: 'Might bother', kind: 'bother', items: rows(props.place.bothers) },
+  { title: 'Might feel good', kind: 'good', items: rows(props.place.feelsGood) },
 ])
+const reason = computed(() => (props.shown?.status === 'ok' ? props.shown.result.reason : props.place.reason))
+const basedOn = computed(() => {
+  const { nRated, nFailed, nPending } = props.place
+  const notes = []
+  if (nPending) notes.push(`${nPending} still being rated`)
+  if (nFailed) notes.push(`${nFailed} could not be rated`)
+  return `Based on ${nRated} photo${nRated === 1 ? '' : 's'} ${props.along}${notes.length ? ` (${notes.join(', ')})` : ''}.`
+})
+const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.status === 'ok')
 </script>
 
 <template>
-  <p v-if="entry.status === 'loading'" class="waiting" role="status">
-    <span class="spinner" aria-hidden="true" /> Asking the model about this photo…
+  <p v-if="place.status === 'pending'" class="waiting" role="status">
+    <span class="spinner" aria-hidden="true" /> Waiting for its rating…
   </p>
 
-  <div v-else-if="entry.status === 'error'" class="failed" role="alert" data-testid="senses-error">
-    <p class="failed-title"><AppIcon name="info" /> Could not get a prediction</p>
-    <p class="failed-text">{{ entry.error }}</p>
+  <div v-else-if="place.status === 'failed'" class="failed" role="alert" data-testid="senses-error">
+    <p class="failed-title"><AppIcon name="info" /> Could not rate</p>
+    <p class="failed-text">{{ place.error }}</p>
     <p class="muted">The photo and the map still work.</p>
     <button type="button" class="btn btn-primary" @click="$emit('retry')">Retry</button>
   </div>
@@ -36,29 +49,30 @@ const lists = computed(() => [
     <div class="scale">
       <div class="scale-head">
         <span>Senses · comfort from photo, general</span>
-        <strong>{{ comfortLabel(r.comfort) }}</strong>
+        <strong><span :class="['state', place.level]">{{ levelWord(place.level) }}</span> · {{ comfortLabel(place) }}</strong>
       </div>
-      <div class="track" role="img" :aria-label="`Comfort ${r.comfort} of 5`">
-        <span class="diamond" :style="{ left: `${((r.comfort - 1) / 4) * 100}%` }" />
+      <div class="track" role="img" :aria-label="`Comfort ${place.comfort} of 5`">
+        <span class="diamond" :style="{ left: `${((place.comfort - 1) / 4) * 100}%` }" />
       </div>
       <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
-      <p class="general">General prediction: not yet personal</p>
+      <p class="general">{{ GENERAL_LABEL }}</p>
       <p class="muted">A prediction, not a reason.</p>
     </div>
+    <p class="based muted" data-testid="senses-based">{{ basedOn }}</p>
 
     <section v-for="l in lists" :key="l.kind" class="list">
       <h3>{{ l.title }}</h3>
-      <ul :class="l.kind">
+      <ul v-if="l.items.length" :class="l.kind">
         <li v-for="e in l.items" :key="e.code"><SenseIcon :sense="e.icon" :label="e.sense" /><span>{{ e.text }}</span></li>
       </ul>
+      <p v-else class="muted">Nothing named in enough of the photos.</p>
     </section>
 
     <section class="list">
       <h3>Model's explanation</h3>
-      <p class="reason">{{ r.reason }}</p>
+      <p v-if="showPhotoLine" class="muted">Photo {{ photoNumber }}: {{ comfortLabel(shown.result) }}</p>
+      <p class="reason">{{ reason }}</p>
     </section>
-
-    <p class="status" data-testid="senses-status">{{ statusLine(r) }}</p>
   </div>
 </template>
 
@@ -88,9 +102,10 @@ p { margin: 0; }
 }
 .scale-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); font-size: var(--fs-sm); }
 .scale-head strong { font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.state.hard { color: var(--hard-text); }
 .track {
   position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--senses-low), var(--senses-high));
+  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
 }
 .diamond {
   position: absolute; top: 50%; width: var(--handle-size); height: var(--handle-size);
@@ -101,7 +116,7 @@ p { margin: 0; }
   display: flex; justify-content: space-between; margin: var(--space-2) var(--space-1) 0;
   font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums;
 }
-
+.based { margin-top: var(--space-2); }
 .list { margin-top: var(--space-4); }
 .list h3 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
 .list ul { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
@@ -111,7 +126,4 @@ p { margin: 0; }
 .good .sense-icon { color: var(--easy); }
 .reason { margin-top: var(--space-2); overflow-wrap: anywhere; }
 .general { margin-top: var(--space-3); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
-.status {
-  margin-top: var(--space-4); padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums;
-}
 </style>

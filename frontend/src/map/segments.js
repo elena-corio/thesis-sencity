@@ -22,9 +22,10 @@ function lit(layer) {
   return layer === 'thermal' ? HAS_THERMAL : HAS_PHOTOS
 }
 function litColor(layer) {
-  if (layer !== 'thermal') return cssVar('--map-seg')
-  return ['match', ['get', 'thermal_state'],
-    'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'), cssVar('--map-seg-none')]
+  if (layer !== 'thermal' && layer !== 'senses') return cssVar('--map-seg')
+  // Senses: a street whose photos are not rated yet keeps the neutral colour until its rating arrives.
+  return ['match', ['get', `${layer}_state`], 'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'),
+    cssVar(layer === 'senses' ? '--map-seg' : '--map-seg-none')]
 }
 
 export function addSegmentLayers(map, layer = null) {

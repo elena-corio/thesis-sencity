@@ -1,10 +1,29 @@
 import { expect } from '@playwright/test'
 
-/** No place names unless a test sets its own: a clicked point reads "Point on map". */
-const noPlaceNames = (page) => page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+/** Set by a test that mocks the rating itself. */
+const ratingMocked = new WeakSet()
+export const markRatingMocked = (page) => ratingMocked.add(page)
 
-/** Open /area in a theme and wait until the map has drawn once. */
-export async function openMap(page, theme) {
+/** No place names unless a test sets its own: a clicked point reads "Point on map". And no test ever reaches the
+ *  real rating endpoint: an API already running on this machine would make paid calls with the placeholder image. */
+const noPlaceNames = async (page) => {
+  await page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+  await page.route('**/api/senses/**', (route) => {
+    if (ratingMocked.has(page)) return route.fallback()
+    const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: 0, remaining: 0 },
+      { type: 'done', seconds: 0, failed: 0, remaining: 0, estimate_usd: 0, estimate_streetview_usd: 0 }]
+    return route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+  })
+}
+
+/** Choose a layer directly in the app's state (it is in the sheet on a phone, the panel elsewhere). */
+export const chooseLayer = (page, layer) => page.evaluate((l) => {
+  document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value.area.layer = l
+}, layer)
+
+/** Open /area in a theme and wait until the map has drawn once. Most checks are about Thermal, so that is the layer
+ *  unless they ask for another; layer: null keeps the one the app opens on. */
+export async function openMap(page, theme, { layer = 'thermal' } = {}) {
   await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
@@ -12,6 +31,7 @@ export async function openMap(page, theme) {
   await page.goto('/area')
   await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
   await page.evaluate(() => document.fonts.ready)
+  if (layer) await chooseLayer(page, layer)
 }
 
 /** Wait for the map to finish drawing after a change. */

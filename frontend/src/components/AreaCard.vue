@@ -13,6 +13,7 @@ import AreaInputs from './AreaInputs.vue'
 import LayerButtons from './LayerButtons.vue'
 import MarkerPin from './MarkerPin.vue'
 import SeasonTime from './SeasonTime.vue'
+import SensesPanel from './SensesPanel.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -133,11 +134,12 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <p v-if="area.load === 'ready'" class="summary">
           {{ area.counts.all }} street stretches · {{ area.counts.withPhotos }} with photos
         </p>
+        <SensesPanel v-if="area.layer === 'senses' && area.load === 'ready'" scope="area" />
         <p v-if="area.thermal === 'error'" class="thermal-error">{{ area.thermalError }}</p>
       </template>
 
       <p class="foot">
-        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'a general prediction' : area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'its rating' : area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
         Predictions, not reasons.
       </p>
       <div class="buttons">

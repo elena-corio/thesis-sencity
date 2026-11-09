@@ -3,6 +3,7 @@ import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
 import { loadRoutes, pointName } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
+import { withSenses } from '../lib/senses.js'
 import { POINT_LABEL, haversine } from '../lib/geo.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 
@@ -10,7 +11,7 @@ import { thermalLimits, withThermal } from '../lib/thermal.js'
  * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
  * there is a preview, and nothing is asked for until Analyse (as in Area: a misclick costs nothing). The
  * two ways appear on the map only when they are ready.
- * Thermal is the only layer so far; Senses and Overall come with rating.
+ * The two ways are found on Thermal. Their streets are then rated for Senses (stores/senses.js); Overall is not built.
  */
 export const useRoutesStore = defineStore('routes', () => {
   /** named: the label is a place from search, not a point on the map.
@@ -65,6 +66,14 @@ export const useRoutesStore = defineStore('routes', () => {
   const allStretches = computed(() => shown.value.flatMap((r) => r.stretches))
   const selectedStretch = computed(() => allStretches.value.find((s) => s.key === selected.value?.key) ?? null)
   const selectedRoute = computed(() => shown.value.find((r) => r.id === selectedStretch.value?.routeId) ?? null)
+
+  /** The Senses state of each street on the two ways, as ratings arrive (stores/senses.js). */
+  function applySenses(states) {
+    const features = [...segments.value.values()]
+    const fc = { features }
+    const next = withSenses(fc, states)
+    if (next !== fc) segments.value = new Map(next.features.map((f) => [f.properties.id, f]))
+  }
 
   function clearResult() {
     routes.value = []
@@ -304,6 +313,7 @@ export const useRoutesStore = defineStore('routes', () => {
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
+    applySenses, setLayer: (id) => { layer.value = id },
     pick, setPoint, clearPoint, swap, reset, find, analyse, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
   }
 })

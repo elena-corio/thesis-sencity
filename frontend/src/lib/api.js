@@ -132,31 +132,14 @@ export function photoUrl(photo) {
 }
 
 /**
- * The model's general prediction for one photo (POST /api/senses/predict). The picture the card already shows
- * comes from the browser's own copy and is sent as the body, in memory only.
- * @param {{pano_id:string, heading:number}} photo
- * @returns {Promise<{comfort:number, bothers:object[], feels_good:object[], reason:string, model:string, latency_ms:number, cost_usd:number|null, cached:boolean}>}
- * @throws {ApiError} with a message that can be shown as it is
+ * The model's general predictions for a list of photos, nearest first (POST /api/senses/rate). Events:
+ * {type: "start", model, cached, to_rate, remaining} · {type: "photo", pano_id, heading, status: "ok"|"failed", cached,
+ * result|error, cost_usd, streetview_usd} · {type: "done", seconds, failed, remaining, estimate_usd,
+ * estimate_streetview_usd} or {type: "error", message}. Abort the signal to stop.
+ * @param {{pano_id:string, heading:number}[]} photos
+ * @param {(event: object) => void} onEvent
+ * @param {AbortSignal} [signal]
  */
-export async function predictSenses(photo) {
-  let image
-  try {
-    const res = await fetch(photoUrl(photo))
-    if (!res.ok) throw new Error()
-    image = await res.blob()
-  } catch {
-    throw new ApiError(0, 'The street photo could not be loaded, so nothing was sent to the model.')
-  }
-  let res
-  try {
-    res = await fetch(`${config.apiBase}/api/senses/predict?pano_id=${encodeURIComponent(photo.pano_id)}&heading=${photo.heading}`, {
-      method: 'POST',
-      headers: { 'Content-Type': image.type || 'application/octet-stream' },
-      body: image,
-    })
-  } catch {
-    throw new ApiError(0, 'Could not reach the SenCity API. Check that it is running.')
-  }
-  if (!res.ok) throw new ApiError(res.status, (await errorText(res)) || 'The prediction failed on the server.')
-  return res.json()
+export function rateSenses(photos, onEvent, signal) {
+  return streamEvents('/api/senses/rate', { photos }, onEvent, signal)
 }

@@ -4,6 +4,7 @@ import config from '../config.js'
 import { ApiError, loadArea, pointName } from '../lib/api.js'
 import { POINT_LABEL, haversine, limitRadius } from '../lib/geo.js'
 import { placeGroup } from '../lib/place.js'
+import { withSenses } from '../lib/senses.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 
@@ -59,8 +60,11 @@ export const useAreaStore = defineStore('area', () => {
   const layer = ref(config.layerDefault)
   /** What the chosen layer needs: { thermal }. */
   const needs = computed(() => config.layers[layer.value])
-  /** What the map colours by: 'thermal', or null (photos only, as Senses and Overall have no ratings yet). */
-  const mapLayer = computed(() => (layer.value === 'thermal' && thermalInfo.value ? 'thermal' : null))
+  /** What the map colours by: 'thermal' once it is known, 'senses', or null (photos only: Overall has no ratings yet). */
+  const mapLayer = computed(() => {
+    if (layer.value === 'senses') return 'senses'
+    return layer.value === 'thermal' && thermalInfo.value ? 'thermal' : null
+  })
   /** A later layer is loading its missing part: Cancel keeps the area. */
   const switching = ref(false)
   let layerTimer = null
@@ -132,6 +136,11 @@ export const useAreaStore = defineStore('area', () => {
     if (selected.value && id !== 'all' && placeGroup(selected.value.properties, selected.value.geometry.type) !== id) {
       clearSelection()
     }
+  }
+
+  /** The Senses state of each street, as ratings arrive (stores/senses.js). */
+  function applySenses(states) {
+    if (segments.value) segments.value = withSenses(segments.value, states)
   }
 
   function setFeature(feature) {
@@ -470,7 +479,7 @@ export const useAreaStore = defineStore('area', () => {
     centreLabel, centreName, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
-    busy, legendReady,
+    busy, legendReady, applySenses,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,
     suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,

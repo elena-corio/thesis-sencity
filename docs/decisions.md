@@ -2,6 +2,37 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-09 – Senses rates the whole area up front, then recommends (accepted; details marked proposed)
+**Context.** Elena: rating only on a click does not let people compare places. Rate every photo as soon as an area or route is ready, show results as they arrive, and recommend. Replaces the click flow in the two entries below. Senses is now also the layer Area opens on (Elena), replacing "Area always opens on Thermal" (2026-11-08); a new area on the default layer therefore starts no Infrared.city run.
+**Decision (Elena; details marked proposed).**
+- *Which photos:* all kept photos of each place (up to 3). Area: the circle's streets, parks and squares. Routes: only the streets on the two ways, not the corridor. In Area it starts on the Senses layer, so Thermal still skips ratings; a route is rated as soon as it is ready, on any layer, and is found on Thermal as before.
+- *A place from its photos (tool choice, not the study):* the median rating and the elements named in at least 2 of 3 (brief §4). **The study rates one photo per place, so this combination is the app's, not the validated V0.** Proposed: with two photos, the lower rating, so a rating stays a whole number and doubt counts against comfort; elements named in both. A place shows as soon as one photo is rated and updates as the others arrive.
+- *Concurrency:* at most 4 photos at a time (`api.senses.concurrency`).
+- *Cap:* 250 new photos per run (`api.senses.cap_photos`), so the default 200 m area (about 236 photos) finishes without asking. Cached photos do not count (proposed), as they cost nothing. Above it the nearest 250 are rated, then the app asks, showing the estimated cost of the rest: about $0.001 per model call (`estimate_call_usd`) plus Street View at list price. Continue sends the same list: rated photos come back from the cache, and the next 250 are rated.
+- *Order:* nearest the centre first; on routes, along A from the start, then the rest of B (proposed).
+- *Images (Elena):* the backend fetches them from Street View, only for photos not in the cache, in memory only. This replaces the upload from the browser, and with it the wrong-picture risk. Each new photo is also a paid Street View image, about $0.007 at list price (10,000 a month free), about ten times the model's cost: for the default area about $1.65 at list price, inside the free allowance.
+- *Failures (proposed):* an invalid reply is retried once, then the photo is marked failed; a place with no rated photo keeps a grey dot with an amber edge and "Could not rate". Retry asks only for what is missing. A refused key, no credit or no endpoint (401, 402, 403, 404) stops the run at once, so no more images are paid for.
+- *Cache:* every rating, by pano ID + heading + MANIFEST commit, as before. Reopening answers without a model call or an image.
+- *Map (proposed):* a dot in the §9 colour at each rated place, no numbers, and its street in the same colour (board 2c). The dots are a map layer, not buttons: a click reaches the street under it, and the keyboard list of streets still works.
+- *Recommendation rules (proposed, `config.sensesRecommend`):* **most comfortable nearby:** up to 3 places rated 3 or better, best first, ties to the place nearer the centre. **To avoid:** up to 3 places rated 1 or 2, worst first, each with up to 2 bothering elements. Picks of a list are at least 75 m apart, so one long street does not fill it; both follow the Places filter. A place rated 1 or 2 is never recommended, even when nothing better exists. **Route:** the median comfort weighted by length (the lower on a tie), the share of its length rated, and the hardest stretch (lowest comfort, then the longest). All with "General prediction: not yet personal".
+- *Detail:* from the ratings already in the browser, with no new call: the place's rating and elements, and the model's explanation of the photo on the card, which opens on the photo closest to the median (brief §4).
+- *Status line:* model, places rated, cached and new (photos), the model's real cost plus Street View at list price, and time.
+**Limits.** The default route layer stays Thermal, because the ways are found on it. Overall stays inactive. The per-IP limit is 30 runs with new photos per hour.
+
+## 2026-11-09 – Senses predictions stand for the study's V0: task text, brief §9 colours, the survey's scale words (accepted)
+**Context.** Elena reviewed the first version below. The predictions should stand for the study's V0, and the app should stay consistent with the brief.
+**Decision (Elena; details marked proposed).**
+- *Task text:* the request now holds what the study sends: `system_instructions.txt` as the system message, then `task_part_b.txt` and the image as the user content. This replaces "the image is the only user content".
+- *Option lists:* filled in as the study's code does ("- code: English label", shuffled per question, "nothing" last). Checked against the study's own `task_text`: identical for the same order.
+- *Order (proposed):* the study seeds the order per participant, version, photo and run. The app has no participant, so it seeds per pano ID, heading and commit: the order varies between photos and is fixed for one photo. The first idea, a fixed order, would favour the same options on every photo.
+- *Colours:* brief §9. The marker takes its state colour (brief §4: 4–5 easy, 3 mixed, 1–2 hard), the bar runs hard, mixed, easy as on board 2c, the legend is the board's rows, and the card names the state. The pink-to-cyan scale is gone.
+- *Words:* 1 and 5 are the survey's B1 anchors, read from the B1 line of `task_part_b.txt` ("not at all, too much for my senses", "very much"); 2 to 4 stay "not very", "somewhat", "fairly comfortable".
+- *"Nothing" with other elements:* invalid (retry once, then the error). The rule belongs in `schema_validate.json`, so it is not in the code and applies once the export has it.
+- *Input:* `photo_description` and `description` stay refused, with the message below.
+- *Label:* "General prediction: not yet personal" on every result, also in the enlarged photo.
+- *Accepted as they were:* the element labels without the sense word, "Model's explanation", the photo arrows, no onboarding card.
+**Consequences.** `task_part_b.txt` is now a required file of the export; the app also refuses it if an option slot or the B1 scale is missing. Replaces the colour, words and "no task text" points of the entry below.
+
 ## 2026-11-09 – Senses mode: a general prediction per clicked street, from model/app_v0/ (proposed)
 **Context.** Elena: send the photo of a clicked point to the model and show its general prediction (no profile), using only the files exported from the thesis repo.
 **Decision (Elena; details marked proposed).**

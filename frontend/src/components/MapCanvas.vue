@@ -9,15 +9,14 @@ import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/ge
 import { darkenBaseMap } from '../map/base.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
 import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
-import { addMarkerLayers, setMarkers } from '../map/markers.js'
+import { addMarkerLayers, addSensesDots, setMarkers, setSensesDots } from '../map/markers.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
-import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
+import { boundsOf, formatLength, stretchFeature, stretchMiddle } from '../lib/routes.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useThemeStore } from '../stores/theme.js'
-import { comfortColor, comfortLabel } from '../lib/senses.js'
 import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
@@ -296,23 +295,30 @@ watch(shownMarkers, (ms) => { if (map.value) setMarkers(map.value, ms) })
 // on interaction; no pulse with reduced motion (brief §4).
 const ringPx = computed(() => {
   if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
-  if (area.layer === 'senses' && senses.forSegment(area.selectedId)) return null // its marker shows the selection
   return area.selectedId ? project(area.selectedPoint) : null
 })
 
-// Senses: the predictions of this session, on the Senses layer only (one layer at a time). A marker from
-// another area stays visible; only the streets of the loaded area can be opened.
-const sensesPins = computed(() => {
-  if (props.routesMode || area.layer !== 'senses') return []
-  return senses.list.map((e) => {
-    const state = e.status === 'ready' ? comfortLabel(e.result.comfort) : e.status === 'loading' ? 'waiting for the model' : 'no prediction'
-    return { e, px: project(e.point), label: `${e.name}: ${state}`, here: !!area.segments?.features.some((f) => f.properties.id === e.id) }
-  }).filter((m) => m.px)
+// Senses: a dot per rated place, on the Senses layer only (one layer at a time), for the area or the two ways.
+const sensesDots = computed(() => {
+  const places = []
+  if (props.routesMode) {
+    if (routes.layer === 'senses') {
+      for (const r of routes.shown) {
+        if (!routes.visible[r.id]) continue
+        for (const s of r.stretches) places.push({ point: stretchMiddle(s), photos: routes.segments.get(s.segmentId)?.properties.photos })
+      }
+    }
+  } else if (area.layer === 'senses' && area.step === 'analysed' && area.visibleSegments) {
+    for (const f of area.visibleSegments.features) places.push({ point: midpoint(f.geometry), photos: f.properties.photos })
+  }
+  return places.flatMap(({ point, photos }) => {
+    if (!photos?.length) return []
+    const place = senses.placeFor(photos)
+    return place.status === 'pending' ? [] : [{ point, level: place.status === 'rated' ? place.level : 'failed' }]
+  })
 })
-function openPrediction(e, keyboard) {
-  area.byKeyboard = keyboard
-  area.select(e.id, e.point)
-}
+watch(sensesDots, (dots) => { if (map.value) setSensesDots(map.value, dots) })
+
 const pulsing = ref(false)
 let pulseTimer
 function restartPulse() {
@@ -603,6 +609,8 @@ onMounted(() => {
     addSegmentLayers(m, area.mapLayer)
     addMarkerLayers(m)
     addRouteLayers(m)
+    addSensesDots(m)
+    setSensesDots(m, sensesDots.value)
     syncLayers()
     setSegments(m, props.routesMode ? null : area.visibleSegments)
     setMarkers(m, shownMarkers.value)
@@ -756,17 +764,6 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
       <MarkerPin :n="p.m.n" :level="p.m.level" />
     </button>
 
-    <!-- Senses: one marker per street clicked, kept for the session. The number and the colour are the 1–5
-         rating; the selected one has a ring instead of the selection ring on top of it. -->
-    <button v-for="m in sensesPins" :key="m.e.id" type="button" class="marker-btn senses-marker"
-            :class="{ selected: area.selectedId === m.e.id }" :data-senses="m.e.status" :aria-label="m.label" :title="m.label"
-            :aria-pressed="area.selectedId === m.e.id" :disabled="!m.here"
-            :style="{ left: `${m.px.x}px`, top: `${m.px.y}px` }" @click="openPrediction(m.e, $event.detail === 0)">
-      <span v-if="m.e.status === 'loading'" class="senses-wait" aria-hidden="true" />
-      <MarkerPin v-else-if="m.e.status === 'ready'" :n="m.e.result.comfort" :color="comfortColor(m.e.result.comfort)" />
-      <MarkerPin v-else n="!" color="var(--warning)" />
-    </button>
-
     <!-- Selection ring: what the place card shows (brief §4). -->
     <div v-if="ringPx" class="ring" :class="{ pulsing }" aria-hidden="true"
          :style="{ left: `${ringPx.x}px`, top: `${ringPx.y}px` }">
@@ -834,15 +831,6 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
   border: 0; border-radius: 50%; background: transparent;
   transform: translate(-50%, -50%); /* centred on the middle of the stretch */
 }
-
-.senses-marker.selected :deep(.marker-pin), .senses-marker.selected .senses-wait { box-shadow: 0 0 0 var(--focus-width) var(--ring); }
-.senses-wait {
-  width: var(--marker-size); height: var(--marker-size); border-radius: 50%;
-  border: var(--marker-border) solid var(--ring-edge); border-top-color: var(--ring); background: var(--panel);
-  animation: senses-spin var(--senses-spin-s) linear infinite;
-}
-@keyframes senses-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .senses-wait { animation: none; border-style: dashed; } }
 
 /* Street name on hover: the tooltip style of the Profile board ("Sight"). */
 .street-tip {

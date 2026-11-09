@@ -1,118 +1,195 @@
 import { expect, test } from '@playwright/test'
-import { AREA, WITH_3, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
+import { AREA, WITH_3, analyseCentre, chooseLayer, layoutProblems, mapIdle, markRatingMocked, mockArea, openMap, openRoutes, openSegment, mockRoutes, routeClicks } from './helpers.js'
 
-// The model is mocked: these checks never call OpenRouter.
-const ANSWER = {
-  comfort: 4,
-  bothers: [{ code: 'traffic_trams_crowds', en: 'Traffic, trams, crowds (hearing)', it: 'Traffico, tram, folla (udito)', sense: 'hearing', kind: 'bothering' }],
-  feels_good: [
-    { code: 'greenery_water_buildings', en: 'Greenery, water, nice buildings (sight)', it: 'Verde, acqua, edifici belli (vista)', sense: 'sight', kind: 'pleasant' },
-    { code: 'shade', en: 'Shade from trees, pergolas or buildings (thermal)', it: 'Ombra (termico)', sense: 'thermal', kind: 'pleasant' },
-  ],
+// The model is mocked: these checks never call OpenRouter or Street View.
+const anchors = ['not at all, too much for my senses', 'very much']
+const el = (code, en, sense) => ({ code, en, it: en, sense, kind: null })
+const TRAFFIC = el('traffic_trams_crowds', 'Traffic, trams, crowds (hearing)', 'hearing')
+const SHADE = el('shade', 'Shade from trees, pergolas or buildings (thermal)', 'thermal')
+const result = (comfort) => ({
+  comfort, anchors, bothers: [TRAFFIC], feels_good: [SHADE],
   reason: 'The trees give shade and the facades are pleasant, but the road carries steady traffic.',
   model: 'google/gemini-3.1-flash-lite', latency_ms: 1400, cost_usd: 0.0005, cached: false,
-}
-const OTHER = AREA.features.find((f) => f.properties.photos.length && f.properties.id !== WITH_3.properties.id)
+})
 
-/** Mock the prediction. mock.fail: answer with an error. mock.hold: never answer until released. */
-async function mockSenses(page) {
-  const mock = { requests: [], fail: false, release: null }
-  await page.route('**/api/senses/predict**', async (route) => {
-    mock.requests.push(route.request())
+/** Comfort per photo: the first places easy, the rest hard, so both lists fill up. */
+function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failPano = null, remaining = 0, cached = false } = {}) {
+  const mock = { requests: [], remaining, cached, hold: false, release: null, error: null }
+  markRatingMocked(page)
+  return page.route('**/api/senses/rate', async (route) => {
+    const { photos } = route.request().postDataJSON()
+    mock.requests.push(photos)
     if (mock.hold) await new Promise((resolve) => { mock.release = resolve })
-    if (mock.fail) return route.fulfill({ status: 502, json: { detail: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"' } })
-    return route.fulfill({ json: ANSWER })
-  })
-  return mock
+    const lines = [{ type: 'start', model: 'google/gemini-3.1-flash-lite', cached: 0, to_rate: photos.length, remaining: mock.remaining }]
+    if (mock.error) lines.push({ type: 'error', message: mock.error })
+    else {
+      photos.forEach((p, i) => {
+        if (p.pano_id === failPano && !mock.requests[1]) {
+          lines.push({ type: 'photo', ...p, status: 'failed', cached: false, error: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"', cost_usd: 0.0002, streetview_usd: 0.007 })
+        } else {
+          lines.push({ type: 'photo', ...p, status: 'ok', cached: mock.cached, result: result(comfort(i)), cost_usd: mock.cached ? null : 0.0005, streetview_usd: mock.cached ? undefined : 0.007 })
+        }
+      })
+      const left = mock.remaining
+      lines.push({ type: 'done', seconds: 3.2, failed: 0, remaining: left, estimate_usd: left * 0.001, estimate_streetview_usd: left * 0.007 })
+    }
+    await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+  }).then(() => mock)
 }
 
-async function openSenses(page, theme = 'dark') {
-  await mockArea(page)
-  const mock = await mockSenses(page)
-  await openMap(page, theme)
-  if ((page.viewportSize()?.width ?? 1440) < 768) await page.locator('[data-panel="sheet"]').getByRole('tab', { name: /^Settings/ }).click()
-  await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
+async function openSenses(page, options = {}, theme = 'dark') {
+  const photos = await mockArea(page)
+  const mock = await mockSenses(page, options)
+  await openMap(page, theme, { layer: null })
   await analyseCentre(page)
-  await expect(page.locator('[data-panel="area-card"]')).toBeVisible()
-  return mock
+  return { mock, photos }
 }
+
+const dots = (page) => page.evaluate(() => window.__sencityMap.getSource('sc-senses').serialize().data.features.map((f) => f.properties.level))
 
 test.describe('Senses mode', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a clicked street shows the wait, then the marker and the prediction', async ({ page }) => {
-    const mock = await openSenses(page)
+  test('an area is rated without a click, nearest first, with the panel and the markers filling in', async ({ page }) => {
+    const { mock, photos } = await openSenses(page)
+    const panel = page.getByTestId('senses-panel')
+    await expect(panel).toContainText('General prediction: not yet personal')
+    await expect(page.getByTestId('senses-status')).toContainText('google/gemini-3.1-flash-lite')
+    await expect(page.getByTestId('senses-status')).toContainText('cached')
+    await expect(page.getByTestId('senses-status')).toContainText('model')
+    expect(mock.requests).toHaveLength(1)
+
+    const sent = mock.requests[0]
+    const every = AREA.features.flatMap((f) => f.properties.photos)
+    expect(sent.length).toBe(new Set(every.map((p) => `${p.pano_id}|${p.heading}`)).size)
+    expect(photos).toHaveLength(0) // the browser fetched no picture: the rating needs none
+
+    await expect(page.getByTestId('senses-best').locator('button').first()).toBeVisible()
+    await expect(page.getByTestId('senses-avoid')).toContainText('Traffic, trams, crowds')
+    await expect.poll(() => dots(page).then((d) => d.length)).toBeGreaterThan(0)
+    expect(new Set(await dots(page))).toEqual(new Set(['easy', 'hard']))
+    await expect(page.locator('body')).not.toContainText(/persona\b/i) // "personal" is the required label
+    expect(await layoutProblems(page)).toEqual([])
+    await mapIdle(page)
+    await page.screenshot({ path: 'e2e/screens/senses-area.png' })
+  })
+
+  test('progress and a running cost show while it rates', async ({ page }) => {
+    const photos = await mockArea(page)
+    const mock = await mockSenses(page)
     mock.hold = true
-    await openSegment(page, WITH_3.properties.id)
-    await expect(page.locator('[data-senses="loading"]')).toHaveCount(1)
-    await expect(page.locator('[data-panel="place-card"]')).toContainText('Asking the model')
+    await openMap(page, 'dark', { layer: null })
+    await analyseCentre(page)
+    await expect(page.getByTestId('senses-panel')).toContainText(/Rating 0 of \d+ places…/)
+    await expect(page.getByTestId('senses-cost')).toContainText('so far')
     await expect.poll(() => mock.release !== null).toBe(true)
     mock.release()
+    await expect(page.getByTestId('senses-status')).toBeVisible()
+    expect(photos).toHaveLength(0)
+  })
 
+  test('clicking a place opens its detail with no new call', async ({ page }) => {
+    const { mock } = await openSenses(page, { comfort: () => 4 })
+    await expect(page.getByTestId('senses-status')).toBeVisible()
+    await openSegment(page, WITH_3.properties.id)
     const card = page.locator('[data-panel="place-card"]')
-    await expect(card).toContainText('4 · fairly comfortable')
+    await expect(card).toContainText('Easy · 4 · fairly comfortable')
     await expect(card).toContainText('Traffic, trams, crowds')
     await expect(card).not.toContainText('(hearing)') // the sense is the icon
     await expect(card.getByRole('img', { name: 'hearing' })).toBeVisible()
     await expect(card).toContainText('The trees give shade')
+    await expect(card).toContainText('Based on 3 photos')
     await expect(card).toContainText('General prediction: not yet personal')
     await expect(card).toContainText('A prediction, not a reason.')
-    await expect(page.getByTestId('senses-status')).toHaveText('google/gemini-3.1-flash-lite · 1.4 s · $0.0005')
-    await expect(page.locator('body')).not.toContainText(/persona\b/i) // "personal" is the required label
+    expect(mock.requests).toHaveLength(1)
 
-    const marker = page.locator('[data-senses="ready"]')
-    await expect(marker).toHaveText('4')
-    expect(await marker.locator('.marker-pin').evaluate((el) => el.style.background)).toContain('--senses-high')
-
-    const sent = mock.requests[0]
-    expect(sent.method()).toBe('POST')
-    expect(sent.url()).toContain(`pano_id=${WITH_3.properties.photos[0].pano_id}`)
-    expect(sent.postDataBuffer().length).toBeGreaterThan(0)
-
-    await mapIdle(page)
+    await page.getByRole('button', { name: 'Enlarge photo' }).first().click()
+    await expect(page.locator('[data-viewer]')).toContainText('4 · fairly comfortable, this photo')
+    await expect(page.locator('[data-viewer]')).toContainText('General prediction: not yet personal')
     expect(await layoutProblems(page)).toEqual([])
-    await page.screenshot({ path: 'e2e/screens/senses-dark.png' })
+    await page.screenshot({ path: 'e2e/screens/senses-place.png' })
   })
 
-  test('markers stay when another street is clicked, and a street is not asked about twice', async ({ page }) => {
-    const mock = await openSenses(page)
-    await openSegment(page, WITH_3.properties.id)
-    await expect(page.locator('[data-senses="ready"]')).toHaveCount(1)
-    await page.keyboard.press('Escape')
-    await openSegment(page, OTHER.properties.id)
-    await expect(page.locator('[data-senses="ready"]')).toHaveCount(2)
-    await page.keyboard.press('Escape')
-    await openSegment(page, WITH_3.properties.id)
-    await expect(page.locator('[data-panel="place-card"]')).toContainText('4 · fairly comfortable')
+  test('above the cap it asks, with the cost of the rest, before going on', async ({ page }) => {
+    const { mock } = await openSenses(page, { remaining: 182 })
+    const ask = page.getByTestId('senses-ask')
+    await expect(ask).toContainText('182 more photos to rate')
+    await expect(ask).toContainText('$0.18 for the model')
+    await expect(ask).toContainText('$1.27 for the')
+    expect(mock.requests).toHaveLength(1)
+    mock.remaining = 0
+    await ask.getByRole('button', { name: 'Continue' }).click()
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByTestId('senses-status')).toBeVisible()
     expect(mock.requests).toHaveLength(2)
-
-    await page.getByRole('radio', { name: 'Thermal', exact: true }).first().click()
-    await expect(page.locator('[data-senses]')).toHaveCount(0) // one layer at a time
   })
 
-  test('an error is shown plainly, and Retry asks again', async ({ page }) => {
-    const mock = await openSenses(page, 'light')
-    mock.fail = true
+  test('reopened, everything comes from the cache', async ({ page }) => {
+    await openSenses(page, { cached: true })
+    await expect(page.getByTestId('senses-status')).toContainText(/\d+ cached, 0 new/)
+    await expect(page.getByTestId('senses-status')).toContainText('$0.0000 model')
+  })
+
+  test('a photo that fails is marked and can be retried', async ({ page }) => {
+    const failing = WITH_3.properties.photos
+    const only = { ...WITH_3, properties: { ...WITH_3.properties, photos: [failing[0]] } }
+    const mock = await (async () => {
+      await page.route('**/api/area', async (route) => {
+        await route.fulfill({ contentType: 'application/x-ndjson', body: `${JSON.stringify({ type: 'done', area: { type: 'FeatureCollection', features: [only] } })}\n` })
+      })
+      await page.route('**/api/photo/**', (r) => r.fulfill({ status: 404 }))
+      return mockSenses(page, { failPano: failing[0].pano_id, comfort: () => 4 })
+    })()
+    await openMap(page, 'light', { layer: null })
+    await analyseCentre(page)
+    const failed = page.getByTestId('senses-failed')
+    await expect(failed).toContainText('1 place could not be rated')
+    await expect.poll(() => dots(page)).toEqual(['failed'])
     await openSegment(page, WITH_3.properties.id)
     const error = page.getByTestId('senses-error')
     await expect(error).toContainText('It said: "oops"')
-    await expect(page.locator('[data-senses="error"]')).toHaveText('!')
-    await page.screenshot({ path: 'e2e/screens/senses-error-light.png' })
-
-    mock.fail = false
     await error.getByRole('button', { name: 'Retry' }).click()
-    await expect(page.locator('[data-panel="place-card"]')).toContainText('4 · fairly comfortable')
-    await expect(page.locator('[data-senses="ready"]')).toHaveCount(1)
+    await expect(page.locator('[data-panel="place-card"]')).toContainText('Easy · 4')
     expect(mock.requests).toHaveLength(2)
   })
 
-  test('the card fits a phone', async ({ page }) => {
+  test('a refused run says why, and Thermal does not start one', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    const mock = await mockSenses(page)
+    await openMap(page, 'dark') // Thermal
+    await analyseCentre(page)
+    await expect(page.locator('[data-panel="area-card"]')).toContainText('Thermal')
+    expect(mock.requests).toHaveLength(0)
+
+    mock.error = 'OpenRouter refused the request (401).'
+    await chooseLayer(page, 'senses')
+    await expect(page.getByTestId('senses-run-error')).toContainText('OpenRouter refused the request (401).')
+  })
+
+  test('the card and panel fit a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await openSenses(page)
-    await openSegment(page, WITH_3.properties.id)
-    await expect(page.locator('[data-panel="sheet"]')).toContainText('4 · fairly comfortable')
+    await openSenses(page, { comfort: () => 4 })
+    await expect(page.locator('[data-panel="sheet"]')).toContainText('General prediction: not yet personal')
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/senses-phone.png' })
+  })
+
+  test('a route is rated for its two ways only, with its overall comfort and hardest stretch', async ({ page }) => {
+    const mock = await mockSenses(page, { comfort: (i) => (i === 0 ? 2 : 4) })
+    await mockRoutes(page)
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks({ width: 1440, height: 900 })
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await page.getByRole('button', { name: 'Analyse the routes' }).click()
+    const route = page.getByTestId('senses-route-A')
+    await expect(route).toContainText('Overall')
+    await expect(route).toContainText('Hardest stretch')
+    await expect(page.locator('[data-panel="route-card"]')).toContainText('General prediction: not yet personal')
+    expect(mock.requests).toHaveLength(1)
+    await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
+    await expect(page.getByTestId('senses-route-A')).toBeVisible()
+    await page.screenshot({ path: 'e2e/screens/senses-route.png' })
   })
 })
