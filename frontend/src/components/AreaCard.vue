@@ -13,6 +13,7 @@ import AreaInputs from './AreaInputs.vue'
 import LayerButtons from './LayerButtons.vue'
 import MarkerPin from './MarkerPin.vue'
 import SeasonTime from './SeasonTime.vue'
+import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
 
 const props = defineProps({
@@ -34,22 +35,26 @@ const ROWS = [
   { id: 'none', label: 'No value', color: 'var(--no-photo)' },
 ]
 const features = computed(() => area.segments?.features ?? [])
-/** Street stretches per thermal state ("none": no grid value there, e.g. under a building). */
+/** The Senses view of the card: the same bar and places as Thermal, from the ratings so far. */
+const sensesView = computed(() => area.layer === 'senses' && area.load === 'ready')
+const stateKey = computed(() => (area.layer === 'senses' ? 'senses_state' : 'thermal_state'))
+const layerName = computed(() => (area.layer === 'senses' ? 'Senses' : 'Thermal'))
+const known = (f) => ['easy', 'mixed', 'hard'].includes(f.properties[stateKey.value])
+/** Street stretches per state ("none": no value there, e.g. under a building, or no rating). */
 const stack = computed(() => {
   const n = { easy: 0, mixed: 0, hard: 0, none: 0 }
-  for (const f of features.value) n[f.properties.thermal_state ?? 'none']++
+  for (const f of features.value) n[known(f) ? f.properties[stateKey.value] : 'none']++
   const total = features.value.length || 1
   return ROWS.filter((r) => r.id !== 'none' || n.none)
-    .map((r) => ({ ...r, n: n[r.id], pct: Math.round((100 * n[r.id]) / total) }))
+    .map((r) => ({ ...r, label: r.id === 'none' && area.layer === 'senses' ? 'No rating' : r.label, n: n[r.id], pct: Math.round((100 * n[r.id]) / total) }))
 })
 const stackLabel = computed(() => stack.value.map((r) => `${r.label} ${r.n}`).join(', '))
 /** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one). */
 const PLACE_GROUPS = PLACE_FILTERS.filter((g) => g.id === 'parks' || g.id === 'squares')
 const placesHere = computed(() => PLACE_GROUPS.map((g) => {
-  const fs = features.value.filter((f) => placeGroup(f.properties, f.geometry.type) === g.id
-    && f.properties.thermal_state)
+  const fs = features.value.filter((f) => placeGroup(f.properties, f.geometry.type) === g.id && known(f))
   if (!fs.length) return null
-  const count = (st) => fs.filter((f) => f.properties.thermal_state === st).length
+  const count = (st) => fs.filter((f) => f.properties[stateKey.value] === st).length
   const state = ['hard', 'mixed', 'easy'].reduce((best, st) => (count(st) > count(best) ? st : best))
   return { label: g.label, state, text: `${count(state)} of ${fs.length} ${state}` }
 }).filter(Boolean))
@@ -84,12 +89,12 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <SeasonTime v-if="showWindow" :store="area" />
       </div>
 
-      <template v-if="area.mapLayer === 'thermal' && area.thermal === 'ready'">
+      <template v-if="sensesView || (area.mapLayer === 'thermal' && area.thermal === 'ready')">
         <div class="stack-head">
-          <span>Thermal · {{ area.counts.all }} street stretches</span>
-          <span class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
+          <span>{{ layerName }} · {{ area.counts.all }} street stretches</span>
+          <span v-if="!sensesView" class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
         </div>
-        <div class="stack" role="img" :aria-label="`Thermal: ${stackLabel}`">
+        <div class="stack" role="img" :aria-label="`${layerName}: ${stackLabel}`">
           <span v-for="r in stack" :key="r.id" :style="{ flexGrow: r.n, background: r.color }" />
         </div>
         <ul class="rows">
@@ -101,6 +106,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         </ul>
         <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
         <p v-if="area.thermalError" class="thermal-error" role="status">{{ area.thermalError }}</p>
+        <SensesPanel v-if="sensesView" scope="area" />
 
         <section v-if="showMarkers" class="sub" data-testid="suggestions">
           <div class="sub-head">
@@ -134,10 +140,10 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <p v-if="area.load === 'ready'" class="summary">
           {{ area.counts.all }} street stretches · {{ area.counts.withPhotos }} with photos
         </p>
-        <SensesPanel v-if="area.layer === 'senses' && area.load === 'ready'" scope="area" />
         <p v-if="area.thermal === 'error'" class="thermal-error">{{ area.thermalError }}</p>
       </template>
 
+      <SensesFoot v-if="sensesView" scope="area" />
       <p class="foot">
         {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'its rating' : area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
         Predictions, not reasons.

@@ -277,7 +277,13 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     if (hold) { mock.requests.push(route.request().postDataJSON()); return }
     const asked = route.request().postDataJSON()
     mock.requests.push(asked)
-    const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }, { type: 'stage', stage: 'thermal' }]
+    const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }]
+    if (asked.layer === 'senses') {
+      lines.push({ type: 'stage', stage: 'routes' }, { ...routeResponse(asked, sameState, longName, true), season: null, time: null, station: null, values: {}, verdict: '' })
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+      return
+    }
+    lines.push({ type: 'stage', stage: 'thermal' })
     if (mock.thermal === 'route-error') lines.push({ type: 'stage', stage: 'routes' }, { type: 'error', message: 'No walking way was found between these two points.' })
     else if (mock.thermal === 'error') lines.push({ type: 'thermal_error', message: 'No weather station near this area, so thermal comfort is not available here.' })
     else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second))

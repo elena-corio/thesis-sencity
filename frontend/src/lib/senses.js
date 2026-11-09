@@ -4,7 +4,6 @@ import config from '../config.js'
 import { pickSuggestions } from './suggest.js'
 
 export const GENERAL_LABEL = 'General prediction: not yet personal'
-const NOTHING = 'nothing'
 
 /** The key of one photo in the ratings of this session. */
 export const photoKey = (photo) => `${photo.pano_id}|${photo.heading}`
@@ -53,7 +52,7 @@ export function combinePlace(photos, ratingOf) {
   const nFailed = states.filter((s) => s?.status === 'failed').length
   const counts = { nPhotos: photos.length, nRated: rated.length, nFailed, nPending: photos.length - rated.length - nFailed }
   if (!rated.length) {
-    return { status: counts.nPending ? 'pending' : 'failed', error: states.find((s) => s?.error)?.error ?? '', ...counts }
+    return { status: counts.nPending || !photos.length ? 'pending' : 'failed', error: states.find((s) => s?.error)?.error ?? '', ...counts }
   }
   const sorted = rated.map((r) => r.comfort).sort((a, b) => a - b)
   const comfort = sorted[Math.floor((sorted.length - 1) / 2)]
@@ -64,58 +63,52 @@ export function combinePlace(photos, ratingOf) {
   return {
     status: 'rated', comfort, level: comfortLevel(comfort), anchors: rated[0].anchors, bothers,
     feelsGood: shared(rated.map((r) => r.feels_good)),
-    mainBothers: bothers.filter((e) => e.code !== NOTHING).slice(0, config.sensesRecommend.mainBothers),
     rep: rep.i, reason: rep.reason, ...counts,
   }
 }
 
-/** The segments with their Senses state on them, for the map. The same object if nothing changed. */
+/** The segments with their Senses state and comfort on them, for the map and the markers: states is a Map of
+ *  id → { state, comfort } or null. The same object if nothing changed. */
 export function withSenses(fc, states) {
   let changed = false
   const features = fc.features.map((f) => {
-    const state = states.get(f.properties.id) ?? null
-    if ((f.properties.senses_state ?? null) === state) return f
+    const next = states.get(f.properties.id) ?? null
+    const { senses_state: oldState, senses_comfort: oldComfort, ...rest } = f.properties
+    if ((oldState ?? null) === (next?.state ?? null) && (oldComfort ?? null) === (next?.comfort ?? null)) return f
     changed = true
-    const { senses_state: _old, ...rest } = f.properties
-    return { ...f, properties: state ? { ...rest, senses_state: state } : rest }
+    return { ...f, properties: next ? { ...rest, senses_state: next.state, ...(next.comfort ? { senses_comfort: next.comfort } : {}) } : rest }
   })
   return changed ? { ...fc, features } : fc
 }
 
 /**
- * What to recommend in an area, from the places rated so far.
- * Most comfortable: rated 3 or better, best first. To avoid: rated 1 or 2, worst first. Ties go to the place nearer
- * the centre, and picks keep a distance from each other, so one long street does not fill the list.
- * @returns {{best:object[], avoid:object[]}} each { f, mid, place }
+ * What to recommend in Senses, as numbered pins like the Thermal suggestions (boards Flow 4, 4b): up to 3 places rated
+ * 3 or better, best first. Ties go to the place nearer the centre, and picks keep a distance from each other, so one
+ * long street does not fill the list. Only positive: a place rated 1 or 2 is never listed.
+ * @returns {{n:number, f:object, mid:object, type:string, level:string}[]}
  */
-export function recommendations(features, placeOf, centre) {
-  const { count, avoid: nAvoid, minApartM } = config.sensesRecommend
-  const rated = features.filter((f) => placeOf(f).status === 'rated')
-  const comfort = (f) => placeOf(f).comfort
-  const pick = (keep, value, n) => pickSuggestions(rated, { keep, value, centre, n, minApartM, margin: 0 })
-    .map((s) => ({ f: s.f, mid: s.mid, place: placeOf(s.f) }))
-  return { best: pick((f) => comfort(f) >= 3, comfort, count), avoid: pick((f) => comfort(f) <= 2, (f) => -comfort(f), nAvoid) }
+export function sensesMarkers(features, centre) {
+  const { count, minApartM } = config.sensesRecommend
+  const comfort = (f) => f.properties.senses_comfort
+  return pickSuggestions(features.filter((f) => comfort(f)), { keep: (f) => comfort(f) >= 3, value: comfort, centre, n: count, minApartM, margin: 0 })
+    .map((s) => ({ ...s, level: comfortLevel(comfort(s.f)) }))
 }
 
-/**
- * One route from its rated stretches: the median comfort weighted by length (the lower one on a tie, as for a
- * place), its hardest stretch (lowest comfort, then the longest), and the share of its length rated so far.
- * @returns {{comfort:number, level:string, anchors:string[], share:number, hardest:{stretch:object, place:object}} | null}
- */
-export function routeSummary(stretches, placeOf) {
-  const rated = stretches.map((stretch) => ({ stretch, place: placeOf(stretch) })).filter((x) => x.place.status === 'rated')
-  if (!rated.length) return null
-  const length = (x) => x.stretch.length_m
-  const total = rated.reduce((n, x) => n + length(x), 0)
-  let walked = 0
-  const median = [...rated].sort((a, b) => a.place.comfort - b.place.comfort).find((x) => {
-    walked += length(x)
-    return walked >= total / 2
-  })
-  const hardest = [...rated].sort((a, b) => a.place.comfort - b.place.comfort || length(b) - length(a))[0]
-  const comfort = median.place.comfort
-  return { comfort, level: comfortLevel(comfort), anchors: median.place.anchors, hardest,
-    share: total / stretches.reduce((n, s) => n + s.length_m, 0) }
+/** The share of a route's length rated hard, 0 to 1 (board Routes 3). */
+export function hardShare(stretches) {
+  const total = stretches.reduce((n, s) => n + s.length_m, 0)
+  return total ? stretches.filter((s) => s.state === 'hard').reduce((n, s) => n + s.length_m, 0) / total : 0
+}
+
+/** One sentence comparing the two ways on Senses (board Routes 3). Plain rules, no AI. */
+export function sensesVerdict([a, b]) {
+  if (!b) return 'There is only one sensible way here within a quarter more walking.'
+  const extra = b.minutes - a.minutes
+  const took = extra > 0 ? `B is ${extra} minute${extra === 1 ? '' : 's'} longer` : 'B takes about the same time'
+  const [hardA, hardB] = [hardShare(a.stretches), hardShare(b.stretches)]
+  if (hardB < hardA) return `${took} but has less hard walking.`
+  if (hardB > hardA) return `${took} and has more hard walking.`
+  return `${took}, with the same share of hard walking.`
 }
 
 /** "$0.0512 model, about $0.67 Street View" */

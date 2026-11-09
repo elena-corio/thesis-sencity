@@ -9,10 +9,10 @@ import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/ge
 import { darkenBaseMap } from '../map/base.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
 import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
-import { addMarkerLayers, addSensesDots, setMarkers, setSensesDots } from '../map/markers.js'
+import { addMarkerLayers, setMarkers } from '../map/markers.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
-import { boundsOf, formatLength, stretchFeature, stretchMiddle } from '../lib/routes.js'
+import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
@@ -20,7 +20,7 @@ import { useThemeStore } from '../stores/theme.js'
 import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
-const senses = useSensesStore()
+useSensesStore() // its watchers start the rating
 const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
@@ -297,27 +297,6 @@ const ringPx = computed(() => {
   if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
   return area.selectedId ? project(area.selectedPoint) : null
 })
-
-// Senses: a dot per rated place, on the Senses layer only (one layer at a time), for the area or the two ways.
-const sensesDots = computed(() => {
-  const places = []
-  if (props.routesMode) {
-    if (routes.layer === 'senses') {
-      for (const r of routes.shown) {
-        if (!routes.visible[r.id]) continue
-        for (const s of r.stretches) places.push({ point: stretchMiddle(s), photos: routes.segments.get(s.segmentId)?.properties.photos })
-      }
-    }
-  } else if (area.layer === 'senses' && area.step === 'analysed' && area.visibleSegments) {
-    for (const f of area.visibleSegments.features) places.push({ point: midpoint(f.geometry), photos: f.properties.photos })
-  }
-  return places.flatMap(({ point, photos }) => {
-    if (!photos?.length) return []
-    const place = senses.placeFor(photos)
-    return place.status === 'pending' ? [] : [{ point, level: place.status === 'rated' ? place.level : 'failed' }]
-  })
-})
-watch(sensesDots, (dots) => { if (map.value) setSensesDots(map.value, dots) })
 
 const pulsing = ref(false)
 let pulseTimer
@@ -609,8 +588,6 @@ onMounted(() => {
     addSegmentLayers(m, area.mapLayer)
     addMarkerLayers(m)
     addRouteLayers(m)
-    addSensesDots(m)
-    setSensesDots(m, sensesDots.value)
     syncLayers()
     setSegments(m, props.routesMode ? null : area.visibleSegments)
     setMarkers(m, shownMarkers.value)

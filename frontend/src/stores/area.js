@@ -4,7 +4,7 @@ import config from '../config.js'
 import { ApiError, loadArea, pointName } from '../lib/api.js'
 import { POINT_LABEL, haversine, limitRadius } from '../lib/geo.js'
 import { placeGroup } from '../lib/place.js'
-import { withSenses } from '../lib/senses.js'
+import { sensesMarkers, withSenses } from '../lib/senses.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 
@@ -101,11 +101,16 @@ export const useAreaStore = defineStore('area', () => {
       features: fc.features.filter((f) => placeGroup(f.properties, f.geometry.type) === placeFilter.value) }
   })
 
+  /** The rating of this area has ended: only then are places recommended (set by stores/senses.js). */
+  const sensesFinished = ref(false)
+
   // Markers: numbered places on the map and in the area card (brief §3, "Likely easiest for you").
-  // Suggestions follow the area, season and time (the thermal values on the segments) and the
-  // Places filter, on the Thermal layer only. Each: { n, f, mid, type, level }.
+  // Suggestions follow the area and the Places filter: on Thermal the values for the season and time, on Senses
+  // once the rating has ended. Each: { n, f, mid, type, level }.
   const suggestions = computed(() => {
-    if (mapLayer.value !== 'thermal' || !visibleSegments.value) return []
+    if (!visibleSegments.value) return []
+    if (mapLayer.value === 'senses') return sensesFinished.value ? sensesMarkers(visibleSegments.value.features, analysed.value) : []
+    if (mapLayer.value !== 'thermal') return []
     return thermalSuggestions(visibleSegments.value.features,
       { limits: thermalLimits(), filter: placeFilter.value, centre: analysed.value })
   })
@@ -479,7 +484,7 @@ export const useAreaStore = defineStore('area', () => {
     centreLabel, centreName, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
     thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
-    busy, legendReady, applySenses,
+    busy, legendReady, applySenses, sensesFinished,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,
     suggestions, markers, markerKind, markersCollapsed, seenIds, selectMarker, showChatResults, clearChatResults,

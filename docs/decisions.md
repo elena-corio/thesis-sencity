@@ -2,6 +2,27 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-09 – A Senses route follows board Routes 3 (accepted)
+**Context.** Elena: stick to the design and remove the Route A and Route B details. Replaces "for a route, the overall comfort and its hardest stretch".
+**Decision (Elena; details marked proposed).** The card has the same rows as on Thermal: length and minutes, "hard" %, the bar, one sentence, and "Based on photos along …". Hard % is the share of the route's length rated 1 or 2. The sentence is plain rules: how much longer B is, and whether it has less or more hard walking (proposed). "General prediction: not yet personal" and the status line stay under it.
+
+## 2026-11-09 – Each layer of a route loads and speaks only of its own data (accepted)
+**Context.** Elena: the Thermal route also rated photos and showed a hardest stretch. Each layer should show its own coverage: Thermal loads streets, photos and thermal comfort; Senses loads streets, photos and ratings; Overall both. Replaces "a route is rated as soon as it is ready, on any layer" (entry on rating up front), and carries out "Senses in Routes skipping thermal" (2026-11-08).
+**Decision (Elena; details marked proposed).**
+- *Thermal:* no rating, no Senses panel; "Thermal along …" only.
+- *Senses:* no thermal run. "Photos along …" only, a rating row while loading, then each way's comfort and hardest stretch.
+- *Which ways on Senses (proposed):* A is the shortest and B the next way that differs, labelled "alternative". The easiest way cannot be picked from the ratings, because only the streets on the two ways are rated (Elena), and B is not chosen from anything before them.
+- *Changing layer (proposed):* Thermal to Senses rates the ways already on the map, with no new search. Senses to Thermal asks for thermal comfort (billed unless cached), which can change B.
+- *Overall:* still inactive; its coverage line names both.
+
+## 2026-11-09 – Senses recommends only at the end, and only positively (accepted)
+**Context.** Elena: recommendations should not appear while loading, and places to avoid should go. Replaces "a recommendation panel that updates as ratings come in", "the places to avoid" and the pins for them in the entries below.
+**Decision (Elena; details marked proposed).** While rating, the loading card shows the progress and running cost, and the streets take their colours as ratings arrive. The numbered pins and the list "Most comfortable nearby" (up to 3 places rated 3 or better) appear once the rating has ended, also when it stopped at the cap or was cancelled, then from what is rated (proposed). A route's summary follows the same rule. A place rated 1 or 2 is never listed. A route still names its hardest stretch (proposed: it describes the way, and is not a list of places to avoid).
+
+## 2026-11-09 – Senses on the map follows Thermal: coloured streets and numbered pins (accepted)
+**Context.** Elena tried it: a dot on every street made it harder to see what is recommended, and the boards (Flow 4, 4b) have only numbered pins. Replaces "each place as a marker coloured by its rating, instead of numbers" and the dots in the entry below.
+**Decision (Elena; details marked proposed).** Streets take their state colour as ratings arrive, and the recommended places are the same numbered pins as the Thermal suggestions, with the same selecting, seen ticks and hiding when another place is opened. The area card has Thermal's bar with counts and "Places here". Places to avoid are pinned too (Elena allowed it): most comfortable are numbered 1 to 3, those to avoid go on from 4, in their state colour (proposed). A place that could not be rated has a thin grey street and "Could not rate" on its card, as brief §3 asks. Routes have no markers, as on Thermal: the ways are coloured stretch by stretch.
+
 ## 2026-11-09 – Senses rates the whole area up front, then recommends (accepted; details marked proposed)
 **Context.** Elena: rating only on a click does not let people compare places. Rate every photo as soon as an area or route is ready, show results as they arrive, and recommend. Replaces the click flow in the two entries below. Senses is now also the layer Area opens on (Elena), replacing "Area always opens on Thermal" (2026-11-08); a new area on the default layer therefore starts no Infrared.city run.
 **Decision (Elena; details marked proposed).**
@@ -17,6 +38,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Recommendation rules (proposed, `config.sensesRecommend`):* **most comfortable nearby:** up to 3 places rated 3 or better, best first, ties to the place nearer the centre. **To avoid:** up to 3 places rated 1 or 2, worst first, each with up to 2 bothering elements. Picks of a list are at least 75 m apart, so one long street does not fill it; both follow the Places filter. A place rated 1 or 2 is never recommended, even when nothing better exists. **Route:** the median comfort weighted by length (the lower on a tie), the share of its length rated, and the hardest stretch (lowest comfort, then the longest). All with "General prediction: not yet personal".
 - *Detail:* from the ratings already in the browser, with no new call: the place's rating and elements, and the model's explanation of the photo on the card, which opens on the photo closest to the median (brief §4).
 - *Status line:* model, places rated, cached and new (photos), the model's real cost plus Street View at list price, and time.
+- *Loading card (boards Flow 2, 3; brief §3):* on Senses it stays until the rating ends, with a row "Rating 12 of 40 places…" and its bar. The recommendations already fill in under it, as asked. The row does not say "for your profile", as on the boards, since the rating is general. Cancel during the rating only stops the rating (proposed): the area and what is rated stay, and the area card offers Continue.
 **Limits.** The default route layer stays Thermal, because the ways are found on it. Overall stays inactive. The per-IP limit is 30 runs with new photos per hour.
 
 ## 2026-11-09 – Senses predictions stand for the study's V0: task text, brief §9 colours, the survey's scale words (accepted)

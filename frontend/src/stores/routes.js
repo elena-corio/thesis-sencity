@@ -50,6 +50,7 @@ export const useRoutesStore = defineStore('routes', () => {
   const returnKey = ref(null)
   let controller = null
   let windowTimer = null
+  let layerTimer = null
 
   const step = computed(() => {
     if (!start.value) return 'start'
@@ -91,6 +92,7 @@ export const useRoutesStore = defineStore('routes', () => {
     controller?.abort()
     controller = null
     clearTimeout(windowTimer)
+    clearTimeout(layerTimer)
   }
 
   /** Set the next empty point: the first click is Start, the second End (brief §3). */
@@ -190,8 +192,9 @@ export const useRoutesStore = defineStore('routes', () => {
     segments.value = new Map(withThermal(e.segments, e.values).features.map((f) => [f.properties.id, f]))
     routes.value = e.routes
     verdict.value = e.verdict
-    info.value = { season: e.season, time: e.time, station: e.station }
-    thermalWindow.value = { season: e.season, time: e.time }
+    // A Senses route has no thermal comfort: nothing to say about a season or time.
+    info.value = e.station ? { season: e.season, time: e.time, station: e.station } : null
+    if (info.value) thermalWindow.value = { season: e.season, time: e.time }
     selected.value = null
     visible.value = { A: true, B: true }
     windowError.value = ''
@@ -201,7 +204,7 @@ export const useRoutesStore = defineStore('routes', () => {
   /** Something failed: with routes on the map they stay, for the season and time they show. */
   function failed(message) {
     if (hasResult.value) {
-      thermalWindow.value = { season: info.value.season, time: info.value.time }
+      if (info.value) thermalWindow.value = { season: info.value.season, time: info.value.time }
       windowError.value = message
       load.value = 'ready'
     } else {
@@ -232,6 +235,7 @@ export const useRoutesStore = defineStore('routes', () => {
         end: { lat: end.value.lat, lon: end.value.lon },
         limits: thermalLimits(),
         ...thermalWindow.value,
+        layer: layer.value,
       }, (e) => {
         if (e.type === 'stage') progress.value = { ...progress.value, stage: e.stage }
         // A retry goes on from the photos already found (the API keeps the finished steps).
@@ -261,7 +265,7 @@ export const useRoutesStore = defineStore('routes', () => {
   function cancel() {
     stopLoading()
     if (hasResult.value) {
-      thermalWindow.value = { season: info.value.season, time: info.value.time }
+      if (info.value) thermalWindow.value = { season: info.value.season, time: info.value.time }
       load.value = 'ready'
       return
     }
@@ -280,6 +284,14 @@ export const useRoutesStore = defineStore('routes', () => {
       const { season, time } = thermalWindow.value
       if (season !== info.value?.season || time !== info.value?.time) find()
     }, config.thermalDebounceMs)
+  }
+
+  /** The Layer buttons. Each layer loads only what it needs: going from Senses to Thermal asks for thermal comfort,
+   *  after a moment, so arrow keys passing over a layer do not start a billed run. Senses rates by itself. */
+  function setLayer(id) {
+    layer.value = id
+    clearTimeout(layerTimer)
+    if (hasResult.value && id !== 'senses' && !info.value) layerTimer = setTimeout(find, config.thermalDebounceMs)
   }
 
   function toggleRoute(id) {
@@ -313,7 +325,7 @@ export const useRoutesStore = defineStore('routes', () => {
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
-    applySenses, setLayer: (id) => { layer.value = id },
+    applySenses, setLayer,
     pick, setPoint, clearPoint, swap, reset, find, analyse, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
   }
 })

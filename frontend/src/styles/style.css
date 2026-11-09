@@ -71,8 +71,6 @@
   --warning: var(--mixed);
 
   --senses-spin-s: 1s;             /* a Senses card while its rating is on the way */
-  --map-senses-dot-radius: 6;      /* a rated place on the map */
-  --map-senses-dot-stroke: 2;
 
   /* Inactive controls (§3 Map flow) */
   --inactive-opacity: 0.4;

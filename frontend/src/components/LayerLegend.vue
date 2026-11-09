@@ -27,7 +27,7 @@ const rows = computed(() => [
     <ul class="rows" data-testid="legend-rows">
       <li v-for="r in rows" :key="r.label"><span class="swatch" :style="{ background: r.color }" />{{ r.label }}</li>
     </ul>
-    <p v-if="layer === 'senses' && !compact" class="note">Rated from the photos of each place. Click one for its detail.</p>
+    <p v-if="layer === 'senses' && !compact" class="note">Each street stretch is rated from the photos nearby.</p>
   </div>
 </template>
 

@@ -15,7 +15,7 @@ function emptyRun() {
  * General predictions (Senses, no profile). As soon as an area or a pair of routes is ready, every photo not yet
  * rated goes to the API, nearest first; ratings arrive one by one. Nothing is written to the browser's storage:
  * the API's cache is what makes reopening instant and free.
- * A run: status 'idle' | 'rating' | 'paused' (over the cap, waiting for an answer) | 'done' | 'error'.
+ * A run: status 'idle' | 'rating' | 'paused' (over the cap, waiting for an answer) | 'stopped' (by the person) | 'done' | 'error'.
  */
 export const useSensesStore = defineStore('senses', () => {
   const area = useAreaStore()
@@ -77,7 +77,10 @@ export const useSensesStore = defineStore('senses', () => {
       await rateSenses(photos, (e) => onEvent(scope, e), controller.signal)
       if (run.status === 'rating') Object.assign(run, { status: 'error', error: 'The rating stopped before the end. Retry to go on.' })
     } catch (err) {
-      if (!controller.signal.aborted) Object.assign(run, { status: 'error', error: err.message || 'The rating failed on the server.' })
+      if (controller.signal.aborted) return
+      // A 404 here means the API was started before this step existed.
+      const error = err.status === 404 ? 'The API is out of date. Restart npm run dev, then retry.' : err.message || 'The rating failed on the server.'
+      Object.assign(run, { status: 'error', error })
     }
   }
 
@@ -93,9 +96,10 @@ export const useSensesStore = defineStore('senses', () => {
     return rate(scope)
   }
 
-  /** Above the cap, the person chose not to go on: what is rated stays. */
+  /** The person chose not to go on (Cancel while rating, or Stop here above the cap): what is rated stays. */
   function stopHere(scope) {
-    runs[scope].status = 'done'
+    controllers[scope]?.abort()
+    runs[scope].status = 'stopped'
   }
 
   const progressOf = (scope) => {
@@ -106,7 +110,10 @@ export const useSensesStore = defineStore('senses', () => {
     return { done: settled, total: places.length, rated, failed }
   }
   const areaProgress = computed(() => progressOf('area'))
+  /** The area's rating is running: the loading card stays until it ends (boards Flow 2, 3). */
+  const areaRating = computed(() => area.layer === 'senses' && runs.area.status === 'rating')
   const routesProgress = computed(() => progressOf('routes'))
+  const routesRating = computed(() => routes.layer === 'senses' && runs.routes.status === 'rating')
 
   // An area: when its photos are known and the Senses layer is on, nearest to the centre first.
   const areaKey = computed(() => {
@@ -123,30 +130,30 @@ export const useSensesStore = defineStore('senses', () => {
     start('area', key, places)
   }, { immediate: true })
 
-  // Routes: only the streets on the two ways, along A from the start, then the rest of B.
+  // Routes, on the Senses layer: only the streets on the two ways, along A from the start, then the rest of B.
   const routeIds = computed(() => {
     const ids = routes.routes.flatMap((r) => r.parts.map((p) => p.segment_id).filter(Boolean))
     return [...new Set(ids)]
   })
   const routeKey = computed(() => (routeIds.value.length ? routeIds.value.join('|') : null))
-  watch(routeKey, (key) => {
-    if (runs.routes.key === key) return
-    if (!key) {
-      clear('routes')
-      return
-    }
+  watch(routeKey, (key) => { if (runs.routes.key && key !== runs.routes.key) clear('routes') })
+  watch(() => (routes.layer === 'senses' ? routeKey.value : null), (key) => {
+    if (!key || runs.routes.key === key) return
     const places = routeIds.value.map((id) => routes.segments.get(id)).filter((f) => f?.properties.photos?.length)
       .map((f) => ({ id: f.properties.id, photos: f.properties.photos }))
     start('routes', key, places)
   }, { immediate: true })
 
-  // The map colours streets from a state on the segment, as for Thermal.
-  const stateOf = (f) => {
-    const place = placeFor(f.properties.photos)
-    return place.status === 'rated' ? place.level : null
-  }
-  watch(() => new Map((area.segments?.features ?? []).map((f) => [f.properties.id, stateOf(f)])), (states) => area.applySenses(states))
-  watch(() => new Map([...routes.segments.values()].map((f) => [f.properties.id, stateOf(f)])), (states) => routes.applySenses(states))
+  watch(() => runs.area.status, (status) => { area.sensesFinished = !['idle', 'rating'].includes(status) }, { immediate: true })
 
-  return { ratings, runs, ratingOf, placeFor, areaProgress, routesProgress, retry: rate, continueRating: rate, stopHere }
+  // The map colours streets from a state on the segment, as for Thermal.
+  const stateOf = (f, failed) => {
+    const place = placeFor(f.properties.photos)
+    if (place.status === 'rated') return { state: place.level, comfort: place.comfort }
+    return place.status === 'failed' && failed ? { state: 'failed', comfort: null } : null
+  }
+  watch(() => new Map((area.segments?.features ?? []).map((f) => [f.properties.id, stateOf(f, true)])), (states) => area.applySenses(states))
+  watch(() => new Map([...routes.segments.values()].map((f) => [f.properties.id, stateOf(f, false)])), (states) => routes.applySenses(states))
+
+  return { ratings, runs, ratingOf, placeFor, areaProgress, areaRating, routesProgress, routesRating, retry: rate, continueRating: rate, stopHere }
 })

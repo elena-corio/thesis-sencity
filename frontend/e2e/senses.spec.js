@@ -45,15 +45,17 @@ async function openSenses(page, options = {}, theme = 'dark') {
   return { mock, photos }
 }
 
-const dots = (page) => page.evaluate(() => window.__sencityMap.getSource('sc-senses').serialize().data.features.map((f) => f.properties.level))
+const streetStates = (page) => page.evaluate(() => window.__sencityMap.getSource('sc-seg').serialize().data.features.map((f) => f.properties.senses_state).filter(Boolean))
 
 test.describe('Senses mode', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('an area is rated without a click, nearest first, with the panel and the markers filling in', async ({ page }) => {
     const { mock, photos } = await openSenses(page)
-    const panel = page.getByTestId('senses-panel')
-    await expect(panel).toContainText('General prediction: not yet personal')
+    await expect(page.getByTestId('senses-foot')).toContainText('General prediction: not yet personal')
+    // At the bottom of the card, after the recommendations.
+    expect(await page.locator('[data-panel="area-card"]').evaluate((card) => card.querySelector('[data-testid="senses-best"]')
+      .compareDocumentPosition(card.querySelector('[data-testid="senses-foot"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
     await expect(page.getByTestId('senses-status')).toContainText('google/gemini-3.1-flash-lite')
     await expect(page.getByTestId('senses-status')).toContainText('cached')
     await expect(page.getByTestId('senses-status')).toContainText('model')
@@ -65,9 +67,14 @@ test.describe('Senses mode', () => {
     expect(photos).toHaveLength(0) // the browser fetched no picture: the rating needs none
 
     await expect(page.getByTestId('senses-best').locator('button').first()).toBeVisible()
-    await expect(page.getByTestId('senses-avoid')).toContainText('Traffic, trams, crowds')
-    await expect.poll(() => dots(page).then((d) => d.length)).toBeGreaterThan(0)
-    expect(new Set(await dots(page))).toEqual(new Set(['easy', 'hard']))
+    await expect(page.getByTestId('senses-avoid')).toHaveCount(0) // only positive recommendations
+    await expect.poll(() => streetStates(page).then((d) => d.length)).toBeGreaterThan(0)
+    expect(new Set(await streetStates(page))).toEqual(new Set(['easy', 'hard']))
+    // As on Thermal: numbered pins for what is recommended, with the same numbers in the list. No marker on every street.
+    await expect(page.locator('[data-marker="1"]')).toBeVisible()
+    await expect(page.getByTestId('senses-best').locator('.marker-pin').first()).toHaveText('1')
+    expect(await page.locator('[data-marker]').count()).toBeLessThanOrEqual(3)
+    expect(await page.evaluate(() => !!window.__sencityMap.getSource('sc-senses'))).toBe(false)
     await expect(page.locator('body')).not.toContainText(/persona\b/i) // "personal" is the required label
     expect(await layoutProblems(page)).toEqual([])
     await mapIdle(page)
@@ -80,12 +87,36 @@ test.describe('Senses mode', () => {
     mock.hold = true
     await openMap(page, 'dark', { layer: null })
     await analyseCentre(page)
-    await expect(page.getByTestId('senses-panel')).toContainText(/Rating 0 of \d+ places…/)
-    await expect(page.getByTestId('senses-cost')).toContainText('so far')
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByTestId('rating-step')).toContainText(/Rating 0 of \d+ places…/)
+    await expect(loading).toContainText('Street photos')
+    await expect(loading.getByTestId('senses-cost')).toContainText('so far')
+    await expect(loading).toContainText('General prediction: not yet personal')
+    await expect(page.getByTestId('senses-best')).toHaveCount(0) // recommendations wait for the end
+    await expect(page.locator('[data-marker]')).toHaveCount(0)
+    await mapIdle(page)
+    expect(await layoutProblems(page)).toEqual([])
+    await page.screenshot({ path: 'e2e/screens/senses-loading.png' })
     await expect.poll(() => mock.release !== null).toBe(true)
     mock.release()
+    await expect(loading).toHaveCount(0) // the area card takes over when the rating ends
+    await expect(page.getByTestId('senses-best')).toBeVisible()
+    await expect(page.locator('[data-marker="1"]')).toBeVisible()
     await expect(page.getByTestId('senses-status')).toBeVisible()
     expect(photos).toHaveLength(0)
+  })
+
+  test('Cancel while rating stops the rating and keeps the area', async ({ page }) => {
+    await mockArea(page)
+    const mock = await mockSenses(page)
+    mock.hold = true
+    await openMap(page, 'dark', { layer: null })
+    await analyseCentre(page)
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByTestId('rating-step')).toBeVisible()
+    await loading.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(page.getByTestId('senses-stopped')).toContainText('Rating stopped')
+    await expect(page.locator('[data-panel="area-card"]')).toContainText('street stretches')
   })
 
   test('clicking a place opens its detail with no new call', async ({ page }) => {
@@ -144,7 +175,7 @@ test.describe('Senses mode', () => {
     await analyseCentre(page)
     const failed = page.getByTestId('senses-failed')
     await expect(failed).toContainText('1 place could not be rated')
-    await expect.poll(() => dots(page)).toEqual(['failed'])
+    await expect.poll(() => streetStates(page)).toEqual(['failed'])
     await openSegment(page, WITH_3.properties.id)
     const error = page.getByTestId('senses-error')
     await expect(error).toContainText('It said: "oops"')
@@ -175,21 +206,53 @@ test.describe('Senses mode', () => {
     await page.screenshot({ path: 'e2e/screens/senses-phone.png' })
   })
 
-  test('a route is rated for its two ways only, with its overall comfort and hardest stretch', async ({ page }) => {
-    const mock = await mockSenses(page, { comfort: (i) => (i === 0 ? 2 : 4) })
-    await mockRoutes(page)
+  async function analyseRoute(page, chooseSenses) {
     await openRoutes(page, 'dark')
+    if (chooseSenses) await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
     const { a, b } = routeClicks({ width: 1440, height: 900 })
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
     await page.getByRole('button', { name: 'Analyse the routes' }).click()
-    const route = page.getByTestId('senses-route-A')
-    await expect(route).toContainText('Overall')
-    await expect(route).toContainText('Hardest stretch')
-    await expect(page.locator('[data-panel="route-card"]')).toContainText('General prediction: not yet personal')
-    expect(mock.requests).toHaveLength(1)
-    await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
-    await expect(page.getByTestId('senses-route-A')).toBeVisible()
+  }
+
+  test('a Senses route loads streets, photos and ratings, and speaks only of photos', async ({ page }) => {
+    const rate = await mockSenses(page, { comfort: (i) => (i === 0 ? 2 : 4) })
+    rate.hold = true
+    const routes = await mockRoutes(page)
+    await analyseRoute(page, true)
+    const card = page.locator('[data-panel="route-card"]')
+    await expect(card.getByTestId('rating-step')).toContainText(/Rating 0 of \d+ places…/)
+    await expect(card).not.toContainText('Thermal')
+    expect(routes.requests[0].layer).toBe('senses')
+    await expect.poll(() => rate.release !== null).toBe(true)
+    rate.release()
+    // As on the board: the routes' own rows and one sentence, no detail per route.
+    await expect(card).toContainText('General prediction: not yet personal')
+    await expect(card).toContainText('Based on photos along')
+    await expect(card.locator('.hard').first()).toContainText('hard')
+    await expect(card.locator('.verdict')).toContainText('hard walking')
+    await expect(page.getByTestId('senses-route-A')).toHaveCount(0)
+    await expect(card).not.toContainText('Hardest stretch')
+    await expect(card).not.toContainText('Thermal along')
+    await expect(card).toContainText('B · alternative')
+    expect(rate.requests).toHaveLength(1)
     await page.screenshot({ path: 'e2e/screens/senses-route.png' })
+  })
+
+  test('a Thermal route rates nothing and speaks only of thermal comfort', async ({ page }) => {
+    const rate = await mockSenses(page)
+    await mockRoutes(page)
+    await analyseRoute(page, false)
+    const card = page.locator('[data-panel="route-card"]')
+    await expect(card).toContainText('Thermal along')
+    await expect(card).not.toContainText('hotos along')
+    await expect(page.getByTestId('senses-panel')).toHaveCount(0)
+    await expect(card).not.toContainText('Hardest stretch')
+    expect(rate.requests).toHaveLength(0)
+
+    // Choosing Senses afterwards rates the ways already on the map, and asks for no new routes.
+    await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
+    await expect(page.getByTestId('senses-status')).toBeVisible()
+    expect(rate.requests).toHaveLength(1)
   })
 })

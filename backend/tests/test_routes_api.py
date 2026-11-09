@@ -113,6 +113,16 @@ def test_new_route_streams_progress_then_two_ways(client, monkeypatch):
     assert calls[0]["max_jobs"] == 8
 
 
+def test_a_senses_route_loads_no_thermal_comfort(client):
+    # conftest makes any thermal run fail the test.
+    evs = events(client.post("/api/routes", json={**REQ, "layer": "senses"}))
+    assert "thermal" not in [e.get("stage") for e in evs]
+    done = evs[-1]
+    assert done["type"] == "routes" and done["station"] is None and done["verdict"] == ""
+    assert done["routes"][0]["kind"] == "shortest" and done["routes"][1]["kind"] == "second"
+    assert done["routes"][0]["photo_share"] > 0
+
+
 def test_thermal_is_paid_for_once_per_route_and_window(client, monkeypatch):
     calls = []
     monkeypatch.setattr(area_mod, "run_utci", fake_utci(calls))

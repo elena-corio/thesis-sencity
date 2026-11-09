@@ -8,6 +8,7 @@ import config from '../config.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
+import { useSensesStore } from '../stores/senses.js'
 import AreaCard from './AreaCard.vue'
 import LayerLegend from './LayerLegend.vue'
 import LayerPanel from './LayerPanel.vue'
@@ -25,6 +26,7 @@ const props = defineProps({
 const emit = defineEmits(['pick', 'recentre', 'settled'])
 const area = useAreaStore()
 const routes = useRoutesStore()
+const senses = useSensesStore()
 const uid = useId()
 
 const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'results', label: 'Results' }]
@@ -32,7 +34,7 @@ const routeIdle = computed(() => !routes.hasResult && routes.load === 'idle')
 const hasResults = computed(() => (props.routesMode ? !routeIdle.value : area.step === 'analysed'))
 const pending = computed(() => (props.routesMode ? routes.previewing : area.step === 'set'))
 const areaLoading = computed(() => area.step === 'analysed' &&
-  (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
+  (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading' || senses.areaRating))
 
 const tab = ref('settings')
 const size = ref('min')
