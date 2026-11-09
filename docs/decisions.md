@@ -15,6 +15,15 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Changing layer (proposed):* Thermal to Senses rates the ways already on the map, with no new search. Senses to Thermal asks for thermal comfort (billed unless cached), which can change B.
 - *Overall:* still inactive; its coverage line names both.
 
+## 2026-11-09 – A local copy of Vienna's street data (proposed details)
+**Context.** Elena: pre-download all of Vienna's street segments, since waiting for them is what takes longest. Not the photos: no photo lookups and no rating.
+**Decision (Elena; details marked proposed).** `python -m tool.osm_local` stores the raw OpenStreetMap data for Vienna in `data/osm/vienna/` and the API reads it instead of asking Overpass.
+- *Raw data, not finished segments (proposed):* segments are cut for each circle, clipped at its edge, so ready-made ones could not match a circle. Cutting takes seconds; the wait was for the server.
+- *Tiles (proposed):* 112 tiles of 0.03° (about 2 x 3 km), one at a time with a pause, because the public server refuses heavy use. It takes about one to two hours, resumes, and fetches the centre first. Same tag lists as the live queries, so the same parser reads them.
+- *Fallback:* outside Vienna, or with a tile missing or unreadable, the live query is used as before; any location can still be chosen.
+- *Cache keys:* the settings are a section of their own, `osm_local`, because the area and route keys hash `osm`. Otherwise every cached area, and its paid thermal comfort, would have been asked for again.
+**Consequences.** `data/` is not committed, so the deployed app keeps asking Overpass unless the script is also run there. The copy ages: `--refresh` updates it.
+
 ## 2026-11-09 – Senses recommends only at the end, and only positively (accepted)
 **Context.** Elena: recommendations should not appear while loading, and places to avoid should go. Replaces "a recommendation panel that updates as ratings come in", "the places to avoid" and the pins for them in the entries below.
 **Decision (Elena; details marked proposed).** While rating, the loading card shows the progress and running cost, and the streets take their colours as ratings arrive. The numbered pins and the list "Most comfortable nearby" (up to 3 places rated 3 or better) appear once the rating has ended, also when it stopped at the cap or was cancelled, then from what is rated (proposed). A route's summary follows the same rule. A place rated 1 or 2 is never listed. A route still names its hardest stretch (proposed: it describes the way, and is not a list of places to avoid).

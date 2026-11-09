@@ -80,6 +80,18 @@ Example of the paid check, after reading the estimate:
 | `segment full` | 3 photos already kept |
 | `70% rule` | The image check failed |
 
+### `tool.osm_local`: a local copy of Vienna's streets
+
+Downloads OpenStreetMap's streets, paths, parks, squares and buildings for Vienna into `data/osm/vienna/` (not committed), so a new area or route does not wait for the public Overpass server. Free, about one to two hours once: 112 tiles, the centre first, with a pause between them. It resumes where it stopped, so run it again after an interruption. No photos are looked up and nothing is rated.
+
+```bash
+../.venv/Scripts/python -m tool.osm_local             # what is missing
+../.venv/Scripts/python -m tool.osm_local --limit 2   # only two tiles, to try it
+../.venv/Scripts/python -m tool.osm_local --refresh   # everything again, for newer OpenStreetMap data
+```
+
+The API reads a tile as soon as it exists; no restart is needed. Outside Vienna, or where a tile is missing, it asks Overpass as before. Settings are in `osm_local` in `config/tool.yaml`.
+
 ### `tool.review_server`: check the photos
 
 ```bash

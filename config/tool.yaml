@@ -100,6 +100,15 @@ runs:
 # Thermal comfort (brief §4, §5): Infrared.city thermal-comfort-index (UTCI, "feels like" °C, 1 m
 # ground grid), sampled onto the street segments. The 1–5 score and the limits live in the app,
 # because personal limits come from the profile, which stays in the browser.
+# A local copy of OpenStreetMap, so a new area or route does not wait for the public server (python -m tool.osm_local).
+# Its own section, not under osm: the area and route cache keys hash osm, and must not change with these settings.
+osm_local:
+  dir: data/osm/vienna       # one JSON per tile, not committed; a request that a tile cannot answer asks Overpass
+  bbox: [16.18, 48.11, 16.58, 48.33]   # west, south, east, north: Vienna
+  tile_deg: 0.03             # about 2 x 3 km: a circle or a route touches only a few
+  pause_s: 3                 # between tiles, to be gentle with the public server
+  timeout_s: 180
+
 thermal:
   analysis: thermal-comfort-index
   default: {season: summer, time: "15:00"}

@@ -23,6 +23,7 @@ from shapely.prepared import prep
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection
 from tool.infrared import ThermalError, count_jobs
+from tool import osm_local
 from tool.osm import build_segments, fetch_buildings_in, fetch_ways_in, parse, parse_buildings
 from tool.routing import Graph, alternatives, build_graph, find_b, parts, shares, shortest_path, snap
 from tool.thermal import proj_geom, thermal_state
@@ -133,7 +134,8 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None 
     ways_data = steps.load(where, key, "ways") if key else None
     if ways_data is None:
         yield {"type": "stage", "stage": "streets"}
-        ways_data = fetch_ways_in(ring_lonlat(ellipse, proj), cfg)
+        ring = ring_lonlat(ellipse, proj)
+        ways_data = osm_local.ways_in(ring, cfg) or fetch_ways_in(ring, cfg)
         if key:
             steps.save(where, key, "ways", ways_data)
     ways, node_xy, _areas, _dropped = parse(ways_data, proj, cfg)
@@ -161,7 +163,8 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None 
     try:
         bdata = steps.load(where, key, "buildings") if key else None
         if bdata is None:
-            bdata = fetch_buildings_in(ring_lonlat(zone.simplify(10.0), proj), cfg)
+            ring = ring_lonlat(zone.simplify(10.0), proj)
+            bdata = osm_local.buildings_in(ring, cfg) or fetch_buildings_in(ring, cfg)
             if key:
                 steps.save(where, key, "buildings", bdata)
         footprints = parse_buildings(bdata, proj, 0)

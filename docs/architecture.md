@@ -69,6 +69,7 @@ flowchart LR
 |---|---|
 | `backend/tool/fetch_photos.py` | CLI: OSM → segments → metadata → selection → outputs; optional image check |
 | `backend/tool/osm.py` | Overpass query, tag filters, sidewalk test, street and area segments |
+| `backend/tool/osm_local.py` | Local copy of OpenStreetMap for Vienna, in tiles (`python -m tool.osm_local`); answers for a circle or a polygon in Overpass's shape, or leaves it to Overpass |
 | `backend/tool/segments.py` | Pure: chains between intersections, clip to circle, cut into ~50 m pieces, merge leftovers under 10 m |
 | `backend/tool/candidates.py` | Sample points, metadata lookups with the contributor-photo retry, one candidate per (pano, heading) |
 | `backend/tool/selection.py` | Pure: the photo choice rule (brief §4, steps 1–3 and 6), official only on streets, contributor fallback in areas, indoor photos rejected |
@@ -178,6 +179,8 @@ flowchart LR
 
 **Route cache** (`runs/routes/<key>.json`, not committed): `{ created, lat, lon (the middle), zone (corridor polygon), area: FeatureCollection }`. The key is a hash of the two points, either way round, and the settings. No start or end, and nothing about the person. Thermal comfort for it is in `runs/thermal/`, as for an area.
 
+**Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
+
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
 **Senses rating** (`POST /api/senses/rate`): request `{ photos: [{ pano_id, heading }] }`, nearest first. Newline-separated JSON events: `{type: "start", model, cached, to_rate, remaining}`; one `{type: "photo", pano_id, heading, status: "ok" | "failed", cached, result | error, cost_usd?, streetview_usd?}` per photo; then `{type: "done", seconds, failed, remaining, estimate_usd, estimate_streetview_usd}`, or `{type: "error", message}` when going on is pointless. A result: `{ comfort: 1–5, anchors: [words of 1, words of 5], bothers: [element], feels_good: [element], reason, model, latency_ms, cost_usd | null, cached }`; an element as in `elements.json`: `{ code, en, it, sense | null, kind | null }`. Errors before the stream: 429 (rate limit), 503 (`model/app_v0/` unusable, or no key).
@@ -205,7 +208,7 @@ Not built yet: the profile.
 
 - **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`, `OPENROUTER_API_KEY`. Template: `.env.example`.
 - **`model/app_v0/`**: all model settings for the Senses predictions, as exported from the thesis repo.
-- **`config/tool.yaml`**: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
+- **`config/tool.yaml`**, `osm_local`: the city's box, tile size, pause and folder of the local OpenStreetMap copy (its own section, so the area and route cache keys do not change with it). Also: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
 - **`backend/requirements.txt`**: Python 3.11+ dependencies.
 - **`frontend/src/config.js`**: radius limits (50–500 m, default 200, rounding 10 m), start view, map style URLs, photo estimate, default season and time, thermal limits (°C), route limits (shown before asking; keep them equal to `routes` in `config/tool.yaml`), API base (`VITE_API_BASE`, empty = same origin), search timing.
 - **`frontend/vite.config.js`**: dev server on port 5173, `/api` forwarded to the API on port 8000. `frontend/dev-api.js` starts the API with `npm run dev`.
