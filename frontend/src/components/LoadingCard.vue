@@ -59,7 +59,8 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
-      <li v-if="area.layer !== 'thermal'" class="next">
+      <!-- Senses asks per street clicked, after loading, so it has no rating step here. -->
+      <li v-if="area.layer === 'overall'" class="next">
         <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>

@@ -130,3 +130,33 @@ async function streamEvents(path, body, onEvent, signal) {
 export function photoUrl(photo) {
   return `${config.apiBase}/api/photo/${encodeURIComponent(photo.pano_id)}?heading=${photo.heading}`
 }
+
+/**
+ * The model's general prediction for one photo (POST /api/senses/predict). The picture the card already shows
+ * comes from the browser's own copy and is sent as the body, in memory only.
+ * @param {{pano_id:string, heading:number}} photo
+ * @returns {Promise<{comfort:number, bothers:object[], feels_good:object[], reason:string, model:string, latency_ms:number, cost_usd:number|null, cached:boolean}>}
+ * @throws {ApiError} with a message that can be shown as it is
+ */
+export async function predictSenses(photo) {
+  let image
+  try {
+    const res = await fetch(photoUrl(photo))
+    if (!res.ok) throw new Error()
+    image = await res.blob()
+  } catch {
+    throw new ApiError(0, 'The street photo could not be loaded, so nothing was sent to the model.')
+  }
+  let res
+  try {
+    res = await fetch(`${config.apiBase}/api/senses/predict?pano_id=${encodeURIComponent(photo.pano_id)}&heading=${photo.heading}`, {
+      method: 'POST',
+      headers: { 'Content-Type': image.type || 'application/octet-stream' },
+      body: image,
+    })
+  } catch {
+    throw new ApiError(0, 'Could not reach the SenCity API. Check that it is running.')
+  }
+  if (!res.ok) throw new ApiError(res.status, (await errorText(res)) || 'The prediction failed on the server.')
+  return res.json()
+}

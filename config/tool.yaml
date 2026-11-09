@@ -166,3 +166,9 @@ api:
   photo:
     rate_per_minute: 60          # images per IP; each is a paid Street View call
     browser_cache_s: 3600        # Cache-Control: private, so only the browser keeps it, briefly
+  senses:                        # model settings are NOT here: they come only from model/app_v0/
+    url: https://openrouter.ai/api/v1/chat/completions
+    timeout_s: 60
+    cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
+    max_image_bytes: 5000000     # a larger upload is refused
+    rate_per_minute: 20          # new (not cached) predictions per IP

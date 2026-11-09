@@ -137,7 +137,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
       </template>
 
       <p class="foot">
-        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'a general prediction' : area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
         Predictions, not reasons.
       </p>
       <div class="buttons">

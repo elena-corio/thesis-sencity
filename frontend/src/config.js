@@ -32,6 +32,11 @@ export default {
   // The layer Area opens on.
   layerDefault: 'thermal',
 
+  // The app's language: which label of model/app_v0/elements.json is shown ('en' or 'it').
+  language: 'en',
+  // The words of a 1–5 comfort rating, from 1 to 5.
+  comfortWords: ['not at all comfortable', 'not very comfortable', 'somewhat comfortable', 'fairly comfortable', 'very comfortable'],
+
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },
   // Thermal limits, the standard ones for everyone (no profiles yet): every one lives here, and

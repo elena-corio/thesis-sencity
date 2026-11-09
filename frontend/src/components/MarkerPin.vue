@@ -2,14 +2,16 @@
 // The numbered marker badge (suggestions now, chat results later): a solid circle in the level colour
 // with a dark edge and a dark bold number. The same badge is the map pin and the list row's number.
 defineProps({
-  n: { type: Number, required: true },
+  n: { type: [Number, String], required: true },
   /** 'easy' | 'mixed' | 'hard' */
   level: { type: String, default: 'easy' },
+  /** A colour of its own instead of the level's (a Senses prediction on its 1–5 scale). */
+  color: { type: String, default: null },
 })
 </script>
 
 <template>
-  <span class="marker-pin" :style="{ background: `var(--${level})` }" aria-hidden="true">{{ n }}</span>
+  <span class="marker-pin" :style="{ background: color ?? `var(--${level})` }" aria-hidden="true">{{ n }}</span>
 </template>
 
 <style scoped>

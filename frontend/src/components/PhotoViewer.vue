@@ -12,6 +12,8 @@ const props = defineProps({
   index: { type: Number, required: true },
   phone: Boolean,
   failed: { type: Set, default: () => new Set() },
+  /** This photo's rating, in words. */
+  rating: { type: String, default: 'Not rated yet' },
 })
 const emit = defineEmits(['update:index', 'close', 'failed'])
 
@@ -101,7 +103,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
             <h2>{{ name }}</h2>
             <p class="muted">{{ photoLine(photo) }}, {{ distanceLine(photo, feature) }}</p>
           </div>
-          <p class="not-rated">Not rated yet</p>
+          <p class="not-rated">{{ rating }}</p>
         </div>
 
         <div v-if="n > 1" class="thumbs" role="group" aria-label="All photos of this street">

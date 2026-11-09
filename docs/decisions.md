@@ -2,6 +2,25 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-09 – Senses mode: a general prediction per clicked street, from model/app_v0/ (proposed)
+**Context.** Elena: send the photo of a clicked point to the model and show its general prediction (no profile), using only the files exported from the thesis repo.
+**Decision (Elena; details marked proposed).**
+- *Source (Elena):* `model/app_v0/` as it is. Missing or broken files stop the request and name the file. No defaults. The image is the only user content.
+- *The folder is read on every request (proposed):* so replacing it needs no restart, and a broken replacement is noticed at once.
+- *Extra refusals (proposed):* an export with `zdr` not true, `data_collection` not deny, fallbacks allowed, no pinned endpoint or a `:free` model; schemas whose property order contradicts `reasoning_position`; an element code with no label.
+- *Reasoning order:* it is the order of the properties in the schemas, which the export writes, so it is sent as in the file.
+- *Input (limit):* only `photo` can be built. `photo_description` and `description` need a describer model, its prompt and a description of each new photo, and none of these is in the export: such a setting is refused with that reason. If the pilot chooses one, the export and the app both need extending.
+- *Picture (Elena):* the browser sends the picture it already shows, from its own cache, so no second Street View call. It stays in memory.
+- *Guards (proposed):* only (pano ID, heading) pairs of a loaded area are accepted, at most 5 MB, must decode as a picture, 20 new predictions per IP per minute. The server trusts the browser that the picture matches the pano ID, so a tampered client could cache a wrong result; acceptable for a private prototype, and to be fetched server-side before any public release.
+- *Which photo (proposed):* the one on the card. Moving to another photo of the street asks about that one and updates the street's marker, so there is one marker per street. Brief §4's median of up to 3 photos waits for area rating. A failed photo waits for Retry when reopened, so reopening never spends by itself.
+- *Colour (Elena):* marker, bar and legend run from pink `#f0557e` to cyan `#40c5e8` (`--senses-low`, `--senses-high`), for the per-click prediction only. This differs from brief §9 and board 2c (pink, amber, cyan by state); the number is always on the marker, so colour is never the only cue.
+- *Words (proposed):* 1 not at all, 2 not very, 3 somewhat, 4 fairly, 5 very comfortable (`config.comfortWords`), from Elena's "4 · fairly comfortable" and the survey's anchors.
+- *Labels (proposed):* the labels of `elements.json`, without the sense in brackets, since the icon shows it (boards 2, 2c); the word stays as the icon's name. Language: `config.language`, `en`, as the app has no language setting yet.
+- *"Model's explanation" (proposed):* the title of the model's text, not "Reason", since every rating is "a prediction, not a reason".
+- *Card (board 2c):* no thumbnail row, as on Thermal; arrows on the photo stay. "General prediction: not yet personal" and "A prediction, not a reason." sit with the rating, so they are in view without scrolling.
+- *Not built:* the "Not personalised yet" card with "Create your profile" (board 2c), as onboarding does not exist; street colours by state, which need every street rated.
+**Consequences.** The request has no task text, unlike the study (`task_part_b.txt`: the question, the option labels, "only what is visible"): the model sees only the system instruction, the photo and the schema's codes. Predictions may therefore differ from the benchmark's V0. The study also rejects "nothing" alongside other elements; `schema_validate.json` does not express this, so the app accepts it.
+
 ## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
 **Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
 **Decision (Elena; details marked proposed).**

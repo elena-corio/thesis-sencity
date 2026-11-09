@@ -7,6 +7,7 @@
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
+- POST /api/senses/predict?pano_id=…&heading=…   the model's general prediction for that picture (the body)
 
 Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
 the body, not the URL, so they do not appear in access logs or the browser history either.
@@ -20,6 +21,7 @@ from collections import defaultdict, deque
 
 import requests
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -31,6 +33,7 @@ from tool.photos.provider import get_provider
 from . import area as area_mod
 from . import routes as routes_mod
 from . import search as search_mod
+from . import senses as senses_mod
 from . import steps
 
 full_cfg = load_config()
@@ -296,3 +299,34 @@ def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=3
     # In memory only: never written to disk (Google terms). Only the browser keeps it, briefly.
     return Response(content, media_type="image/jpeg",
                     headers={"Cache-Control": f"private, max-age={cfg['photo']['browser_cache_s']}"})
+
+
+# Senses mode: a general prediction for one photo (no profile), from model/app_v0/
+
+async def _picture(request: Request) -> bytes:
+    """The request body, in memory only, refused as soon as it is too large."""
+    limit = cfg["senses"]["max_image_bytes"]
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > limit:
+            raise HTTPException(413, "This picture is too large to send to the model.")
+    return bytes(data)
+
+
+@app.post("/api/senses/predict")
+async def senses_predict(request: Request, pano_id: str = Query(...), heading: float = Query(..., ge=0, lt=360)) -> dict:
+    """The body is the picture the browser already has for this pano ID and heading. It is passed on and not
+    kept; only the model's JSON output, the model ID, latency and cost are cached (app/senses.py)."""
+    if not PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in _known_photos:
+        raise HTTPException(404, "Not a photo of a loaded area.")
+    image = await _picture(request)
+    ip = _ip(request)
+    allowed = lambda: not _rate_limited("senses", ip, cfg["senses"]["rate_per_minute"], 60)  # noqa: E731
+    try:
+        return await run_in_threadpool(senses_mod.predict, image, pano_id, heading, cfg["senses"], allowed)
+    except senses_mod.ExportError as e:
+        log.warning("senses: the export cannot be used")
+        raise HTTPException(503, f"The model settings cannot be used. {e}") from None
+    except senses_mod.PredictionError as e:
+        raise HTTPException(e.status, e.message) from None

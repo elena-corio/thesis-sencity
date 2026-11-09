@@ -2,7 +2,7 @@
 // Place card (boards 2f, 2g; phone P2): the selected segment's photo and name. On the Thermal layer
 // (board 2e) the photo stays (Elena's choice) and the rest is thermal comfort only: how warm or cold it
 // feels, the state and why, a temperature bar (the legend's side) and a cooler (or warmer) street nearby.
-// No photo ratings yet.
+// On the Senses layer the photo on the card goes to the model (board 2c, SensesPrediction).
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -11,9 +11,12 @@ import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
 import { credit, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
 import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
+import { comfortLabel } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
+import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import PhotoViewer from './PhotoViewer.vue'
+import SensesPrediction from './SensesPrediction.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -38,7 +41,14 @@ const src = computed(() => props.source ?? fromArea.value)
 const backBtn = ref(null)
 const fromBtn = ref(null)
 const enlargeBtn = ref(null)
-const index = ref(0)
+const senses = useSensesStore()
+/** Reopening a street in Senses shows the photo already asked about, so it is not asked about another. */
+function askedIndex() {
+  const asked = senses.forSegment(src.value.key)?.photo
+  const list = src.value.feature?.properties.photos ?? []
+  return asked ? Math.max(0, list.findIndex((ph) => ph.pano_id === asked.pano_id && ph.heading === asked.heading)) : 0
+}
+const index = ref(askedIndex())
 const viewerOpen = ref(false)
 const failed = ref(new Set())
 
@@ -75,9 +85,17 @@ const cameFrom = computed(() => (!props.source && area.cameFrom?.id !== area.sel
 const alongWord = computed(() => (feature.value?.geometry.type === 'Polygon' ? 'in this place' : 'along this street'))
 
 watch(() => src.value.key, () => {
-  index.value = 0
+  index.value = askedIndex()
   failed.value = new Set()
 })
+
+// Senses mode: the photo on the card goes to the model, for a street selected on the map (not a route stretch).
+const sensesOn = computed(() => !props.source && src.value.layer === 'senses')
+const sensesEntry = computed(() => (sensesOn.value && photo.value ? senses.forSegment(p.value.id) : null))
+const viewerRating = computed(() => (sensesEntry.value?.status === 'ready' ? `${comfortLabel(sensesEntry.value.result.comfort)}, this photo` : 'Not rated yet'))
+watch(() => [sensesOn.value, p.value?.id, photo.value?.pano_id, photo.value?.heading], () => {
+  if (sensesOn.value && photo.value) senses.ask(p.value.id, p.value.name, photo.value, area.selectedPoint)
+}, { immediate: true })
 
 function step(d) {
   const n = photos.value.length
@@ -192,7 +210,8 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     </template>
 
     <template v-else>
-      <template v-if="photo">
+      <SensesPrediction v-if="sensesEntry" :entry="sensesEntry" @retry="senses.retry(sensesEntry.id)" />
+      <template v-else-if="photo">
         <div class="thumbs-row">
           <div v-if="photos.length > 1" class="thumbs" role="group" aria-label="Photos of this street">
             <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
@@ -223,7 +242,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
-                 :failed="failed" @close="closeViewer" @failed="onImgError" />
+                 :failed="failed" :rating="viewerRating" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 

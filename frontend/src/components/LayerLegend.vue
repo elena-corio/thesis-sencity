@@ -22,6 +22,12 @@ const rows = computed(() => [
 
 <template>
   <ThermalLegend v-if="layer === 'thermal' && !compact" :values="values" :extra="extra" />
+  <!-- Senses: the 1–5 scale of the markers, one prediction per street clicked. -->
+  <div v-else-if="layer === 'senses'" data-testid="senses-legend">
+    <h2 class="title">{{ TITLES.senses }}</h2>
+    <p class="scale"><span>1</span><span class="ramp" role="img" aria-label="From 1, low comfort, to 5, high comfort" /><span>5</span></p>
+    <p v-if="!compact" class="note">Click a street for a general prediction from its photo.</p>
+  </div>
   <div v-else>
     <h2 class="title">{{ TITLES[layer] }}</h2>
     <ul class="rows" data-testid="legend-rows">
@@ -35,4 +41,7 @@ const rows = computed(() => [
 .rows { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; padding: 0; font-size: var(--fs-sm); }
 .rows li { display: flex; align-items: center; gap: var(--space-2); }
 .swatch { flex: none; width: var(--space-4); height: var(--swatch-h); border-radius: var(--radius-pill); }
+.scale { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-1) 0 0; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.ramp { flex: 1; height: var(--swatch-h); border-radius: var(--radius-pill); background: linear-gradient(to right, var(--senses-low), var(--senses-high)); }
+.note { margin: var(--space-2) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 </style>

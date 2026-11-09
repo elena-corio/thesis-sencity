@@ -6,8 +6,9 @@ How the tool is built **now**:
 - **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
+- **Senses (general, no profile):** a click on a street sends the photo on its card to the model (`POST /api/senses/predict`) and shows the prediction on the card and as a marker, from the settings in `model/app_v0/`.
 
-There is no AI rating yet, so Senses and Overall stay inactive.
+Streets are not rated in bulk yet and there are no profiles, so Overall stays inactive and Senses in Routes too.
 
 ## Data flow
 
@@ -51,6 +52,11 @@ flowchart LR
   API -- "corridor polygon, middle point, season and hour (key)" --> IR2["Infrared.city API (billed; preview free)"]
   API -- "corridor streets + photo metadata, under a hashed name (no start or end)" --> RCACHE[("runs/routes/&lt;key&gt;.json")]
   API -- "progress counts, then the two ways, their streets, °C, verdict" --> APP
+  APP -- "the picture on the card + pano ID, heading (no profile), on click only" --> API
+  API -- "system instructions, the picture (base64, in memory), schema; key" --> OR["OpenRouter → Vertex EU (zero data retention, paid)"]
+  OR -- "comfort 1–5, elements, explanation, usage and cost" --> API
+  API -- "JSON output, model ID, latency, cost (no image)" --> SCACHE[("runs/senses/predictions.json")]
+  API -- "the prediction, element labels, model, latency, cost" --> APP
 ```
 
 ⚠ marks data that may be personal: what people type in search can be their own address. It is never logged or stored: the API forwards it to Photon and passes the answer back. Photon sees the API's address, not the user's. The start and end of a route can be a home and a workplace: they are never logged or stored. The services see only polygons around the way, but the search ellipse's foci are the two points and the corridor runs from one to the other, so these do show roughly where someone walks, as does the route cache. No other arrow carries personal data. Review notes are Elena's own judgement of the photos. The selected area stays in the browser (Pinia store) until analysis is built.
@@ -78,6 +84,8 @@ flowchart LR
 | `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
 | `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
 | `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
+| `backend/app/senses.py` | Senses mode: reads and checks `model/app_v0/` on every request, encodes the picture in memory, builds the OpenRouter request, validates the reply (one retry), the cache |
+| `model/app_v0/` | Exported from the thesis repo: system instructions, the two schemas, element labels, model settings, MANIFEST. The only source of these; replaced as a folder |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
 
@@ -121,6 +129,9 @@ flowchart LR
 | `src/lib/suggest.js` | "Likely easiest for you": `pickSuggestions` (greedy, at least `config.suggest.minApartM` apart, a new type first within `margin`, ties to the nearer centre; any layer passes its own keep and value) and `thermalSuggestions` (easy places in the Places filter, closest to the middle of the easy range first, via `comfortKey`) |
 | `src/lib/nearby.js` | "Easier street nearby": `easierNearby` (within `config.nearby.maxM`, at least one level better, the best rank first, then the shortest walk; any layer passes its own level and rank) and `easierThermalNearby` (Thermal, ranked by `comfortKey`) |
 | `src/lib/place.js` | The place filter (All, Streets, Parks, Squares) and which one a segment belongs to; words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
+| `src/stores/senses.js` | Pinia: one general prediction per street clicked (waiting, ready, error, Retry), kept for the session |
+| `src/lib/senses.js` | Pure: the marker colour on the 1–5 scale, "4 · fairly comfortable", an element's label in the app's language, the status line |
+| `src/components/SensesPrediction.vue`, `SenseIcon.vue` | The prediction on the place card (board 2c): waiting, the error with Retry, the rating bar, might bother and feel good, the model's explanation, the status line; one sense icon |
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default thermal window |
@@ -165,7 +176,11 @@ flowchart LR
 
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
-Not built yet: the profile, the photo rating and the rating cache entry.
+**Senses prediction** (`POST /api/senses/predict?pano_id=…&heading=…`, the picture as the body, at most `api.senses.max_image_bytes`): `{ comfort: 1–5, bothers: [element], feels_good: [element], reason: string, model: string, latency_ms: int, cost_usd: number | null, cached: bool }`; an element as in `elements.json`: `{ code, en, it, sense | null, kind | null }`. Errors, each with a message to show: 400 (not a picture), 404 (not a photo of a loaded area), 413 (too large), 429 (rate limit), 502 (OpenRouter refused, or the reply was invalid twice, with the text shortened), 503 (`model/app_v0/` unusable, or no key), 504 (timeout).
+
+**Senses cache** (`runs/senses/predictions.json`, not committed): `{ "<pano ID>|<heading>|<MANIFEST commit>": { output: the model's JSON, model: string, latency_ms: int, cost_usd: number | null } }`. No images, nothing about the person.
+
+Not built yet: the profile, the rating of whole areas and its cache entry.
 
 ## External services
 
@@ -177,11 +192,13 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Infrared.city API (api.infrared.city) | Thermal comfort (UTCI) for one circle and window: weather station lookup, public buildings, trees and ground materials, the simulation (billed, 10 tokens per 512 m tile) | Infrared.city | API usage per key; it receives the circle and the window from our API, nothing about the person |
+| OpenRouter → Google Vertex AI (EU endpoint) | The general prediction for one street photo, with the model and pinned endpoint in `model/app_v0/model.json` (paid per call) | EU endpoint (`google-vertex/eu`) | Zero data retention requested on every call (`zdr: true`, `data_collection: deny`, no fallbacks); it receives the picture and the system instructions, nothing about the person |
 | Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre, or a clicked point rounded to about 10 m, from our API, never the user's IP |
 
 ## Configuration
 
-- **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`. Template: `.env.example`.
+- **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`, `OPENROUTER_API_KEY`. Template: `.env.example`.
+- **`model/app_v0/`**: all model settings for the Senses predictions, as exported from the thesis repo.
 - **`config/tool.yaml`**: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
 - **`backend/requirements.txt`**: Python 3.11+ dependencies.
 - **`frontend/src/config.js`**: radius limits (50–500 m, default 200, rounding 10 m), start view, map style URLs, photo estimate, default season and time, thermal limits (°C), route limits (shown before asking; keep them equal to `routes` in `config/tool.yaml`), API base (`VITE_API_BASE`, empty = same origin), search timing.
