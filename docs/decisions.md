@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-09 – A Senses route chooses B from rated candidates (accepted)
+**Context.** Elena asked how a best route can be chosen without ratings: on Senses it was not, B was only the next different way. Replaces "only the streets on the two routes" and "Which ways on Senses" below.
+**Decision (Elena chose the option; details proposed).**
+- *Candidates:* up to 4 ways (`api.senses.route_candidates`), the shortest included, each at most 25% longer than A and differing from the others along at least 10% (the existing rule), from the same search as Thermal.
+- *Choosing:* their streets are rated (all kept photos per place, cached as usual); then A is the shortest and B the easiest, by Thermal's rule: least hard, then least mixed or unrated, then shortest, if easier than A; otherwise the next way, as "alternative". A street with no rating counts as no better than mixed.
+- *When:* the two ways appear when the rating ends, also if it stops at the cap or is cancelled, then from what is rated. Retry or Continue chooses again.
+- *Changing layer:* each layer finds its own two ways, so B can differ between Thermal and Senses. Going back costs little: streets, ratings and thermal comfort are cached.
+**Consequences.** About twice the photos of rating two ways: roughly 200 to 300 per new route, $1.40 to $2.10 for Street View at list price (free within 10,000 a month) and about $0.20 for the model.
+
 ## 2026-11-09 – A Senses route follows board Routes 3 (accepted)
 **Context.** Elena: stick to the design and remove the Route A and Route B details. Replaces "for a route, the overall comfort and its hardest stretch".
 **Decision (Elena; details marked proposed).** The card has the same rows as on Thermal: length and minutes, "hard" %, the bar, one sentence, and "Based on photos along …". Hard % is the share of the route's length rated 1 or 2. The sentence is plain rules: how much longer B is, and whether it has less or more hard walking (proposed). "General prediction: not yet personal" and the status line stay under it.

@@ -3,7 +3,7 @@ import { computed, ref, shallowRef } from 'vue'
 import config from '../config.js'
 import { loadRoutes, pointName } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
-import { withSenses } from '../lib/senses.js'
+import { pickWays, withSenses } from '../lib/senses.js'
 import { POINT_LABEL, haversine } from '../lib/geo.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 
@@ -36,6 +36,10 @@ export const useRoutesStore = defineStore('routes', () => {
   const info = ref(null)
   const layer = ref('thermal')
   const routes = shallowRef([])
+  /** Senses: the ways to rate; the two routes are chosen from them when the rating ends (stores/senses.js). */
+  const candidates = shallowRef([])
+  /** The layer the routes on the map were found for: going to the other one asks again. */
+  let loadedFor = null
   const verdict = ref('')
   const segments = shallowRef(new Map())
   const visible = ref({ A: true, B: true })
@@ -86,6 +90,7 @@ export const useRoutesStore = defineStore('routes', () => {
     hoverRoute.value = null
     visible.value = { A: true, B: true }
     windowError.value = ''
+    loadedFor = null
   }
 
   function stopLoading() {
@@ -93,6 +98,7 @@ export const useRoutesStore = defineStore('routes', () => {
     controller = null
     clearTimeout(windowTimer)
     clearTimeout(layerTimer)
+    if (candidates.value.length) candidates.value = []
   }
 
   /** Set the next empty point: the first click is Start, the second End (brief §3). */
@@ -190,6 +196,13 @@ export const useRoutesStore = defineStore('routes', () => {
 
   function apply(e) {
     segments.value = new Map(withThermal(e.segments, e.values).features.map((f) => [f.properties.id, f]))
+    if (e.candidates) { // Senses: still loading, until the rating has chosen the two ways
+      info.value = null
+      windowError.value = ''
+      candidates.value = e.candidates
+      return
+    }
+    loadedFor = 'thermal'
     routes.value = e.routes
     verdict.value = e.verdict
     // A Senses route has no thermal comfort: nothing to say about a season or time.
@@ -199,6 +212,18 @@ export const useRoutesStore = defineStore('routes', () => {
     visible.value = { A: true, B: true }
     windowError.value = ''
     load.value = 'ready'
+  }
+
+  /** Senses: the rating has ended, also when stopped or at the cap. stateOf gives the state of a segment. */
+  function finishSenses(stateOf) {
+    if (!candidates.value.length) return
+    routes.value = pickWays(candidates.value, stateOf)
+    verdict.value = ''
+    selected.value = null
+    visible.value = { A: true, B: true }
+    windowError.value = ''
+    loadedFor = 'senses'
+    if (load.value === 'loading') load.value = 'ready'
   }
 
   /** Something failed: with routes on the map they stay, for the season and time they show. */
@@ -247,7 +272,7 @@ export const useRoutesStore = defineStore('routes', () => {
           failed(e.message)
         }
       }, signal)
-      if (load.value === 'loading') failed(generic)
+      if (load.value === 'loading' && !candidates.value.length) failed(generic)
     } catch (err) {
       if (signal.aborted) return
       failed((err.status === 429 || err.status === 422) && err.message ? err.message : generic)
@@ -286,12 +311,12 @@ export const useRoutesStore = defineStore('routes', () => {
     }, config.thermalDebounceMs)
   }
 
-  /** The Layer buttons. Each layer loads only what it needs: going from Senses to Thermal asks for thermal comfort,
-   *  after a moment, so arrow keys passing over a layer do not start a billed run. Senses rates by itself. */
+  /** The Layer buttons. Each layer finds its own two ways, after a moment, so arrow keys passing over a layer do not
+   *  start a billed run. The streets and what is already rated or simulated are cached. */
   function setLayer(id) {
     layer.value = id
     clearTimeout(layerTimer)
-    if (hasResult.value && id !== 'senses' && !info.value) layerTimer = setTimeout(find, config.thermalDebounceMs)
+    if (hasResult.value && loadedFor !== id) layerTimer = setTimeout(find, config.thermalDebounceMs)
   }
 
   function toggleRoute(id) {
@@ -325,7 +350,7 @@ export const useRoutesStore = defineStore('routes', () => {
     start, end, load, progress, error, pointError, windowError, thermalWindow, info, layer, routes, verdict,
     segments, visible, selected, hoverKey, hoverRoute, byKeyboard, returnKey, step, hasResult, windowActive,
     shown, allStretches, selectedStretch, selectedRoute, previewing, aerialDistance,
-    applySenses, setLayer,
+    applySenses, setLayer, candidates, finishSenses,
     pick, setPoint, clearPoint, swap, reset, find, analyse, cancel, setThermalWindow, toggleRoute, selectStretch, stepStretch, back,
   }
 })

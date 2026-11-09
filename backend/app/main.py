@@ -210,7 +210,7 @@ class RoutesRequest(BaseModel):
     limits: ThermalLimits
     season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
     time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
-    # Senses loads streets and photos only: no billed thermal run, and B is simply the next different way.
+    # Senses loads streets and photos only, with no billed thermal run: B is chosen from rated candidates.
     layer: str = Field("thermal", pattern="^(senses|thermal|overall)$")
 
 
@@ -271,15 +271,16 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
                 return
         yield _ndjson({"type": "stage", "stage": "routes"})
         try:
-            found = routes_mod.find_routes(fc, start, end, thermal["values"] if thermal else {}, limits, full_cfg)
+            found = (routes_mod.find_routes(fc, start, end, thermal["values"], limits, full_cfg) if thermal
+                     else routes_mod.find_candidates(fc, start, end, cfg["senses"]["route_candidates"], full_cfg))
         except routes_mod.RouteError as e:
             yield _ndjson({"type": "error", "message": str(e)})
             return
         if thermal:
             yield _ndjson({"type": "routes", "season": thermal["season"], "time": thermal["time"],
                            "station": thermal["station"], **found})
-        else:  # the verdict sentence is about heat and cold
-            yield _ndjson({"type": "routes", "season": None, "time": None, "station": None, **found, "verdict": ""})
+        else:  # no window, and no routes yet: the browser rates the candidates and chooses B
+            yield _ndjson({"type": "routes", "season": None, "time": None, "station": None, "routes": [], "verdict": "", **found})
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 

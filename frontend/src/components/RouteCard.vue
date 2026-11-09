@@ -122,7 +122,7 @@ function onLeave() { routes.hoverRoute = null }
       </ul>
       <p v-if="routes.load === 'error'" class="note error" role="alert">{{ routes.error }}</p>
       <p v-else-if="senses.routesRating" class="note">
-        The ways take their colours as they are rated. <span data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
+        The two ways appear when the rating ends. <span data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
         <strong class="general">{{ GENERAL_LABEL }}</strong>
       </p>
       <p v-else-if="routes.hasResult && routes.info" class="note">

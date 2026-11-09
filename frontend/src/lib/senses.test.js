@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
+import { combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
 
 const anchors = ['not at all, too much for my senses', 'very much']
 const el = (code) => ({ code, en: code, it: code, sense: 'sight' })
@@ -91,11 +91,39 @@ describe('a route on Senses', () => {
 
   it('says in one sentence how the two ways compare', () => {
     const a = { minutes: 6, stretches: [st(100, 'hard'), st(100, 'easy')] }
-    const easier = { minutes: 8, stretches: [st(200, 'easy')] }
-    const harder = { minutes: 7, stretches: [st(200, 'hard')] }
+    const easier = { minutes: 8, kind: 'easiest', stretches: [st(200, 'easy')] }
+    const second = { minutes: 7, kind: 'second', stretches: [st(200, 'hard')] }
     expect(sensesVerdict([a, easier])).toBe('B is 2 minutes longer but has less hard walking.')
-    expect(sensesVerdict([a, harder])).toBe('B is 1 minute longer and has more hard walking.')
+    expect(sensesVerdict([a, second])).toContain('A is already the easiest way')
     expect(sensesVerdict([a])).toContain('only one sensible way')
+  })
+})
+
+describe('choosing the two ways from rated candidates', () => {
+  const way = (id, ...segs) => ({ id, length_m: segs.length * 100, parts: segs.map((segment_id) => ({ segment_id, length_m: 100 })) })
+  const states = { h: 'hard', m: 'mixed', e: 'easy' }
+  const stateOf = (id) => states[id[0]] ?? null
+
+  it('keeps the shortest as A and the easiest as B', () => {
+    const [a, b] = pickWays([way('A', 'h1', 'h2'), way('C1', 'm1', 'm2', 'm3'), way('C2', 'e1', 'e2', 'e3')], stateOf)
+    expect(a.id).toBe('A')
+    expect(b).toMatchObject({ id: 'B', kind: 'easiest', length_m: 300 })
+    expect(b.parts[0].segment_id).toBe('e1')
+  })
+
+  it('counts a street without a rating as no better than mixed', () => {
+    const [, b] = pickWays([way('A', 'm1'), way('C1', 'x1', 'x2'), way('C2', 'e1', 'e2')], stateOf)
+    expect(b.parts[0].segment_id).toBe('e1')
+  })
+
+  it('offers the next way as an alternative when none is easier than A', () => {
+    const [, b] = pickWays([way('A', 'e1'), way('C1', 'm1', 'm2'), way('C2', 'h1', 'h2')], stateOf)
+    expect(b).toMatchObject({ kind: 'second' })
+    expect(b.parts[0].segment_id).toBe('m1')
+  })
+
+  it('gives one way when there is only one', () => {
+    expect(pickWays([way('A', 'e1')], stateOf)).toHaveLength(1)
   })
 })
 

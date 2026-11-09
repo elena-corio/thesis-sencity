@@ -180,6 +180,7 @@ api:
     timeout_s: 60
     cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
     concurrency: 4               # photos rated at the same time
+    route_candidates: 4          # ways rated for a Senses route, the shortest included; B is the easiest of them
     cap_photos: 250              # new photos per run; above this the app asks first, with the estimated cost
     estimate_call_usd: 0.001     # one model call, only for that estimate
     max_photos_per_request: 3000 # a longer list is refused

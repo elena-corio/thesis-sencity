@@ -130,19 +130,25 @@ export const useSensesStore = defineStore('senses', () => {
     start('area', key, places)
   }, { immediate: true })
 
-  // Routes, on the Senses layer: only the streets on the two ways, along A from the start, then the rest of B.
-  const routeIds = computed(() => {
-    const ids = routes.routes.flatMap((r) => r.parts.map((p) => p.segment_id).filter(Boolean))
-    return [...new Set(ids)]
-  })
-  const routeKey = computed(() => (routeIds.value.length ? routeIds.value.join('|') : null))
-  watch(routeKey, (key) => { if (runs.routes.key && key !== runs.routes.key) clear('routes') })
-  watch(() => (routes.layer === 'senses' ? routeKey.value : null), (key) => {
-    if (!key || runs.routes.key === key) return
-    const places = routeIds.value.map((id) => routes.segments.get(id)).filter((f) => f?.properties.photos?.length)
+  // Routes, on the Senses layer: the streets of the candidate ways, along each from the start. When the rating ends,
+  // also when stopped or at the cap, the two routes are chosen from what is rated.
+  watch(() => routes.candidates, (ways) => {
+    if (!ways.length) {
+      if (runs.routes.key) clear('routes')
+      return
+    }
+    const ids = [...new Set(ways.flatMap((w) => w.parts.map((p) => p.segment_id).filter(Boolean)))]
+    const places = ids.map((id) => routes.segments.get(id)).filter((f) => f?.properties.photos?.length)
       .map((f) => ({ id: f.properties.id, photos: f.properties.photos }))
-    start('routes', key, places)
-  }, { immediate: true })
+    start('routes', ids.join('|'), places)
+  })
+  watch(() => runs.routes.status, (status) => {
+    if (['idle', 'rating'].includes(status)) return
+    routes.finishSenses((id) => {
+      const place = placeFor(routes.segments.get(id)?.properties.photos)
+      return place.status === 'rated' ? place.level : null
+    })
+  })
 
   watch(() => runs.area.status, (status) => { area.sensesFinished = !['idle', 'rating'].includes(status) }, { immediate: true })
 

@@ -100,15 +100,34 @@ export function hardShare(stretches) {
   return total ? stretches.filter((s) => s.state === 'hard').reduce((n, s) => n + s.length_m, 0) / total : 0
 }
 
+/**
+ * A and B from the rated candidates, by the rule Thermal uses: B is the way with the least hard walking, then the least
+ * mixed or unrated, then the shortest, if that is easier than A; otherwise the next shortest, as an "alternative".
+ * @param {object[]} ways shortest first; each with { parts: [{ segment_id, length_m }], length_m }
+ * @param {(segmentId: string) => string|null} stateOf 'easy' | 'mixed' | 'hard', or null when not rated
+ */
+export function pickWays(ways, stateOf) {
+  const round3 = (x) => Math.round(x * 1000)
+  const rank = (w) => {
+    const total = w.length_m || 1
+    const share = (test) => w.parts.filter((p) => test(p.segment_id ? stateOf(p.segment_id) : null)).reduce((n, p) => n + p.length_m, 0) / total
+    return [round3(share((s) => s === 'hard')), round3(share((s) => s !== 'hard' && s !== 'easy'))]
+  }
+  const compare = (x, y) => x[0] - y[0] || x[1] - y[1]
+  const [a, ...others] = ways
+  const ranked = others.map((w) => ({ w, r: rank(w) })).sort((x, y) => compare(x.r, y.r) || x.w.length_m - y.w.length_m)
+  const easier = ranked[0] && compare(ranked[0].r, rank(a)) < 0 ? ranked[0].w : null
+  const b = easier ?? others[0]
+  return b ? [a, { ...b, id: 'B', kind: easier ? 'easiest' : 'second' }] : [a]
+}
+
 /** One sentence comparing the two ways on Senses (board Routes 3). Plain rules, no AI. */
 export function sensesVerdict([a, b]) {
   if (!b) return 'There is only one sensible way here within a quarter more walking.'
   const extra = b.minutes - a.minutes
   const took = extra > 0 ? `B is ${extra} minute${extra === 1 ? '' : 's'} longer` : 'B takes about the same time'
-  const [hardA, hardB] = [hardShare(a.stretches), hardShare(b.stretches)]
-  if (hardB < hardA) return `${took} but has less hard walking.`
-  if (hardB > hardA) return `${took} and has more hard walking.`
-  return `${took}, with the same share of hard walking.`
+  if (b.kind === 'second') return `A is already the easiest way within a quarter more walking. ${took}, with no less hard walking.`
+  return hardShare(b.stretches) < hardShare(a.stretches) ? `${took} but has less hard walking.` : `${took} but has less mixed walking.`
 }
 
 /** "$0.0512 model, about $0.67 Street View" */

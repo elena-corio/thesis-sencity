@@ -279,7 +279,9 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     mock.requests.push(asked)
     const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }]
     if (asked.layer === 'senses') {
-      lines.push({ type: 'stage', stage: 'routes' }, { ...routeResponse(asked, sameState, longName, true), season: null, time: null, station: null, values: {}, verdict: '' })
+      const found = routeResponse(asked, sameState, longName)
+      lines.push({ type: 'stage', stage: 'routes' }, { ...found, season: null, time: null, station: null, values: {}, verdict: '', routes: [],
+        candidates: found.routes.map((r, i) => ({ ...r, id: i ? 'C1' : 'A', kind: i ? 'candidate' : 'shortest' })) })
       await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
       return
     }

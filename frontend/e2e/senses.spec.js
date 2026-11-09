@@ -230,7 +230,7 @@ test.describe('Senses mode', () => {
     await expect(card).toContainText('General prediction: not yet personal')
     await expect(card).toContainText('Based on photos along')
     await expect(card.locator('.hard').first()).toContainText('hard')
-    await expect(card.locator('.verdict')).toContainText('hard walking')
+    await expect(card.locator('.verdict')).toContainText('easiest way') // every street here has the same photos
     await expect(page.getByTestId('senses-route-A')).toHaveCount(0)
     await expect(card).not.toContainText('Hardest stretch')
     await expect(card).not.toContainText('Thermal along')
@@ -241,7 +241,7 @@ test.describe('Senses mode', () => {
 
   test('a Thermal route rates nothing and speaks only of thermal comfort', async ({ page }) => {
     const rate = await mockSenses(page)
-    await mockRoutes(page)
+    const routes = await mockRoutes(page)
     await analyseRoute(page, false)
     const card = page.locator('[data-panel="route-card"]')
     await expect(card).toContainText('Thermal along')
@@ -250,9 +250,10 @@ test.describe('Senses mode', () => {
     await expect(card).not.toContainText('Hardest stretch')
     expect(rate.requests).toHaveLength(0)
 
-    // Choosing Senses afterwards rates the ways already on the map, and asks for no new routes.
+    // Choosing Senses afterwards finds its own candidates and rates them.
     await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
     await expect(page.getByTestId('senses-status')).toBeVisible()
     expect(rate.requests).toHaveLength(1)
+    expect(routes.requests.map((r) => r.layer)).toEqual(['thermal', 'senses'])
   })
 })
