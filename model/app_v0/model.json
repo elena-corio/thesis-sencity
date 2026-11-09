@@ -1,0 +1,33 @@
+{
+  "model": "google/gemini-3.1-flash-lite",
+  "provider": {
+    "zdr": true,
+    "data_collection": "deny",
+    "require_parameters": true,
+    "allow_fallbacks": false,
+    "only": [
+      "google-vertex/eu"
+    ]
+  },
+  "provider_name": "Google",
+  "temperature": 0.7,
+  "max_tokens": 600,
+  "reasoning": {
+    "effort": "none"
+  },
+  "input": "photo",
+  "reasoning_position": "after",
+  "response_format": {
+    "type": "json_schema",
+    "name": "part_b_answer",
+    "strict": true
+  },
+  "image": {
+    "format": "JPEG",
+    "mime_type": "image/jpeg",
+    "encoding": "base64 data URL",
+    "quality": 90,
+    "max_px": 1024,
+    "rule": "an existing JPEG whose long side is at most max_px is sent unchanged; anything else is converted to RGB, scaled to fit max_px on the long side and saved as JPEG at this quality"
+  }
+}

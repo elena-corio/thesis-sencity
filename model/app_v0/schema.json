@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "properties": {
+    "B1_comfort": {
+      "type": "integer",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "B2_bothers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "signs_ads",
+          "traffic_trams_crowds",
+          "bins_stalls_exhaust",
+          "hard_surfaces",
+          "sun_little_shade",
+          "steps_slopes_potholes",
+          "narrow_close",
+          "no_seats",
+          "nothing"
+        ]
+      }
+    },
+    "B3_feels_good": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "greenery_water_buildings",
+          "running_water_trees",
+          "plants_flowers",
+          "natural_materials",
+          "shade",
+          "open_sports",
+          "wide_car_free",
+          "seats_fountains_toilets",
+          "nothing"
+        ]
+      }
+    },
+    "reasoning": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "B1_comfort",
+    "B2_bothers",
+    "B3_feels_good",
+    "reasoning"
+  ],
+  "additionalProperties": false
+}
