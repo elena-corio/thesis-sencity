@@ -310,7 +310,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 .badge, .arrow {
   position: absolute; display: grid; place-items: center;
   width: var(--touch); height: var(--touch); border: 0; border-radius: 50%;
-  background: var(--backdrop); color: var(--logo);
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow);
 }
 .badge.enlarge { top: var(--space-1); right: var(--space-1); border-radius: var(--radius-btn); }
 .arrow { top: 50%; transform: translateY(-50%); }
@@ -319,7 +319,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 .counter, .credit {
   position: absolute; bottom: var(--space-1);
   padding: 0 var(--space-2); border-radius: var(--radius-chip);
-  background: var(--backdrop); color: var(--logo); font-size: var(--fs-xs);
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); font-size: var(--fs-xs);
 }
 .counter { left: var(--space-1); }
 .credit { right: var(--space-1); }

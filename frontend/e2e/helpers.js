@@ -17,9 +17,9 @@ const noPlaceNames = async (page) => {
 }
 
 /** Choose a layer directly in the app's state (it is in the sheet on a phone, the panel elsewhere). */
-export const chooseLayer = (page, layer) => page.evaluate((l) => {
-  document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value.area.layer = l
-}, layer)
+export const chooseLayer = (page, layer, store = 'area') => page.evaluate(([l, s]) => {
+  document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value[s].layer = l
+}, [layer, store])
 
 /** Open /area in a theme and wait until the map has drawn once. Most checks are about Thermal, so that is the layer
  *  unless they ask for another; layer: null keeps the one the app opens on. */
@@ -206,7 +206,8 @@ export async function openSegment(page, id) {
 
 // Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
 // mixed), three on B (easy, mixed, easy), built around the points the app sends.
-export async function openRoutes(page, theme) {
+/** Open /routes. As for openMap, the checks are about Thermal unless they ask for another layer; null keeps the default. */
+export async function openRoutes(page, theme, { layer = 'thermal' } = {}) {
   await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
@@ -214,6 +215,7 @@ export async function openRoutes(page, theme) {
   await page.goto('/routes')
   await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
   await page.evaluate(() => document.fonts.ready)
+  if (layer) await chooseLayer(page, layer, 'routes')
 }
 
 /** Two free map points, in viewport pixels, about 400 m apart at the start zoom. */

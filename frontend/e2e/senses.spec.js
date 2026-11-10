@@ -93,6 +93,14 @@ test.describe('Senses mode', () => {
     await expect(loading.getByTestId('senses-cost')).toContainText('so far')
     await expect(loading).toContainText('General prediction: not yet personal')
     await expect(page.getByTestId('senses-best')).toHaveCount(0) // recommendations wait for the end
+    // Streets with photos but no rating yet are drawn at full width, in grey, until their rating arrives.
+    const grey = await page.evaluate(() => {
+      const m = window.__sencityMap
+      const colour = m.getPaintProperty('sc-seg-core', 'line-color')
+      return { last: colour[colour.length - 1], token: getComputedStyle(document.documentElement).getPropertyValue('--map-seg-pending').trim(), halo: m.getFilter('sc-seg-halo') }
+    })
+    expect(grey.last).toBe(grey.token)
+    expect(JSON.stringify(grey.halo)).toContain('photos')
     await expect(page.locator('[data-marker]')).toHaveCount(0)
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
@@ -207,8 +215,10 @@ test.describe('Senses mode', () => {
   })
 
   async function analyseRoute(page, chooseSenses) {
-    await openRoutes(page, 'dark')
-    if (chooseSenses) await page.getByRole('radio', { name: 'Senses', exact: true }).first().click()
+    await openRoutes(page, 'dark', { layer: null })
+    // Routes open on Senses, as Area does.
+    await expect(page.getByRole('radio', { name: 'Senses', exact: true }).first()).toHaveAttribute('aria-checked', 'true')
+    if (!chooseSenses) await page.getByRole('radio', { name: 'Thermal', exact: true }).first().click()
     const { a, b } = routeClicks({ width: 1440, height: 900 })
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)

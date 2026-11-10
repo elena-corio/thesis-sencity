@@ -1,6 +1,6 @@
 <script setup>
 // "Loading this area" (boards Flow 2, Flow 3): the streets, their photos, then thermal comfort (Infrared.city) or the
-// rating of the photos. Streets light up on the map as their photos are found, then in their colour. Recommendations
+// rating of the photos. Streets are grey on the map until they have a value, then take its colour. Recommendations
 // wait for the end of the rating. Cancel while rating only stops the rating: the area stays.
 import { computed, onMounted, ref } from 'vue'
 import { GENERAL_LABEL, moneyLine } from '../lib/senses.js'
@@ -89,7 +89,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
       Finding the streets, parks and squares in this circle. This can take up to a minute; you can keep exploring.
     </p>
     <p v-else class="note">
-      Streets light up as their photos are found. You can keep exploring.
+      Streets appear in grey as they are found, and take their colour once they have a value. You can keep exploring.
     </p>
 
     <div class="buttons">

@@ -187,8 +187,12 @@
   --map-lit: #4f95a3;
   --map-lit-opacity: 0.3;       /* brief: 18%; raised so the inside reads as lit on the dark base */
   --map-circle: #eef3f4;
-  --map-seg: #8ad9e6;              /* light teal: has photos, not rated yet */
+  --map-seg: #8ad9e6;              /* light teal: the invisible hit lines only (a street without a value is grey) */
   --map-seg-none: #6d8d94;
+  --map-seg-pending: #8b9fa4;      /* a street with photos and no value yet: grey, at full width with its halo */
+  --photo-btn-bg: rgba(19, 35, 42, 0.88);  /* buttons and labels on a photo: near solid, so they read on any photo */
+  --photo-btn-fg: #ffffff;
+  --photo-btn-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   --map-seg-edge: #ffffff;         /* edge of the selected segment */
   --ring: #ffffff;
   --ring-edge: #13232a;
@@ -223,6 +227,10 @@
   --map-circle: #15474a;
   --map-seg: #2a97a8;
   --map-seg-none: #9fb4b9;
+  --map-seg-pending: #8fa3a8;
+  --photo-btn-bg: #ffffff;
+  --photo-btn-fg: #15474a;
+  --photo-btn-shadow: 0 1px 4px rgba(19, 35, 42, 0.35);
   --map-seg-edge: #15474a;         /* dark teal edge in light mode (brief §4) */
   --ring: #15474a;
   --ring-edge: #ffffff;

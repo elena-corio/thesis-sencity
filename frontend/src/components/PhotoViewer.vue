@@ -159,7 +159,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .credit {
   position: absolute; left: var(--space-3); bottom: var(--space-3);
   padding: var(--space-1) var(--space-2); border-radius: var(--radius-chip);
-  background: var(--backdrop); color: var(--logo); font-size: var(--fs-sm);
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); font-size: var(--fs-sm);
 }
 .arrow {
   width: var(--viewer-arrow); height: var(--viewer-arrow); flex: none;
@@ -194,7 +194,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .phone .arrow {
   position: absolute; top: 50%; transform: translateY(-50%); z-index: 1;
   width: var(--touch-phone); height: var(--touch-phone);
-  background: var(--backdrop); color: var(--logo); border: 0;
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); border: 0;
 }
 .phone .arrow.prev { left: var(--space-3); }
 .phone .arrow.next { right: var(--space-3); }

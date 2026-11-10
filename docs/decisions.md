@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-10 – A street without a value is grey (accepted)
+**Context.** Elena: streets whose photos are found but not rated yet were drawn light teal; they should be grey.
+**Decision (Elena).** A street with photos is drawn at full width with its soft halo in grey (`--map-seg-pending`) until it has a value on the chosen layer (a rating on Senses, a feels-like value on Thermal), then in its state colour. This replaces the light teal "has photos, not rated yet" (2026-11-01). A street with no photo stays thin and dim. The buttons and labels on a photo (arrows, enlarge, counter, credit) get their own colours with more contrast: white with dark teal in light mode, near solid dark teal in dark mode, with a small shadow (`--photo-btn-*`).
+
+## 2026-11-10 – Routes open on Senses too (accepted)
+**Context.** Elena: Routes still opened on Thermal. It was kept there while the ways could only be found on thermal comfort; a Senses route now finds its own.
+**Decision (Elena).** Routes open on the same layer as Area, `config.layerDefault` (Senses). A new route on the default layer therefore starts no Infrared.city run.
+
 ## 2026-11-09 – A Senses route chooses B from rated candidates (accepted)
 **Context.** Elena asked how a best route can be chosen without ratings: on Senses it was not, B was only the next different way. Replaces "only the streets on the two routes" and "Which ways on Senses" below.
 **Decision (Elena chose the option; details proposed).**

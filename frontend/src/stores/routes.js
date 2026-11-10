@@ -34,7 +34,7 @@ export const useRoutesStore = defineStore('routes', () => {
   const thermalWindow = ref({ ...config.thermalDefault })
   /** The window and station of the routes shown. */
   const info = ref(null)
-  const layer = ref('thermal')
+  const layer = ref(config.layerDefault) // the same layer Area opens on
   const routes = shallowRef([])
   /** Senses: the ways to rate; the two routes are chosen from them when the rating ends (stores/senses.js). */
   const candidates = shallowRef([])

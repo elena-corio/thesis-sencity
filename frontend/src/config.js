@@ -29,7 +29,7 @@ export default {
     thermal: { thermal: true },
     overall: { thermal: true },
   },
-  // The layer Area opens on.
+  // The layer Area and Routes open on.
   layerDefault: 'senses',
 
   // The app's language: which label of model/app_v0/elements.json is shown ('en' or 'it').
