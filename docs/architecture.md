@@ -115,6 +115,7 @@ flowchart LR
 | `src/map/buildings.js` | The walk's buildings: one fill-extrusion layer from footprints (`h`, `b`), under the route layers |
 | `src/components/WalkChip.vue`, `WalkLegend.vue`, `WalkPhoto.vue`, `WalkDetails.vue`, `WalkSide.vue`, `WalkMiniMap.vue`, `WalkControls.vue`, `WalkNotice.vue` | The walk: the chip; the read-only legend and fixed-settings line; the square photo (or the 3D street and "No photo for this stretch"); the stretch card (comfort, two columns of sense rows, Rate this place, not built); Exit walk, "Where you are" (a flat map that follows you) and the controls; progress, previous / play / next, arrow and space keys; the notice when buildings fail |
 | `src/components/SenseItem.vue` | One thing that might bother or feel good: its main sense's icon and label, a row with no border (walk, place card, stretch card) |
+| `src/components/MarkerArc.vue` | The photo's direction on a marker: a 90° arc at a radius, with a pulsing copy (the selected point, the suggestion pins, the walk's "Where you are") |
 | `src/components/PlaceSearch.vue` | One search field with suggestions, used by the top bar, Centre, Start and End; reports Enter on a value already chosen |
 | `src/map/base.js` | Dark mode only: recolours the Positron base map from `--map-base-*` in `style.css`, after every style load |
 | `src/map/layers.js` | Our map layers: teal tint, lit circle, dimmed outside (world minus circle), dashed circle and radius line; colours read from `style.css` |

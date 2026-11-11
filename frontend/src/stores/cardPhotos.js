@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { shallowRef, watch } from 'vue'
+import { ref, shallowRef, watch } from 'vue'
 import { loadMapillaryAlong } from '../lib/api.js'
-import { providerName } from '../lib/photos.js'
+import { providerName, showsPhotos } from '../lib/photos.js'
 import { stretchFeature } from '../lib/routes.js'
 import { useAreaStore } from './area.js'
 import { useRoutesStore } from './routes.js'
@@ -20,6 +20,8 @@ export const useCardPhotosStore = defineStore('cardPhotos', () => {
   const area = useAreaStore()
   const routes = useRoutesStore()
   const byKey = shallowRef({})
+  /** The compass direction of the photo the open card shows, or null (the map draws it as an arc on the selected point). */
+  const shownHeading = ref(null)
   const preloaded = new Set()
   let queue = []
   let running = false
@@ -75,6 +77,17 @@ export const useCardPhotosStore = defineStore('cardPhotos', () => {
     ensure(key, feature)
   }
 
+  /** The direction of a street's photo, for its suggestion pin: Mapillary's once fetched (computed_compass_angle, or the
+   *  street direction a panorama is turned to); Street View's first photo. Null with no photo or photos off. */
+  function headingOf(key, feature) {
+    if (!showsPhotos()) return null
+    if (on()) {
+      const p = byKey.value[String(key)]
+      return p && typeof p === 'object' ? p.heading : null
+    }
+    return feature?.properties.photos?.[0]?.heading ?? null
+  }
+
   /** The pointer rests on a street: start loading its image, so it is there when the card opens. */
   function preload(key) {
     const photo = byKey.value[key]
@@ -91,5 +104,5 @@ export const useCardPhotosStore = defineStore('cardPhotos', () => {
     if (stretches) prefetch(stretches.map((s) => [s.key, stretchFeature(s, routes.segments)]))
   })
 
-  return { byKey, ensure, retry, prefetch, preload }
+  return { byKey, shownHeading, ensure, retry, prefetch, preload, headingOf }
 })

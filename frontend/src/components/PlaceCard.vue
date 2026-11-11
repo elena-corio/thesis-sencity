@@ -5,7 +5,7 @@
 // On the Senses layer the photo on the card goes to the model (board 2c, SensesPrediction).
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { photoCredit, photoLink, providerName, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import { formatMonth } from '../lib/geo.js'
@@ -73,6 +73,7 @@ const emptyText = computed(() => {
   return !mly && ratedPhotos.value.length ? 'Photo not shown' : 'No photo'
 })
 watch(() => [src.value.key, mly], () => { if (mly) cardPhotos.ensure(src.value.key, src.value.feature) }, { immediate: true })
+// The map shows the direction of the photo on this card (an arc on the selected point); none without a shown photo.
 const photo = computed(() => photos.value[index.value])
 const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.geometry.type) : ''))
 const dates = computed(() => [...new Set(photos.value.map((ph) => formatMonth(ph.date)))].join(', '))
@@ -141,6 +142,8 @@ function onImgError(i) {
 // Opened with the keyboard: focus starts on "Back to <street>" after a nearby link, else "Back to area".
 const focusStart = () => (fromBtn.value ?? backBtn.value)?.focus()
 onMounted(() => { if (src.value.byKeyboard) focusStart() })
+watch(() => (showsPhotos() && photo.value ? photo.value.heading : null), (h) => { cardPhotos.shownHeading = h ?? null }, { immediate: true })
+onBeforeUnmount(() => { cardPhotos.shownHeading = null })
 watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) nextTick(focusStart) })
 </script>
 

@@ -141,13 +141,15 @@ test.describe('desktop', () => {
     await expect(side.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeVisible()
     await expect(side).toContainText('Where you are')
     await expect(side).toContainText(/0\.09 of 0\.6 km, 1 of 7 min/)
-    await expect(side.getByRole('button', { name: 'Play' })).toBeVisible() // it opens paused
+    await expect(side.getByRole('button', { name: 'Pause' })).toBeVisible() // it opens playing (Elena, 2026-11-11)
     await expect(page.locator('[data-panel="attribution"]')).toContainText('buildings: Stadt Wien – data.wien.gv.at via Infrared.city')
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/walk/1-walk-dark.png' })
     expect(await layoutProblems(page)).toEqual([])
 
-    // Keys: the arrows go along the route, space plays and pauses.
+    // Keys: space pauses and plays; the arrows go along the route.
+    await page.locator('body').press('Space')
+    await expect(side.getByRole('button', { name: 'Play' })).toBeVisible()
     await page.locator('body').press('ArrowRight')
     await expect(card).toContainText('Marktgasse')
     await page.locator('body').press('ArrowLeft')

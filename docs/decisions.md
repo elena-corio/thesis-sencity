@@ -2,6 +2,19 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – Markers show the photo's direction; Play by default; centred routes and areas (accepted)
+**Context.** Elena: six changes, boards Flow 4, Flow 4b, P2 and Routes 5 (walk).
+**Decision.**
+- *Walk (Elena):* it opens playing; with reduced motion it opens paused and Next / Previous jump. This replaces "opens paused".
+- *Selected point (Elena):* the dot, and instead of the ring a 90° arc at the ring's radius, centred on the photo's camera direction, with a copy that grows outward and fades (the old pulse: 2.4 s, ease-out, for 6 s after a selection). Map, stretch, place and the walk's "Where you are". Colours as the ring's (white with a glow in dark mode, dark teal in light). Reduced motion: the arc alone. No photo or no known direction: the dot alone.
+- *Direction sources:* the photo shown on the open card (Mapillary: `computed_compass_angle`, or `compass_angle`; for a panorama the street direction it is turned to; Street View: the shown photo's heading); in the walk, the walk's photo. The Area and Routes maps point north, so the arc's angle is the compass angle; in the walk it turns with the 3D view.
+- *Suggestions (Elena):* the numbered circle on the map is 36 px (the list keeps its smaller badge), with a white 90° arc on its edge in the direction of its street's photo, and the same pulse (continuous on a suggestion, proposed). The direction comes once the street's Mapillary photo has arrived in the background; until then, and with no photo, there is no arc.
+- *Selecting a suggestion (Elena):* the other suggestions hide until "Back to area" (board Flow 4b still shows them); the selected one shows the selected-point marker.
+- *Centring (Elena):* a route after start and end, and an analysed area, are fitted with equal padding left and right (and top and bottom on desktop), each the larger of the two, so a side panel zooms the map out instead of pushing the content aside. On a phone the content is centred in the map above the bottom sheet.
+- *Pulse and sizes (Elena):* the copy grows from the point itself, so it moves straight out, perpendicular to the arc's middle, and gets bigger as it goes. The selected point's dot is 16 px and its arc has a 20 px radius.
+- *Light mode (Elena):* the suggestion circle has a white outline and number and a dark teal arc, and the highlighted suggestion street has a dark teal outline (white in dark mode). White on the cyan and amber fills is about 2:1, below the 4.5:1 target (open: to check with Elena).
+**Consequences.** With photos off (`none`) no marker has a direction. A suggestion's arc can appear a few seconds after its pin.
+
 ## 2026-11-11 – Mapillary photos on the place and stretch cards (accepted)
 **Context.** Elena: the cards said "Photo not shown"; show Mapillary photos there too, as in the walk.
 **Decision.**
@@ -143,7 +156,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Desktop (Elena):* left, the legend of the walk's layer, read only, and "Summer, 15:00. To change the layer, season or time, exit the walk."; right, "Exit walk, back to comparison", "Where you are" (a flat map that follows you, your place always the circle in its middle, a stretch clickable and, for the keyboard, a button), the progress line and previous / play / next. No segment bar. The top bar, search, Area / Routes / Profile and the tools stay; Area or Profile leaves the walk.
 - *Settings fixed (Elena):* the layer, season and time are those of the comparison when the walk starts. Overall is not built for routes, so the walk is on the routes' own layer (Senses or Thermal). The chip: "Walking route B · easiest thermal, summer 15:00".
 - *Phone (Elena, board P6):* the top bar and the tab bar stay; the chip full width under the top bar; the photo centred; the sheet from under the photo to the tab bar: exit, the stretch, the two columns, the rating, then the progress with previous / play / next. No mini map, no layer button. The credits are at the end of the sheet (over the photo they would hide it).
-- *Playback (Elena):* opens paused; Play goes on every 8 s (`config.walk.stretchMs`); Previous / Next jump; arrow keys step, space plays or pauses (not while a field, a choice, the tabs or another button has the focus); Esc leaves the walk and focus goes back to its button.
+- *Playback (Elena):* opens playing since the markers entry above (paused with reduced motion); Play goes on every 8 s (`config.walk.stretchMs`); Previous / Next jump; arrow keys step, space plays or pauses (not while a field, a choice, the tabs or another button has the focus); Esc leaves the walk and focus goes back to its button.
 - *Differences from the boards (proposed):* "A prediction, not a reason." under the state (CLAUDE.md); small helper text uses `--text-2`, since the board's muted grey on white is 4.32:1, under 4.5:1; the board's 15 px text uses the app's 14 and 16 px sizes; the credits keep OpenFreeMap for the base map; the photo's credit is the "© Google" label of the other cards (Street View Static images carry Google's logo themselves); a route found on Senses has no season or time, so its chip reads "easiest senses".
 **Consequences.** If Overall is built for routes, the walk can open on it. The rating row becomes live with the rating flow. The photo comes back with the source Elena chooses.
 

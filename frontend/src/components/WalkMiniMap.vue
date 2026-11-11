@@ -11,6 +11,7 @@ import { sectionLabel, stretchFeature } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useThemeStore } from '../stores/theme.js'
 import { useWalkStore } from '../stores/walk.js'
+import MarkerArc from './MarkerArc.vue'
 
 const walk = useWalkStore()
 const routes = useRoutesStore()
@@ -111,7 +112,11 @@ watch(() => theme.resolved, (t) => map.value?.setStyle(config.mapStyles[t], { di
 <template>
   <div class="mini">
     <div ref="container" class="map" role="img" :aria-label="figureLabel" />
-    <span class="you" aria-hidden="true"><span /></span>
+    <!-- You: the dot, and the photo's direction as an arc with a pulse (the map points north). -->
+    <span class="you" aria-hidden="true">
+      <MarkerArc v-if="walk.photo" :angle="walk.photo.heading" radius="var(--point-arc-r)" pulse />
+      <span class="dot" />
+    </span>
     <ul class="visually-hidden" aria-label="Stretches of the walk">
       <li v-for="(s, i) in walk.stretches" :key="s.key">
         <button type="button" :aria-current="i === walk.index ? 'step' : undefined" @click="walk.go(i, $event.detail === 0)">{{ label(s) }}</button>
@@ -126,10 +131,11 @@ watch(() => theme.resolved, (t) => map.value?.setStyle(config.mapStyles[t], { di
 /* You: always in the middle (the map moves under it). */
 .you {
   position: absolute; left: 50%; top: 50%; width: var(--ring-size); height: var(--ring-size); transform: translate(-50%, -50%);
-  border: var(--focus-width) solid var(--ring); border-radius: 50%; box-shadow: 0 0 var(--space-2) var(--ring); pointer-events: none;
+  pointer-events: none;
 }
-.you span {
-  position: absolute; left: 50%; top: 50%; width: var(--ring-dot); height: var(--ring-dot); transform: translate(-50%, -50%);
+.you .dot {
+  box-shadow: var(--arc-glow);
+  position: absolute; left: 50%; top: 50%; width: var(--point-dot); height: var(--point-dot); transform: translate(-50%, -50%);
   border: var(--focus-width) solid var(--ring-edge); border-radius: 50%; background: var(--ring);
 }
 </style>

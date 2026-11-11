@@ -180,8 +180,8 @@ test.describe('desktop', () => {
     const zoomBefore = await page.evaluate(() => window.__sencityMap.getZoom())
     await link.click()
     await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
-    // The ring pulses on the new street, even while the map moves there (the pulse lasts 6 s).
-    await expect(page.locator('.ring.pulsing')).toHaveCount(1)
+    // The selected point's arc (the photo's direction) pulses on the new street, even while the map moves there (6 s).
+    await expect(page.locator('.point .marker-arc .pulse')).toHaveCount(1)
     await expect(page.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(page.locator('[data-seg][aria-pressed="true"]')).toHaveCount(1)
     await mapIdle(page)
@@ -227,15 +227,15 @@ test.describe('desktop', () => {
     expect(await page.evaluate(() => window.__sencityMap.getSource('sc-mark').serialize().data.features.length)).toBe(n)
     await page.screenshot({ path: 'e2e/screens/places-dark-suggestions.png' })
 
-    // A pin opens that place's card; the other pins stay. Nothing about suggestions in the card.
+    // A pin opens that place's card; the other pins hide. Nothing about suggestions in the card.
     const name = (await first.getAttribute('aria-label')).replace(/^Suggestion 1: /, '')
     const pinBox = await first.boundingBox()
     await first.click()
     const place = page.locator('[data-panel="place-card"]')
     await expect(place.locator('#place-title')).toHaveText(name)
-    // The selection ring takes the pin's place; the other pins stay.
-    await expect(pins).toHaveCount(n - 1)
-    const ringBox = await page.locator('.ring:not(.focus)').boundingBox()
+    // The selected point takes the pin's place; the other pins hide until "Back to area" (Elena, 2026-11-11).
+    await expect(pins).toHaveCount(0)
+    const ringBox = await page.locator('.point').boundingBox()
     expect(Math.abs(ringBox.x + ringBox.width / 2 - (pinBox.x + pinBox.width / 2))).toBeLessThan(2)
     expect(Math.abs(ringBox.y + ringBox.height / 2 - (pinBox.y + pinBox.height / 2))).toBeLessThan(2)
     await expect(place).not.toContainText('uggestion')

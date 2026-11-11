@@ -12,8 +12,8 @@ import { useRoutesStore } from './routes.js'
  * The layer, season and time are fixed when the walk starts (Elena, 2026-11-11): exit the walk to change them. The walked
  * route is a copy. One photo per stretch, the one that faces along the walk (Mapillary, from the backend, or Street View);
  * the 3D camera stands where it was taken and looks its way, so the photo reads as a window onto the street. Without a
- * photo (or with photos not shown, lib/photos.js) the camera stands at the start of the stretch, looking along it. It opens paused; Play goes on every
- * config.walk.stretchMs. Ratings and thermal values come from the routes store, never a new call.
+ * photo (or with photos not shown, lib/photos.js) the camera stands at the start of the stretch, looking along it. It opens
+ * playing (paused with reduced motion); Play goes on every config.walk.stretchMs. Ratings and thermal values come from the routes store, never a new call.
  */
 export const useWalkStore = defineStore('walk', () => {
   const routes = useRoutesStore()
@@ -134,6 +134,8 @@ export const useWalkStore = defineStore('walk', () => {
     active.value = true
     fetchBuildings()
     fetchMapillary()
+    // Play is the default (Elena, 2026-11-11); with reduced motion it opens paused and Next / Previous jump.
+    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) play()
   }
 
   /** Back to the route card, with the same routes. */

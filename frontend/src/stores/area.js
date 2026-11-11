@@ -341,13 +341,10 @@ export const useAreaStore = defineStore('area', () => {
     selectedPoint.value = marker ? marker.mid : point
     cameFrom.value = null
     zoomToSelected.value = false
-    // A marked place: the others stay visible, and it gets the "seen" tick. Any other place hides them.
-    if (isMarked(id)) {
-      seenIds.value = new Set([...seenIds.value, id])
-      markersCollapsed.value = false
-    } else if (markers.value.length) {
-      markersCollapsed.value = true
-    }
+    // Any selected place hides the markers until "Back to area" (Elena, 2026-11-11); a marked one gets the "seen" tick,
+    // and its point shows the selected-point marker instead of its pin.
+    if (isMarked(id)) seenIds.value = new Set([...seenIds.value, id])
+    if (markers.value.length) markersCollapsed.value = true
   }
   /** Select a marked place from its pin or list row. */
   function selectMarker(marker, keyboard = false) {
