@@ -2,6 +2,11 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – Street View metadata: a point that keeps failing has no photo (proposed)
+**Context.** Areas stopped at "8 of 10" with "Could not load street photos for this area": the metadata lookup answered UNKNOWN_ERROR, and any error status stopped the whole area. Around Stephansplatz 3 of 280 points answered UNKNOWN_ERROR every time: asked again, after 5 s, without `source=outdoor`, and with a 50 m radius.
+**Decision.** UNKNOWN_ERROR and OVER_QUERY_LIMIT are asked again up to three times (after 1, 2 and 4 s). A point that still answers UNKNOWN_ERROR counts as having no photo there, as ZERO_RESULTS does; a lasting OVER_QUERY_LIMIT, REQUEST_DENIED or any other status still stops the run. The API log now names the status (it holds no key or place); a network error is still logged by its type only, since its text can hold the request URL with the key.
+**Consequences.** A few sample points have no photo where Google could not answer; the segment can still get one from its other points.
+
 ## 2026-11-10 – A street without a value is grey (accepted)
 **Context.** Elena: streets whose photos are found but not rated yet were drawn light teal; they should be grey.
 **Decision (Elena).** A street with photos is drawn at full width with its soft halo in grey (`--map-seg-pending`) until it has a value on the chosen layer (a rating on Senses, a feels-like value on Thermal), then in its state colour. This replaces the light teal "has photos, not rated yet" (2026-11-01). A street with no photo stays thin and dim. The buttons and labels on a photo (arrows, enlarge, counter, credit) get their own colours with more contrast: white with dark teal in light mode, near solid dark teal in dark mode, with a small shadow (`--photo-btn-*`).
