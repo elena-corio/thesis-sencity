@@ -110,8 +110,8 @@
   --route-sample-w: 24px;          /* line sample in the route buttons */
 
   /* State bars (brief §3: all share one style) */
-  --bar-h: 10px;
-  --bar-radius: 5px;
+  --bar-h: 9px;                    /* the route bar and the area's stacked bar, the same (Elena, 2026-11-11) */
+  --bar-radius: 4.5px;
   --bar-gap: 2px;
   --bar-hit-h: 24px;               /* the section's button is taller than the bar */
   --bar-min-section: 4px;          /* so a very short stretch can still be hit */

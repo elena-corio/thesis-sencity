@@ -171,7 +171,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 .inputs { margin-top: var(--space-3); padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
 .stack-head { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); font-size: var(--fs-sm); }
 .stack {
-  display: flex; gap: var(--hairline); height: var(--space-2); margin-top: var(--space-2);
+  display: flex; gap: var(--hairline); height: var(--bar-h); margin-top: var(--space-2);
   border-radius: var(--radius-pill); overflow: hidden;
 }
 .stack span { flex-basis: 0; min-width: var(--hairline); }
