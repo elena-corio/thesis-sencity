@@ -15,9 +15,13 @@ const walk = useWalkStore()
 const senses = useSensesStore()
 
 const p = computed(() => walk.feature?.properties ?? {})
-const place = computed(() => (walk.photos.length ? senses.placeFor(walk.photos) : null))
+/** Senses: the rating of the stretch's own photo, the one in the window (null: no photo; pending while it is found). */
+const place = computed(() => {
+  if (walk.stretchPhoto) return senses.placeFor([walk.stretchPhoto])
+  return walk.mapillaryState === 'loading' ? { status: 'pending' } : null
+})
 const comfort = computed(() => comfortLine(walk.layer, p.value, walk.layer === 'senses' ? place.value : null))
-const rated = computed(() => walk.layer === 'senses' && place.value?.status === 'ok')
+const rated = computed(() => walk.layer === 'senses' && place.value?.status === 'rated')
 const columns = computed(() => [
   { title: 'Might bother you', kind: 'bother', items: rated.value ? place.value.bothers : [] },
   { title: 'Might feel good', kind: 'good', items: rated.value ? place.value.feelsGood : [] },

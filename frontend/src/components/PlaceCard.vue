@@ -6,7 +6,7 @@
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { photoCredit, photoLink, providerName, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
+import { photoCredit, photoLink, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
@@ -44,11 +44,9 @@ const fromBtn = ref(null)
 const enlargeBtn = ref(null)
 const senses = useSensesStore()
 const cardPhotos = useCardPhotosStore()
-/** Mapillary (lib/photos.js): the card shows this street's one Mapillary photo; its Street View photos still rate it. */
-const mly = providerName() === 'mapillary'
 /** In Senses the card opens on the photo closest to the place's rating (brief §4). */
 function startIndex() {
-  if (src.value.layer !== 'senses' || mly) return 0
+  if (src.value.layer !== 'senses') return 0
   return senses.placeFor(src.value.feature?.properties.photos).rep ?? 0
 }
 const index = ref(startIndex())
@@ -57,22 +55,12 @@ const failed = ref(new Set())
 
 const feature = computed(() => src.value.feature)
 const p = computed(() => feature.value?.properties)
-/** The street's Street View photos: they rate it (on the server); shown only with the Street View provider. */
-const ratedPhotos = computed(() => p.value?.photos ?? [])
-/** Mapillary: this street's entry, asked for when the card opens (a photo, null, 'loading' or 'error'). */
-const mlyEntry = computed(() => (mly ? cardPhotos.byKey[src.value.key] : undefined))
-/** The photos shown on the card. */
-const photos = computed(() => {
-  if (!mly) return ratedPhotos.value
-  const e = mlyEntry.value
-  return e && typeof e === 'object' ? [e] : []
-})
+/** The street's Mapillary photo (one, or none), found with the area or route: shown here and rated by the model. */
+const photos = computed(() => p.value?.photos ?? [])
 const emptyText = computed(() => {
-  if (p.value?.photos == null || mlyEntry.value === 'loading') return 'Looking for photos…'
-  if (mlyEntry.value === 'error') return 'The photo could not be loaded.'
-  return !mly && ratedPhotos.value.length ? 'Photo not shown' : 'No photo'
+  if (p.value?.photos == null) return 'Looking for photos…'
+  return photos.value.length ? 'Photo not shown' : 'No photo'
 })
-watch(() => [src.value.key, mly], () => { if (mly) cardPhotos.ensure(src.value.key, src.value.feature) }, { immediate: true })
 // The map shows the direction of the photo on this card (an arc on the selected point); none without a shown photo.
 const photo = computed(() => photos.value[index.value])
 const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.geometry.type) : ''))
@@ -110,9 +98,9 @@ watch(() => src.value.key, () => {
 
 // Senses: the place from the ratings already here, never a new call. Also for a stretch of a route.
 const sensesOn = computed(() => src.value.layer === 'senses')
-const sensesPlace = computed(() => (sensesOn.value && ratedPhotos.value.length ? senses.placeFor(ratedPhotos.value) : null))
-// A Mapillary photo is not rated itself: the place's rating comes from the Street View photos.
-const shownRating = computed(() => (sensesOn.value && photo.value && !mly ? senses.ratingOf(photo.value) ?? null : null))
+const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
+// The photo on the card is the one rated.
+const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
 const viewerRating = computed(() => (shownRating.value?.status === 'ok' ? `${comfortLabel(shownRating.value.result)}, this photo` : 'Not rated yet'))
 const viewerNote = computed(() => (shownRating.value?.status === 'ok' ? `${GENERAL_LABEL}. A prediction, not a reason.` : ''))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
@@ -239,7 +227,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
       <template v-else-if="photo">
         <div class="thumbs-row">
           <div v-if="photos.length > 1 && showsPhotos()" class="thumbs" role="group" aria-label="Photos of this street">
-            <button v-for="(ph, i) in photos" :key="(ph.pano_id ?? ph.id) + ph.heading" type="button" class="thumb"
+            <button v-for="(ph, i) in photos" :key="ph.id + ph.heading" type="button" class="thumb"
                     :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                     @click="index = i">
               <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" @error="onImgError(i)" />
@@ -257,7 +245,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <p class="not-rated">Not rated yet. Ratings come in the next step.</p>
       </template>
 
-      <template v-else-if="p.photos != null && !ratedPhotos.length">
+      <template v-else-if="p.photos != null && !photos.length">
         <p class="why">No street photo here yet, so this street will have no Senses or Overall rating.</p>
         <button v-if="src.features" type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
         <p class="muted small">We never guess between photos: without one, a street stays unlit in Senses and Overall.</p>
@@ -267,7 +255,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
-                 :photos="photos" :failed="failed" :rating="mly ? '' : viewerRating" :rating-note="mly ? '' : viewerNote" @close="closeViewer" @failed="onImgError" />
+                 :photos="photos" :failed="failed" :rating="viewerRating" :rating-note="viewerNote" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 

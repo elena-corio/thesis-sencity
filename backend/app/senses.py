@@ -4,9 +4,11 @@ model/app_v0/ (exported from the thesis repo) is the only source of the instruct
 model settings. It is read again on every request, so replacing the folder changes the setting without a code change or
 a restart. If a file is missing, broken or unsafe the request stops with ExportError: there are no defaults.
 
-The backend fetches each picture from Street View itself, only for photos not in the cache. Images stay in memory:
-they are never written to disk, cached or logged. Only the model's JSON output, the model ID,
-latency and cost are kept, in a git-ignored file, per pano ID + heading + the export's commit.
+The model rates the photo the person sees (Elena, 2026-11-11): the Mapillary photo of the street, place or walk stretch
+(tool/photos/mapillary.py), a panorama rendered as the 90 degree view the app shows. The backend fetches each picture
+itself, only for photos not in the cache. Images stay in memory: they are never written to disk, cached or logged. Only
+the model's JSON output, the model ID, latency and cost are kept, in a git-ignored file, per Mapillary image ID + heading
++ model + the export's commit. Ratings made earlier from Street View photos are marked stale and never used.
 """
 import base64
 import io
@@ -27,6 +29,7 @@ from jsonschema.exceptions import SchemaError
 from PIL import Image, UnidentifiedImageError
 
 from tool.config import REPO_ROOT, get_key
+from tool.photos.mapillary import NotThisPhoto
 
 EXPORT_DIR = REPO_ROOT / "model" / "app_v0"
 log = logging.getLogger("sencity.api")
@@ -279,13 +282,35 @@ def _reply_text(data: dict):
         return None
 
 
-# Cache: one JSON file, {key: {output, model, latency_ms, cost_usd}}. The key holds the commit, so results
-# of another export are never found.
+# Cache: one JSON file, {key: {output, model, latency_ms, cost_usd}}. The key holds the model and the commit, so results
+# of another model or export are never found.
 _cache_lock = threading.Lock()
+SOURCE = "mly"  # the photo source in every key; a key without it is a Street View rating, stale
 
 
-def cache_key(pano_id: str, heading: float, commit: str) -> str:
-    return f"{pano_id}|{round(heading, 1)}|{commit}"
+def cache_key(photo_id: str, heading: float, model: str, commit: str) -> str:
+    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|{commit}"
+
+
+def mark_stale(path: Path) -> int:
+    """Mark every rating made from a Street View photo as stale (Elena, 2026-11-11): kept for the record, never used
+    again. Returns how many were newly marked."""
+    with _cache_lock:
+        data = _read_cache(path)
+        n = 0
+        for key, entry in data.items():
+            if not key.startswith(f"{SOURCE}:") and isinstance(entry, dict) and not entry.get("stale"):
+                entry["stale"] = "streetview photo: the app now rates the Mapillary photo it shows"
+                n += 1
+        if n:
+            try:
+                tmp = path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+                os.replace(tmp, path)
+            except OSError as e:
+                log.warning("senses: stale marks not written: %s", type(e).__name__)
+                return 0
+    return n
 
 
 def _read_cache(path: Path) -> dict:
@@ -335,8 +360,8 @@ def _api_key() -> str:
 class Plan:
     """What one rating request will do: the cached photos answer at once, the first `cap` new ones are rated."""
     export: Export
-    cached: list  # [(pano_id, heading, cache entry)]
-    to_rate: list  # [(pano_id, heading)], in the order asked (nearest first)
+    cached: list  # [(photo_id, heading, cache entry)]
+    to_rate: list  # [(photo_id, heading)], in the order asked (nearest first)
     remaining: int  # new photos left out by the cap
     api_key: str | None
 
@@ -347,30 +372,33 @@ def plan_rating(photos: list, cfg: dict) -> Plan:
     with _cache_lock:
         cache = _read_cache(REPO_ROOT / cfg["cache_file"])
     cached, new, seen = [], [], set()
-    for pano_id, heading in photos:
-        key = cache_key(pano_id, heading, export.commit)
+    for photo_id, heading in photos:
+        key = cache_key(photo_id, heading, export.model["model"], export.commit)
         if key in seen:
             continue
         seen.add(key)
         hit = cache.get(key)
-        if isinstance(hit, dict) and problem_with(export, hit.get("output")) is None:
-            cached.append((pano_id, heading, hit))
+        if isinstance(hit, dict) and not hit.get("stale") and problem_with(export, hit.get("output")) is None:
+            cached.append((photo_id, heading, hit))
         else:
-            new.append((pano_id, heading))
+            new.append((photo_id, heading))
     cap = cfg["cap_photos"]
     return Plan(export, cached, new[:cap], max(0, len(new) - cap), _api_key() if new else None)
 
 
-def rate_one(plan: Plan, pano_id: str, heading: float, cfg: dict, provider) -> dict:
-    """One photo: the picture from Street View (in memory only), then the model. An invalid reply is retried once."""
+def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> dict:
+    """One photo: the picture from Mapillary (in memory only), then the model. An invalid reply is retried once."""
     export = plan.export
     started = time.perf_counter()
     try:
-        image = provider.fetch_image(pano_id, heading)
-    except requests.RequestException as e:
+        image = provider.fetch_image(photo_id, heading)
+    except NotThisPhoto:
+        raise PredictionError(400, "This is not a photo the app shows.") from None
+    except (requests.RequestException, UnidentifiedImageError, OSError, ValueError) as e:
         log.warning("senses: photo failed: %s", type(e).__name__)
         raise PredictionError(502, "The street photo could not be loaded.") from None
-    body = build_request(export, encode_image(image, export.model["image"]), cache_key(pano_id, heading, export.commit))
+    body = build_request(export, encode_image(image, export.model["image"]),
+                         cache_key(photo_id, heading, export.model["model"], export.commit))
     costs, text = [], None
     for _ in range(2):
         data = post_openrouter(body, plan.api_key, cfg)
@@ -386,19 +414,15 @@ def rate_one(plan: Plan, pano_id: str, heading: float, cfg: dict, provider) -> d
                           cost=sum(costs))
 
 
-def rate_events(plan: Plan, cfg: dict, provider, unknown: list = ()):
+def rate_events(plan: Plan, cfg: dict, provider):
     """The run as events: "start", one "photo" per photo (cached ones first, then as each new one finishes, at most
     cfg["concurrency"] at a time), and "done", or "error" when going on is pointless. Every rating goes in the cache."""
     export = plan.export
     path = REPO_ROOT / cfg["cache_file"]
-    image_usd = provider.estimated_cost_usd(1) if provider else 0.0
     yield {"type": "start", "model": export.model["model"], "cached": len(plan.cached), "to_rate": len(plan.to_rate),
            "remaining": plan.remaining}
-    for pano_id, heading in unknown:
-        yield {"type": "photo", "pano_id": pano_id, "heading": heading, "status": "failed", "cached": False,
-               "error": "Not a photo of a loaded area."}
-    for pano_id, heading, entry in plan.cached:
-        yield {"type": "photo", "pano_id": pano_id, "heading": heading, "status": "ok", "cached": True,
+    for photo_id, heading, entry in plan.cached:
+        yield {"type": "photo", "id": photo_id, "heading": heading, "status": "ok", "cached": True,
                "result": _view(export, entry, cached=True)}
 
     started = time.perf_counter()
@@ -414,8 +438,8 @@ def rate_events(plan: Plan, cfg: dict, provider, unknown: list = ()):
     try:
         futures = {pool.submit(work, photo): photo for photo in plan.to_rate}
         for future in as_completed(futures):
-            pano_id, heading = futures[future]
-            base = {"type": "photo", "pano_id": pano_id, "heading": heading, "cached": False, "streetview_usd": image_usd}
+            photo_id, heading = futures[future]
+            base = {"type": "photo", "id": photo_id, "heading": heading, "cached": False}
             try:
                 entry = future.result()
             except PredictionError as e:
@@ -428,11 +452,10 @@ def rate_events(plan: Plan, cfg: dict, provider, unknown: list = ()):
                 continue
             if entry is None:
                 continue
-            _save_cache(path, cache_key(pano_id, heading, export.commit), entry)
+            _save_cache(path, cache_key(photo_id, heading, export.model["model"], export.commit), entry)
             yield {**base, "status": "ok", "result": _view(export, entry, cached=False), "cost_usd": entry["cost_usd"]}
     finally:
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)
     yield {"type": "done", "seconds": round(time.perf_counter() - started, 1), "failed": failed, "remaining": plan.remaining,
-           "estimate_usd": round(plan.remaining * cfg["estimate_call_usd"], 4),
-           "estimate_streetview_usd": round(plan.remaining * image_usd, 4)}
+           "estimate_usd": round(plan.remaining * cfg["estimate_call_usd"], 4)}

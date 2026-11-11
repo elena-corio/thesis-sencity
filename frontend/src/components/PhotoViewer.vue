@@ -1,7 +1,7 @@
 <script setup>
 // Enlarged photo (board 2f+; phone P2+). Over the dimmed app (90%) on desktop, a full page on a
 // phone. Arrow keys switch photos, Esc goes back, focus stays inside while it is open.
-// Images come from the API on demand and are never stored (Google terms).
+// Images are Mapillary's thumbnails, loaded on demand and never stored.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
 import { distanceLine, photoLine } from '../lib/place.js'
@@ -115,7 +115,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         </div>
 
         <div v-if="n > 1" class="thumbs" role="group" aria-label="All photos of this street">
-          <button v-for="(ph, i) in photos" :key="(ph.pano_id ?? ph.id) + ph.heading" type="button" class="thumb"
+          <button v-for="(ph, i) in photos" :key="ph.id + ph.heading" type="button" class="thumb"
                   :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                   @click="emit('update:index', i)">
             <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" draggable="false" />

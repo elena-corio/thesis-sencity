@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { AREA, WITH_3, analyseCentre, chooseLayer, layoutProblems, mapIdle, markRatingMocked, mockArea, openMap, openRoutes, openSegment, mockRoutes, routeClicks } from './helpers.js'
 
-// The model is mocked: these checks never call OpenRouter or Street View.
+// The model is mocked: these checks never call OpenRouter or Mapillary.
 const anchors = ['not at all, too much for my senses', 'very much']
 const el = (code, en, sense) => ({ code, en, it: en, sense, kind: null })
 const TRAFFIC = el('traffic_trams_crowds', 'Traffic, trams, crowds (hearing)', 'hearing')
@@ -13,7 +13,7 @@ const result = (comfort) => ({
 })
 
 /** Comfort per photo: the first places easy, the rest hard, so both lists fill up. */
-function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failPano = null, remaining = 0, cached = false } = {}) {
+function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failId = null, remaining = 0, cached = false } = {}) {
   const mock = { requests: [], remaining, cached, hold: false, release: null, error: null }
   markRatingMocked(page)
   return page.route('**/api/senses/rate', async (route) => {
@@ -24,14 +24,14 @@ function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failPano = null, 
     if (mock.error) lines.push({ type: 'error', message: mock.error })
     else {
       photos.forEach((p, i) => {
-        if (p.pano_id === failPano && !mock.requests[1]) {
-          lines.push({ type: 'photo', ...p, status: 'failed', cached: false, error: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"', cost_usd: 0.0002, streetview_usd: 0.007 })
+        if (p.id === failId && !mock.requests[1]) {
+          lines.push({ type: 'photo', ...p, status: 'failed', cached: false, error: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"', cost_usd: 0.0002 })
         } else {
-          lines.push({ type: 'photo', ...p, status: 'ok', cached: mock.cached, result: result(comfort(i)), cost_usd: mock.cached ? null : 0.0005, streetview_usd: mock.cached ? undefined : 0.007 })
+          lines.push({ type: 'photo', ...p, status: 'ok', cached: mock.cached, result: result(comfort(i)), cost_usd: mock.cached ? null : 0.0005 })
         }
       })
       const left = mock.remaining
-      lines.push({ type: 'done', seconds: 3.2, failed: 0, remaining: left, estimate_usd: left * 0.001, estimate_streetview_usd: left * 0.007 })
+      lines.push({ type: 'done', seconds: 3.2, failed: 0, remaining: left, estimate_usd: left * 0.001 })
     }
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   }).then(() => mock)
@@ -63,8 +63,10 @@ test.describe('Senses mode', () => {
 
     const sent = mock.requests[0]
     const every = AREA.features.flatMap((f) => f.properties.photos)
-    expect(sent.length).toBe(new Set(every.map((p) => `${p.pano_id}|${p.heading}`)).size)
-    expect(photos).toHaveLength(0) // the browser fetched no picture: the rating needs none
+    expect(sent.length).toBe(new Set(every.map((p) => `${p.id}|${p.heading}`)).size)
+    // The photos the app shows, by Mapillary image and heading (the API fetches them): the browser loads no picture for it.
+    expect(sent.every((p) => /^[0-9]+$/.test(p.id) && Object.keys(p).sort().join() === 'heading,id')).toBe(true)
+    expect(photos).toHaveLength(0)
 
     await expect(page.getByTestId('senses-best').locator('button').first()).toBeVisible()
     await expect(page.getByTestId('senses-avoid')).toHaveCount(0) // only positive recommendations
@@ -154,7 +156,8 @@ test.describe('Senses mode', () => {
     const ask = page.getByTestId('senses-ask')
     await expect(ask).toContainText('182 more photos to rate')
     await expect(ask).toContainText('$0.18 for the model')
-    await expect(ask).toContainText('$1.27 for the')
+    await expect(ask).toContainText('the photos are free')
+    await expect(ask).not.toContainText('Street View')
     expect(mock.requests).toHaveLength(1)
     mock.remaining = 0
     await ask.getByRole('button', { name: 'Continue' }).click()
@@ -176,8 +179,8 @@ test.describe('Senses mode', () => {
       await page.route('**/api/area', async (route) => {
         await route.fulfill({ contentType: 'application/x-ndjson', body: `${JSON.stringify({ type: 'done', area: { type: 'FeatureCollection', features: [only] } })}\n` })
       })
-      await page.route('**/api/photo/**', (r) => r.fulfill({ status: 404 }))
-      return mockSenses(page, { failPano: failing[0].pano_id, comfort: () => 4 })
+      await page.route('**/mly-thumb/**', (r) => r.fulfill({ status: 404 }))
+      return mockSenses(page, { failId: failing[0].id, comfort: () => 4 })
     })()
     await openMap(page, 'light', { layer: null })
     await analyseCentre(page)

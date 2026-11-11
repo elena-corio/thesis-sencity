@@ -2,36 +2,35 @@
 
 - POST /api/search   address and place search (Photon)
 - POST /api/reverse  the name of a point clicked on the map (Photon)
-- POST /api/area     street segments and their chosen photos for one circle (metadata only), then
+- POST /api/area     street segments and their Mapillary photos for one circle (metadata only), then
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
-- POST /api/mapillary/along   one Mapillary photo per stretch of a walk, or per street or place of a card (free; the token stays here)
-- GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
-- POST /api/senses/rate   the model's general predictions for a list of photos, streamed; cached ones cost nothing
+- POST /api/mapillary/along   one Mapillary photo per stretch of a walk (free; the token stays here)
+- POST /api/senses/rate   the model's general predictions for a list of Mapillary photos, streamed; cached ones cost nothing
+
+No Street View call is left in the app (Elena, 2026-11-11): its photos are Mapillary's, and those are the ones rated.
 
 Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
 the body, not the URL, so they do not appear in access logs or the browser history either.
 """
 import json
 import logging
-import re
 import threading
 import time
 from collections import defaultdict, deque
 
 import requests
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from tool.config import load_config
 from tool.buildings import BuildingsError
 from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
-from tool.photos.provider import get_provider
 
 from . import area as area_mod
 from . import buildings as buildings_mod
@@ -68,20 +67,17 @@ def _ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-# The photo provider holds the Street View key; it is created on first use, on the server only.
-_provider = None
-_provider_lock = threading.Lock()
+# The Mapillary images for the model; created on first use, on the server only (the token stays here).
+_images = None
+_images_lock = threading.Lock()
 
 
-def provider():
-    global _provider
-    with _provider_lock:
-        if _provider is None:
-            try:
-                _provider = get_provider(full_cfg)
-            except SystemExit:
-                raise HTTPException(503, "Street photos are not set up on the server.") from None
-        return _provider
+def images():
+    global _images
+    with _images_lock:
+        if _images is None:
+            _images = mapillary_mod.Images(full_cfg)
+        return _images
 
 
 # Search
@@ -139,10 +135,6 @@ class AreaRequest(BaseModel):
     layer: str = Field("overall", pattern="^(senses|thermal|overall)$")
 
 
-# (pano ID, heading) pairs of every cached area: /photo fetches nothing else.
-_known_photos: set[tuple[str, float]] = area_mod.load_all_known(full_cfg)
-
-
 def _ndjson(event: dict) -> bytes:
     return (json.dumps(event, ensure_ascii=False) + "\n").encode()
 
@@ -162,7 +154,6 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     resuming = cached is None and steps.exists(area_mod.cache_dir(full_cfg), key)
     if cached is None and not resuming and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new areas in a short time. Wait a while and try again.")
-    prov = provider() if cached is None else None
 
     def thermal(fc):
         if not needs_thermal:
@@ -180,17 +171,15 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
             return
         fc = None
         try:
-            for event in area_mod.run_area(body.lat, body.lon, body.radius, full_cfg, prov, key):
+            for event in area_mod.run_area(body.lat, body.lon, body.radius, full_cfg, key):
                 if event["type"] == "done":
                     fc = event["area"]
                     area_mod.save_cached(key, body.lat, body.lon, body.radius, fc, full_cfg)
                     steps.clear(area_mod.cache_dir(full_cfg), key)
-                    _known_photos.update(area_mod.known_photos(fc))
                 yield _ndjson(event)
-        except (requests.RequestException, SystemExit) as e:
-            # A Street View status says what went wrong and holds no key or place; a network error's text can hold the
-            # request URL (with the key), so only its type is logged.
-            log.warning("area failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
+        except (requests.RequestException, mapillary_mod.MapillaryError, SystemExit) as e:
+            # Only the type: a network error's text can hold the request URL.
+            log.warning("area failed: %s", type(e).__name__)
             yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
             return
         yield from thermal(fc)
@@ -239,7 +228,6 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
     resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), key)
     if cached is None and not resuming and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
-    prov = provider() if cached is None else None
     limits = body.limits.model_dump()
     # A corridor may bill more tiles than one circle, up to its own limit.
     thermal_cfg = {**full_cfg, "thermal": {**full_cfg["thermal"], "max_jobs": r["max_jobs"]}}
@@ -248,7 +236,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         corridor = cached
         if corridor is None:
             try:
-                for event in routes_mod.build_corridor(start, end, full_cfg, prov, key):
+                for event in routes_mod.build_corridor(start, end, full_cfg, key):
                     if event["type"] == "corridor":
                         corridor = event
                     else:
@@ -256,15 +244,14 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
             except routes_mod.RouteError as e:
                 yield _ndjson({"type": "error", "message": str(e)})
                 return
-            except (requests.RequestException, SystemExit) as e:
-                log.warning("routes failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
+            except (requests.RequestException, mapillary_mod.MapillaryError, SystemExit) as e:
+                log.warning("routes failed: %s", type(e).__name__)
                 yield _ndjson({"type": "error", "message": "Could not load the streets between start and end. Try again."})
                 return
             lat, lon = routes_mod.middle(start, end)
             routes_mod.save_cached(key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
             steps.clear(routes_mod.cache_dir(full_cfg), key)
         fc, zone = corridor["area"], corridor["zone"]
-        _known_photos.update(area_mod.known_photos(fc))
         lat, lon = routes_mod.middle(start, end)
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
         thermal = None
@@ -345,32 +332,14 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
         raise HTTPException(503, str(e)) from None
 
 
-# Photo: streamed through, never stored
-
-PANO_ID = re.compile(r"^[A-Za-z0-9_.\-]{10,120}$")
-
-
-@app.get("/api/photo/{pano_id}")
-def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=360)) -> Response:
-    if not PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in _known_photos:
-        # Only photos chosen for an area can be fetched, so this is not an open Street View proxy.
-        raise HTTPException(404, "Not a photo of a loaded area.")
-    if _rate_limited("photo", _ip(request), cfg["photo"]["rate_per_minute"], 60):
-        raise HTTPException(429, "Too many photos in a short time. Wait a moment.")
-    try:
-        content = provider().fetch_image(pano_id, heading)
-    except requests.RequestException as e:
-        log.warning("photo failed: %s", type(e).__name__)
-        raise HTTPException(502, "The photo could not be loaded.") from None
-    # In memory only: never written to disk (Google terms). Only the browser keeps it, briefly.
-    return Response(content, media_type="image/jpeg",
-                    headers={"Cache-Control": f"private, max-age={cfg['photo']['browser_cache_s']}"})
-
-
 # Senses mode: general predictions for the photos of an area or route (no profile), from model/app_v0/
 
+# Ratings made from Street View photos are stale from now on (Elena, 2026-11-11): marked on the first rating request
+# (their keys never match a Mapillary photo anyway; the mark is for the record).
+_stale_marked = False
+
 class SensesPhoto(BaseModel):
-    pano_id: str
+    id: str = Field(..., pattern=r"^[0-9]{1,20}$")  # a Mapillary image ID
     heading: float = Field(..., ge=0, lt=360)
 
 
@@ -382,13 +351,15 @@ class SensesRateRequest(BaseModel):
 def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
     """Rates the photos in the order given (nearest first). Cached ones answer at once and cost nothing; of the rest,
     at most cfg["senses"]["cap_photos"] are rated and "done" says how many are left. Streams newline-separated JSON
-    (app/senses.py). Images are fetched here, kept in memory only, and never logged."""
-    known, unknown = [], []
-    for p in body.photos:
-        pair = (p.pano_id, round(p.heading, 1))
-        (known if PANO_ID.match(p.pano_id) and pair in _known_photos else unknown).append((p.pano_id, p.heading))
+    (app/senses.py). Images are fetched here from Mapillary, kept in memory only, and never logged. A flat photo is
+    rated only at its own heading; a panorama at the heading the app shows it."""
+    global _stale_marked
+    if not _stale_marked:
+        senses_mod.mark_stale(senses_mod.REPO_ROOT / cfg["senses"]["cache_file"])
+        _stale_marked = True
+    photos = [(p.id, round(p.heading, 1)) for p in body.photos]
     try:
-        plan = senses_mod.plan_rating(known, cfg["senses"])
+        plan = senses_mod.plan_rating(photos, cfg["senses"])
     except senses_mod.ExportError as e:
         log.warning("senses: the export cannot be used")
         raise HTTPException(503, f"The model settings cannot be used. {e}") from None
@@ -396,6 +367,9 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
         raise HTTPException(e.status, e.message) from None
     if plan.to_rate and _rate_limited("senses", _ip(request), cfg["senses"]["runs_per_hour"], 3600):
         raise HTTPException(429, "Too many rating runs in a short time. Wait a while, then retry.")
-    prov = provider() if plan.to_rate else None
-    return StreamingResponse((_ndjson(e) for e in senses_mod.rate_events(plan, cfg["senses"], prov, unknown)),
+    try:
+        prov = images() if plan.to_rate else None
+    except mapillary_mod.MapillaryError as e:
+        raise HTTPException(503, str(e)) from None
+    return StreamingResponse((_ndjson(e) for e in senses_mod.rate_events(plan, cfg["senses"], prov)),
                              media_type="application/x-ndjson")

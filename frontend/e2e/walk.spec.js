@@ -62,10 +62,10 @@ async function mockBuildings(page, { fail = false } = {}) {
   return mock
 }
 
-/** Every image asked for. */
-function watchPhotos(page) {
+/** Street View images asked for (the app has none any more), and with thumbs also the Mapillary thumbnails. */
+function watchPhotos(page, { thumbs = false } = {}) {
   const urls = []
-  page.on('request', (r) => { if (r.url().includes('/api/photo/')) urls.push(r.url()) })
+  page.on('request', (r) => { if ((thumbs && r.url().includes('/mly-thumb/')) || r.url().includes('/api/photo/')) urls.push(r.url()) })
   return urls
 }
 
@@ -208,38 +208,19 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/walk/7-pano.png' })
   })
 
-  test('with photos off, the 3D street alone and no photo asked for', async ({ page }) => {
+  test('with photos off, the 3D street alone and no image loaded', async ({ page }) => {
     await mockRoutes(page)
     await mockBuildings(page)
     const mly = await mockMapillary(page)
     await toRoutes(page, { photos: 'none' })
-    await noPhotosOn(page, 'b2')
-    const photoUrls = watchPhotos(page)
+    const photoUrls = watchPhotos(page, { thumbs: true })
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.locator('[data-panel="walk-card"]')).toContainText('Kuehlgasse')
     await expect(page.getByTestId('walk-photo')).toHaveCount(0)
-    await expect(page.getByTestId('walk-no-photo')).toHaveCount(0) // a stretch with Street View photos, not shown
-    await page.locator('body').press('ArrowRight') // b2 has none at all
-    await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, rated from the map.')
+    await expect(page.getByTestId('walk-no-photo')).toHaveCount(0)
     expect(photoUrls).toHaveLength(0)
-    expect(mly.requests).toBe(0)
-  })
-
-  test('with Street View the photo faces along the route and the camera looks the same way', async ({ page }) => {
-    await mockRoutes(page)
-    await mockBuildings(page)
-    await toRoutes(page, { photos: 'streetview' })
-    await page.getByRole('button', { name: 'Walk route B' }).click()
-    const photo = page.getByTestId('walk-photo')
-    await expect(photo).toBeVisible()
-    await expect(photo).toContainText('© Google')
-    await expect(photo.getByRole('button')).toHaveCount(0) // no enlarge, no arrows
-    await settle(page)
-    const heading = await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('walk').photo.heading)
-    const { bearing } = await camera(page)
-    expect(Math.abs(((((bearing - heading) % 360) + 540) % 360) - 180)).toBeLessThan(1)
-    await mapIdle(page)
-    await page.screenshot({ path: 'e2e/screens/walk/3-walk-streetview.png' })
+    // The stretches' photos are still found (not shown): in Senses they are the ones rated.
+    await expect.poll(() => mly.requests).toBe(1)
   })
 
   test('without buildings the walk goes on flat, with a notice and Retry', async ({ page }) => {

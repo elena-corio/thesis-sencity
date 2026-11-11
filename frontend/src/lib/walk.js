@@ -50,7 +50,7 @@ export function fixedLine(info) {
  * The stretch's state and its reason, for the card: "Hard" and "senses, because of signs, ads".
  * @param {string} layer 'senses' | 'thermal'
  * @param {object} properties the stretch's segment properties
- * @param {object|null} place Senses: the place combined from its photos (stores/senses.js placeFor)
+ * @param {object|null} place Senses: the rating of the stretch's photo (stores/senses.js placeFor), or null with no photo
  * @returns {{state:string, label:string, reason:string}}
  */
 export function comfortLine(layer, properties, place) {
@@ -59,8 +59,8 @@ export function comfortLine(layer, properties, place) {
     const state = properties.thermal_state
     return { state, label: levelWord(state), reason: `thermal, feels like ${formatDegrees(properties.utci)}` }
   }
-  if (!properties.photos?.length) return { state: 'none', label: 'No photo', reason: 'so no Senses rating here' }
-  if (!place || place.status === 'pending') return { state: 'none', label: 'Not rated yet', reason: 'waiting for its rating' }
+  if (!place) return { state: 'none', label: 'No photo', reason: 'so no Senses rating here' }
+  if (place.status === 'pending') return { state: 'none', label: 'Not rated yet', reason: 'waiting for its rating' }
   if (place.status === 'failed') return { state: 'none', label: 'Could not rate', reason: 'the photo and the map still work' }
   const bothers = place.bothers.slice(0, 2).map((e) => elementLabel(e).text.toLowerCase())
   const reason = place.level !== 'easy' && bothers.length ? `senses, because of ${bothers.join(' and ')}` : `senses, ${comfortLabel(place)}`

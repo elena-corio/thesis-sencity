@@ -17,7 +17,7 @@ from app import senses as senses_mod
 from app.senses import (EXPORT_DIR, ExportError, PredictionError, build_request, encode_image, load_export, parse_reply,
                         task_text)
 
-PANO = "pano_id_for_tests"
+PANO = "1234567890"  # a Mapillary image ID
 HEADING = 90.0
 GOOD = {"B1_comfort": 4, "B2_bothers": ["traffic_trams_crowds"], "B3_feels_good": ["shade", "plants_flowers"],
         "reasoning": "Trees give shade, but the road is busy."}
@@ -237,12 +237,12 @@ class FakeProvider:
     def __init__(self):
         self.fetched = []
 
-    def fetch_image(self, pano_id, heading):
-        self.fetched.append(pano_id)
+    def fetch_image(self, photo_id, heading):
+        self.fetched.append(photo_id)
         return picture()
 
     def estimated_cost_usd(self, calls):
-        return calls * 0.007
+        return 0.0
 
 
 def run(photos, cfg, provider=None):
@@ -283,7 +283,7 @@ def test_the_cache_keeps_only_the_output_costs_nothing_and_ignores_another_commi
     answers.append(reply(json.dumps(GOOD)))
     run([(PANO, HEADING)], cfg)
 
-    events, provider = run([(PANO, HEADING)], cfg)  # reopening: no model call and no Street View image
+    events, provider = run([(PANO, HEADING)], cfg)  # reopening: no model call and no image
     assert photo_events(events, "ok")[0]["cached"] is True
     assert len(made) == 1 and provider.fetched == []
 
@@ -309,7 +309,7 @@ def test_at_most_the_cap_is_rated_in_order_and_the_rest_is_estimated(calls, cfg)
     assert events[0]["remaining"] == 3
     assert events[-1]["remaining"] == 3
     assert events[-1]["estimate_usd"] == pytest.approx(0.003)
-    assert events[-1]["estimate_streetview_usd"] == pytest.approx(0.021)
+    assert "estimate_streetview_usd" not in events[-1]
 
     # Asking again goes on: those rated are now cached and do not count against the cap.
     answers += [reply(json.dumps(GOOD)) for _ in range(2)]
@@ -355,26 +355,57 @@ def test_a_photo_that_cannot_be_loaded_is_marked_failed_and_the_run_goes_on(call
     answers.append(reply(json.dumps(GOOD)))
 
     class Flaky(FakeProvider):
-        def fetch_image(self, pano_id, heading):
-            if pano_id == "pano_number_0":
+        def fetch_image(self, photo_id, heading):
+            if photo_id == "pano_number_0":
                 raise requests.ConnectionError()
-            return super().fetch_image(pano_id, heading)
+            return super().fetch_image(photo_id, heading)
 
     cfg["concurrency"] = 1
     events, _ = run([("pano_number_0", HEADING), ("pano_number_1", HEADING)], cfg, Flaky())
     assert len(photo_events(events, "failed")) == 1 and len(photo_events(events, "ok")) == 1
 
 
-def test_the_endpoint_marks_unknown_photos_and_reports_a_missing_key(monkeypatch, tmp_path):
+def test_the_endpoint_takes_mapillary_ids_only_and_reports_a_missing_key(monkeypatch, tmp_path):
     client = TestClient(main_mod.app)
-    body = {"photos": [{"pano_id": PANO, "heading": HEADING}]}
     monkeypatch.setitem(main_mod.cfg["senses"], "cache_file", str(tmp_path / "c.json"))
-    res = client.post("/api/senses/rate", json=body)  # not a loaded photo: no model call, and it says so
-    assert res.status_code == 200
-    events = [json.loads(line) for line in res.text.strip().split("\n")]
-    assert photo_events(events, "failed")[0]["error"] == "Not a photo of a loaded area."
-
-    monkeypatch.setattr(main_mod, "_known_photos", {(PANO, HEADING)})
-    res = client.post("/api/senses/rate", json=body)
+    # A Street View pano ID (or anything else) is not a photo the app shows: refused before any call.
+    assert client.post("/api/senses/rate", json={"photos": [{"id": "CAoSLEFGMVFpcE1", "heading": HEADING}]}).status_code == 422
+    assert client.post("/api/senses/rate", json={"photos": [{"pano_id": PANO, "heading": HEADING}]}).status_code == 422
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(senses_mod, "get_key", lambda name: (_ for _ in ()).throw(SystemExit(name)))
+    res = client.post("/api/senses/rate", json={"photos": [{"id": PANO, "heading": HEADING}]})
     assert res.status_code == 503
     assert "OPENROUTER_API_KEY" in res.json()["detail"]
+
+
+def test_the_cache_key_holds_the_image_heading_model_and_commit():
+    assert senses_mod.cache_key("123", 90.04, "google/m", "abc1234") == "mly:123|90.0|google/m|abc1234"
+
+
+def test_street_view_ratings_are_marked_stale_and_never_used(calls, cfg, tmp_path):
+    made, answers = calls
+    export = load_export()
+    path = tmp_path / "senses" / "cache.json"
+    path.parent.mkdir(parents=True)
+    old = {"output": GOOD, "model": "m", "latency_ms": 1, "cost_usd": 0.001}
+    path.write_text(json.dumps({f"CAoSLEFGMVFpcE1|90.0|{export.commit}": old,
+                                senses_mod.cache_key(PANO, HEADING, export.model["model"], export.commit): {**old, "stale": "x"}}),
+                    encoding="utf-8")
+    assert senses_mod.mark_stale(path) == 1
+    assert senses_mod.mark_stale(path) == 0  # once
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert all(e.get("stale") for e in stored.values())
+    assert all(e["output"] == GOOD for e in stored.values())  # kept for the record
+    # A stale entry is rated again.
+    answers.append(reply(json.dumps(GOOD)))
+    events, provider = run([(PANO, HEADING)], cfg)
+    assert photo_events(events, "ok")[0]["cached"] is False and provider.fetched == [PANO]
+
+
+def test_a_photo_the_app_does_not_show_is_marked_failed(calls, cfg):
+    class Refuses(FakeProvider):
+        def fetch_image(self, photo_id, heading):
+            raise senses_mod.NotThisPhoto("not its heading")
+
+    events, _ = run([(PANO, HEADING)], cfg, Refuses())
+    assert photo_events(events, "failed")[0]["error"] == "This is not a photo the app shows."

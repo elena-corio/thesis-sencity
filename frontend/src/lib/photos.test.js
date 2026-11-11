@@ -5,12 +5,10 @@ describe('photoProvider', () => {
   it('shows no photo for none and for an unknown name', () => {
     expect(photoProvider('none').cards).toBe(false)
     expect(photoProvider('nope').walk).toBe(false)
-    expect(photoProvider('nope').url({ pano_id: 'x', heading: 1 })).toBeNull()
+    expect(photoProvider('nope').url({ id: 'x', heading: 1 })).toBeNull()
   })
-  it('Street View goes through our API, with Google credited', () => {
-    const sv = photoProvider('streetview')
-    expect(sv.url({ pano_id: 'abc', heading: 90 })).toContain('/api/photo/abc?heading=90')
-    expect(sv.credit({ contributor: false })).toBe('© Google')
+  it('Street View is not a provider any more: an unknown name shows no photo', () => {
+    expect(photoProvider('streetview').url({ id: '1', heading: 90 })).toBeNull()
   })
   it('Mapillary is in the cards and the walk, with the photographer, the year and the licence', () => {
     const m = photoProvider('mapillary')

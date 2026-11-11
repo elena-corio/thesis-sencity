@@ -5,8 +5,8 @@ import { pickSuggestions } from './suggest.js'
 
 export const GENERAL_LABEL = 'General prediction: not yet personal'
 
-/** The key of one photo in the ratings of this session. */
-export const photoKey = (photo) => `${photo.pano_id}|${photo.heading}`
+/** The key of one photo in the ratings of this session: its Mapillary image and the way it looks. */
+export const photoKey = (photo) => `${photo.id}|${photo.heading}`
 
 /** The state of a 1–5 rating (brief §4): 4–5 easy, 3 mixed, 1–2 hard. It names the colour (--easy, …). */
 export function comfortLevel(n) {
@@ -130,10 +130,9 @@ export function sensesVerdict([a, b]) {
   return hardShare(b.stretches) < hardShare(a.stretches) ? `${took} but has less hard walking.` : `${took} but has less mixed walking.`
 }
 
-/** "$0.0512 model, about $0.67 Street View" */
+/** "$0.0512 model" (the Mapillary photos are free) */
 export function moneyLine(run) {
-  const street = run.streetviewUsd ? `, about $${run.streetviewUsd.toFixed(2)} Street View` : ''
-  return `$${run.costUsd.toFixed(4)} model${street}`
+  return `$${run.costUsd.toFixed(4)} model`
 }
 
 /** "google/gemini-3.1-flash-lite · 40 places rated · 12 cached, 96 new · $0.05 model … · 38 s" */

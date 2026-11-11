@@ -5,26 +5,29 @@ import { haversine, midpoint } from '../lib/geo.js'
 import { combinePlace, photoKey } from '../lib/senses.js'
 import { useAreaStore } from './area.js'
 import { useRoutesStore } from './routes.js'
+import { useWalkStore } from './walk.js'
 
 function emptyRun() {
-  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', costUsd: 0, streetviewUsd: 0, newCount: 0,
-    cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0, estimateStreetviewUsd: 0 }
+  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', costUsd: 0, newCount: 0,
+    cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0 }
 }
 
 /**
  * General predictions (Senses, no profile). As soon as an area or a pair of routes is ready, every photo not yet
- * rated goes to the API, nearest first; ratings arrive one by one. Nothing is written to the browser's storage:
- * the API's cache is what makes reopening instant and free.
+ * rated goes to the API, nearest first; ratings arrive one by one. The photos are the ones the app shows (Mapillary,
+ * Elena 2026-11-11): one per street or place, and in a walk one per stretch, facing along it, where that is another
+ * photo. Nothing is written to the browser's storage: the API's cache is what makes reopening instant and free.
  * A run: status 'idle' | 'rating' | 'paused' (over the cap, waiting for an answer) | 'stopped' (by the person) | 'done' | 'error'.
  */
 export const useSensesStore = defineStore('senses', () => {
   const area = useAreaStore()
   const routes = useRoutesStore()
+  const walk = useWalkStore()
   /** photo key → { status: 'ok', result } | { status: 'failed', error } */
   const ratings = reactive(new Map())
-  const runs = reactive({ area: emptyRun(), routes: emptyRun() })
+  const runs = reactive({ area: emptyRun(), routes: emptyRun(), walk: emptyRun() })
   const controllers = {}
-  const counted = { area: new Set(), routes: new Set() }
+  const counted = { area: new Set(), routes: new Set(), walk: new Set() }
 
   const ratingOf = (photo) => ratings.get(photoKey(photo))
   /** One place from its photos (lib/senses.js). */
@@ -37,10 +40,7 @@ export const useSensesStore = defineStore('senses', () => {
     } else if (e.type === 'photo') {
       const key = photoKey(e)
       ratings.set(key, e.status === 'ok' ? { status: 'ok', result: e.result } : { status: 'failed', error: e.error })
-      if (!e.cached) {
-        run.costUsd += e.cost_usd ?? 0
-        run.streetviewUsd += e.streetview_usd ?? 0
-      }
+      if (!e.cached) run.costUsd += e.cost_usd ?? 0
       // A photo counts once per run, also when asking again after the cap brings it back from the cache.
       if (e.status === 'ok' && !counted[scope].has(key)) {
         counted[scope].add(key)
@@ -51,7 +51,6 @@ export const useSensesStore = defineStore('senses', () => {
       run.seconds += e.seconds
       run.remaining = e.remaining
       run.estimateUsd = e.estimate_usd
-      run.estimateStreetviewUsd = e.estimate_streetview_usd
       run.status = e.remaining > 0 ? 'paused' : 'done'
     } else if (e.type === 'error') {
       run.status = 'error'
@@ -72,7 +71,7 @@ export const useSensesStore = defineStore('senses', () => {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).map((ph) => ({ pano_id: ph.pano_id, heading: ph.heading }))
+    }).map((ph) => ({ id: ph.id, heading: ph.heading }))
     try {
       await rateSenses(photos, (e) => onEvent(scope, e), controller.signal)
       if (run.status === 'rating') Object.assign(run, { status: 'error', error: 'The rating stopped before the end. Retry to go on.' })
@@ -151,6 +150,18 @@ export const useSensesStore = defineStore('senses', () => {
   })
 
   watch(() => runs.area.status, (status) => { area.sensesFinished = !['idle', 'rating'].includes(status) }, { immediate: true })
+
+  // A walk on the Senses layer: each stretch's own photo (facing along the walk) is rated, so the walk says what the photo
+  // in its window shows. Most are already rated as their street's photo (the API answers those from its cache).
+  watch(() => (walk.active && walk.layer === 'senses' && walk.mapillaryState === 'ready' ? walk.mapillary : null), (byKey) => {
+    if (!byKey) {
+      if (runs.walk.key) clear('walk')
+      return
+    }
+    const places = walk.stretches.filter((s) => byKey[s.key]).map((s) => ({ id: s.key, photos: [byKey[s.key]] }))
+    const key = places.map((p) => photoKey(p.photos[0])).join('|')
+    if (places.length && runs.walk.key !== key) start('walk', key, places)
+  })
 
   // The map colours streets from a state on the segment, as for Thermal.
   const stateOf = (f, failed) => {

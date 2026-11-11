@@ -90,3 +90,70 @@ def test_api_without_a_token_is_503(monkeypatch):
 @pytest.mark.parametrize("a,b,expected", [(350, 10, 20), (90, 270, 180), (0, 0, 0)])
 def test_turn(a, b, expected):
     assert mly.turn(a, b) == expected
+
+
+# The image for the model (Elena, 2026-11-11): the photo the app shows, in memory only
+
+def _jpeg(img) -> bytes:
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
+class _Resp:
+    def __init__(self, status=200, data=None, content=b""):
+        self.status_code, self._data, self.content = status, data, content
+
+    def json(self):
+        return self._data
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise mly.requests.HTTPError(str(self.status_code))
+
+
+def _images(monkeypatch, meta, content):
+    class Session:
+        headers = {}
+
+        def get(self, url, params=None, timeout=None):
+            return _Resp(data=meta) if meta is not None else _Resp(404)
+    monkeypatch.setattr(mly, "session", lambda: Session())
+    monkeypatch.setattr(mly.requests, "get", lambda url, timeout=None: _Resp(content=content))
+    return mly.Images(full_cfg)
+
+
+def test_a_flat_photo_goes_as_served_and_only_at_its_own_heading(monkeypatch):
+    from PIL import Image
+    raw = _jpeg(Image.new("RGB", (1024, 768), (120, 130, 140)))
+    imgs = _images(monkeypatch, {"id": "1", "is_pano": False, "computed_compass_angle": 80.04, "thumb_1024_url": "u"}, raw)
+    assert imgs.fetch_image("1", 80.0) == raw
+    with pytest.raises(mly.NotThisPhoto):
+        imgs.fetch_image("1", 140.0)
+
+
+def test_an_unknown_image_is_not_a_photo_the_app_shows(monkeypatch):
+    imgs = _images(monkeypatch, None, b"")
+    with pytest.raises(mly.NotThisPhoto):
+        imgs.fetch_image("1", 80.0)
+
+
+def test_a_panorama_is_rendered_as_the_square_view_at_its_bearing(monkeypatch):
+    import io
+    import numpy as np
+    from PIL import Image
+    # An equirectangular panorama whose middle looks 0 degrees: red from 80 to 100 degrees (east), grey elsewhere.
+    eq = np.full((512, 1024, 3), 128, dtype=np.uint8)
+    x = lambda deg: int((0.5 + deg / 360) * 1024)  # noqa: E731
+    eq[:, x(80):x(100)] = (220, 30, 30)
+    raw = _jpeg(Image.fromarray(eq))
+    imgs = _images(monkeypatch, {"id": "2", "is_pano": True, "computed_compass_angle": 0.0, "thumb_2048_url": "u"}, raw)
+    east = np.asarray(Image.open(io.BytesIO(imgs.fetch_image("2", 90.0))))
+    north = np.asarray(Image.open(io.BytesIO(imgs.fetch_image("2", 0.0))))
+    assert east.shape == (640, 640, 3)  # mapillary.render.size_px
+    assert east[320, 320, 0] > 180 and east[320, 320, 1] < 80  # looking east: red in the middle
+    assert north[320, 320, 0] < 160  # looking north: grey
+    # 90 degrees across: east (90) is at the right edge when looking at 45.
+    side = np.asarray(Image.open(io.BytesIO(imgs.fetch_image("2", 45.0))))
+    assert side[320, 630, 0] > 180 and side[320, 320, 0] < 160

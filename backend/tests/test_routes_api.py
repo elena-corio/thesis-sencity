@@ -42,16 +42,18 @@ def overpass_answer():
                          for w, name, coords, _ in STREETS]}
 
 
-class FakeMeta:
-    def __init__(self, lat, lon):
-        self.photo_id, self.lat, self.lon, self.date, self.official = "PANOPANOPANOPANO", lat, lon, "2024-07", True
+def fake_photo(coords, n=1001):
+    """A Mapillary photo in the shape tool/photos/mapillary.pick returns, at the street's first point."""
+    lon, lat = coords[0]
+    return {"id": str(n), "lon": lon, "lat": lat, "heading": 63.5, "pano": False, "pano_heading": None, "turn": 0.0,
+            "year": 2024, "date": "2024-07", "creator": "dora", "thumb_url": "https://example.org/t.jpg",
+            "link": f"https://www.mapillary.com/app/?pKey={n}"}
 
 
-class FakeProvider:
-    metadata_calls = 0
-
-    def search(self, lat, lon, radius=None):
-        return FakeMeta(lat, lon)
+def fake_mapillary(monkeypatch, photo_for=None):
+    """No Mapillary call: every street gets fake_photo (or what photo_for returns)."""
+    monkeypatch.setattr(area_mod.mapillary, "session", lambda: None)
+    monkeypatch.setattr(area_mod.mapillary, "photo_for", photo_for or (lambda s, coords, kind, cfg: fake_photo(coords)))
 
 
 def fake_utci(calls, cooler_north=True):
@@ -74,11 +76,9 @@ def events(resp):
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(routes_mod, "cache_dir", lambda cfg: tmp_path / "routes")
     monkeypatch.setattr(routes_mod, "fetch_ways_in", lambda ring, cfg: overpass_answer())
-    monkeypatch.setattr(routes_mod, "fetch_buildings_in", lambda ring, cfg: {"elements": []})
     monkeypatch.setattr(routes_mod, "count_jobs", lambda polygon, cfg: 3)
-    monkeypatch.setattr(main, "provider", lambda: FakeProvider())
+    fake_mapillary(monkeypatch)
     main._hits.clear()
-    main._known_photos.clear()
     c = TestClient(main.app)
     c.tmp = tmp_path
     return c
@@ -205,7 +205,7 @@ def test_points_too_close_or_too_far_are_refused_before_any_call(client, monkeyp
 def test_a_walk_longer_than_the_limit_is_refused_before_thermal(client):
     cfg = {**main.full_cfg, "routes": {**main.full_cfg["routes"], "max_walk_m": 100}}
     with pytest.raises(routes_mod.RouteError, match="Routes go up to 0.1 km"):
-        list(routes_mod.build_corridor(START, END, cfg, FakeProvider()))
+        list(routes_mod.build_corridor(START, END, cfg))
 
 
 def test_requests_are_checked(client):
@@ -230,8 +230,8 @@ def test_the_corridor_is_narrowed_to_fit_the_tiles(client, monkeypatch):
     assert calls[0]["polygon"] == previews[1]
 
 
-def test_route_photos_can_be_fetched(client, monkeypatch):
+def test_route_streets_get_their_mapillary_photo(client, monkeypatch):
     monkeypatch.setattr(area_mod, "run_utci", fake_utci([]))
     done = events(client.post("/api/routes", json=REQ))[-1]
-    photos = [ph for f in done["segments"]["features"] for ph in f["properties"]["photos"]]
-    assert photos and all((ph["pano_id"], float(ph["heading"])) in main._known_photos for ph in photos)
+    photos = [f["properties"]["photos"] for f in done["segments"]["features"]]
+    assert photos and all(len(p) == 1 and p[0]["id"] == "1001" for p in photos)

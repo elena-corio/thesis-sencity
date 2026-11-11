@@ -3,7 +3,7 @@
 How the tool is built **now**:
 - **Backend:** fetching street photo candidates for one circle.
 - **Frontend:** the map start screen, address search and the two-click area selection.
-- **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `POST /api/buildings` (footprints and heights along a walked route, for the walk view), `POST /api/mapillary/along` (one Mapillary photo per stretch of a walk), `GET /api/photo/{pano_id}` (Street View images, passed through).
+- **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `POST /api/buildings` (footprints and heights along a walked route, for the walk view), `POST /api/mapillary/along` (one Mapillary photo per stretch of a walk), `POST /api/senses/rate` (the model's predictions for the Mapillary photos the app shows). No Street View in the app.
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v0/`. Places appear on the map as ratings arrive, with recommendations beside them.
@@ -35,26 +35,27 @@ flowchart LR
   API -- "up to 5 places" --> APP
   APP -- "circle: lat, lon, radius (POST body)" --> API
   API -- "circle (streets, parks, squares, buildings)" --> OVP2["OpenStreetMap / Overpass API"]
-  API -- "sample points, key (metadata, free)" --> SVM2["Street View metadata"]
-  API -- "segments + chosen photo metadata (no images)" --> CACHE[("runs/areas/&lt;key&gt;.json")]
+  API -- "a box around each street, token (free)" --> MLY["Mapillary Graph API"]
+  MLY -- "image IDs, positions, directions, dates, photographers, thumbnail URLs" --> API
+  API -- "segments + one photo's metadata each (no images)" --> CACHE[("runs/areas/&lt;key&gt;.json")]
   API -- "segments, streamed as they are found" --> APP
   API -- "circle polygon, centre, season and hour (key)" --> IR["Infrared.city API (billed)"]
   IR -- "nearest weather station, buildings, trees, ground; UTCI grid (1 m)" --> API
   API -- "grid + °C per segment" --> TCACHE[("runs/thermal/&lt;key&gt;.json, .npz")]
   API -- "°C per segment, station name" --> APP
-  APP -- "pano ID + heading, on click only" --> API
-  API -- "pano ID + heading, key" --> SVI2["Street View Static API (paid)"]
-  SVI2 -- "image ⇢ passed through, never stored" --> API
-  API -- "image (Cache-Control: private, 1 h)" --> APP
+  APP -- "thumbnail URL, when a card opens (no token)" --> MCDN["Mapillary image CDN"]
+  MCDN -- "image ⇢ in the browser's memory only" --> APP
   APP -- "start, end ⚠ may be personal (a home, a workplace) + thermal limits, season, time (POST body)" --> API
   API -- "search ellipse, then corridor polygon (no start or end as such)" --> OVP3["OpenStreetMap / Overpass API"]
-  API -- "sample points, key (metadata, free)" --> SVM3["Street View metadata"]
+  API -- "a box around each corridor street, token (free)" --> MLY
   API -- "corridor polygon, middle point, season and hour (key)" --> IR2["Infrared.city API (billed; preview free)"]
   API -- "corridor streets + photo metadata, under a hashed name (no start or end)" --> RCACHE[("runs/routes/&lt;key&gt;.json")]
   API -- "progress counts, then the two ways, their streets, °C, verdict" --> APP
-  APP -- "pano IDs + headings of an area or the two routes, nearest first (no profile)" --> API
-  API -- "pano ID + heading, key, for photos not in the cache" --> SVI3["Street View Static API (paid)"]
-  SVI3 -- "image ⇢ in memory only, never stored" --> API
+  APP -- "Mapillary image IDs + headings of an area, the two routes or a walk, nearest first (no profile)" --> API
+  API -- "image ID, token, for photos not in the cache" --> MLY
+  MLY -- "thumbnail URL" --> API
+  API -- "thumbnail URL (no token)" --> MCDN
+  MCDN -- "image ⇢ in memory only (a panorama rendered as the 90° view), never stored" --> API
   API -- "system instructions, task text, the picture (base64, in memory), schema; key" --> OR["OpenRouter → Vertex EU (zero data retention, paid)"]
   OR -- "comfort 1–5, elements, explanation, usage and cost" --> API
   API -- "JSON output, model ID, latency, cost (no image)" --> SCACHE[("runs/senses/predictions.json")]
@@ -84,13 +85,13 @@ flowchart LR
 | `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/reverse`, `/api/area`, `/api/routes`, `/api/buildings`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
 | `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent); the name of a clicked point (spaced calls, in-memory cache) |
 | `backend/app/steps.py` | The finished steps of a load that did not complete (Overpass answer, photos per segment), read back by the next try for the same key |
-| `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
+| `backend/app/area.py` | Segments and their Mapillary photo for one circle (one lookup per street, in parallel), progress events, the area cache; the thermal step and its cache |
 | `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
 | `backend/tool/buildings.py` | Buildings along a walked line, for the walk view: the SDK's public building meshes for a 120 m corridor, each footprint rebuilt from its mesh's bottom triangles, with height and source (free) |
 | `backend/app/buildings.py` | The buildings cache per walked line (hashed name, buildings only) |
-| `backend/tool/photos/mapillary.py` | Mapillary photos along a walk (or for one card's street: either way along it; a place: any direction): one Graph API search per stretch (the token stays here), then a panorama within 30 m, else the flat photo closest to the walk's direction; the public thumbnail URL and the credit |
+| `backend/tool/photos/mapillary.py` | Mapillary photos, the app's only ones: per stretch of a walk, per street (either way along it) or per place (any direction), one Graph API search each (the token stays here), then a panorama within 30 m, else the flat photo closest to the direction; the public thumbnail URL and the credit. `Images`: the photo for the model, in memory (a panorama rendered as the 90° view at its heading, `render_pano`) |
 | `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
-| `backend/app/senses.py` | Senses mode: reads and checks `model/app_v0/` on every request, splits a list of photos into cached and new (the cap), rates the new ones 4 at a time: the picture from Street View in memory, the task text, the OpenRouter request, the reply validated (one retry); the cache |
+| `backend/app/senses.py` | Senses mode: reads and checks `model/app_v0/` on every request, splits a list of Mapillary photos into cached and new (the cap), rates the new ones 4 at a time: the picture from Mapillary in memory, the task text, the OpenRouter request, the reply validated (one retry); the cache, and the stale marks on old Street View ratings |
 | `model/app_v0/` | Exported from the thesis repo: system instructions, task text, the two schemas, element labels, model settings, MANIFEST. The only source of these; replaced as a folder |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
@@ -110,8 +111,8 @@ flowchart LR
 | `src/components/StretchCard.vue` | A selected stretch: the place card with the route bar, coverage, previous / next, arrow keys |
 | `src/stores/walk.js` | Pinia: the walk along a route (boards Routes 5, P6): a copy of the walked route, its layer and window fixed at the start, the current stretch, the photo facing along it and the camera's place (`view`), Play / Pause (one stretch every `config.walk.stretchMs`), the buildings (loading, error, source) |
 | `src/lib/walk.js` | Pure: where you are on the walk ("0.35 of 1.6 km, 5 of 21 min"), the bearing along a stretch, the chip ("easiest thermal, summer 15:00"), the fixed-settings line, the stretch's state and reason from the ratings already loaded |
-| `src/lib/photos.js` | Which street photos are shown: `mapillary` (default: the walk and the cards), `streetview` or `none`; the image URL, credit and link; a panorama's crop at the walk's bearing (`panoShift`); the Street View photo facing along the walk |
-| `src/stores/cardPhotos.js` | Mapillary on the cards: every street's photo asked for in the background once an area or route has loaded (50 per request), or at once when a card opens first; the image preloaded when the pointer rests on a street; kept for the session (memory only) |
+| `src/lib/photos.js` | Whether the Mapillary photos are shown: `mapillary` (default: the walk and the cards) or `none` (still rated); the image URL, credit and link; a panorama's crop at the walk's bearing (`panoShift`) |
+| `src/stores/cardPhotos.js` | The cards' photos come with their streets: the image preloaded when the pointer rests on a street, and the open card's photo direction for the map's arc |
 | `src/map/buildings.js` | The walk's buildings: one fill-extrusion layer from footprints (`h`, `b`), under the route layers |
 | `src/components/WalkChip.vue`, `WalkLegend.vue`, `WalkPhoto.vue`, `WalkDetails.vue`, `WalkSide.vue`, `WalkMiniMap.vue`, `WalkControls.vue`, `WalkNotice.vue` | The walk: the chip; the read-only legend and fixed-settings line; the square photo (or the 3D street and "No photo for this stretch"); the stretch card (comfort, two columns of sense rows, Rate this place, not built); Exit walk, "Where you are" (a flat map that follows you) and the controls; progress, previous / play / next, arrow and space keys; the notice when buildings fail |
 | `src/components/SenseItem.vue` | One thing that might bother or feel good: its main sense's icon and label, a row with no border (walk, place card, stretch card) |
@@ -172,11 +173,11 @@ flowchart LR
 
 **Area** (`POST /api/area`, request `{ lat: number, lon: number, radius: number (50–500), season?: "spring" | "summer" | "autumn" | "winter", time?: "HH:00" }`, default summer 15:00): newline-separated JSON events. `{type: "segments", features, total}` gives all segments with `photos: null` (still looking). Then one `{type: "segment", feature, done, total}` per segment with its photos. Then `{type: "done", area: FeatureCollection, cached?: true}`, or `{type: "error", message}` (the stream ends). A cached area starts with "done". After "done": `{type: "stage", stage: "thermal"}`, then `{type: "thermal", season, time, station: {name, distance_km}, values: {segment id: °C | null}}` or `{type: "thermal_error", message}`.
 
-**Street segment, app** (a feature of that FeatureCollection; `id` is also the feature id): geometry LineString (street) or Polygon (park, square, pedestrian area), WGS84. Properties: `id` str · `name` str (OSM name, or the way type if unnamed) · `named` bool · `place_type` "street" | "pedestrian" | "park" | "square" · `way_type` str (OSM highway or area tag) · `length_m` float (streets) or `area_m2` float (areas) · `photos` null | [{ `pano_id` str, `lat`, `lon` float, `heading` float (°), `date` "YYYY-MM", `contributor` bool }] (0–3, best first).
+**Street segment, app** (a feature of that FeatureCollection; `id` is also the feature id): geometry LineString (street) or Polygon (park, square, pedestrian area), WGS84. Properties: `id` str · `name` str (OSM name, or the way type if unnamed) · `named` bool · `place_type` "street" | "pedestrian" | "park" | "square" · `way_type` str (OSM highway or area tag) · `length_m` float (streets) or `area_m2` float (areas) · `photos` null | [{ `id` str (Mapillary image), `lat`, `lon` float, `heading` float (° the view looks), `pano` bool, `pano_heading` float | null (° of a panorama's middle), `turn` float, `year` int, `date` "YYYY-MM", `creator` str, `thumb_url` str, `link` str }] (0 or 1: the photo shown and rated).
 
 **Area cache** (`runs/areas/<key>.json`, not committed): `{ lat, lon, radius, created, area: FeatureCollection }`. The key is a hash of the circle and the pipeline settings. Neutral data only: no images, nothing about the person.
 
-**Finished steps of an unfinished load** (`runs/areas/<key>.osm.json` and `<key>.photos.json`; for a route `runs/routes/<key>.ways.json`, `.buildings.json`, `.photos.json`; not committed; `backend/app/steps.py`): when the photo lookups fail or the app cancels, the Overpass answer and the photos chosen so far per segment id (pano ID, location, date, heading) are kept, so "Try again" makes only the missing calls and is not counted as a new area or route. Removed once the load completes. No images, and no start or end of a route.
+**Finished steps of an unfinished load** (`runs/areas/<key>.osm.json` and `<key>.photos.json`; for a route `runs/routes/<key>.ways.json`, `.buildings.json`, `.photos.json`; not committed; `backend/app/steps.py`): when the photo lookups fail or the app cancels, the Overpass answer and the photos chosen so far per segment id (Mapillary image ID, location, date, heading) are kept, so "Try again" makes only the missing calls and is not counted as a new area or route. Removed once the load completes. No images, and no start or end of a route.
 
 **Thermal cache** (`runs/thermal/<key>.json` and `.npz`, not committed): the values per segment and the station, and the UTCI grid (`grid` float32, row 0 south, NaN = no value; `bounds` min lon, min lat, max lon, max lat). The key is a hash of the area key, season, time and thermal settings. Neutral data only.
 
@@ -196,11 +197,11 @@ flowchart LR
 
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
-**Senses rating** (`POST /api/senses/rate`): request `{ photos: [{ pano_id, heading }] }`, nearest first. Newline-separated JSON events: `{type: "start", model, cached, to_rate, remaining}`; one `{type: "photo", pano_id, heading, status: "ok" | "failed", cached, result | error, cost_usd?, streetview_usd?}` per photo; then `{type: "done", seconds, failed, remaining, estimate_usd, estimate_streetview_usd}`, or `{type: "error", message}` when going on is pointless. A result: `{ comfort: 1–5, anchors: [words of 1, words of 5], bothers: [element], feels_good: [element], reason, model, latency_ms, cost_usd | null, cached }`; an element as in `elements.json`: `{ code, en, it, sense | null, kind | null }`. Errors before the stream: 429 (rate limit), 503 (`model/app_v0/` unusable, or no key).
+**Senses rating** (`POST /api/senses/rate`): request `{ photos: [{ id, heading }] }` (Mapillary image IDs, digits only), nearest first. Newline-separated JSON events: `{type: "start", model, cached, to_rate, remaining}`; one `{type: "photo", id, heading, status: "ok" | "failed", cached, result | error, cost_usd?}` per photo; then `{type: "done", seconds, failed, remaining, estimate_usd}`, or `{type: "error", message}` when going on is pointless. A result: `{ comfort: 1–5, anchors: [words of 1, words of 5], bothers: [element], feels_good: [element], reason, model, latency_ms, cost_usd | null, cached }`; an element as in `elements.json`: `{ code, en, it, sense | null, kind | null }`. Errors before the stream: 429 (rate limit), 503 (`model/app_v0/` unusable, or no key).
 
 **A place, Senses, app** (`lib/senses.js`, in the browser only): `status` "pending" | "rated" | "failed" · `comfort` 1–5 (median of its photos) · `level` easy | mixed | hard · `bothers`, `feelsGood` (elements shared by the photos) · `rep` (the photo the card opens on) · `nPhotos`, `nRated`, `nFailed`, `nPending`.
 
-**Senses cache** (`runs/senses/predictions.json`, not committed): `{ "<pano ID>|<heading>|<MANIFEST commit>": { output: the model's JSON, model: string, latency_ms: int, cost_usd: number | null } }`. No images, nothing about the person.
+**Senses cache** (`runs/senses/predictions.json`, not committed): `{ "mly:<Mapillary image ID>|<heading>|<model>|<MANIFEST commit>": { output: the model's JSON, model: string, latency_ms: int, cost_usd: number | null } }`. Older keys (`<pano ID>|<heading>|<commit>`, from Street View photos) carry `stale: "<why>"` and are never used. No images, nothing about the person.
 
 Not built yet: the profile.
 
@@ -209,13 +210,13 @@ Not built yet: the profile.
 | Service | Used for | Region | What it keeps |
 |---|---|---|---|
 | Overpass API (overpass-api.de) | OSM ways, parks, squares and buildings for one circle (the `fetch_photos` script and `/api/area`), or the streets and buildings around a route (`/api/routes`) | Germany | Request logs (the circle or polygon, from our API's address) |
-| Google Street View metadata | Pano ID, location, date per sample point (free) | Google | API usage per key |
-| Google Street View Static API | Images for the app's place card and enlarged photo (`/api/photo`, on click only), the image check and the review page (paid, ~$7/1000, 10,000 free/month) | Google | API usage per key; the images are never stored by us |
+| Google Street View metadata | Pano ID, location, date per sample point, for the step-1 tool only, not the app (free) | Google | API usage per key |
+| Google Street View Static API | Images for the step-1 tool's image check and its review page only, not the app (paid, ~$7/1000, 10,000 free/month) | Google | API usage per key; the images are never stored by us |
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Infrared.city API (api.infrared.city) | Thermal comfort (UTCI) for one circle and window: weather station lookup, public buildings, trees and ground materials, the simulation (billed, 10 tokens per 512 m tile) | Infrared.city | API usage per key; it receives the circle and the window from our API, nothing about the person |
 | Infrared.city public data (geo.infrared.city), through the SDK | Building footprints and heights along a walked route (`/api/buildings`): the city's building model in Vienna, Overture Maps elsewhere (free, anonymous reads) | Infrared.city (Cloudflare R2) | Request logs of the files read; it receives only the corridor's extent, from our API, never the user's IP |
-| Mapillary (Meta), graph.mapillary.com and its image CDN | The walk's photos (`/api/mapillary/along`): image search around each stretch, then the public thumbnail loaded by the browser (free; CC BY-SA 4.0) | Meta | API usage per token; it receives the stretches' extent from our API, never the user's IP. The browser loads the thumbnail from Mapillary's CDN, so that request carries the user's IP |
+| Mapillary (Meta), graph.mapillary.com and its image CDN | The app's only street photos: image search around each street of an area or route and each stretch of a walk; the public thumbnail loaded by the browser, and by our API for the model (in memory only) (free; CC BY-SA 4.0) | Meta | API usage per token; it receives the stretches' extent from our API, never the user's IP. The browser loads the thumbnail from Mapillary's CDN, so that request carries the user's IP |
 | OpenRouter → Google Vertex AI (EU endpoint) | The general prediction for one street photo, with the model and pinned endpoint in `model/app_v0/model.json` (paid per call) | EU endpoint (`google-vertex/eu`) | Zero data retention requested on every call (`zdr: true`, `data_collection: deny`, no fallbacks); it receives the picture, the system instructions and the task text, nothing about the person |
 | Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre, or a clicked point rounded to about 10 m, from our API, never the user's IP |
 

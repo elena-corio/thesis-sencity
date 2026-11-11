@@ -1,24 +1,13 @@
-// Which street photos the app shows, and from where (Elena, 2026-11-11). Google's EEA terms forbid Street View Static
-// images "on, next to, or in a manner that is visually associated with any map", so Street View is off unless chosen.
-// The photos still rate the streets on the server; this is only about showing them. One place to switch:
-//   'mapillary'   Mapillary (default): one photo per stretch of a walk, or per street or place on a card, from
-//                 /api/mapillary/along, CC BY-SA 4.0. The ratings stay those of the Street View photos (not shown).
-//   'streetview'  Street View Static through /api/photo, in the cards and the walk (not with a map in the EEA)
-//   'none'        no photo shown anywhere
+// Whether the app shows its street photos (Elena, 2026-11-11). They are Mapillary's (CC BY-SA 4.0): one per street or
+// place, found with the area or route, and one per stretch of a walk (/api/mapillary/along). The photo shown is the photo
+// the model rates. No Street View image is used any more. One place to switch:
+//   'mapillary'   shown on the cards and in the walk (default)
+//   'none'        no photo shown anywhere (they are still found and rated)
 import config from '../config.js'
-import { photoUrl } from './api.js'
 
 const OFF = { cards: false, walk: false, url: () => null, credit: () => '', link: () => null, name: '' }
 const PROVIDERS = {
   none: OFF,
-  streetview: {
-    cards: true,
-    walk: true,
-    url: (photo) => photoUrl(photo),
-    credit: (photo) => (photo.contributor ? 'Contributor photo' : '© Google'),
-    link: () => null,
-    name: 'Google Street View',
-  },
   mapillary: {
     cards: true,
     walk: true,
@@ -47,7 +36,7 @@ export const showsWalkPhotos = () => photoProvider().walk
 /** The image URL of a photo, or null when photos are not shown. */
 export const shownPhotoUrl = (photo) => (photo ? photoProvider().url(photo) : null)
 
-/** The credit on a photo ("© Google", "anna · 2024 · CC BY-SA 4.0"), or ''. */
+/** The credit on a photo ("anna · 2024 · CC BY-SA 4.0"), or ''. */
 export const photoCredit = (photo) => (photo ? photoProvider().credit(photo) : '')
 
 /** Where the credit links to (the image page on Mapillary), or null. */

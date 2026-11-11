@@ -1,22 +1,27 @@
-"""Mapillary photos (Elena, 2026-11-11): one per stretch of a walk (its photo window), or per street or place on the cards.
+"""Mapillary photos (Elena, 2026-11-11): the app's only street photos. One per street or place of an area or a route
+(chosen while it loads, kept with its metadata), and one per stretch of a walk (its photo window).
 
 The access token stays here (MAPILLARY_ACCESS_TOKEN in .env); the browser gets only the public thumbnail URL. Per
 stretch, of the images within mapillary.radius_m and no older than mapillary.max_age_years (Elena, 2026-11-11):
 1. a panorama, if there is one (the nearest, then the newest): the app shows its view at exactly the walk's bearing;
 2. otherwise the flat photo with the smallest angle between its camera (computed_compass_angle if present) and the walk,
    within mapillary.max_turn_deg; ties go to the nearest, then the newest.
-A street on a card has no walking direction, so either way along it counts; a park or square has none at all (the nearest
+A street has no walking direction, so either way along it counts; a park or square has none at all (the nearest
 flat photo, then the newest), and its distance is to its outline (0 inside).
 Imagery is CC BY-SA 4.0, credited "{username} · {year} · CC BY-SA 4.0" with a link to the image page.
 
-Nothing here is sent to the rating model: the walk's comfort still comes from the Street View photos' ratings.
+The photo shown is the photo rated (Elena, 2026-11-11): Images fetches it for the model, in memory only, never stored. A
+flat photo goes as Mapillary serves it; a panorama is first rendered as the 90 degree view the app shows, at its bearing.
 """
+import io
 import logging
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
+import numpy as np
 import requests
+from PIL import Image
 from shapely.geometry import LineString, Point, Polygon
 
 from tool.config import get_key
@@ -138,13 +143,18 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
     }
 
 
+def photo_for(s: requests.Session, coordinates: list[list[float]], kind: str, cfg: dict) -> dict | None:
+    """The photo of one street ('street'), place ('area') or walk stretch ('walk'), or None."""
+    return pick(search(s, coordinates, cfg), coordinates, cfg, kind=kind)
+
+
 def along(stretches: list[dict], cfg: dict) -> dict:
     """{key: photo or None} for [{key, coordinates, kind?}], one Graph search per stretch, a few at a time."""
     s = session()
 
     def one(st):
         kind = st.get("kind") or "walk"
-        return st["key"], pick(search(s, st["coordinates"], cfg), st["coordinates"], cfg, kind=kind)
+        return st["key"], photo_for(s, st["coordinates"], kind, cfg)
 
     try:
         with ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"]) as pool:
@@ -155,3 +165,76 @@ def along(stretches: list[dict], cfg: dict) -> dict:
     found = sum(1 for v in out.values() if v)
     log.info("mapillary: %d of %d stretches with a photo", found, len(out))
     return out
+
+
+# The image for the model
+
+def render_pano(data: bytes, pano_heading: float, heading: float, fov_deg: float, pitch_deg: float, size_px: int) -> bytes:
+    """A square perspective view of an equirectangular panorama (its middle column looks `pano_heading`), looking
+    `heading`, `pitch_deg` up from the horizon, `fov_deg` across: the view the app's walk shows, as a camera would take
+    it. In memory only; returns JPEG bytes (quality 95: the export's own rule then encodes it once more)."""
+    with Image.open(io.BytesIO(data)) as pic:
+        pano = np.asarray(pic.convert("RGB"), dtype=np.float32)
+    h, w = pano.shape[:2]
+    f = (size_px / 2) / math.tan(math.radians(fov_deg) / 2)
+    c = (size_px - 1) / 2
+    x, y = np.meshgrid(np.arange(size_px) - c, c - np.arange(size_px))  # right, up
+    z = np.full_like(x, f, dtype=np.float64)
+    p = math.radians(pitch_deg)
+    y2, z2 = y * math.cos(p) + z * math.sin(p), -y * math.sin(p) + z * math.cos(p)
+    yaw = math.radians(((heading - pano_heading + 540) % 360) - 180) + np.arctan2(x, z2)
+    lat = np.arctan2(y2, np.hypot(x, z2))
+    u = ((0.5 + yaw / (2 * math.pi)) % 1.0) * w - 0.5
+    v = np.clip((0.5 - lat / math.pi) * h - 0.5, 0, h - 1)
+    u0, v0 = np.floor(u).astype(int), np.floor(v).astype(int)
+    du, dv = (u - u0)[..., None], (v - v0)[..., None]
+    u0, u1 = u0 % w, (u0 + 1) % w
+    v1 = np.minimum(v0 + 1, h - 1)
+    out = (pano[v0, u0] * (1 - du) * (1 - dv) + pano[v0, u1] * du * (1 - dv)
+           + pano[v1, u0] * (1 - du) * dv + pano[v1, u1] * du * dv)
+    buffer = io.BytesIO()
+    Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).save(buffer, format="JPEG", quality=95)
+    return buffer.getvalue()
+
+
+class NotThisPhoto(Exception):
+    """The image and heading asked for are not a photo the app shows."""
+
+
+class Images:
+    """The photo a card or the walk shows, fetched for the model, in memory only. Mapillary is free."""
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg["mapillary"]
+        self.session = session()
+
+    def fetch_image(self, photo_id: str, heading: float) -> bytes:
+        m = self.cfg
+        r = self.session.get(f"{GRAPH}/{photo_id}", params={"fields": "id,is_pano,computed_compass_angle,compass_angle,"
+                                                                          "thumb_1024_url,thumb_2048_url"},
+                             timeout=m["timeout_s"])
+        if r.status_code in (400, 404):
+            raise NotThisPhoto("There is no such Mapillary image.")
+        r.raise_for_status()
+        meta = r.json()
+        angle = angle_of(meta)
+        if angle is None:
+            raise NotThisPhoto("The image has no direction.")
+        pano = bool(meta.get("is_pano"))
+        # A flat photo is shown looking its own way: another heading is not the photo the app shows (2 degrees of slack,
+        # in case Mapillary recomputes the angle after the photo was chosen).
+        if not pano and turn(angle, heading) > 2.0:
+            raise NotThisPhoto("This heading is not the photo's own.")
+        url = (meta.get("thumb_2048_url") or meta.get("thumb_1024_url")) if pano else meta.get("thumb_1024_url")
+        if not url:
+            raise NotThisPhoto("The image has no thumbnail.")
+        # The thumbnail is a public, signed URL: no token is sent with it.
+        img = requests.get(url, timeout=m["timeout_s"])
+        img.raise_for_status()
+        if not pano:
+            return img.content
+        rd = m["render"]
+        return render_pano(img.content, angle, heading, rd["fov_deg"], rd["pitch_deg"], rd["size_px"])
+
+    def estimated_cost_usd(self, image_calls: int) -> float:
+        return 0.0

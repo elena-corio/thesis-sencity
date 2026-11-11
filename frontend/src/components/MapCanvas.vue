@@ -30,7 +30,7 @@ const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
 const walk = useWalkStore()
-const cardPhotos = useCardPhotosStore() // its watchers fetch the cards' photos in the background
+const cardPhotos = useCardPhotosStore()
 const finePointer = useMedia('(pointer: fine)')
 const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
 
@@ -329,8 +329,12 @@ watch(() => props.routesMode, (on) => {
 })
 
 const hoverId = ref(null)
-watch(hoverId, (id) => { if (id) cardPhotos.preload(id) }) // the pointer rests on a street: load its photo
-watch(() => routes.hoverKey, (key) => { if (key) cardPhotos.preload(key) })
+// The pointer rests on a street: start loading its photo.
+watch(hoverId, (id) => { if (id) cardPhotos.preload(area.segments?.features.find((f) => f.properties.id === id)) })
+watch(() => routes.hoverKey, (key) => {
+  const s = key && routes.allStretches.find((x) => x.key === key)
+  if (s) cardPhotos.preload(routes.segments.get(s.segmentId))
+})
 watch(hoverId, (id, old) => {
   if (!map.value) return
   setSegmentState(map.value, old, { hover: false })
@@ -428,7 +432,7 @@ const ringAngle = computed(() => {
   return h - map.value.getBearing()
 })
 /** A suggestion pin's direction: its street's photo (Mapillary once fetched), or null. */
-const pinAngle = (m) => cardPhotos.headingOf(m.f.properties.id, m.f)
+const pinAngle = (m) => cardPhotos.headingOf(m.f)
 
 const pulsing = ref(false)
 let pulseTimer

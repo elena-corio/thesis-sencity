@@ -1,5 +1,5 @@
 // Street segments and their photos: loading card, segments on the map, place card, enlarged photo.
-// /api/area and /api/photo are mocked (no Street View or Overpass calls).
+// /api/area and the Mapillary thumbnails are mocked (no Mapillary or Overpass calls).
 import { expect, test } from '@playwright/test'
 import { AREA, THERMAL, WITH_3, areaRequests, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
 
@@ -40,9 +40,9 @@ test.describe('desktop', () => {
     expect(shown.size).toBeLessThanOrEqual(3)
     const segPhotos = AREA.features.find((f) => f.properties.id === (
       // the clicked street may be a neighbour of WITH_3 if they overlap on screen
-      [...shown][0] && AREA.features.find((x) => x.properties.photos.some((ph) => [...shown][0].includes(ph.pano_id)))?.properties.id))
+      [...shown][0] && AREA.features.find((x) => x.properties.photos.some((ph) => [...shown][0].includes(`/${ph.id}.png`)))?.properties.id))
     expect(segPhotos).toBeTruthy()
-    expect([...shown].every((u) => segPhotos.properties.photos.some((ph) => u.includes(ph.pano_id)))).toBe(true)
+    expect([...shown].every((u) => segPhotos.properties.photos.some((ph) => u.includes(`/${ph.id}.png`)))).toBe(true)
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/places-dark-card.png' })
 

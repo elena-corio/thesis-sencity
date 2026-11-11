@@ -5,7 +5,7 @@ const anchors = ['not at all, too much for my senses', 'very much']
 const el = (code) => ({ code, en: code, it: code, sense: 'sight' })
 const ok = (comfort, bothers = ['a'], good = ['b'], reason = `r${comfort}`) =>
   ({ status: 'ok', result: { comfort, anchors, bothers: bothers.map(el), feels_good: good.map(el), reason } })
-const photos = (n) => Array.from({ length: n }, (_, i) => ({ pano_id: `p${i}`, heading: 0, date: `2024-0${i + 1}` }))
+const photos = (n) => Array.from({ length: n }, (_, i) => ({ id: `${i}`, heading: 0, date: `2024-0${i + 1}` }))
 const place =(...states) => {
   const list = photos(states.length)
   return combinePlace(list, (p) => states[list.indexOf(p)])
@@ -136,6 +136,6 @@ it('puts the state on the segments, and changes nothing when it is already there
 })
 
 it('writes the status line', () => {
-  const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, streetviewUsd: 0.672, seconds: 38.2 }
-  expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model, about $0.67 Street View · 38 s')
+  const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, seconds: 38.2 }
+  expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model · 38 s')
 })

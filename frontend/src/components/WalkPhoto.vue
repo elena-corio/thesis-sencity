@@ -5,14 +5,14 @@
 // street and says so (Elena, 2026-11-11); with photos not shown (lib/photos.js) the 3D street alone. Images are loaded
 // when shown, never stored.
 import { computed, ref, watch } from 'vue'
-import { panoShift, photoCredit, photoLink, providerName, shownPhotoUrl } from '../lib/photos.js'
+import { panoShift, photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
 import { useWalkStore } from '../stores/walk.js'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
 const failed = ref(false)
 const name = computed(() => walk.feature?.properties.name ?? 'the street')
-const source = computed(() => (providerName() === 'mapillary' ? 'Mapillary' : 'Street View'))
+const source = 'Mapillary'
 const message = computed(() => {
   if (walk.photoState === 'none-here' || (walk.photoState === 'shown' && failed.value)) return 'No photo for this stretch, rated from the map.'
   if (walk.photoState === 'error') return 'Photos could not be loaded. The walk goes on without them.'
