@@ -105,7 +105,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Decision.**
 - *One switch (Elena):* `config.photos.provider` in `src/lib/photos.js`: `none` (default), `streetview`, `mapillary` (not built: needs an access token). With `none` no image is fetched or shown anywhere (place card, stretch card, enlarged photo, walk); the place card says "Photo not shown" where a street has photos (proposed wording). The photos still rate the streets on the server: only showing them is off.
 - *Tests:* the end-to-end checks choose the provider before the page loads (`window.__sencityPhotos`), so the photo views stay tested.
-**Consequences.** `main` before this showed Street View Static photos next to the map on the place and stretch cards. The review page (`python -m tool.review_server`) still does; it is a local tool, not the app.
+**Consequences.** `main` before this showed Street View Static photos next to the map on the place and stretch cards. The review page (`python -m tool.review_server`), a local tool, now shows the photos and the map in separate tabs (Elena), rebuilt from the template at each start.
 
 ## 2026-11-11 – Walk along a route, at eye level (accepted; details marked proposed)
 **Context.** Elena: a walk from the route card (boards Routes 3, Routes 5, phone P6, redrawn on 2026-11-11 at eye level). The brief fixes "MapLibre with grey styles and no 3D" and a flat map (pitch 0).

@@ -101,8 +101,9 @@ The API reads a tile as soon as it exists; no restart is needed. Outside Vienna,
 
 Open http://127.0.0.1:8765/ and stop the server with Ctrl+C.
 
-- **Left:** a map with the circle (dashed), the segments (cyan with a kept photo, grey without), parks and squares, and the photo points (dark = kept). Click a segment to jump to its photos.
-- **Right:** one card per segment with its kept photos, and the date, heading, rank and distances under each. Rejected photos are in a collapsed "Rejected" section, grouped by reason. They load only when you click "Load photo".
+Two tabs, never side by side (Google's EEA terms forbid Street View Static images next to a map). The server rebuilds the page from the current template when it starts, so older runs get the tabs too.
+- **Photos:** one card per segment with its kept photos, and the date, heading, rank and distances under each. Rejected photos are in a collapsed "Rejected" section, grouped by reason. They load only when you click "Load photo".
+- **Map:** the circle (dashed), the segments (cyan with a kept photo, grey without), parks and squares, and the photo points (dark = kept). Click a segment to go to its photos in the Photos tab.
 - **Keep / Reject** on any photo saves your verdict, and the optional note, to `review_notes.csv` in the run folder. Click again to clear it. Use these notes to tune the filter thresholds.
 - **Costs:** every photo shown is one paid Street View image call. The page shows the total for the kept photos, and the server prints and logs each call. Images are never saved or cached, so reloading the page fetches them again.
 

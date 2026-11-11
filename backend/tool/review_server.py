@@ -6,6 +6,7 @@ nothing is saved) and writes keep/reject notes to review_notes.csv.
 """
 import argparse
 import csv
+import json
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 
 from .config import REPO_ROOT, load_config
 from .photos.provider import get_provider
+from .review import write_review_html
 
 NOTE_FIELDS = ["segment_id", "pano_id", "heading", "pipeline_status", "pipeline_reason", "verdict", "note", "updated_at"]
 
@@ -102,6 +104,9 @@ def main():
         run_dir = done[-1]
     if not (run_dir / "review.html").exists():
         raise SystemExit(f"{run_dir} has no review.html.")
+    # Rebuilt from the current template, so an older run gets the separate Photos and Map tabs too.
+    if (run_dir / "run.json").exists():
+        write_review_html(run_dir, json.loads((run_dir / "run.json").read_text(encoding="utf-8")))
     print(f"Reviewing {run_dir.name}\nOpen http://127.0.0.1:{args.port}/  (Ctrl+C to stop)")
     uvicorn.run(create_app(run_dir, cfg), host="127.0.0.1", port=args.port, log_level="warning")
 
