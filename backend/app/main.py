@@ -183,7 +183,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
                     _known_photos.update(area_mod.known_photos(fc))
                 yield _ndjson(event)
         except (requests.RequestException, SystemExit) as e:
-            log.warning("area failed: %s", type(e).__name__)
+            # A Street View status names the problem and holds no key or place; a network error's text can hold the
+            # request URL (with the key), so only its type is logged.
+            log.warning("area failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
             yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
             return
         yield from thermal(fc)
@@ -250,7 +252,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
                 yield _ndjson({"type": "error", "message": str(e)})
                 return
             except (requests.RequestException, SystemExit) as e:
-                log.warning("routes failed: %s", type(e).__name__)
+                log.warning("routes failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
                 yield _ndjson({"type": "error", "message": "Could not load the streets between start and end. Try again."})
                 return
             lat, lon = routes_mod.middle(start, end)

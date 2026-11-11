@@ -9,6 +9,13 @@ import requests
 from ..config import get_key
 from .provider import PhotoMeta, PhotoProvider
 
+# Google says these can succeed when asked again: a server error, and too many requests at once (an area looks up
+# segments in parallel). Each is retried a few times, waiting longer each time. A point that still answers UNKNOWN_ERROR
+# counts as having no photo: about 1 in 100 points in central Vienna answers it every time, whatever the radius or source
+# (checked 2026-11-11), and one of them must not stop a whole area. A lasting OVER_QUERY_LIMIT still stops the run.
+TRANSIENT = {"UNKNOWN_ERROR", "OVER_QUERY_LIMIT"}
+RETRY_WAITS_S = (1, 2, 4)
+
 
 class StreetViewProvider(PhotoProvider):
     def __init__(self, cfg: dict):
@@ -37,16 +44,20 @@ class StreetViewProvider(PhotoProvider):
         return resp
 
     def search(self, lat: float, lon: float, radius_m: float | None = None) -> PhotoMeta | None:
-        with self._count_lock:
-            self.metadata_calls += 1
-        resp = self._get(self.cfg["metadata_url"], {
+        params = {
             "location": f"{lat:.7f},{lon:.7f}",
             "radius": radius_m or self.cfg["metadata_radius_m"],
             "source": self.cfg["source"],
-        })
-        data = resp.json()
-        status = data.get("status")
-        if status == "ZERO_RESULTS" or status == "NOT_FOUND":
+        }
+        for wait in (*RETRY_WAITS_S, None):
+            with self._count_lock:
+                self.metadata_calls += 1
+            data = self._get(self.cfg["metadata_url"], params).json()
+            status = data.get("status")
+            if status not in TRANSIENT or wait is None:
+                break
+            time.sleep(wait)
+        if status in ("ZERO_RESULTS", "NOT_FOUND", "UNKNOWN_ERROR"):
             return None
         if status != "OK":
             # REQUEST_DENIED, OVER_QUERY_LIMIT, ...: stop, the run would be wrong.

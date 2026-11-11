@@ -2,6 +2,10 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – Street View metadata: a point that keeps failing has no photo (proposed)
+**Context.** Areas stopped at "8 of 10" with "Could not load street photos for this area": the metadata lookup answered UNKNOWN_ERROR, and any error status stopped the whole area. Around Stephansplatz 3 of 280 points answered UNKNOWN_ERROR every time: asked again, after 5 s, without `source=outdoor`, and with a 50 m radius.
+**Decision.** UNKNOWN_ERROR and OVER_QUERY_LIMIT are asked again up to three times (after 1, 2 and 4 s). A point that still answers UNKNOWN_ERROR counts as having no photo there, as ZERO_RESULTS does; a lasting OVER_QUERY_LIMIT, REQUEST_DENIED or any other status still stops the run. The API log now names the status (it holds no key or place); a network error is still logged by its type only, since its text can hold the request URL with the key.
+**Consequences.** A few sample points have no photo where Google could not answer; the segment can still get one from its other points.
 ## 2026-11-11 – Street photos: none shown until the source is chosen (accepted)
 **Context.** Google's EEA Service Specific Terms (22.1, last modified 28 October 2026): "Customer may not use any Google Maps Content from the Street View Static API With any Map", where "With any Map" is "on, next to, or in a manner that is visually associated with any map". It applies to projects linked to an EEA billing address and created, or changed, after 8 July 2025. Elena: assume the project is affected; ship no view with a Street View Static image next to a map; compare the Maps JavaScript API panorama and Mapillary before choosing.
 **Decision.**
