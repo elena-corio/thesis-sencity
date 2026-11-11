@@ -3,11 +3,13 @@
 // phone. Arrow keys switch photos, Esc goes back, focus stays inside while it is open.
 // Images come from the API on demand and are never stored (Google terms).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { shownPhotoUrl } from '../lib/photos.js'
-import { credit, distanceLine, photoLine } from '../lib/place.js'
+import { photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
+import { distanceLine, photoLine } from '../lib/place.js'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
+  /** The photos shown, when not the street's own (Mapillary on the cards). */
+  photos: { type: Array, default: null },
   feature: { type: Object, required: true },
   index: { type: Number, required: true },
   phone: Boolean,
@@ -21,7 +23,7 @@ const emit = defineEmits(['update:index', 'close', 'failed'])
 
 const dialog = ref(null)
 const backBtn = ref(null)
-const photos = computed(() => props.feature.properties.photos ?? [])
+const photos = computed(() => props.photos ?? props.feature.properties.photos ?? [])
 const photo = computed(() => photos.value[props.index])
 const name = computed(() => props.feature.properties.name)
 const n = computed(() => photos.value.length)
@@ -89,7 +91,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
             <img v-if="!failed.has(index)" :src="shownPhotoUrl(photo)" :alt="`Street photo of ${name}, ${photoLine(photo)}`"
                  draggable="false" @error="emit('failed', index)" />
             <span v-else class="img-failed">The photo could not be loaded.</span>
-            <span class="credit">{{ credit(photo) }}</span>
+            <a v-if="photoLink(photo)" class="credit" :href="photoLink(photo)" target="_blank" rel="noopener">{{ photoCredit(photo) }}</a>
+            <span v-else class="credit">{{ photoCredit(photo) }}</span>
           </div>
           <button v-if="n > 1" type="button" class="arrow next" aria-label="Next photo" @click="go(1)">
             <AppIcon name="chevronRight" />
@@ -112,7 +115,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         </div>
 
         <div v-if="n > 1" class="thumbs" role="group" aria-label="All photos of this street">
-          <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
+          <button v-for="(ph, i) in photos" :key="(ph.pano_id ?? ph.id) + ph.heading" type="button" class="thumb"
                   :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                   @click="emit('update:index', i)">
             <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" draggable="false" />
@@ -161,6 +164,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
   padding: var(--space-1) var(--space-2); border-radius: var(--radius-chip);
   background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); font-size: var(--fs-sm);
 }
+a.credit { text-decoration: none; }
+a.credit:hover { text-decoration: underline; }
 .arrow {
   width: var(--viewer-arrow); height: var(--viewer-arrow); flex: none;
   display: grid; place-items: center;

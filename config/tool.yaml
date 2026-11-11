@@ -175,7 +175,8 @@ mapillary:
   max_turn_deg: 45           # its camera within this of the walk's direction
   max_age_years: 10          # older photos are left out; of the rest, the newest is shown
   search_limit: 500          # images read per stretch
-  max_stretches: 120         # stretches per request (a 1.9 km walk has about 50)
+  max_stretches: 120         # stretches per request (a 1.9 km walk has about 50; a card asks for one)
+  workers: 6                 # searches at a time
   timeout_s: 20
   rate_per_hour: 60          # requests per IP (each is one search per stretch)
 

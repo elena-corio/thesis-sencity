@@ -7,7 +7,7 @@
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
-- POST /api/mapillary/along   one Mapillary photo per stretch of a walk, facing along it (free; the token stays here)
+- POST /api/mapillary/along   one Mapillary photo per stretch of a walk, or per street or place of a card (free; the token stays here)
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
 - POST /api/senses/rate   the model's general predictions for a list of photos, streamed; cached ones cost nothing
 
@@ -322,8 +322,10 @@ def buildings(body: BuildingsRequest, request: Request) -> dict:
 # Mapillary photos along a walk
 
 class WalkStretch(BaseModel):
-    key: str = Field(..., max_length=40)
+    key: str = Field(..., max_length=80)
     coordinates: list[tuple[float, float]] = Field(..., min_length=1, max_length=400)
+    # 'walk': along its direction; 'street' (a card): either way; 'area' (a park or square): any direction.
+    kind: str = Field("walk", pattern="^(walk|street|area)$")
 
 
 class MapillaryRequest(BaseModel):
@@ -336,7 +338,7 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
     its public thumbnail URL and credit. The stretches travel in the body and are not logged or stored."""
     if _rate_limited("mapillary", _ip(request), full_cfg["mapillary"]["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many walks in a short time. Wait a while and try again.")
-    stretches = [{"key": s.key, "coordinates": [[lon, lat] for lon, lat in s.coordinates]} for s in body.stretches]
+    stretches = [{"key": s.key, "kind": s.kind, "coordinates": [[lon, lat] for lon, lat in s.coordinates]} for s in body.stretches]
     try:
         return {"photos": mapillary_mod.along(stretches, full_cfg)}
     except mapillary_mod.MapillaryError as e:

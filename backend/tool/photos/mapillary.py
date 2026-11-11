@@ -1,20 +1,23 @@
-"""Mapillary photos along a walk (Elena, 2026-11-11): one per stretch, for the walk's photo window.
+"""Mapillary photos (Elena, 2026-11-11): one per stretch of a walk (its photo window), or per street or place on the cards.
 
 The access token stays here (MAPILLARY_ACCESS_TOKEN in .env); the browser gets only the public thumbnail URL. Per
 stretch, of the images within mapillary.radius_m and no older than mapillary.max_age_years (Elena, 2026-11-11):
 1. a panorama, if there is one (the nearest, then the newest): the app shows its view at exactly the walk's bearing;
 2. otherwise the flat photo with the smallest angle between its camera (computed_compass_angle if present) and the walk,
    within mapillary.max_turn_deg; ties go to the nearest, then the newest.
+A street on a card has no walking direction, so either way along it counts; a park or square has none at all (the nearest
+flat photo, then the newest), and its distance is to its outline (0 inside).
 Imagery is CC BY-SA 4.0, credited "{username} · {year} · CC BY-SA 4.0" with a link to the image page.
 
 Nothing here is sent to the rating model: the walk's comfort still comes from the Street View photos' ratings.
 """
 import logging
 import math
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import requests
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 
 from tool.config import get_key
 from tool.geo import LocalProjection
@@ -71,9 +74,11 @@ def angle_of(im: dict) -> float | None:
     return a if a is not None else im.get("compass_angle")
 
 
-def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: datetime | None = None) -> dict | None:
+def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: datetime | None = None,
+         kind: str = "walk") -> dict | None:
     """The image to show for a stretch, in the shape the app shows, or None. `heading` is the direction the view looks:
-    the walk's bearing for a panorama (the app turns it there, from `pano_heading`), the camera's for a flat photo."""
+    the walk's bearing for a panorama (the app turns it there, from `pano_heading`), the camera's for a flat photo.
+    kind: 'walk' (along its direction), 'street' (either way along it) or 'area' (a park or square: any direction)."""
     m = cfg["mapillary"]
     now = now or datetime.now(timezone.utc)
     oldest = now.timestamp() * 1000 - m["max_age_years"] * 365.25 * 86400 * 1000
@@ -81,7 +86,18 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
     lons = [c[0] for c in coordinates]
     lats = [c[1] for c in coordinates]
     proj = LocalProjection((min(lats) + max(lats)) / 2, (min(lons) + max(lons)) / 2)
-    line = LineString([proj.to_xy(*c) for c in coordinates]) if len(coordinates) > 1 else Point(proj.to_xy(*coordinates[0]))
+    xy = [proj.to_xy(*c) for c in coordinates]
+    if kind == "area" and len(xy) >= 3:
+        line = Polygon(xy)
+    else:
+        line = LineString(xy) if len(xy) > 1 else Point(xy[0])
+
+    def off(angle):  # the angle between the camera and the way to look
+        if kind == "area":
+            return 0.0
+        if kind == "street":
+            return min(turn(angle, want), turn(angle, want + 180))
+        return turn(angle, want)
     panos, flats = [], []
     for im in images:
         geom = im.get("computed_geometry") or im.get("geometry")
@@ -94,11 +110,13 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
         if im.get("is_pano"):
             if im.get("thumb_2048_url") or im.get("thumb_1024_url"):
                 panos.append((d, -im["captured_at"], im))
-        elif im.get("thumb_1024_url") and turn(angle, want) <= m["max_turn_deg"]:
-            flats.append((round(turn(angle, want), 1), d, -im["captured_at"], im))
+        elif im.get("thumb_1024_url") and off(angle) <= m["max_turn_deg"]:
+            flats.append((round(off(angle), 1), d, -im["captured_at"], im))
     if panos:
         best = min(panos, key=lambda t: t[:2])[-1]
         view, pano = want, True
+        if kind == "street" and turn(angle_of(best), want + 180) < turn(angle_of(best), want):
+            view = (want + 180) % 360  # the way along the street the panorama faces more
     elif flats:
         best = min(flats, key=lambda t: t[:3])[-1]
         view, pano = angle_of(best), False
@@ -112,8 +130,8 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
         "heading": round(view, 1),
         "pano": pano,
         "pano_heading": round(angle_of(best), 1) if pano else None,
-        "turn": round(0.0 if pano else turn(view, want), 1),
-        "year": taken.year, "date": taken.date().isoformat(),
+        "turn": round(0.0 if pano else off(view), 1),
+        "year": taken.year, "date": taken.strftime("%Y-%m"),
         "creator": (best.get("creator") or {}).get("username") or "Mapillary contributor",
         "thumb_url": (best.get("thumb_2048_url") or best["thumb_1024_url"]) if pano else best["thumb_1024_url"],
         "link": f"https://www.mapillary.com/app/?pKey={best['id']}",
@@ -121,12 +139,16 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
 
 
 def along(stretches: list[dict], cfg: dict) -> dict:
-    """{key: photo or None} for [{key, coordinates}], one Graph search per stretch."""
+    """{key: photo or None} for [{key, coordinates, kind?}], one Graph search per stretch, a few at a time."""
     s = session()
-    out = {}
+
+    def one(st):
+        kind = st.get("kind") or "walk"
+        return st["key"], pick(search(s, st["coordinates"], cfg), st["coordinates"], cfg, kind=kind)
+
     try:
-        for st in stretches:
-            out[st["key"]] = pick(search(s, st["coordinates"], cfg), st["coordinates"], cfg)
+        with ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"]) as pool:
+            out = dict(pool.map(one, stretches))
     except requests.RequestException as e:
         log.warning("mapillary search failed: %s", type(e).__name__)
         raise MapillaryError("Mapillary photos could not be loaded.") from None

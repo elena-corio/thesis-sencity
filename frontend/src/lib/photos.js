@@ -1,8 +1,8 @@
 // Which street photos the app shows, and from where (Elena, 2026-11-11). Google's EEA terms forbid Street View Static
 // images "on, next to, or in a manner that is visually associated with any map", so Street View is off unless chosen.
 // The photos still rate the streets on the server; this is only about showing them. One place to switch:
-//   'mapillary'   Mapillary, in the walk only (default): one photo per stretch from /api/mapillary/along, CC BY-SA 4.0.
-//                 The cards show none yet (a later change).
+//   'mapillary'   Mapillary (default): one photo per stretch of a walk, or per street or place on a card, from
+//                 /api/mapillary/along, CC BY-SA 4.0. The ratings stay those of the Street View photos (not shown).
 //   'streetview'  Street View Static through /api/photo, in the cards and the walk (not with a map in the EEA)
 //   'none'        no photo shown anywhere
 import config from '../config.js'
@@ -20,7 +20,7 @@ const PROVIDERS = {
     name: 'Google Street View',
   },
   mapillary: {
-    cards: false,
+    cards: true,
     walk: true,
     url: (photo) => photo.thumb_url ?? null,
     credit: (photo) => `${photo.creator} · ${photo.year} · CC BY-SA 4.0`,

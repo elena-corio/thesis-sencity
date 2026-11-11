@@ -52,6 +52,19 @@ def test_a_tie_in_angle_and_distance_goes_to_the_newest():
     assert p["id"] == "b"
 
 
+def test_a_street_on_a_card_either_way_along_it():
+    # No walking direction: a camera looking south along a north-south street is as good as one looking north.
+    p = mly.pick([image("south", 182, 2024), image("east", 90, 2026)], NORTH, full_cfg, now=NOW, kind="street")
+    assert (p["id"], p["turn"]) == ("south", 2.0)
+
+
+def test_a_place_any_direction_inside_it():
+    square = [[16.3700, 48.2000], [16.3710, 48.2000], [16.3710, 48.2010], [16.3700, 48.2010], [16.3700, 48.2000]]
+    p = mly.pick([image("east", 90, 2026, lon=16.3705, lat=48.2005)], square, full_cfg, now=NOW, kind="area")
+    assert p["id"] == "east"
+    assert p["date"] == "2026-06"
+
+
 def test_no_photo_when_none_fits():
     assert mly.pick([image("backwards", 180, 2026), image("ancient", 0, 2010)], NORTH, full_cfg, now=NOW) is None
 

@@ -12,9 +12,9 @@ describe('photoProvider', () => {
     expect(sv.url({ pano_id: 'abc', heading: 90 })).toContain('/api/photo/abc?heading=90')
     expect(sv.credit({ contributor: false })).toBe('© Google')
   })
-  it('Mapillary is in the walk only, with the photographer, the year and the licence', () => {
+  it('Mapillary is in the cards and the walk, with the photographer, the year and the licence', () => {
     const m = photoProvider('mapillary')
-    expect([m.cards, m.walk]).toEqual([false, true])
+    expect([m.cards, m.walk]).toEqual([true, true])
     const photo = { thumb_url: 'https://t/1', creator: 'anna', year: 2024, link: 'https://www.mapillary.com/app/?pKey=1' }
     expect(m.url(photo)).toBe('https://t/1')
     expect(m.credit(photo)).toBe('anna · 2024 · CC BY-SA 4.0')

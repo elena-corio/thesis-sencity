@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – Mapillary photos on the place and stretch cards (accepted)
+**Context.** Elena: the cards said "Photo not shown"; show Mapillary photos there too, as in the walk.
+**Decision.**
+- *When (proposed):* a card asks for its street's photo when it opens (one search, about 1 s) and keeps it for the session, in memory only. Loading an area asks for nothing, so Mapillary is searched only for the streets someone looks at.
+- *Which photo (Elena, as in the walk):* within 30 m and 10 years, a panorama first, else the flat photo whose camera is closest to the street's direction. A street on a card has no walking direction, so either way along it counts; a park or square has none at all (the nearest photo, then the newest), and its distance is to its outline. One photo per card.
+- *Credit (Elena):* "{username} · {year} · CC BY-SA 4.0", linked to the image page, inside the photo on the card and in the enlarged photo; it wraps, small, rather than being cut. The map credits say "photo: Mapillary".
+- *Rating:* the card's Senses rating is still that of the street's Street View photos, rated on the server and never shown, so the card shows a photo that is not the one rated (it may be from another year). The enlarged photo has no rating line for it.
+**Consequences.** A street with no fitting Mapillary photo says "No photo", while it may still have a Senses rating from its Street View photos.
+
 ## 2026-11-11 – Street View metadata: a point that keeps failing has no photo (proposed)
 **Context.** Areas stopped at "8 of 10" with "Could not load street photos for this area": the metadata lookup answered UNKNOWN_ERROR, and any error status stopped the whole area. Around Stephansplatz 3 of 280 points answered UNKNOWN_ERROR every time: asked again, after 5 s, without `source=outdoor`, and with a 50 m radius.
 **Decision.** UNKNOWN_ERROR and OVER_QUERY_LIMIT are asked again up to three times (after 1, 2 and 4 s). A point that still answers UNKNOWN_ERROR counts as having no photo there, as ZERO_RESULTS does; a lasting OVER_QUERY_LIMIT, REQUEST_DENIED or any other status still stops the run. The API log now names the status (it holds no key or place); a network error is still logged by its type only, since its text can hold the request URL with the key.
@@ -108,7 +117,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 ## 2026-11-11 – Walk photos from Mapillary (accepted)
 **Context.** Street View Static cannot be shown next to a map in the EEA (entry below). Coverage check on Stephansplatz → Karlsplatz (about 950 m): 96% of stretches have a flat Mapillary photo within 30 m facing along the walk; the closest photos are from 2016 to 2026, median 2020. The Google JavaScript panorama is not built.
 **Decision.**
-- *Provider (Elena):* `mapillary`, the default, in the walk only; the place and stretch cards show no photo yet (a later change).
+- *Provider (Elena):* `mapillary`, the default, in the walk (and on the cards since the entry above).
 - *Token on the server (Elena):* `POST /api/mapillary/along` searches Mapillary and returns, per stretch, the image ID, position, direction, year, photographer, the public thumbnail URL and the image link. The browser loads only the thumbnail. The answer is not cached: the thumbnail URLs are signed and expire.
 - *Choice per stretch (Elena):* of the images within 30 m and no older than 10 years: (1) a panorama if there is one (the nearest, then the newest), shown at exactly the walk's bearing: a 90° square cut from the equirectangular thumbnail around the horizon; (2) otherwise the flat photo with the smallest angle between its camera (`computed_compass_angle` if present) and the walk, ties to the nearest, then the newest. The 45° limit of the first version stays (proposed), so a photo facing away is never shown. On the test walk the average angle went from 15.7° (newest facing photo) to 2.3° on route A (7 of 24 photos panoramas) and from 12.7° to 2.3° on the other way (4 of 23).
 - *Camera:* stands where the photo was taken and looks the shown direction (the walk's bearing for a panorama), so the photo is a window onto the 3D street.

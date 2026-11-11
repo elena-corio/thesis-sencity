@@ -6,7 +6,8 @@
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { photoCredit, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
+import { photoCredit, photoLink, providerName, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
+import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
 import { nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
@@ -42,9 +43,12 @@ const backBtn = ref(null)
 const fromBtn = ref(null)
 const enlargeBtn = ref(null)
 const senses = useSensesStore()
+const cardPhotos = useCardPhotosStore()
+/** Mapillary (lib/photos.js): the card shows this street's one Mapillary photo; its Street View photos still rate it. */
+const mly = providerName() === 'mapillary'
 /** In Senses the card opens on the photo closest to the place's rating (brief §4). */
 function startIndex() {
-  if (src.value.layer !== 'senses') return 0
+  if (src.value.layer !== 'senses' || mly) return 0
   return senses.placeFor(src.value.feature?.properties.photos).rep ?? 0
 }
 const index = ref(startIndex())
@@ -53,7 +57,22 @@ const failed = ref(new Set())
 
 const feature = computed(() => src.value.feature)
 const p = computed(() => feature.value?.properties)
-const photos = computed(() => p.value?.photos ?? [])
+/** The street's Street View photos: they rate it (on the server); shown only with the Street View provider. */
+const ratedPhotos = computed(() => p.value?.photos ?? [])
+/** Mapillary: this street's entry, asked for when the card opens (a photo, null, 'loading' or 'error'). */
+const mlyEntry = computed(() => (mly ? cardPhotos.byKey[src.value.key] : undefined))
+/** The photos shown on the card. */
+const photos = computed(() => {
+  if (!mly) return ratedPhotos.value
+  const e = mlyEntry.value
+  return e && typeof e === 'object' ? [e] : []
+})
+const emptyText = computed(() => {
+  if (p.value?.photos == null || mlyEntry.value === 'loading') return 'Looking for photos…'
+  if (mlyEntry.value === 'error') return 'The photo could not be loaded.'
+  return !mly && ratedPhotos.value.length ? 'Photo not shown' : 'No photo'
+})
+watch(() => [src.value.key, mly], () => { if (mly) cardPhotos.ensure(src.value.key, src.value.feature) }, { immediate: true })
 const photo = computed(() => photos.value[index.value])
 const type = computed(() => (feature.value ? typeLabel(p.value, feature.value.geometry.type) : ''))
 const dates = computed(() => [...new Set(photos.value.map((ph) => formatMonth(ph.date)))].join(', '))
@@ -90,8 +109,9 @@ watch(() => src.value.key, () => {
 
 // Senses: the place from the ratings already here, never a new call. Also for a stretch of a route.
 const sensesOn = computed(() => src.value.layer === 'senses')
-const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
-const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
+const sensesPlace = computed(() => (sensesOn.value && ratedPhotos.value.length ? senses.placeFor(ratedPhotos.value) : null))
+// A Mapillary photo is not rated itself: the place's rating comes from the Street View photos.
+const shownRating = computed(() => (sensesOn.value && photo.value && !mly ? senses.ratingOf(photo.value) ?? null : null))
 const viewerRating = computed(() => (shownRating.value?.status === 'ok' ? `${comfortLabel(shownRating.value.result)}, this photo` : 'Not rated yet'))
 const viewerNote = computed(() => (shownRating.value?.status === 'ok' ? `${GENERAL_LABEL}. A prediction, not a reason.` : ''))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
@@ -155,12 +175,13 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
           </button>
         </template>
         <span class="counter">{{ index + 1 }} / {{ photos.length }}</span>
-        <span class="credit">{{ photoCredit(photo) }}</span>
+        <a v-if="photoLink(photo)" class="credit" :href="photoLink(photo)" target="_blank" rel="noopener">{{ photoCredit(photo) }}</a>
+        <span v-else class="credit">{{ photoCredit(photo) }}</span>
       </div>
       <div v-else class="photo empty">
         <AppIcon name="cameraOff" />
         <!-- With photos not shown (lib/photos.js), a street that has some says so, not "No photo". -->
-        <span>{{ p.photos == null ? 'Looking for photos…' : photos.length ? 'Photo not shown' : 'No photo' }}</span>
+        <span>{{ emptyText }}</span>
       </div>
 
       <div class="name">
@@ -215,7 +236,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
       <template v-else-if="photo">
         <div class="thumbs-row">
           <div v-if="photos.length > 1 && showsPhotos()" class="thumbs" role="group" aria-label="Photos of this street">
-            <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
+            <button v-for="(ph, i) in photos" :key="(ph.pano_id ?? ph.id) + ph.heading" type="button" class="thumb"
                     :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                     @click="index = i">
               <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" @error="onImgError(i)" />
@@ -233,7 +254,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <p class="not-rated">Not rated yet. Ratings come in the next step.</p>
       </template>
 
-      <template v-else-if="p.photos != null">
+      <template v-else-if="p.photos != null && !ratedPhotos.length">
         <p class="why">No street photo here yet, so this street will have no Senses or Overall rating.</p>
         <button v-if="src.features" type="button" class="btn btn-primary" @click="goNearest">Go to the nearest street with photos</button>
         <p class="muted small">We never guess between photos: without one, a street stays unlit in Senses and Overall.</p>
@@ -243,7 +264,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
-                 :failed="failed" :rating="viewerRating" :rating-note="viewerNote" @close="closeViewer" @failed="onImgError" />
+                 :photos="photos" :failed="failed" :rating="mly ? '' : viewerRating" :rating-note="mly ? '' : viewerNote" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 
@@ -324,6 +345,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 }
 .counter { left: var(--space-1); }
 .credit { right: var(--space-1); }
+/* A Mapillary credit is long: the licence must stay readable, so it wraps (small) rather than being cut. */
+a.credit { max-width: calc(100% - 2 * var(--space-1)); text-align: right; line-height: 1.3; font-size: var(--fs-2xs); text-decoration: none; }
+a.credit:hover { text-decoration: underline; }
+/* With a long credit, the counter would sit under it: the credit says enough. */
+.photo:has(a.credit) .counter { display: none; }
 .name { min-width: 0; }
 .name h2 {
   margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold);
