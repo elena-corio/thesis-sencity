@@ -85,9 +85,9 @@ export default {
   // miniZoom: the "Where you are" map on the right.
   walk: { eyeHeightM: 1.7, pitch: 84, maxPitch: 85, maxZoom: 24, glideMs: 1600, stretchMs: 8000, miniZoom: 16 },
 
-  // Street photos shown in the app (lib/photos.js): 'none' | 'streetview' | 'mapillary'. 'none' until the source is
-  // chosen: Google's EEA terms forbid Street View Static images next to any map (Elena, 2026-11-11).
-  photos: { provider: 'none' },
+  // Street photos shown in the app (lib/photos.js): 'mapillary' (the walk only, for now) | 'streetview' | 'none'.
+  // Google's EEA terms forbid Street View Static images next to any map (Elena, 2026-11-11).
+  photos: { provider: 'mapillary' },
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',

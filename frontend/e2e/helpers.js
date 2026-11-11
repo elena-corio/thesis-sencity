@@ -144,7 +144,7 @@ function png(size, [r, g, b]) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
     chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
 }
-const PHOTO = png(64, [120, 150, 160])
+export const PHOTO = png(64, [120, 150, 160])
 
 /**
  * Mock POST /api/area (streamed like the API: segments, then each segment, then done) and

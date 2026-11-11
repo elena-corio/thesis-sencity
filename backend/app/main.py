@@ -7,6 +7,7 @@
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
+- POST /api/mapillary/along   one Mapillary photo per stretch of a walk, facing along it (free; the token stays here)
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
 - POST /api/senses/rate   the model's general predictions for a list of photos, streamed; cached ones cost nothing
 
@@ -28,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from tool.config import load_config
 from tool.buildings import BuildingsError
+from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 from tool.photos.provider import get_provider
 
@@ -186,7 +188,9 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
                     _known_photos.update(area_mod.known_photos(fc))
                 yield _ndjson(event)
         except (requests.RequestException, SystemExit) as e:
-            log.warning("area failed: %s", type(e).__name__)
+            # A Street View status says what went wrong and holds no key or place; a network error's text can hold the
+            # request URL (with the key), so only its type is logged.
+            log.warning("area failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
             yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
             return
         yield from thermal(fc)
@@ -253,7 +257,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
                 yield _ndjson({"type": "error", "message": str(e)})
                 return
             except (requests.RequestException, SystemExit) as e:
-                log.warning("routes failed: %s", type(e).__name__)
+                log.warning("routes failed: %s", e if isinstance(e, SystemExit) else type(e).__name__)
                 yield _ndjson({"type": "error", "message": "Could not load the streets between start and end. Try again."})
                 return
             lat, lon = routes_mod.middle(start, end)
@@ -313,6 +317,30 @@ def buildings(body: BuildingsRequest, request: Request) -> dict:
     except BuildingsError as e:
         raise HTTPException(503, str(e)) from None
     return result
+
+
+# Mapillary photos along a walk
+
+class WalkStretch(BaseModel):
+    key: str = Field(..., max_length=40)
+    coordinates: list[tuple[float, float]] = Field(..., min_length=1, max_length=400)
+
+
+class MapillaryRequest(BaseModel):
+    stretches: list[WalkStretch] = Field(..., min_length=1, max_length=full_cfg["mapillary"]["max_stretches"])
+
+
+@app.post("/api/mapillary/along")
+def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
+    """{photos: {key: photo or null}}: for each stretch the newest flat Mapillary photo within 30 m facing along it, with
+    its public thumbnail URL and credit. The stretches travel in the body and are not logged or stored."""
+    if _rate_limited("mapillary", _ip(request), full_cfg["mapillary"]["rate_per_hour"], 3600):
+        raise HTTPException(429, "Too many walks in a short time. Wait a while and try again.")
+    stretches = [{"key": s.key, "coordinates": [[lon, lat] for lon, lat in s.coordinates]} for s in body.stretches]
+    try:
+        return {"photos": mapillary_mod.along(stretches, full_cfg)}
+    except mapillary_mod.MapillaryError as e:
+        raise HTTPException(503, str(e)) from None
 
 
 # Photo: streamed through, never stored

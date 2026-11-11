@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
-import { loadBuildings } from '../lib/api.js'
-import { photoAlong, showsPhotos } from '../lib/photos.js'
+import { loadBuildings, loadMapillaryAlong } from '../lib/api.js'
+import { photoAlong, providerName, showsWalkPhotos } from '../lib/photos.js'
 import { stretchFeature, stretchesOf, stretchMiddle } from '../lib/routes.js'
 import { stretchBearing } from '../lib/walk.js'
 import { useRoutesStore } from './routes.js'
@@ -10,9 +10,9 @@ import { useRoutesStore } from './routes.js'
 /**
  * Walk along a route (boards Routes 5, P6): one of the two ways, stretch by stretch, at eye level with the buildings.
  * The layer, season and time are fixed when the walk starts (Elena, 2026-11-11): exit the walk to change them. The walked
- * route is a copy. One photo per stretch, the one that faces along the walk; the 3D camera stands where it was taken and
- * looks its way, so the photo reads as a window onto the street. Without a photo (or with photos not shown, lib/photos.js)
- * the camera stands at the start of the stretch, looking along it. It opens paused; Play goes on every
+ * route is a copy. One photo per stretch, the one that faces along the walk (Mapillary, from the backend, or Street View);
+ * the 3D camera stands where it was taken and looks its way, so the photo reads as a window onto the street. Without a
+ * photo (or with photos not shown, lib/photos.js) the camera stands at the start of the stretch, looking along it. It opens paused; Play goes on every
  * config.walk.stretchMs. Ratings and thermal values come from the routes store, never a new call.
  */
 export const useWalkStore = defineStore('walk', () => {
@@ -31,8 +31,12 @@ export const useWalkStore = defineStore('walk', () => {
   const buildings = shallowRef(null)
   const buildingsError = ref('')
   const buildingsSource = ref('')
+  /** Mapillary (lib/photos.js 'mapillary'): one photo or null per stretch key; 'idle' | 'loading' | 'ready' | 'error'. */
+  const mapillary = shallowRef({})
+  const mapillaryState = ref('idle')
   let timer = null
   let controller = null
+  let photoController = null
 
   const stretches = computed(() => (route.value ? stretchesOf(route.value, routes.segments, layer.value) : []))
   const current = computed(() => stretches.value[index.value] ?? null)
@@ -41,7 +45,22 @@ export const useWalkStore = defineStore('walk', () => {
   /** The photo facing most nearly along the walk, whether or not photos are shown. */
   const photoAhead = computed(() => (current.value ? photoAlong(photos.value, stretchBearing(current.value)) : null))
   /** The photo shown, or null (none along the stretch, or photos not shown). */
-  const photo = computed(() => (showsPhotos() ? photoAhead.value : null))
+  const photo = computed(() => {
+    if (!current.value || !showsWalkPhotos()) return null
+    if (providerName() === 'mapillary') return mapillary.value[current.value.key] ?? null
+    return photoAhead.value
+  })
+  /** What the photo window shows: 'shown' | 'loading' | 'error' | 'none-here' (no photo for this stretch) | 'off'
+   *  (photos not shown: the 3D street alone). */
+  const photoState = computed(() => {
+    if (!current.value) return 'off'
+    if (photo.value) return 'shown'
+    if (providerName() === 'mapillary') {
+      return { loading: 'loading', error: 'error' }[mapillaryState.value] ?? 'none-here'
+    }
+    if (showsWalkPhotos()) return 'none-here'
+    return photos.value.length === 0 && feature.value?.properties.photos != null ? 'none-here' : 'off'
+  })
   /** Where the eyes are and which way they look: at the photo shown, its way; else the start of the stretch, along it. */
   const view = computed(() => {
     const s = current.value
@@ -80,6 +99,25 @@ export const useWalkStore = defineStore('walk', () => {
     }
   }
 
+  async function fetchMapillary() {
+    photoController?.abort()
+    mapillary.value = {}
+    if (providerName() !== 'mapillary') {
+      mapillaryState.value = 'idle'
+      return
+    }
+    photoController = new AbortController()
+    const { signal } = photoController
+    mapillaryState.value = 'loading'
+    try {
+      mapillary.value = await loadMapillaryAlong(stretches.value.map((s) => ({ key: s.key, coordinates: s.coordinates })), signal)
+      mapillaryState.value = 'ready'
+    } catch {
+      if (signal.aborted) return
+      mapillaryState.value = 'error'
+    }
+  }
+
   function start(id, keyboard = false) {
     const r = routes.routes.find((x) => x.id === id)
     if (!r) return
@@ -95,12 +133,14 @@ export const useWalkStore = defineStore('walk', () => {
     routes.hoverRoute = null
     active.value = true
     fetchBuildings()
+    fetchMapillary()
   }
 
   /** Back to the route card, with the same routes. */
   function exit(keyboard = false) {
     pause()
     controller?.abort()
+    photoController?.abort()
     const id = route.value?.id
     active.value = false
     route.value = null
@@ -148,8 +188,8 @@ export const useWalkStore = defineStore('walk', () => {
   watch(() => routes.hasResult, (has) => { if (!has && active.value) exit() })
 
   return {
-    active, route, index, playing, layer, info, byKeyboard, stretches, current, feature, photos, photoAhead, photo, view,
-    point, shown, atEnd, buildingsState, buildings, buildingsError, buildingsSource,
+    active, route, index, playing, layer, info, byKeyboard, stretches, current, feature, photos, photoAhead, photo, photoState, view,
+    point, shown, atEnd, mapillary, mapillaryState, buildingsState, buildings, buildingsError, buildingsSource,
     fetchBuildings, start, exit, go, step, play, pause, toggle,
   }
 })

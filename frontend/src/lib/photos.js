@@ -1,37 +1,69 @@
 // Which street photos the app shows, and from where (Elena, 2026-11-11). Google's EEA terms forbid Street View Static
-// images "on, next to, or in a manner that is visually associated with any map", so the default is 'none': no photo is
-// fetched or shown in any view (place card, stretch card, enlarged photo, walk). The photos still rate the streets on the
-// server; only showing them is off. One place to switch:
-//   'none'        no photo shown (default)
-//   'streetview'  Street View Static, through /api/photo (not with a map in the EEA)
-//   'mapillary'   not built yet: needs a Mapillary access token and its own lookup
+// images "on, next to, or in a manner that is visually associated with any map", so Street View is off unless chosen.
+// The photos still rate the streets on the server; this is only about showing them. One place to switch:
+//   'mapillary'   Mapillary, in the walk only (default): one photo per stretch from /api/mapillary/along, CC BY-SA 4.0.
+//                 The cards show none yet (a later change).
+//   'streetview'  Street View Static through /api/photo, in the cards and the walk (not with a map in the EEA)
+//   'none'        no photo shown anywhere
 import config from '../config.js'
 import { photoUrl } from './api.js'
 
+const OFF = { cards: false, walk: false, url: () => null, credit: () => '', link: () => null, name: '' }
 const PROVIDERS = {
-  none: { shows: false, url: () => null, credit: () => '' },
+  none: OFF,
   streetview: {
-    shows: true,
+    cards: true,
+    walk: true,
     url: (photo) => photoUrl(photo),
     credit: (photo) => (photo.contributor ? 'Contributor photo' : '© Google'),
+    link: () => null,
+    name: 'Google Street View',
   },
-  mapillary: { shows: false, url: () => null, credit: () => '' },
+  mapillary: {
+    cards: false,
+    walk: true,
+    url: (photo) => photo.thumb_url ?? null,
+    credit: (photo) => `${photo.creator} · ${photo.year} · CC BY-SA 4.0`,
+    link: (photo) => photo.link ?? null,
+    name: 'Mapillary',
+  },
 }
 
 /** The provider in use; an unknown name is 'none'. The end-to-end tests choose one before the page loads
- *  (window.__sencityPhotos), so they can check both what is shipped and the photo views. */
+ *  (window.__sencityPhotos), so they can check each. */
 export function photoProvider(name = (typeof window !== 'undefined' && window.__sencityPhotos) || config.photos.provider) {
   return PROVIDERS[name] ?? PROVIDERS.none
 }
+export const providerName = () => {
+  const n = (typeof window !== 'undefined' && window.__sencityPhotos) || config.photos.provider
+  return PROVIDERS[n] ? n : 'none'
+}
 
-/** Photos are shown at all. */
-export const showsPhotos = () => photoProvider().shows
+/** Photos are shown on the place and stretch cards (and the enlarged photo). */
+export const showsPhotos = () => photoProvider().cards
+/** A photo is shown in the walk's window. */
+export const showsWalkPhotos = () => photoProvider().walk
 
 /** The image URL of a photo, or null when photos are not shown. */
 export const shownPhotoUrl = (photo) => (photo ? photoProvider().url(photo) : null)
 
-/** The credit on a photo ("© Google"), or '' when none is shown. */
+/** The credit on a photo ("© Google", "anna · 2024 · CC BY-SA 4.0"), or ''. */
 export const photoCredit = (photo) => (photo ? photoProvider().credit(photo) : '')
+
+/** Where the credit links to (the image page on Mapillary), or null. */
+export const photoLink = (photo) => (photo ? photoProvider().link(photo) : null)
+
+/**
+ * A panorama shown as a square, 90 degree view looking `photo.heading` (the walk's bearing). Mapillary's panorama
+ * thumbnail is equirectangular: 360 degrees across, 180 up and down, its middle looking `photo.pano_heading`. A quarter of
+ * its width is 90 degrees, so it is drawn four times as wide as the frame (and so twice as high), around the horizon,
+ * shifted so the walk's bearing is in the middle. Returns the left edge, as a share of the frame's width.
+ */
+export function panoShift(photo) {
+  const turn = ((photo.heading - photo.pano_heading + 540) % 360) - 180 // -180..180, right of the pano's middle
+  const at = 0.5 + turn / 360 // where the bearing is across the image (0..1)
+  return 0.5 - 4 * at
+}
 
 /** Of a stretch's photos, the one that faces most nearly along the walk (heading closest to `bearing`), or null. */
 export function photoAlong(photos, bearing) {

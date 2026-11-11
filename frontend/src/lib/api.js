@@ -145,6 +145,24 @@ async function streamEvents(path, body, onEvent, signal) {
   if (buffer.trim()) onEvent(JSON.parse(buffer))
 }
 
+/**
+ * One Mapillary photo per stretch of a walk (POST /api/mapillary/along): the newest flat photo within 30 m facing along
+ * it, or null. The stretches travel in the body; the token stays on the server. Answer: {photos: {key: photo | null}},
+ * each photo {id, lon, lat, heading, year, date, creator, thumb_url, link}.
+ * @param {{key:string, coordinates:number[][]}[]} stretches
+ * @param {AbortSignal} [signal]
+ */
+export async function loadMapillaryAlong(stretches, signal) {
+  const res = await fetch(`${config.apiBase}/api/mapillary/along`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stretches }),
+    signal,
+  })
+  if (!res.ok) throw new ApiError(res.status, await errorText(res))
+  return (await res.json()).photos
+}
+
 /** URL of one Street View image, streamed through the API (the key stays on the server). */
 export function photoUrl(photo) {
   return `${config.apiBase}/api/photo/${encodeURIComponent(photo.pano_id)}?heading=${photo.heading}`

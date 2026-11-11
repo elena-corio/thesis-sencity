@@ -7,6 +7,7 @@ from app import buildings as buildings_app
 from app import routes as routes_mod
 from app import senses as senses_mod
 from tool import buildings as buildings_tool
+from tool.photos import mapillary as mapillary_tool
 from tool import osm_local
 
 
@@ -23,6 +24,8 @@ def no_infrared(tmp_path, monkeypatch):
     # Buildings are free, but a test never reads public data: it fakes read_area.
     monkeypatch.setattr(buildings_tool, "read_area", refuse)
     monkeypatch.setattr(buildings_app, "cache_dir", lambda cfg: tmp_path / "buildings")
+    # Mapillary is free, but a test never calls it: it fakes search.
+    monkeypatch.setattr(mapillary_tool, "search", refuse)
 
 
 @pytest.fixture(autouse=True)
