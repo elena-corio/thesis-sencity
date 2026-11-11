@@ -225,7 +225,7 @@
   --map-sky: #1c3941;              /* walk view at street level: the sky, and the haze at the horizon */
   --arc-glow: 0 0 3px rgba(238, 243, 244, 0.6);   /* the direction arc's glow (none in light mode) */
   --arc-on-pin: #ffffff;           /* the arc on a suggestion's circle on the map: white here, teal in light mode */
-  --marker-map-edge: #13232a;      /* the map circle's outline and number: dark here; in light mode a teal outline and a white number */
+  --marker-map-edge: #13232a;      /* the map circle's outline and number: dark here; in light mode a white outline and a teal number */
   --marker-map-text: #13232a;
   --map-horizon: #13232a;
   --walk-marker-glow: 0 0 6px rgba(238, 243, 244, 0.7);
@@ -271,8 +271,9 @@
   --map-sky: #ffffff;
   --arc-glow: 0 0 0 transparent;
   --arc-on-pin: #15474a;           /* light mode (Elena, 2026-11-11): a teal arc... */
-  --marker-map-edge: #15474a;      /* ...a teal outline, and a white number (the street keeps its white outline) */
-  --marker-map-text: #ffffff;
+  --marker-map-edge: #ffffff;      /* ...a white outline, a teal number */
+  --marker-map-text: #15474a;
+  --marker-outline: #15474a;       /* ...and a teal outline on its street (Elena, 2026-11-11) */
   --map-horizon: #f4f8f9;
   --walk-marker-glow: 0 0 6px rgba(19, 35, 42, 0.35);
 }
