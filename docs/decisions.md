@@ -12,7 +12,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Selecting a suggestion (Elena):* the other suggestions hide until "Back to area" (board Flow 4b still shows them); the selected one shows the selected-point marker.
 - *Centring (Elena):* a route after start and end, and an analysed area, are fitted with equal padding left and right (and top and bottom on desktop), each the larger of the two, so a side panel zooms the map out instead of pushing the content aside. On a phone the content is centred in the map above the bottom sheet.
 - *Pulse and sizes (Elena):* the copy grows from the point itself, so it moves straight out, perpendicular to the arc's middle, and gets bigger as it goes. The selected point's dot is 16 px and its arc has a 20 px radius.
-- *Light mode (Elena):* the suggestion circle has a white outline and number and a dark teal arc, and the highlighted suggestion street has a dark teal outline (white in dark mode). White on the cyan and amber fills is about 2:1, below the 4.5:1 target (open: to check with Elena).
+- *Light mode (Elena):* the suggestion circle has a dark teal outline and arc and a white number; the highlighted suggestion street keeps its white outline. White on the cyan and amber fills is about 2:1, below the 4.5:1 target (open: to check with Elena).
 **Consequences.** With photos off (`none`) no marker has a direction. A suggestion's arc can appear a few seconds after its pin.
 
 ## 2026-11-11 – Mapillary photos on the place and stretch cards (accepted)
