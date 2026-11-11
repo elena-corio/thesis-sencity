@@ -176,9 +176,9 @@ mapillary:
   max_age_years: 10          # older photos are left out; of the rest, the newest is shown
   search_limit: 500          # images read per stretch
   max_stretches: 120         # stretches per request (a 1.9 km walk has about 50; a card asks for one)
-  workers: 6                 # searches at a time
+  workers: 10                # searches at a time (about 0.4 s per street with 6: 23 streets in 8.6 s)
   timeout_s: 20
-  rate_per_hour: 60          # requests per IP (each is one search per stretch)
+  rate_per_hour: 600         # requests per IP: an area's streets come in batches of 50 in the background
 
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:

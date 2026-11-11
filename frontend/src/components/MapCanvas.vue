@@ -20,6 +20,7 @@ import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useThemeStore } from '../stores/theme.js'
 import { useWalkStore } from '../stores/walk.js'
+import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
@@ -28,6 +29,7 @@ const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
 const walk = useWalkStore()
+const cardPhotos = useCardPhotosStore() // its watchers fetch the cards' photos in the background
 const finePointer = useMedia('(pointer: fine)')
 const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
 
@@ -326,6 +328,8 @@ watch(() => props.routesMode, (on) => {
 })
 
 const hoverId = ref(null)
+watch(hoverId, (id) => { if (id) cardPhotos.preload(id) }) // the pointer rests on a street: load its photo
+watch(() => routes.hoverKey, (key) => { if (key) cardPhotos.preload(key) })
 watch(hoverId, (id, old) => {
   if (!map.value) return
   setSegmentState(map.value, old, { hover: false })

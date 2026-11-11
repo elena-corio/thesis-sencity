@@ -5,7 +5,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 ## 2026-11-11 – Mapillary photos on the place and stretch cards (accepted)
 **Context.** Elena: the cards said "Photo not shown"; show Mapillary photos there too, as in the walk.
 **Decision.**
-- *When (proposed):* a card asks for its street's photo when it opens (one search, about 1 s) and keeps it for the session, in memory only. Loading an area asks for nothing, so Mapillary is searched only for the streets someone looks at.
+- *When (Elena):* once an area or a route has loaded, every street's photo is asked for in the background, 50 streets per request, 10 searches at a time on the server (a batch of 23 took 8.6 s with 6), and kept for the session in memory only. A card opened before its street's turn asks for it at once (about 1 s). Resting the pointer on a street starts loading its image, so it is usually there when the card opens.
 - *Which photo (Elena, as in the walk):* within 30 m and 10 years, a panorama first, else the flat photo whose camera is closest to the street's direction. A street on a card has no walking direction, so either way along it counts; a park or square has none at all (the nearest photo, then the newest), and its distance is to its outline. One photo per card.
 - *Credit (Elena):* "{username} · {year} · CC BY-SA 4.0", linked to the image page, inside the photo on the card and in the enlarged photo; it wraps, small, rather than being cut. The map credits say "photo: Mapillary".
 - *Rating:* the card's Senses rating is still that of the street's Street View photos, rated on the server and never shown, so the card shows a photo that is not the one rated (it may be from another year). The enlarged photo has no rating line for it.

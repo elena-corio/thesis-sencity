@@ -1,7 +1,8 @@
 // Mapillary photos on the place and stretch cards (Elena, 2026-11-11), with the API mocked: one photo per street, asked
-// for when its card opens; no Street View image is fetched; the credit links to the image page.
+// for in the background once the area has loaded (or when its card opens first); no Street View image is fetched; the
+// credit links to the image page.
 import { expect, test } from '@playwright/test'
-import { PHOTO, WITH_3, WITHOUT, analyseCentre, mapIdle, mockArea, mockRoutes, openMap, openRoutes, openSegment, routeClicks } from './helpers.js'
+import { AREA, PHOTO, WITH_3, WITHOUT, analyseCentre, mapIdle, mockArea, mockRoutes, openMap, openRoutes, openSegment, routeClicks } from './helpers.js'
 
 /** Mock POST /api/mapillary/along: a photo for every key, except those in `missing`. */
 async function mockCardPhotos(page, { missing = [] } = {}) {
@@ -28,21 +29,24 @@ function watchStreetView(page) {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' })
 
-  test('a street card shows its Mapillary photo, credited and linked, and the enlarged photo too', async ({ page }) => {
+  test('the photos of an area come in the background; a card then opens with its photo, credited and linked', async ({ page }) => {
     await mockArea(page)
     const asked = await mockCardPhotos(page)
     await openMap(page, 'dark', { photos: 'mapillary' })
     const streetView = watchStreetView(page)
     await analyseCentre(page)
     await mapIdle(page)
-    expect(asked).toHaveLength(0) // nothing until a card opens
+    // Every street of the area, once, in batches: streets either way along them, parks and squares in any direction.
+    await expect.poll(() => new Set(asked).size).toBe(AREA.features.length)
+    expect(asked).toContain(`${WITH_3.properties.id}:street`)
+    const before = asked.length
 
     await openSegment(page, WITH_3.properties.id)
     const card = page.locator('[data-panel="place-card"]')
     const credit = card.getByRole('link', { name: 'carla · 2022 · CC BY-SA 4.0' })
     await expect(credit).toHaveAttribute('href', `https://www.mapillary.com/app/?pKey=m-${WITH_3.properties.id}`)
     await expect(card.locator('.photo img')).toHaveJSProperty('complete', true)
-    expect(asked).toEqual([`${WITH_3.properties.id}:street`]) // either way along the street
+    expect(asked).toHaveLength(before) // the card had its photo already
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/cards-mapillary/1-place-card.png' })
 
@@ -54,7 +58,7 @@ test.describe('desktop', () => {
 
     // The same street again: no new request.
     await openSegment(page, WITH_3.properties.id)
-    expect(asked).toHaveLength(1)
+    expect(asked).toHaveLength(before)
     expect(streetView).toHaveLength(0) // no Street View image next to the map
   })
 
