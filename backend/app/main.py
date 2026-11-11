@@ -6,6 +6,7 @@
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
+- POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
 - POST /api/senses/rate   the model's general predictions for a list of photos, streamed; cached ones cost nothing
 
@@ -26,10 +27,12 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from tool.config import load_config
+from tool.buildings import BuildingsError
 from tool.infrared import km_between
 from tool.photos.provider import get_provider
 
 from . import area as area_mod
+from . import buildings as buildings_mod
 from . import routes as routes_mod
 from . import search as search_mod
 from . import senses as senses_mod
@@ -283,6 +286,33 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
             yield _ndjson({"type": "routes", "season": None, "time": None, "station": None, "routes": [], "verdict": "", **found})
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+# Buildings along a walked route (board Routes 5)
+
+class BuildingsRequest(BaseModel):
+    line: list[tuple[float, float]] = Field(..., min_length=2, max_length=full_cfg["buildings"]["max_points"])
+
+
+@app.post("/api/buildings")
+def buildings(body: BuildingsRequest, request: Request) -> dict:
+    """Footprints and heights of the buildings along the walked line (lon, lat pairs), and their source, as
+    GeoJSON. The line is not logged or stored: the cache is keyed by a hash."""
+    b = full_cfg["buildings"]
+    line = [[lon, lat] for lon, lat in body.line]
+    if any(not (-180 <= lon <= 180 and -90 <= lat <= 90) for lon, lat in line):
+        raise HTTPException(422, "The route is not on the map.")
+    length = sum(km_between(a[1], a[0], c[1], c[0]) for a, c in zip(line, line[1:])) * 1000
+    if length > b["max_length_m"]:
+        raise HTTPException(422, "This route is too long for the walk view.")
+    key = buildings_mod.line_key(line, full_cfg)
+    if buildings_mod.load_cached(key, full_cfg) is None and _rate_limited("buildings", _ip(request), b["rate_per_hour"], 3600):
+        raise HTTPException(429, "Too many new walks in a short time. Wait a while and try again.")
+    try:
+        result, _ = buildings_mod.buildings_for(line, full_cfg)
+    except BuildingsError as e:
+        raise HTTPException(503, str(e)) from None
+    return result
 
 
 # Photo: streamed through, never stored

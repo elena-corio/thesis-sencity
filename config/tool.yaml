@@ -151,6 +151,23 @@ routes:
   cache_dir: runs/routes     # one JSON per start and end: the corridor's segments and photo metadata
   rate_per_hour: 10          # new (not cached) routes per IP
 
+# Buildings for the walk view (board Routes 5, 3D): footprints and heights along the walked route, from the
+# Infrared.city SDK's public building data (in Vienna the city's building model). Free: no billed call.
+buildings:
+  buffer_m: 120              # bodies this close to the walked line are drawn on both sides of it
+  min_height_m: 2            # lower bodies (walls, kiosks) are left out
+  simplify_m: 0.3            # footprint outlines are simplified to this
+  max_points: 4000           # points of the walked line accepted
+  max_length_m: 3000         # a longer line is refused (routes go up to about 1.9 km: 1.5 km x 1.25)
+  max_features: 12000        # at most this many bodies in one answer
+  timeout_s: 90
+  rate_per_hour: 30          # new (not cached) reads per IP
+  cache_dir: runs/buildings  # one JSON per walked line: the buildings and their source, never the line
+  # Credits: the source of a body by the prefix of its id; any other is Overture Maps.
+  sources:
+    FMZKBKMOGD: "Stadt Wien – data.wien.gv.at"
+  default_source: "Overture Maps"
+
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:
   cors_origins: ["http://localhost:5173"]   # the Vite dev server; add the Render site URL when deployed

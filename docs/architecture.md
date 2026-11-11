@@ -3,7 +3,7 @@
 How the tool is built **now**:
 - **Backend:** fetching street photo candidates for one circle.
 - **Frontend:** the map start screen, address search and the two-click area selection.
-- **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
+- **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `POST /api/buildings` (footprints and heights along a walked route, for the walk view), `GET /api/photo/{pano_id}` (Street View images, passed through).
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v0/`. Places appear on the map as ratings arrive, with recommendations beside them.
@@ -81,11 +81,13 @@ flowchart LR
 | `backend/tool/infrared.py` | Infrared.city run for one circle and window: job count check, nearest station, buildings, trees, ground, UTCI grid (billed) |
 | `backend/tool/thermal.py` | Pure: `thermal_state` (the app's band rule, for the routes), grid cell centres, the percentile of the cells along each segment |
 | `backend/tool/geo.py`, `config.py` | Local metric projection, circle, bearings; config and `.env` loading |
-| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/reverse`, `/api/area`, `/api/routes`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
+| `backend/app/main.py` | SenCity API (FastAPI): `POST /api/search`, `/api/reverse`, `/api/area`, `/api/routes`, `/api/buildings`, `GET /api/photo`, CORS for the app's origin, a per-IP rate limit; no request bodies logged |
 | `backend/app/search.py` | Photon request and result mapping (name, detail line, point, extent); the name of a clicked point (spaced calls, in-memory cache) |
 | `backend/app/steps.py` | The finished steps of a load that did not complete (Overpass answer, photos per segment), read back by the next try for the same key |
 | `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
 | `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
+| `backend/tool/buildings.py` | Buildings along a walked line, for the walk view: the SDK's public building meshes for a 120 m corridor, each footprint rebuilt from its mesh's bottom triangles, with height and source (free) |
+| `backend/app/buildings.py` | The buildings cache per walked line (hashed name, buildings only) |
 | `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
 | `backend/app/senses.py` | Senses mode: reads and checks `model/app_v0/` on every request, splits a list of photos into cached and new (the cap), rates the new ones 4 at a time: the picture from Street View in memory, the task text, the OpenRouter request, the reply validated (one retry); the cache |
 | `model/app_v0/` | Exported from the thesis repo: system instructions, task text, the two schemas, element labels, model settings, MANIFEST. The only source of these; replaced as a folder |
@@ -179,6 +181,8 @@ flowchart LR
 
 **Route cache** (`runs/routes/<key>.json`, not committed): `{ created, lat, lon (the middle), zone (corridor polygon), area: FeatureCollection }`. The key is a hash of the two points, either way round, and the settings. No start or end, and nothing about the person. Thermal comfort for it is in `runs/thermal/`, as for an area.
 
+**Buildings** (`POST /api/buildings`): request `{ line: [[lon, lat], …] }` (the walked route, at most 3 km). Answer: a FeatureCollection of footprint Polygons with `h` (height, m) and `b` (base, m), and `source` ("Stadt Wien – data.wien.gv.at", "Overture Maps", or both joined by "and"). Cached in `runs/buildings/<key>.json` (not committed): `{ created, buildings }`; the key is a hash of the line, either way round, and the settings. 503 with a message when they cannot be read; the walk then stays flat.
+
 **Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
 
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
@@ -201,6 +205,7 @@ Not built yet: the profile.
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Infrared.city API (api.infrared.city) | Thermal comfort (UTCI) for one circle and window: weather station lookup, public buildings, trees and ground materials, the simulation (billed, 10 tokens per 512 m tile) | Infrared.city | API usage per key; it receives the circle and the window from our API, nothing about the person |
+| Infrared.city public data (geo.infrared.city), through the SDK | Building footprints and heights along a walked route (`/api/buildings`): the city's building model in Vienna, Overture Maps elsewhere (free, anonymous reads) | Infrared.city (Cloudflare R2) | Request logs of the files read; it receives only the corridor's extent, from our API, never the user's IP |
 | OpenRouter → Google Vertex AI (EU endpoint) | The general prediction for one street photo, with the model and pinned endpoint in `model/app_v0/model.json` (paid per call) | EU endpoint (`google-vertex/eu`) | Zero data retention requested on every call (`zdr: true`, `data_collection: deny`, no fallbacks); it receives the picture, the system instructions and the task text, nothing about the person |
 | Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre, or a clicked point rounded to about 10 m, from our API, never the user's IP |
 

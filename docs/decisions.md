@@ -100,6 +100,16 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Not built:* the "Not personalised yet" card with "Create your profile" (board 2c), as onboarding does not exist; street colours by state, which need every street rated.
 **Consequences.** The request has no task text, unlike the study (`task_part_b.txt`: the question, the option labels, "only what is visible"): the model sees only the system instruction, the photo and the schema's codes. Predictions may therefore differ from the benchmark's V0. The study also rejects "nothing" alongside other elements; `schema_validate.json` does not express this, so the app accepts it.
 
+## 2026-11-11 – Buildings for the walk view from the Infrared.city SDK (accepted)
+**Context.** The walk view (board Routes 5) draws buildings on both sides of the route. Elena: take them from Infrared.city, which comes with heights, and credit the source the SDK reports.
+**Decision.**
+- *Call (Elena):* `client.buildings.get_area`, the call the thermal run already makes. It reads public data from geo.infrared.city and sends no billed request. A probe on Stephansplatz: 1,929 bodies in 3 s, the tallest 136.3 m (the cathedral's south tower), placed within about 10 m.
+- *Source in Vienna:* the city's own building model. Every body's id starts with `FMZKBKMOGD` (Baukörpermodell of the Flächen-Mehrzweckkarte, Stadt Wien open data), so the credits say "buildings: Stadt Wien – data.wien.gv.at via Infrared.city". Another id prefix counts as Overture Maps (`buildings.sources` in config).
+- *Footprints (proposed):* the SDK gives meshes, not outlines. Each footprint is the union of its mesh's bottom triangles, turned from the SDK's metre frame (south-west corner, 111 320 m per degree) back into lon/lat, and simplified to 0.3 m. Bodies under 2 m are left out.
+- *Area (proposed):* bodies within 120 m of the walked line. A 1 km walk through the centre: 734 bodies, 278 KB, 6 s.
+- *Cache (proposed):* per walked line, under a hashed name, holding only the buildings and their source, like the route cache.
+**Consequences.** If the read fails (503 with a message), the walk goes on flat. The cached files are public data, but they show where someone walked, so they stay in the git-ignored `runs/`.
+
 ## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
 **Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
 **Decision (Elena; details marked proposed).**
