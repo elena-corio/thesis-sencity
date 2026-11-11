@@ -12,8 +12,6 @@ import ChoiceButtons from './ChoiceButtons.vue'
 const props = defineProps({
   /** The store that owns the window: the area or the routes (the same three fields). */
   store: { type: Object, required: true },
-  /** Why it is inactive, when that is not loading (the walk of a route found on Senses). */
-  inactiveNote: { type: String, default: '' },
 })
 const cap = (s) => s[0].toUpperCase() + s.slice(1)
 const hourOf = (time) => Number(time.split(':')[0])
@@ -43,7 +41,7 @@ const seasons = config.seasons.map((s) => ({ id: s, label: cap(s) }))
              :disabled="!active" @change="store.setThermalWindow({ time: timeOf(hour) })" />
       <output>{{ timeOf(hour) }}</output>
     </label>
-    <p v-if="!active" class="hint wait">{{ inactiveNote || 'Available once this has loaded.' }}</p>
+    <p v-if="!active" class="hint wait">Available once this has loaded.</p>
   </div>
 </template>
 

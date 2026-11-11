@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, progressAt, progressLine, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, fixedLine, progressAt, progressLine, routeKind, stretchBearing } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -32,13 +32,17 @@ describe('stretchBearing', () => {
 })
 
 describe('chipText', () => {
-  it('names the route, its kind and the window', () => {
-    expect(chipText({ id: 'B', kind: 'easiest' }, { season: 'summer', time: '15:00' }))
-      .toEqual({ title: 'Walking route B', detail: 'easiest, summer 15:00' })
+  it('names the route, its kind, the layer and the window', () => {
+    expect(chipText({ id: 'B', kind: 'easiest' }, 'overall', { season: 'summer', time: '15:00' }))
+      .toEqual({ title: 'Walking route B', detail: 'easiest overall, summer 15:00' })
   })
   it('has no window on a route found on Senses', () => {
-    expect(chipText({ id: 'A', kind: 'shortest' }, null)).toEqual({ title: 'Walking route A', detail: 'shortest' })
+    expect(chipText({ id: 'A', kind: 'shortest' }, 'senses', null)).toEqual({ title: 'Walking route A', detail: 'shortest senses' })
     expect(routeKind({ id: 'B', kind: 'second' })).toBe('alternative')
+  })
+  it('says the settings are fixed', () => {
+    expect(fixedLine({ season: 'summer', time: '15:00' })).toBe('Summer, 15:00. To change the layer, season or time, exit the walk.')
+    expect(fixedLine(null)).toBe('To change the layer, season or time, exit the walk.')
   })
 })
 

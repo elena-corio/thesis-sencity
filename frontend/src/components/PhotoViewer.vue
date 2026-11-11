@@ -3,7 +3,7 @@
 // phone. Arrow keys switch photos, Esc goes back, focus stays inside while it is open.
 // Images come from the API on demand and are never stored (Google terms).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { photoUrl } from '../lib/api.js'
+import { shownPhotoUrl } from '../lib/photos.js'
 import { credit, distanceLine, photoLine } from '../lib/place.js'
 import AppIcon from './AppIcon.vue'
 
@@ -86,7 +86,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
             <AppIcon name="chevronLeft" />
           </button>
           <div class="photo">
-            <img v-if="!failed.has(index)" :src="photoUrl(photo)" :alt="`Street photo of ${name}, ${photoLine(photo)}`"
+            <img v-if="!failed.has(index)" :src="shownPhotoUrl(photo)" :alt="`Street photo of ${name}, ${photoLine(photo)}`"
                  draggable="false" @error="emit('failed', index)" />
             <span v-else class="img-failed">The photo could not be loaded.</span>
             <span class="credit">{{ credit(photo) }}</span>
@@ -115,7 +115,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
           <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
                   :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                   @click="emit('update:index', i)">
-            <img v-if="!failed.has(i)" :src="photoUrl(ph)" alt="" draggable="false" />
+            <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" draggable="false" />
           </button>
         </div>
 

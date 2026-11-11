@@ -15,7 +15,6 @@ import { addMarkerLayers, setMarkers } from '../map/markers.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
 import { typeLabel } from '../lib/place.js'
 import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
-import { stretchBearing } from '../lib/walk.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
@@ -52,11 +51,11 @@ function project(p) {
   return { x, y }
 }
 /** At street level a point behind the camera has no place on the screen: the pins and the ring hide then. The
- *  camera stands at the start of the current stretch (walkCamera). */
+ *  camera stands at walk.view (walkCamera). */
 function inFront(p) {
-  const at = walk.current?.coordinates[0]
+  const at = walk.view
   if (!at) return true
-  const from = { lon: at[0], lat: at[1] }
+  const from = { lon: at.lon, lat: at.lat }
   if (Math.abs(from.lon - p.lon) < 1e-7 && Math.abs(from.lat - p.lat) < 1e-7) return false // under your feet
   const turn = ((bearing(from, p) - map.value.getBearing() + 540) % 360) - 180
   return Math.abs(turn) < 75
@@ -231,18 +230,32 @@ watch(() => routes.routes, (r) => {
   if (props.routesMode && r.length && !walk.active) nextTick(() => requestAnimationFrame(revealRoutes))
 })
 
-// Walk (Elena, 2026-11-11): at street level, eyes 1.7 m above the start of the current stretch, looking along it.
-// The ring marks its photo. The camera glides to the next stretch (a fly would rise and fall); reduced motion jumps.
+// Walk (Elena, 2026-11-11): at street level, eyes 1.7 m above where the stretch's photo was taken, looking its way
+// (or the start of the stretch, along it: walk.view). The view is aimed at the middle of the photo's square, so the
+// photo reads as a window onto the street. It glides to the next stretch (a fly would rise and fall); reduced motion jumps.
 const NO_PADDING = { top: 0, bottom: 0, left: 0, right: 0 }
+/** Padding that puts the map's centre in the middle of the photo's square. */
+function windowPadding() {
+  const el = document.querySelector('[data-walk-window]')
+  if (!el || !container.value) return NO_PADDING
+  const r = el.getBoundingClientRect()
+  const c = container.value.getBoundingClientRect()
+  const cx = r.left + r.width / 2 - c.left
+  const cy = r.top + r.height / 2 - c.top
+  return {
+    top: Math.max(0, 2 * cy - c.height), bottom: Math.max(0, c.height - 2 * cy),
+    left: Math.max(0, 2 * cx - c.width), right: Math.max(0, c.width - 2 * cx),
+  }
+}
 const WALK_LOCKED = ['keyboard', 'scrollZoom', 'dragPan', 'doubleClickZoom', 'boxZoom', 'touchZoomRotate']
 function walkCamera(duration = config.walk.glideMs) {
   const m = map.value
-  const stretch = walk.current
-  if (!m || !stretch) return
+  const v = walk.view
+  if (!m || !v) return
   const { eyeHeightM, pitch } = config.walk
-  m.setPadding(NO_PADDING) // the camera stands exactly at the walker's place, so the view is not shifted
-  const [lon, lat] = stretch.coordinates[0]
-  const camera = { ...m.calculateCameraOptionsFromCameraLngLatAltRotation([lon, lat], eyeHeightM, stretchBearing(stretch), pitch), padding: NO_PADDING }
+  const padding = windowPadding()
+  m.setPadding(padding) // set first: the camera is solved for this padding
+  const camera = { ...m.calculateCameraOptionsFromCameraLngLatAltRotation([v.lon, v.lat], eyeHeightM, v.bearing, pitch), padding }
   if (reducedMotion.value) m.jumpTo(camera)
   else m.easeTo({ ...camera, duration, essential: false })
 }
@@ -262,6 +275,7 @@ function enterWalk() {
 function leaveWalk() {
   const m = map.value
   setBuildings(m, null)
+  m.setPadding(NO_PADDING)
   for (const h of WALK_LOCKED) m[h].enable()
   m.touchZoomRotate.disableRotation()
   syncRoutes()

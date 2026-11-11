@@ -19,8 +19,7 @@ import RouteCard from './RouteCard.vue'
 import RoutePanel from './RoutePanel.vue'
 import StretchCard from './StretchCard.vue'
 import WalkControls from './WalkControls.vue'
-import WalkPanel from './WalkPanel.vue'
-import WalkStretchCard from './WalkStretchCard.vue'
+import WalkDetails from './WalkDetails.vue'
 import { useWalkStore } from '../stores/walk.js'
 
 const props = defineProps({
@@ -72,7 +71,7 @@ watch(() => routes.previewing, (on) => { if (on) show('settings') })
 watch(() => routes.load, (load) => { if (load === 'loading' && !routes.hasResult) show('results') })
 watch(() => routes.selected?.key, (key) => { if (key) show('results') })
 watch(() => routes.inputsOpen, (on) => { if (on) show('settings') })
-// Walk (board P6): the controls and the stretch open at once; Layer (on the map) opens Settings.
+// Walk (board P6): the stretch and the controls open at once, from the top.
 watch(() => walk.active, async (on) => {
   if (!on) return
   show('results')
@@ -181,7 +180,7 @@ defineExpose({ show })
 <template>
   <section ref="root" class="phone-sheet panel" :class="[size, { dragging: dragHeight !== null, walking: walk.active }]" data-panel="sheet"
            data-scrollable :aria-label="walk.active ? 'Walk' : 'Settings and results'" :style="dragHeight !== null ? { height: `${dragHeight}px` } : null">
-    <div class="floating">
+    <div v-if="!walk.active" class="floating">
       <MapAttribution in-sheet />
       <div v-if="showLegend && !walk.active" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
         <LayerLegend :layer="legendLayer" compact />
@@ -209,16 +208,19 @@ defineExpose({ show })
     <div v-show="open" class="body">
       <div v-show="tab === 'settings'" :id="`${uid}-panel-settings`" :ref="(el) => { panels.settings = el }" class="tabpanel"
            role="tabpanel" tabindex="-1" :aria-labelledby="`${uid}-tab-settings`">
-        <WalkPanel v-if="walk.active" phone @back="show('results')" />
-        <RoutePanel v-else-if="routesMode" phone :get-centre="getCentre" @pick="emit('pick', $event)" />
+        <RoutePanel v-if="routesMode" phone :get-centre="getCentre" @pick="emit('pick', $event)" />
         <LayerPanel v-else phone :get-centre="getCentre" @pick="emit('pick', $event)" />
       </div>
       <div v-show="tab === 'results'" :id="`${uid}-panel-results`" :ref="(el) => { panels.results = el }" class="tabpanel"
            role="tabpanel" tabindex="-1" :aria-labelledby="`${uid}-tab-results`">
+        <!-- Board P6: exit, the stretch, then where you are with previous / play / next. -->
         <div v-if="walk.active" class="walk-body">
-          <WalkControls phone />
+          <button type="button" class="walk-exit" @click="walk.exit($event.detail === 0)"><AppIcon name="chevronLeft" /> Exit walk, back to comparison</button>
+          <WalkDetails phone />
           <div class="rule" />
-          <WalkStretchCard phone />
+          <WalkControls phone />
+          <!-- The credits: over the photo they would hide it (board P6 has none there). -->
+          <MapAttribution in-sheet />
         </div>
         <template v-else-if="routesMode">
           <StretchCard v-if="routes.selectedStretch" phone />
@@ -289,12 +291,17 @@ defineExpose({ show })
 }
 .empty { margin: 0; color: var(--text-2); }
 
-/* Walk (board P6): no tab bar below and no tab row, so it starts lower and reaches the bottom. */
+/* Walk (board P6): no tab row; from under the photo down to the tab bar. */
 .phone-sheet.walking {
-  --sheet-room: calc(100dvh - env(safe-area-inset-bottom) - var(--margin) - var(--topbar-h) - var(--gap) - var(--walk-chip-h) - var(--sheet-above));
-  --sheet-open-h: min(var(--sheet-walk), var(--sheet-room));
+  --sheet-open-h: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - var(--margin) - var(--topbar-h) - 3 * var(--space-2)
+    - var(--walk-chip-h) - var(--walk-photo-phone) - var(--space-3));
+  height: var(--sheet-open-h); max-height: none;
 }
 .walking .tabpanel { padding-top: var(--space-1); }
-.walk-body { display: flex; flex-direction: column; gap: var(--space-3); }
+.walk-body { display: flex; flex-direction: column; gap: calc(var(--space-2) + 2px); }
 .walk-body .rule { height: var(--hairline); background: var(--line); }
+.walk-exit {
+  display: inline-flex; align-self: flex-start; align-items: center; gap: var(--space-2); min-height: var(--touch-phone);
+  padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm);
+}
 </style>

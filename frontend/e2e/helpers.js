@@ -6,7 +6,9 @@ export const markRatingMocked = (page) => ratingMocked.add(page)
 
 /** No place names unless a test sets its own: a clicked point reads "Point on map". And no test ever reaches the
  *  real rating endpoint: an API already running on this machine would make paid calls with the placeholder image. */
-const noPlaceNames = async (page) => {
+const noPlaceNames = async (page, photos = 'streetview') => {
+  // The app ships with no photos shown (lib/photos.js); these checks are about the photo views, unless they ask for 'none'.
+  await page.addInitScript((p) => { window.__sencityPhotos = p }, photos)
   await page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
   await page.route('**/api/senses/**', (route) => {
     if (ratingMocked.has(page)) return route.fallback()
@@ -23,8 +25,8 @@ export const chooseLayer = (page, layer, store = 'area') => page.evaluate(([l, s
 
 /** Open /area in a theme and wait until the map has drawn once. Most checks are about Thermal, so that is the layer
  *  unless they ask for another; layer: null keeps the one the app opens on. */
-export async function openMap(page, theme, { layer = 'thermal' } = {}) {
-  await noPlaceNames(page)
+export async function openMap(page, theme, { layer = 'thermal', photos } = {}) {
+  await noPlaceNames(page, photos)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)
@@ -207,8 +209,8 @@ export async function openSegment(page, id) {
 // Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
 // mixed), three on B (easy, mixed, easy), built around the points the app sends.
 /** Open /routes. As for openMap, the checks are about Thermal unless they ask for another layer; null keeps the default. */
-export async function openRoutes(page, theme, { layer = 'thermal' } = {}) {
-  await noPlaceNames(page)
+export async function openRoutes(page, theme, { layer = 'thermal', photos } = {}) {
+  await noPlaceNames(page, photos)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
   }, theme)

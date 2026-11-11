@@ -2,24 +2,28 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
 import { loadBuildings } from '../lib/api.js'
+import { photoAlong, showsPhotos } from '../lib/photos.js'
 import { stretchFeature, stretchesOf, stretchMiddle } from '../lib/routes.js'
+import { stretchBearing } from '../lib/walk.js'
 import { useRoutesStore } from './routes.js'
 
 /**
- * Walk along a route (board Routes 5, phone P6): one of the two ways, stretch by stretch, on a tilted map with
- * buildings. The walked route is a copy, so it stays the same while the routes are asked again for a new season
- * or time (Elena, 2026-11-11: inside the walk the controls only recolour it). Layer recolours it from what is
- * loaded; Overall is not built for routes, so the walk opens on the routes' own layer. It opens paused; Play goes
- * on every config.walk.stretchMs. Ratings, photos and thermal values come from the routes store, never a new call.
+ * Walk along a route (boards Routes 5, P6): one of the two ways, stretch by stretch, at eye level with the buildings.
+ * The layer, season and time are fixed when the walk starts (Elena, 2026-11-11): exit the walk to change them. The walked
+ * route is a copy. One photo per stretch, the one that faces along the walk; the 3D camera stands where it was taken and
+ * looks its way, so the photo reads as a window onto the street. Without a photo (or with photos not shown, lib/photos.js)
+ * the camera stands at the start of the stretch, looking along it. It opens paused; Play goes on every
+ * config.walk.stretchMs. Ratings and thermal values come from the routes store, never a new call.
  */
 export const useWalkStore = defineStore('walk', () => {
   const routes = useRoutesStore()
   const active = ref(false)
   const route = shallowRef(null)
   const index = ref(0)
-  const photoIndex = ref(0)
   const playing = ref(false)
+  /** Fixed for the walk: the layer and the window it started with. */
   const layer = ref(config.layerDefault)
+  const info = shallowRef(null)
   /** The last step was done with the keyboard, so focus can follow (Exit walk goes back to its button). */
   const byKeyboard = ref(false)
   /** 'idle' | 'loading' | 'ready' | 'error'. Without buildings the walk goes on flat. */
@@ -34,8 +38,19 @@ export const useWalkStore = defineStore('walk', () => {
   const current = computed(() => stretches.value[index.value] ?? null)
   const feature = computed(() => (current.value ? stretchFeature(current.value, routes.segments) : null))
   const photos = computed(() => feature.value?.properties.photos ?? [])
-  const photo = computed(() => photos.value[photoIndex.value] ?? null)
-  /** The photo point shown, or the stretch's middle when it has no photo: the ring sits there. */
+  /** The photo facing most nearly along the walk, whether or not photos are shown. */
+  const photoAhead = computed(() => (current.value ? photoAlong(photos.value, stretchBearing(current.value)) : null))
+  /** The photo shown, or null (none along the stretch, or photos not shown). */
+  const photo = computed(() => (showsPhotos() ? photoAhead.value : null))
+  /** Where the eyes are and which way they look: at the photo shown, its way; else the start of the stretch, along it. */
+  const view = computed(() => {
+    const s = current.value
+    if (!s) return null
+    if (photo.value) return { lon: photo.value.lon, lat: photo.value.lat, bearing: photo.value.heading }
+    const [lon, lat] = s.coordinates[0]
+    return { lon, lat, bearing: stretchBearing(s) }
+  })
+  /** The ring on the 3D view: the photo's spot, or the stretch's middle. */
   const point = computed(() => {
     if (!current.value) return null
     return photo.value ? { lat: photo.value.lat, lon: photo.value.lon } : stretchMiddle(current.value)
@@ -43,20 +58,6 @@ export const useWalkStore = defineStore('walk', () => {
   /** The walked route with its stretches on the walk's layer, in the shape the map's route layers draw. */
   const shown = computed(() => (route.value ? { ...route.value, stretches: stretches.value } : null))
   const atEnd = computed(() => index.value >= stretches.value.length - 1)
-
-  // Season and time, in the shape SeasonTime reads. They exist only when the routes were found on Thermal.
-  const hasThermal = computed(() => routes.info != null)
-  const thermalWindow = computed(() => routes.thermalWindow)
-  const windowActive = computed(() => hasThermal.value && routes.windowActive)
-  const load = computed(() => routes.load)
-
-  function setThermalWindow(change) {
-    if (windowActive.value) routes.setThermalWindow(change)
-  }
-  /** Recolour only: no new search (Elena, 2026-11-11). */
-  function setLayer(id) {
-    layer.value = id
-  }
 
   async function fetchBuildings() {
     controller?.abort()
@@ -84,9 +85,10 @@ export const useWalkStore = defineStore('walk', () => {
     if (!r) return
     route.value = r
     index.value = 0
-    photoIndex.value = 0
     playing.value = false
+    // Overall is not built for routes, so a route on it is walked on the default layer.
     layer.value = routes.layer === 'overall' ? config.layerDefault : routes.layer
+    info.value = routes.info
     byKeyboard.value = keyboard
     routes.selected = null
     routes.hoverKey = null
@@ -119,7 +121,6 @@ export const useWalkStore = defineStore('walk', () => {
         return
       }
       index.value++
-      photoIndex.value = 0
       schedule()
     }, config.walk.stretchMs)
   }
@@ -128,7 +129,6 @@ export const useWalkStore = defineStore('walk', () => {
     if (i < 0 || i >= stretches.value.length) return
     byKeyboard.value = keyboard
     index.value = i
-    photoIndex.value = 0
     if (playing.value) schedule()
   }
   const step = (d, keyboard = false) => go(index.value + d, keyboard)
@@ -148,8 +148,8 @@ export const useWalkStore = defineStore('walk', () => {
   watch(() => routes.hasResult, (has) => { if (!has && active.value) exit() })
 
   return {
-    active, route, index, photoIndex, playing, layer, byKeyboard, stretches, current, feature, photos, photo, point,
-    shown, atEnd, hasThermal, thermalWindow, windowActive, load, buildingsState, buildings, buildingsError,
-    buildingsSource, setThermalWindow, setLayer, fetchBuildings, start, exit, go, step, play, pause, toggle,
+    active, route, index, playing, layer, info, byKeyboard, stretches, current, feature, photos, photoAhead, photo, view,
+    point, shown, atEnd, buildingsState, buildings, buildingsError, buildingsSource,
+    fetchBuildings, start, exit, go, step, play, pause, toggle,
   }
 })

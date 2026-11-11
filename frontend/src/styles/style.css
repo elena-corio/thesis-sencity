@@ -30,7 +30,6 @@
   --sheet-min: 76px;            /* phone sheet, minimised (board P1c) */
   --sheet-open: 44dvh;          /* open, always this height (with the tab bar, half the screen); long content scrolls */
   --sheet-above: 120px;         /* the legend strip and credits over the sheet's top edge */
-  --sheet-walk: 50dvh;          /* the walk's sheet (board P6): half the screen, with no tab bar */
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */
@@ -145,16 +144,20 @@
   --viewer-arrow: 52px;
 
   /* Walk along a route (board Routes 5, phone P6) */
-  --walk-photo: 132px;
-  --walk-photo-phone: 84px;
-  --walk-controls-w: 560px;
+  --walk-photo: 440px;             /* the square photo, and the card under it (desktop) */
+  --walk-photo-phone: 220px;
+  --walk-side-w: 300px;            /* the legend on the left and the card on the right */
+  --walk-details-h: 300px;         /* room kept under the photo for its card */
+  --walk-mini-ratio: 268 / 200;    /* "Where you are" */
+  --map-mini-end-r: 5;             /* its Start ring and End dot */
+  --map-mini-end-stroke: 2.5;
   --walk-step-btn: 44px;           /* previous and next stretch */
   --walk-play-w: 52px;
   --walk-marker-w: 4px;            /* where you are on the strip */
   --walk-marker-h: 20px;
   --walk-chip-h: 40px;             /* the "Walking route" chip and the Layer button on a phone */
-  --rate-w: 36px;                  /* "Rate this place" buttons */
-  --rate-h: 32px;
+  --rate-w: 40px;                  /* "Rate this place" buttons */
+  --rate-h: 36px;
   --rate-w-phone: 44px;
   --rate-h-phone: 40px;
   --map-building-opacity: 0.95;

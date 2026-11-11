@@ -1,6 +1,7 @@
 <script setup>
 // Credits (brief §2). On a phone they ride on top of the sheet, so they are not a panel of their own there.
 // In the walk (board Routes 5) the buildings are credited to the source the API reports for them, via Infrared.city.
+import { showsPhotos } from '../lib/photos.js'
 import { useWalkStore } from '../stores/walk.js'
 
 defineProps({ inSheet: Boolean })
@@ -11,6 +12,7 @@ const walk = useWalkStore()
   <p class="attribution" :data-panel="inSheet ? undefined : 'attribution'">
     © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
     · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>
+    <span v-if="walk.active && showsPhotos()"> · photo: Google Street View</span>
     <span v-if="walk.active && walk.buildingsSource"> · buildings: {{ walk.buildingsSource }} via Infrared.city</span>
     <span> · thermal: Infrared.city</span>
   </p>

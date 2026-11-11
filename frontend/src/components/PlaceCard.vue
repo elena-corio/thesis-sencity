@@ -6,10 +6,10 @@
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { photoUrl } from '../lib/api.js'
+import { photoCredit, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
-import { credit, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
+import { nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
 import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
 import { GENERAL_LABEL, comfortLabel } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
@@ -102,7 +102,7 @@ function step(d) {
 }
 
 function openViewer() {
-  if (photo.value) viewerOpen.value = true
+  if (photo.value && showsPhotos()) viewerOpen.value = true
 }
 function closeViewer() {
   viewerOpen.value = false
@@ -136,10 +136,10 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="head" />
 
     <div class="top">
-      <div v-if="photo" class="photo">
+      <div v-if="photo && showsPhotos()" class="photo">
         <button type="button" class="photo-open" :aria-label="`Enlarge photo ${index + 1} of ${photos.length}`"
                 @click="openViewer">
-          <img v-if="!failed.has(index)" :src="photoUrl(photo)" :alt="`Street photo of ${p.name}, ${photoLine(photo)}`"
+          <img v-if="!failed.has(index)" :src="shownPhotoUrl(photo)" :alt="`Street photo of ${p.name}, ${photoLine(photo)}`"
                @error="onImgError(index)" />
           <span v-else class="img-failed">The photo could not be loaded.</span>
         </button>
@@ -155,11 +155,12 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
           </button>
         </template>
         <span class="counter">{{ index + 1 }} / {{ photos.length }}</span>
-        <span class="credit">{{ credit(photo) }}</span>
+        <span class="credit">{{ photoCredit(photo) }}</span>
       </div>
       <div v-else class="photo empty">
         <AppIcon name="cameraOff" />
-        <span>{{ p.photos == null ? 'Looking for photos…' : 'No photo' }}</span>
+        <!-- With photos not shown (lib/photos.js), a street that has some says so, not "No photo". -->
+        <span>{{ p.photos == null ? 'Looking for photos…' : photos.length ? 'Photo not shown' : 'No photo' }}</span>
       </div>
 
       <div class="name">
@@ -213,11 +214,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
                         @retry="retryRating" />
       <template v-else-if="photo">
         <div class="thumbs-row">
-          <div v-if="photos.length > 1" class="thumbs" role="group" aria-label="Photos of this street">
+          <div v-if="photos.length > 1 && showsPhotos()" class="thumbs" role="group" aria-label="Photos of this street">
             <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
                     :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
                     @click="index = i">
-              <img v-if="!failed.has(i)" :src="photoUrl(ph)" alt="" @error="onImgError(i)" />
+              <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" @error="onImgError(i)" />
             </button>
           </div>
           <div class="along">

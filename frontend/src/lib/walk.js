@@ -32,10 +32,18 @@ export function stretchBearing(stretch) {
 /** The route's word on the comparison card: A shortest, B easiest (or the alternative). */
 export const routeKind = (route) => (route.id === 'A' ? 'shortest' : route.kind === 'easiest' ? 'easiest' : 'alternative')
 
-/** The chip at the top: "Walking route B" and "easiest, summer 15:00" (no window on a route found on Senses). */
-export function chipText(route, info) {
-  const kind = routeKind(route)
+/** The chip at the top (boards Routes 5, P6): "Walking route B" and "easiest overall, summer 15:00". A route found on
+ *  Senses has no season or time. */
+export function chipText(route, layer, info) {
+  const kind = `${routeKind(route)} ${layer}`
   return { title: `Walking route ${route.id}`, detail: info ? `${kind}, ${info.season} ${info.time}` : kind }
+}
+
+/** Under the legend: the settings are fixed for the walk. "Summer, 15:00. To change the layer, season or time, exit the walk." */
+export function fixedLine(info) {
+  const cap = (s) => s[0].toUpperCase() + s.slice(1)
+  const when = info ? `${cap(info.season)}, ${info.time}. ` : ''
+  return `${when}To change the layer, season or time, exit the walk.`
 }
 
 /**

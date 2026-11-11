@@ -20,12 +20,12 @@ import MapControls from '../components/MapControls.vue'
 import PhoneSheet from '../components/PhoneSheet.vue'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
-import LayerLegend from '../components/LayerLegend.vue'
 import WalkChip from '../components/WalkChip.vue'
-import WalkControls from '../components/WalkControls.vue'
+import WalkDetails from '../components/WalkDetails.vue'
+import WalkLegend from '../components/WalkLegend.vue'
 import WalkNotice from '../components/WalkNotice.vue'
-import WalkPanel from '../components/WalkPanel.vue'
-import WalkStretchCard from '../components/WalkStretchCard.vue'
+import WalkPhoto from '../components/WalkPhoto.vue'
+import WalkSide from '../components/WalkSide.vue'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -72,17 +72,21 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div class="slot s-top-centre"><ViewTabs /></div>
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left">
-        <WalkPanel v-if="walk.active" />
+        <WalkLegend v-if="walk.active" />
         <RoutePanel v-else-if="routesMode" :get-centre="getCentre" @pick="onPick" />
         <LayerPanel v-else :get-centre="getCentre" @pick="onPick" />
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>
       <template v-if="walk.active">
         <div class="slot s-walk-top"><WalkChip /><WalkNotice /></div>
-        <div class="slot s-walk-controls"><WalkControls /></div>
+        <!-- Board Routes 5: the photo in the middle (a window onto the 3D street behind), its card under it. -->
+        <div class="slot s-walk-centre">
+          <div class="walk-window" data-walk-window><WalkPhoto /></div>
+          <WalkDetails />
+        </div>
       </template>
       <div v-if="routesMode" class="slot s-card">
-        <WalkStretchCard v-if="walk.active" />
+        <WalkSide v-if="walk.active" />
         <StretchCard v-else-if="routes.selectedStretch" />
         <RouteCard v-else-if="hasCard" />
       </div>
@@ -101,17 +105,16 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
     <template v-else>
       <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
       <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
-      <div v-if="walk.active" class="slot s-p-walk">
-        <WalkChip phone @layers="sheetRef?.show('settings')" />
-        <WalkNotice />
-        <div class="strip panel" data-panel="walk-chip" role="group" aria-label="Legend"><LayerLegend :layer="walk.layer" compact /></div>
-      </div>
+      <template v-if="walk.active">
+        <div class="slot s-p-walk"><WalkChip phone /><WalkNotice /></div>
+        <div class="slot s-p-photo"><div class="walk-window" data-walk-window><WalkPhoto phone /></div></div>
+      </template>
       <div v-else class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
       <div class="slot s-p-sheet">
         <PhoneSheet ref="sheetRef" :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
                     @settled="mapRef?.reveal()" />
       </div>
-      <div v-if="!walk.active" class="slot s-p-tabs"><ViewTabs phone /></div>
+      <div class="slot s-p-tabs"><ViewTabs phone /></div>
     </template>
   </div>
 </template>
@@ -185,26 +188,31 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
 
-/* Walk, desktop and tablet (board Routes 5): the chip at the top between the panels, the controls at the bottom. */
+/* Walk, desktop and tablet (board Routes 5): the side panels narrower; the chip at the top between them; the photo in
+   the middle, as wide as the card under it, and smaller on a short screen. */
+.walking { --panel-left-w: var(--walk-side-w); --panel-right-w: var(--walk-side-w); }
 .s-walk-top {
   top: var(--row-main); left: var(--reserve-left); right: var(--reserve-right);
   display: flex; flex-direction: column; align-items: center; gap: var(--gap);
 }
 .s-walk-top > * { max-width: 100%; }
-.s-walk-controls {
-  bottom: var(--row-bottom); left: var(--reserve-left); right: var(--reserve-right);
-  display: flex; justify-content: center;
+.s-walk-centre {
+  --walk-size: min(var(--walk-photo), calc(100vw - var(--reserve-left) - var(--reserve-right)),
+    calc(100dvh - var(--row-main) - var(--walk-chip-h) - 2 * var(--gap) - var(--walk-details-h) - var(--margin)));
+  top: calc(var(--row-main) + var(--walk-chip-h) + 2 * var(--gap)); left: 50%; width: var(--walk-size); transform: translateX(-50%);
+  max-height: calc(100dvh - var(--row-main) - var(--walk-chip-h) - 2 * var(--gap) - var(--margin));
+  display: flex; flex-direction: column; gap: var(--gap);
 }
-.s-walk-controls > * { width: var(--walk-controls-w); max-width: 100%; }
-/* Walk, phone (board P6): no tab bar; the chip and the legend under the top bar; the sheet reaches the bottom. */
+/* The photo's square lets the 3D street show through when there is no photo. */
+.s-walk-centre .walk-window { pointer-events: none; }
+.s-walk-centre .walk-window > * { pointer-events: auto; }
+/* Walk, phone (board P6): the chip under the top bar, the photo centred under it, the sheet down to the tab bar. */
 .s-p-walk {
-  top: calc(var(--margin) + var(--p-top-h) + var(--gap)); left: var(--margin); right: var(--margin);
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  top: calc(var(--margin) + var(--p-top-h) + var(--space-2)); left: var(--margin); right: var(--margin);
+  display: flex; flex-direction: column; gap: var(--space-2);
 }
-.s-p-walk > :first-child { align-self: stretch; }
-.s-p-walk .strip { padding: var(--space-1) var(--space-3); border-radius: var(--radius-chip); }
-/* The legend on one line, its title first (board P6). */
-.s-p-walk .strip :deep(> div) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
-.s-p-walk .strip :deep(.rows) { margin: 0; }
-.walking .s-p-sheet { bottom: env(safe-area-inset-bottom); }
+.s-p-photo {
+  top: calc(var(--margin) + var(--p-top-h) + 2 * var(--space-2) + var(--walk-chip-h)); left: 50%;
+  width: var(--walk-photo-phone); transform: translateX(-50%); pointer-events: none;
+}
 </style>

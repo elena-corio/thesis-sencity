@@ -82,7 +82,12 @@ export default {
   // along it and a little down (pitch 84: 6° below the horizon, so the route ahead shows). maxZoom: a camera this
   // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
   // or jumps with reduced motion. A route's walk opens paused.
-  walk: { eyeHeightM: 1.7, pitch: 84, maxPitch: 85, maxZoom: 24, glideMs: 1600, stretchMs: 4000 },
+  // miniZoom: the "Where you are" map on the right.
+  walk: { eyeHeightM: 1.7, pitch: 84, maxPitch: 85, maxZoom: 24, glideMs: 1600, stretchMs: 8000, miniZoom: 16 },
+
+  // Street photos shown in the app (lib/photos.js): 'none' | 'streetview' | 'mapillary'. 'none' until the source is
+  // chosen: Google's EEA terms forbid Street View Static images next to any map (Elena, 2026-11-11).
+  photos: { provider: 'none' },
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',
