@@ -107,6 +107,10 @@ flowchart LR
 | `src/components/RoutePanel.vue`, `RouteLayerButtons.vue` | Routes left panel (desktop, tablet): the walk inputs (`RouteInputs`), Layer, season and time, legend (last). On a phone the route card carries the same inputs and Layer, as the area sheet does |
 | `src/components/RouteCard.vue`, `RouteBar.vue` | "Which way feels better?" (no card before Analyse on desktop and tablet; the hint says what to do): the progress, the comparison; on a phone also the inputs with Analyse; one state bar per route, each street a button (a bottom sheet on a phone) |
 | `src/components/StretchCard.vue` | A selected stretch: the place card with the route bar, coverage, previous / next, arrow keys |
+| `src/stores/walk.js` | Pinia: the walk along a route (boards Routes 5, P6): a copy of the walked route, the current stretch and photo, Play / Pause (one stretch every `config.walk.stretchMs`), its own layer (recolour only), season and time through the routes store, the buildings (loading, error, source) |
+| `src/lib/walk.js` | Pure: where you are on the walk ("0.35 of 1.6 km, 5 of 21 min"), the camera's bearing along a stretch, the chip text, the stretch's state and reason from the ratings already loaded |
+| `src/map/buildings.js` | The walk's buildings: one fill-extrusion layer from footprints (`h`, `b`), under the route layers |
+| `src/components/WalkChip.vue`, `WalkPanel.vue`, `WalkStretchCard.vue`, `WalkControls.vue`, `WalkNotice.vue` | The walk: "Walking route B" (and the phone's Layer button); Layer, season and time and the legend; "Stretch ahead" (photo pager, state and reason, Might bother you, Rate this place drawn, not built); progress, the strip, previous / play / next, Exit walk, arrow and space keys; the notice when buildings fail |
 | `src/components/PlaceSearch.vue` | One search field with suggestions, used by the top bar, Centre, Start and End; reports Enter on a value already chosen |
 | `src/map/base.js` | Dark mode only: recolours the Positron base map from `--map-base-*` in `style.css`, after every style load |
 | `src/map/layers.js` | Our map layers: teal tint, lit circle, dimmed outside (world minus circle), dashed circle and radius line; colours read from `style.css` |
@@ -143,7 +147,7 @@ flowchart LR
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default thermal window |
 | `src/lib/geo.test.js`, `thermal.test.js`, `routes.test.js` | Vitest: radius maths; thermal score, states and labels; stretches |
-| `e2e/` | Playwright: step-by-step screenshots, fit-every-screen check, keyboard walk-through, Routes |
+| `e2e/` | Playwright: step-by-step screenshots, fit-every-screen check, keyboard walk-through, Routes, the walk (`walk.spec.js`) |
 
 ## Data formats
 

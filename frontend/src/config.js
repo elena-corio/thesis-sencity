@@ -78,6 +78,12 @@ export default {
     maxM: 1500, // straight line, and the longest walk
   },
 
+  // Walk along a route (board Routes 5): at street level, eyes eyeHeightM above the start of each stretch, looking
+  // along it and a little down (pitch 84: 6° below the horizon, so the route ahead shows). maxZoom: a camera this
+  // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
+  // or jumps with reduced motion. A route's walk opens paused.
+  walk: { eyeHeightM: 1.7, pitch: 84, maxPitch: 85, maxZoom: 24, glideMs: 1600, stretchMs: 4000 },
+
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',
 

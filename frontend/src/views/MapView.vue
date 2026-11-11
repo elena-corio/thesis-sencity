@@ -1,7 +1,8 @@
 <script setup>
 // Map view: the map with floating panels (brief §3, boards Flow 1, 1b, 1c; phone P1, P5).
 // Fit every screen: panels are placed from the viewport and never overlap; the page never scrolls.
-import { computed, ref } from 'vue'
+// Walk along a route (boards Routes 5, P6): the same map, tilted, with the walk's own panels.
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMedia } from '../composables.js'
 import { useAreaStore } from '../stores/area.js'
@@ -18,6 +19,13 @@ import MapCanvas from '../components/MapCanvas.vue'
 import MapControls from '../components/MapControls.vue'
 import PhoneSheet from '../components/PhoneSheet.vue'
 import { useSensesStore } from '../stores/senses.js'
+import { useWalkStore } from '../stores/walk.js'
+import LayerLegend from '../components/LayerLegend.vue'
+import WalkChip from '../components/WalkChip.vue'
+import WalkControls from '../components/WalkControls.vue'
+import WalkNotice from '../components/WalkNotice.vue'
+import WalkPanel from '../components/WalkPanel.vue'
+import WalkStretchCard from '../components/WalkStretchCard.vue'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -26,8 +34,12 @@ import ViewTabs from '../components/ViewTabs.vue'
 const area = useAreaStore()
 const routes = useRoutesStore()
 const senses = useSensesStore()
+const walk = useWalkStore()
 const route = useRoute()
+const sheetRef = ref(null)
 const routesMode = computed(() => route.params.mode === 'routes')
+// The walk belongs to Routes: going to Area ends it.
+watch(routesMode, (on) => { if (!on && walk.active) walk.exit() })
 const phone = useMedia('(max-width: 767px)')
 const wide = useMedia('(min-width: 1200px)')
 const mapRef = ref(null)
@@ -40,7 +52,7 @@ const hasCard = computed(() => (routesMode.value ? !routeIdle.value : area.step 
 // Routes keeps both: Start and End are always needed, and the two panels fit from 768 px up.
 const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
 // The hint needs the space between the panels; below 1200 px the route card says the same.
-const showHint = computed(() => !routesMode.value || wide.value || routeIdle.value)
+const showHint = computed(() => !walk.active && (!routesMode.value || wide.value || routeIdle.value))
 
 const loadingCard = computed(() => area.step === 'analysed' &&
   (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading' || senses.areaRating))
@@ -50,7 +62,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 </script>
 
 <template>
-  <div class="app" :class="{ phone, wide, 'with-left': showLeft, 'with-card': hasCard, 'routes-mode': routesMode }">
+  <div class="app" :class="{ phone, wide, 'with-left': showLeft, 'with-card': hasCard, 'routes-mode': routesMode, walking: walk.active }">
     <MapCanvas ref="mapRef" :routes-mode="routesMode" />
 
     <h1 class="visually-hidden">SenCity map</h1>
@@ -60,12 +72,18 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div class="slot s-top-centre"><ViewTabs /></div>
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left">
-        <RoutePanel v-if="routesMode" :get-centre="getCentre" @pick="onPick" />
+        <WalkPanel v-if="walk.active" />
+        <RoutePanel v-else-if="routesMode" :get-centre="getCentre" @pick="onPick" />
         <LayerPanel v-else :get-centre="getCentre" @pick="onPick" />
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>
+      <template v-if="walk.active">
+        <div class="slot s-walk-top"><WalkChip /><WalkNotice /></div>
+        <div class="slot s-walk-controls"><WalkControls /></div>
+      </template>
       <div v-if="routesMode" class="slot s-card">
-        <StretchCard v-if="routes.selectedStretch" />
+        <WalkStretchCard v-if="walk.active" />
+        <StretchCard v-else-if="routes.selectedStretch" />
         <RouteCard v-else-if="hasCard" />
       </div>
       <div v-else class="slot s-card">
@@ -74,7 +92,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <LoadingCard v-else-if="loadingCard" />
         <AreaCard v-else-if="hasCard" :controls="!showLeft" :get-centre="getCentre" @pick="onPick" />
       </div>
-      <div class="slot s-controls">
+      <div v-if="!walk.active" class="slot s-controls">
         <MapControls @zoom-in="mapRef?.zoomIn()" @zoom-out="mapRef?.zoomOut()" @recentre="mapRef?.recentre()" />
       </div>
       <div class="slot s-attribution"><MapAttribution /></div>
@@ -83,12 +101,17 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
     <template v-else>
       <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
       <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
-      <div class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
+      <div v-if="walk.active" class="slot s-p-walk">
+        <WalkChip phone @layers="sheetRef?.show('settings')" />
+        <WalkNotice />
+        <div class="strip panel" data-panel="walk-chip" role="group" aria-label="Legend"><LayerLegend :layer="walk.layer" compact /></div>
+      </div>
+      <div v-else class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
       <div class="slot s-p-sheet">
-        <PhoneSheet :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
+        <PhoneSheet ref="sheetRef" :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
                     @settled="mapRef?.reveal()" />
       </div>
-      <div class="slot s-p-tabs"><ViewTabs phone /></div>
+      <div v-if="!walk.active" class="slot s-p-tabs"><ViewTabs phone /></div>
     </template>
   </div>
 </template>
@@ -161,4 +184,27 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
 }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
+
+/* Walk, desktop and tablet (board Routes 5): the chip at the top between the panels, the controls at the bottom. */
+.s-walk-top {
+  top: var(--row-main); left: var(--reserve-left); right: var(--reserve-right);
+  display: flex; flex-direction: column; align-items: center; gap: var(--gap);
+}
+.s-walk-top > * { max-width: 100%; }
+.s-walk-controls {
+  bottom: var(--row-bottom); left: var(--reserve-left); right: var(--reserve-right);
+  display: flex; justify-content: center;
+}
+.s-walk-controls > * { width: var(--walk-controls-w); max-width: 100%; }
+/* Walk, phone (board P6): no tab bar; the chip and the legend under the top bar; the sheet reaches the bottom. */
+.s-p-walk {
+  top: calc(var(--margin) + var(--p-top-h) + var(--gap)); left: var(--margin); right: var(--margin);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+}
+.s-p-walk > :first-child { align-self: stretch; }
+.s-p-walk .strip { padding: var(--space-1) var(--space-3); border-radius: var(--radius-chip); }
+/* The legend on one line, its title first (board P6). */
+.s-p-walk .strip :deep(> div) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.s-p-walk .strip :deep(.rows) { margin: 0; }
+.walking .s-p-sheet { bottom: env(safe-area-inset-bottom); }
 </style>

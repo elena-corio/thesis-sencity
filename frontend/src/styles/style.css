@@ -30,6 +30,7 @@
   --sheet-min: 76px;            /* phone sheet, minimised (board P1c) */
   --sheet-open: 44dvh;          /* open, always this height (with the tab bar, half the screen); long content scrolls */
   --sheet-above: 120px;         /* the legend strip and credits over the sheet's top edge */
+  --sheet-walk: 50dvh;          /* the walk's sheet (board P6): half the screen, with no tab bar */
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */
@@ -142,6 +143,21 @@
   --viewer-chrome: 300px;          /* header, details, thumbnails and hint around the enlarged photo */
   --viewer-photo: min(70vh, 80vw, calc(100dvh - var(--viewer-chrome)));  /* brief: min(70vh, 80vw) */
   --viewer-arrow: 52px;
+
+  /* Walk along a route (board Routes 5, phone P6) */
+  --walk-photo: 132px;
+  --walk-photo-phone: 84px;
+  --walk-controls-w: 560px;
+  --walk-step-btn: 44px;           /* previous and next stretch */
+  --walk-play-w: 52px;
+  --walk-marker-w: 4px;            /* where you are on the strip */
+  --walk-marker-h: 20px;
+  --walk-chip-h: 40px;             /* the "Walking route" chip and the Layer button on a phone */
+  --rate-w: 36px;                  /* "Rate this place" buttons */
+  --rate-h: 32px;
+  --rate-w-phone: 44px;
+  --rate-h-phone: 40px;
+  --map-building-opacity: 0.95;
 }
 
 :root[data-theme="dark"] {
@@ -197,6 +213,10 @@
   --ring: #ffffff;
   --ring-edge: #13232a;
   --overlay-photo: rgba(10, 20, 24, 0.9);   /* enlarged photo: app dimmed 90% (brief §3) */
+  --map-building: #25444c;         /* walk view: extruded buildings (board Routes 5) */
+  --map-sky: #1c3941;              /* walk view at street level: the sky, and the haze at the horizon */
+  --map-horizon: #13232a;
+  --walk-marker-glow: 0 0 6px rgba(238, 243, 244, 0.7);
 }
 
 :root[data-theme="light"] {
@@ -235,6 +255,10 @@
   --ring: #15474a;
   --ring-edge: #ffffff;
   --overlay-photo: rgba(238, 243, 244, 0.92);
+  --map-building: #d1dfe3;
+  --map-sky: #ffffff;
+  --map-horizon: #f4f8f9;
+  --walk-marker-glow: 0 0 6px rgba(19, 35, 42, 0.35);
 }
 
 @media (max-width: 767px) {

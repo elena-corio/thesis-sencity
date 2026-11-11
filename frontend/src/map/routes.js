@@ -78,7 +78,7 @@ function dashGeojson(routes) {
   }
 }
 
-/** @param {{routes:Array, visible:Record<string, boolean>, selected:string|null, hoverKey:string|null, hoverRoute:string|null}} s */
+/** @param {{routes:Array, visible:Record<string, boolean>, selected:string|null, hoverKey:string|null, hoverRoute:string|null, solid?:boolean}} s */
 export function updateRouteLayers(map, s) {
   if (!map.getSource('sc-route')) return
   map.getSource('sc-route').setData(routesGeojson(s.routes))
@@ -86,7 +86,8 @@ export function updateRouteLayers(map, s) {
   styleRoutes(map, s)
 }
 
-export function styleRoutes(map, { visible, selected, hoverKey, hoverRoute }) {
+/** solid: the walk view draws B as one line, like A (board Routes 5). */
+export function styleRoutes(map, { visible, selected, hoverKey, hoverRoute, solid = false }) {
   if (!map.getLayer('sc-route-a')) return
   const shownIds = Object.keys(visible).filter((id) => visible[id])
   const isShown = ['in', ['get', 'route'], ['literal', shownIds]]
@@ -106,8 +107,8 @@ export function styleRoutes(map, { visible, selected, hoverKey, hoverRoute }) {
   map.setPaintProperty('sc-route-a', 'line-opacity', focus ? ['case', focus, 1, isKey(selected), 1, dim] : 1)
   // The dash layer has no keys: hovering one stretch dims it, and the solid layer shows that stretch.
   const dashFull = !hoverKey && (!hoverRoute || hoverRoute === 'B')
-  map.setPaintProperty('sc-route-b', 'line-opacity', dashFull ? 1 : dim)
-  map.setPaintProperty('sc-route-b-focus', 'line-opacity', ['case', isKey(selected), 1, isKey(hoverKey), 1, 0])
+  map.setPaintProperty('sc-route-b', 'line-opacity', solid ? 0 : dashFull ? 1 : dim)
+  map.setPaintProperty('sc-route-b-focus', 'line-opacity', solid ? 1 : ['case', isKey(selected), 1, isKey(hoverKey), 1, 0])
   const width = ['case', isKey(selected), num('--map-route-selected-width'), num('--map-route-width')]
   map.setPaintProperty('sc-route-a', 'line-width', width)
   map.setPaintProperty('sc-route-b-focus', 'line-width', width)

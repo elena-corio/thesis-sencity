@@ -12,6 +12,13 @@ const PATHS = {
   close: ['M6 6l12 12', 'M18 6L6 18'],
   chevronLeft: ['M15 6l-6 6 6 6'],
   chevronRight: ['M9 6l6 6-6 6'],
+  // Walk controls (board Routes 5) and the phone's Layer button (P6)
+  skipBack: ['M6 5v14', 'M18 6l-9 6 9 6z'],
+  skipNext: ['M18 5v14', 'M6 6l9 6-9 6z'],
+  play: ['M7 5l12 7-12 7z'],
+  pause: ['M8 5v14', 'M16 5v14'],
+  layers: ['M12 3l9 5-9 5-9-5z', 'M3 13l9 5 9-5'],
+  warning: ['M12 3l10 18H2z', 'M12 10v5', 'M12 18h.01'],
   expand: ['M14 4h6v6', 'M20 4l-7 7', 'M10 20H4v-6', 'M4 20l7-7'],
   cameraOff: ['M3 3l18 18', 'M9.5 5H15l1.5 2H20a1 1 0 0 1 1 1v9', 'M17.5 19H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h3', 'M9.5 10.5a3 3 0 0 0 4 4'],
   check: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M8 12.5l2.5 2.5L16 9.5'],

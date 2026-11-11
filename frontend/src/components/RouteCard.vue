@@ -7,6 +7,7 @@ import { formatKm } from '../lib/routes.js'
 import { GENERAL_LABEL, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
+import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
 import SensesFoot from './SensesFoot.vue'
@@ -15,6 +16,7 @@ import SensesPanel from './SensesPanel.vue'
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
 const senses = useSensesStore()
+const walkStore = useWalkStore()
 const rating = computed(() => senses.routesProgress)
 const ratingShare = computed(() => (rating.value.total ? Math.round((100 * rating.value.done) / rating.value.total) : 0))
 const cancel = () => (senses.routesRating ? senses.stopHere('routes') : routes.cancel())
@@ -74,7 +76,7 @@ const coverage = computed(() => {
   return `Thermal along ${each('thermal_share')}, photos along ${each('photo_share')}.`
 })
 
-// Phone (board P3): the walk (not built yet) starts from the easiest way; the other is the second choice.
+// Walk (boards Routes 3, P3): the main button walks the easiest way, by its letter; the other is the second choice.
 const walk = computed(() => {
   const [a, b] = routes.shown
   if (!b) return { main: a.id, other: null }
@@ -168,12 +170,16 @@ function onLeave() { routes.hoverRoute = null }
       <SensesPanel v-if="routes.layer === 'senses'" scope="routes" />
       <SensesFoot v-if="routes.layer === 'senses'" scope="routes" />
       <p v-if="routes.windowError" class="window-error" role="status">{{ routes.windowError }}</p>
+      <div v-if="!phone" class="walk">
+        <button type="button" class="btn btn-primary" :data-walk="walk.main" @click="walkStore.start(walk.main, $event.detail === 0)">Walk route {{ walk.main }}</button>
+        <button v-if="walk.other" type="button" class="btn" :data-walk="walk.other" @click="walkStore.start(walk.other, $event.detail === 0)">Walk {{ walk.other }}</button>
+      </div>
       <p class="foot">
         {{ coverage }} {{ verb }} a stretch on the map or a section of a bar to see it. Predictions, not reasons.
       </p>
       <div v-if="phone" class="walk">
-        <button type="button" class="btn btn-primary" aria-disabled="true" title="Coming soon">Walk route {{ walk.main }}</button>
-        <button v-if="walk.other" type="button" class="btn" aria-disabled="true" title="Coming soon">Walk {{ walk.other }}</button>
+        <button type="button" class="btn btn-primary" :data-walk="walk.main" @click="walkStore.start(walk.main, $event.detail === 0)">Walk route {{ walk.main }}</button>
+        <button v-if="walk.other" type="button" class="btn" :data-walk="walk.other" @click="walkStore.start(walk.other, $event.detail === 0)">Walk {{ walk.other }}</button>
       </div>
     </template>
     <slot />
@@ -236,8 +242,11 @@ function onLeave() { routes.hoverRoute = null }
 }
 .window-error { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 
-.walk { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
-.walk .btn:only-child { grid-column: 1 / -1; }
+/* Board Routes 3: the main button takes the room, the other is as wide as its words. */
+.walk { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.walk .btn { min-height: var(--touch-phone); }
+.walk .btn-primary { flex: 1; font-weight: var(--fw-semibold); }
+.walk .btn:not(.btn-primary) { flex: none; font-size: var(--fs-sm); font-weight: var(--fw-regular); }
 
 /* Inside the phone sheet, which is the panel and does the scrolling. */
 .card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

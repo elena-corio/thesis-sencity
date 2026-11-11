@@ -18,6 +18,10 @@ import PlaceCard from './PlaceCard.vue'
 import RouteCard from './RouteCard.vue'
 import RoutePanel from './RoutePanel.vue'
 import StretchCard from './StretchCard.vue'
+import WalkControls from './WalkControls.vue'
+import WalkPanel from './WalkPanel.vue'
+import WalkStretchCard from './WalkStretchCard.vue'
+import { useWalkStore } from '../stores/walk.js'
 
 const props = defineProps({
   routesMode: Boolean,
@@ -27,6 +31,7 @@ const emit = defineEmits(['pick', 'recentre', 'settled'])
 const area = useAreaStore()
 const routes = useRoutesStore()
 const senses = useSensesStore()
+const walk = useWalkStore()
 const uid = useId()
 
 const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'results', label: 'Results' }]
@@ -67,6 +72,13 @@ watch(() => routes.previewing, (on) => { if (on) show('settings') })
 watch(() => routes.load, (load) => { if (load === 'loading' && !routes.hasResult) show('results') })
 watch(() => routes.selected?.key, (key) => { if (key) show('results') })
 watch(() => routes.inputsOpen, (on) => { if (on) show('settings') })
+// Walk (board P6): the controls and the stretch open at once; Layer (on the map) opens Settings.
+watch(() => walk.active, async (on) => {
+  if (!on) return
+  show('results')
+  await nextTick()
+  if (panels.value.results) panels.value.results.scrollTop = 0 // from the top: the controls first
+})
 
 // The map keeps its content in view when the sheet changes height or the legend appears above it.
 let settleTimer
@@ -108,7 +120,8 @@ function onTabKey(e) {
 let drag = null
 let justDragged = false
 function onDown(e) {
-  if (e.button !== 0) return
+  // The walk's sheet stays open at one height (board P6): its grip is only drawn.
+  if (e.button !== 0 || walk.active) return
   drag = { y: e.clientY, height: root.value.offsetHeight, moved: false }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
@@ -161,21 +174,23 @@ const resultsLine = computed(() => {
   return n ? `${n} suggestion${n > 1 ? 's' : ''}` : `${area.counts.all} street stretches`
 })
 const lines = computed(() => ({ settings: settingsLine.value, results: resultsLine.value }))
+
+defineExpose({ show })
 </script>
 
 <template>
-  <section ref="root" class="phone-sheet panel" :class="[size, { dragging: dragHeight !== null }]" data-panel="sheet" data-scrollable
-           aria-label="Settings and results" :style="dragHeight !== null ? { height: `${dragHeight}px` } : null">
+  <section ref="root" class="phone-sheet panel" :class="[size, { dragging: dragHeight !== null, walking: walk.active }]" data-panel="sheet"
+           data-scrollable :aria-label="walk.active ? 'Walk' : 'Settings and results'" :style="dragHeight !== null ? { height: `${dragHeight}px` } : null">
     <div class="floating">
       <MapAttribution in-sheet />
-      <div v-if="showLegend" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
+      <div v-if="showLegend && !walk.active" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
         <LayerLegend :layer="legendLayer" compact />
       </div>
     </div>
 
     <div class="head" @pointerdown="onDown" @click.capture="onHeadClick">
       <div class="grip" aria-hidden="true" />
-      <div class="tab-row" :class="{ open }">
+      <div v-if="!walk.active" class="tab-row" :class="{ open }">
         <div class="tabs" role="tablist" aria-label="Settings and results" @keydown="onTabKey">
           <button v-for="t in TABS" :id="`${uid}-tab-${t.id}`" :key="t.id" type="button" role="tab" class="tab"
                   :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :aria-controls="`${uid}-panel-${t.id}`"
@@ -194,12 +209,18 @@ const lines = computed(() => ({ settings: settingsLine.value, results: resultsLi
     <div v-show="open" class="body">
       <div v-show="tab === 'settings'" :id="`${uid}-panel-settings`" :ref="(el) => { panels.settings = el }" class="tabpanel"
            role="tabpanel" tabindex="-1" :aria-labelledby="`${uid}-tab-settings`">
-        <RoutePanel v-if="routesMode" phone :get-centre="getCentre" @pick="emit('pick', $event)" />
+        <WalkPanel v-if="walk.active" phone @back="show('results')" />
+        <RoutePanel v-else-if="routesMode" phone :get-centre="getCentre" @pick="emit('pick', $event)" />
         <LayerPanel v-else phone :get-centre="getCentre" @pick="emit('pick', $event)" />
       </div>
       <div v-show="tab === 'results'" :id="`${uid}-panel-results`" :ref="(el) => { panels.results = el }" class="tabpanel"
            role="tabpanel" tabindex="-1" :aria-labelledby="`${uid}-tab-results`">
-        <template v-if="routesMode">
+        <div v-if="walk.active" class="walk-body">
+          <WalkControls phone />
+          <div class="rule" />
+          <WalkStretchCard phone />
+        </div>
+        <template v-else-if="routesMode">
           <StretchCard v-if="routes.selectedStretch" phone />
           <RouteCard v-else-if="hasResults" phone />
           <p v-else class="empty">Results appear here after Analyse.</p>
@@ -267,4 +288,13 @@ const lines = computed(() => ({ settings: settingsLine.value, results: resultsLi
   padding: var(--space-3) var(--space-4) var(--space-5);
 }
 .empty { margin: 0; color: var(--text-2); }
+
+/* Walk (board P6): no tab bar below and no tab row, so it starts lower and reaches the bottom. */
+.phone-sheet.walking {
+  --sheet-room: calc(100dvh - env(safe-area-inset-bottom) - var(--margin) - var(--topbar-h) - var(--gap) - var(--walk-chip-h) - var(--sheet-above));
+  --sheet-open-h: min(var(--sheet-walk), var(--sheet-room));
+}
+.walking .tabpanel { padding-top: var(--space-1); }
+.walk-body { display: flex; flex-direction: column; gap: var(--space-3); }
+.walk-body .rule { height: var(--hairline); background: var(--line); }
 </style>

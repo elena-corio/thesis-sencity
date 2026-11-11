@@ -100,6 +100,23 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Not built:* the "Not personalised yet" card with "Create your profile" (board 2c), as onboarding does not exist; street colours by state, which need every street rated.
 **Consequences.** The request has no task text, unlike the study (`task_part_b.txt`: the question, the option labels, "only what is visible"): the model sees only the system instruction, the photo and the schema's codes. Predictions may therefore differ from the benchmark's V0. The study also rejects "nothing" alongside other elements; `schema_validate.json` does not express this, so the app accepts it.
 
+## 2026-11-11 – Walk along a route, in 3D (accepted; details marked proposed)
+**Context.** Elena: a walk view from the route card (boards Routes 3, Routes 5, phone P6). The brief fixes "MapLibre with grey styles and no 3D" and a flat map (pitch 0).
+**Decision.**
+- *3D only in the walk (Elena):* the walk tilts the one map down to street level and extrudes the buildings. Area, Routes and the route card stay flat; leaving the walk goes back to pitch 0. This changes the brief's "no 3D" for the walk view only.
+- *Route card (Elena):* "Walk route {letter of the easiest}" (primary) and "Walk {other}", on desktop and phone. Desktop: under the verdict, as on Routes 3; phone: where they were (P3).
+- *Layer (Elena):* Overall is not built for routes, so the walk opens on the routes' own layer (Senses or Thermal) and Overall stays disabled, as on the route card. Board Routes 5 shows Overall.
+- *Controls only recolour (Elena):* the walked route is a copy. Layer recolours it from what is loaded (a street with no value shows "No value"). A new season or time asks the routes again (cached corridor) and the walk stays on the same way; on a route found on Senses there is no thermal comfort, so season and time are inactive with a line saying why.
+- *Playback (Elena):* opens paused; Play goes on every 4 s; Previous / Next jump; the arrow keys step, space plays or pauses (not while a field, a choice, the tabs or another button has the focus, which keep their own keys); Esc is Exit walk and focus goes back to its button. Reduced motion: the camera jumps, no fly-through.
+- *Camera (Elena: street level):* the eyes 1.7 m above the start of the current stretch, looking along it (its first to its last point) and 6° down, so the route ahead shows (pitch 84, zoom up to 24). It glides to the next stretch (a fly would rise and fall) and jumps with reduced motion. During the walk the map cannot be zoomed or panned, so the eyes stay at street level; a click on the route goes to that stretch. A sky and a haze at the horizon in the theme's colours. The pins and the ring hide when they are behind you.
+- *Back to comparison (Elena):* at the top of the stretch card, as on a selected stretch; it does what Exit walk does.
+- *Photo (Elena):* the place card's photo block: the same size (168 px, 112 px on a phone), enlarge at the top right, the counter and "© Google" at the bottom. The board's smaller photo is not used.
+- *Rating (Elena):* "Rate this place" and "How this works" are drawn as on the board and disabled ("Coming soon"); there is no rating flow or profile yet.
+- *Stretch card (proposed):* the state and its reason from what is loaded, no new call: Senses "because of" the first two things that might bother (else its comfort words); Thermal "feels like 31 °C". "Might bother you" only on Senses. A stretch without a photo shows the place card's no-photo state.
+- *Phone (Elena, board P6):* no tab bar during the walk; the chip and the Layer button under the top bar, then the legend on one line; the sheet reaches the bottom at half the screen with the controls at its top and the stretch under them. Layer opens the sheet's Settings, which has "Back to the walk"; the tab row is hidden, as on the board.
+- *Differences from the boards (proposed):* "A prediction, not a reason." under the state (CLAUDE.md: every rating says it); the small helper text uses `--text-2`, since the board's muted grey on white is 4.32:1, under 4.5:1; the left panel keeps the app's width (340 px, the board 300 px); the board's 15 px text uses the app's 14 and 16 px sizes; the credits keep OpenFreeMap for the base map; the phone sheet's grip is drawn, but the walk's sheet is not minimised (it has no tab row to show); the board draws the view from above the street, the app from street level (Elena).
+**Consequences.** If Overall is built for routes, the walk can open on it as the board shows. The rating row becomes live with the rating flow.
+
 ## 2026-11-11 – Buildings for the walk view from the Infrared.city SDK (accepted)
 **Context.** The walk view (board Routes 5) draws buildings on both sides of the route. Elena: take them from Infrared.city, which comes with heights, and credit the source the SDK reports.
 **Decision.**
@@ -120,7 +137,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Legend:* a strip with the title and swatches, riding just above the sheet. It appears only after analysis, as on desktop (2026-11-08). On Thermal its grey reads "No value", since Thermal lights every street with a value, photo or not.
 - *Map credits (proposed):* they must stay visible, so they ride on the sheet too, above the legend.
 - *Map:* the sheet and the legend count as covered space when the map fits the circle, route or selected street, and it fits again after each change of height.
-- *Not built yet:* Ask and the Walk buttons show as on the boards, marked "Coming soon", as the chat and the walk do not exist.
+- *Not built yet:* Ask shows as on the boards, marked "Coming soon", as the chat does not exist. (The Walk buttons work since 2026-11-11, see the walk entry.)
 - *Touch:* every control in the sheet is at least 44 px high at phone width, including the thin buttons (the 30 px of the desktop entry applies to larger screens).
 
 ## 2026-11-08 – A clicked point is named by reverse geocoding (proposed)
