@@ -78,6 +78,10 @@ export default {
     maxM: 1500, // straight line, and the longest walk
   },
 
+  // Street photos shown in the app (lib/photos.js): 'none' | 'streetview' | 'mapillary'. 'none' until the source is
+  // chosen: Google's EEA terms forbid Street View Static images next to any map (Elena, 2026-11-11).
+  photos: { provider: 'none' },
+
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',
 

@@ -2,6 +2,13 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – Street photos: none shown until the source is chosen (accepted)
+**Context.** Google's EEA Service Specific Terms (22.1, last modified 28 October 2026): "Customer may not use any Google Maps Content from the Street View Static API With any Map", where "With any Map" is "on, next to, or in a manner that is visually associated with any map". It applies to projects linked to an EEA billing address and created, or changed, after 8 July 2025. Elena: assume the project is affected; ship no view with a Street View Static image next to a map; compare the Maps JavaScript API panorama and Mapillary before choosing.
+**Decision.**
+- *One switch (Elena):* `config.photos.provider` in `src/lib/photos.js`: `none` (default), `streetview`, `mapillary` (not built). With `none` no image is fetched or shown anywhere (place card, stretch card, enlarged photo); the place card says "Photo not shown" where a street has photos (proposed wording). The photos still rate the streets on the server: only showing them is off.
+- *Tests:* the end-to-end checks choose the provider before the page loads (`window.__sencityPhotos`), so the photo views stay tested.
+**Consequences.** Until now the place and stretch cards showed Street View Static photos next to the map. The review page (`python -m tool.review_server`) still does; it is a local tool, not the app.
+
 ## 2026-11-10 – A street without a value is grey (accepted)
 **Context.** Elena: streets whose photos are found but not rated yet were drawn light teal; they should be grey.
 **Decision (Elena).** A street with photos is drawn at full width with its soft halo in grey (`--map-seg-pending`) until it has a value on the chosen layer (a rating on Senses, a feels-like value on Thermal), then in its state colour. This replaces the light teal "has photos, not rated yet" (2026-11-01). A street with no photo stays thin and dim. The buttons and labels on a photo (arrows, enlarge, counter, credit) get their own colours with more contrast: white with dark teal in light mode, near solid dark teal in dark mode, with a small shadow (`--photo-btn-*`).
