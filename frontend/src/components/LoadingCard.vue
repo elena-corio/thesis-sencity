@@ -7,6 +7,7 @@ import { GENERAL_LABEL, moneyLine } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
+import ThermalLegend from './ThermalLegend.vue'
 
 defineProps({ phone: Boolean })
 const area = useAreaStore()
@@ -24,6 +25,7 @@ const photosDetail = computed(() => {
   if (area.load === 'ready') return `${area.counts.all} of ${area.counts.all}`
   return photosActive.value ? `${p.done} of ${p.total}` : ''
 })
+const thermalValues = computed(() => (area.segments?.features ?? []).map((f) => f.properties.utci).filter((v) => v != null))
 const share = computed(() => (area.progress.total ? area.progress.done / area.progress.total : 0))
 </script>
 
@@ -40,6 +42,11 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
       </button>
     </div>
 
+    <!-- Thermal ready, rating in progress (board Flow 3): no bar here, so the full thermal legend is at the top (Elena,
+         2026-11-11). -->
+    <div v-if="area.thermal === 'ready' && area.layer !== 'senses'" class="thermal-block" role="group" aria-label="Legend">
+      <ThermalLegend :values="thermalValues" :window="area.thermalInfo" :extra="[{ label: 'No value', color: 'var(--no-photo)' }]" />
+    </div>
     <ul class="steps">
       <li :class="{ active: area.load === 'loading' && !streetsDone, failed: area.load === 'error' && !streetsDone }">
         <AppIcon :name="streetsDone ? 'check' : 'pending'" />
@@ -102,6 +109,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
 
 <style scoped>
 .card { padding: var(--space-5); overflow-y: auto; }
+.thermal-block { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .general { display: block; margin-top: var(--space-2); font-weight: var(--fw-semibold); }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }

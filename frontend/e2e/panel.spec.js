@@ -13,16 +13,18 @@ const inOrder = (page, selectors) => page.evaluate((sels) => {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' })
 
-  test('Layer, then season and time, then Places, then the legend last; no floating bar', async ({ page }) => {
+  test('Layer, then season and time, then Places, then the layer note; the legend is in the card; no floating bar', async ({ page }) => {
     await mockArea(page, { thermal: true })
     await openMap(page, 'dark')
-    // No legend before the area is loaded.
-    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
     await analyseCentre(page)
     const panel = page.locator('[data-panel="layers"]')
-    await expect(panel.getByTestId('thermal-legend')).toBeVisible()
+    await expect(page.locator('[data-panel="area-card"]').getByTestId('thermal-legend')).toBeVisible()
+    // The left panel keeps only settings and one line on the layer (Elena, 2026-11-11).
+    await expect(panel.getByTestId('thermal-legend')).toHaveCount(0)
+    await expect(panel.getByTestId('legend-rows')).toHaveCount(0)
+    await expect(panel.getByTestId('layer-note')).toHaveText('Each street stretch shows its simulated feels-like temperature (summer, 15:00).')
     expect(await inOrder(page, ['[data-panel="layers"] [aria-label="Layer"]', '[data-panel="layers"] [data-testid="season-time"]',
-      '[data-panel="layers"] [aria-label="Show places"]', '[data-panel="layers"] [data-testid="thermal-legend"]'])).toBe(true)
+      '[data-panel="layers"] [aria-label="Show places"]', '[data-panel="layers"] [data-testid="layer-note"]'])).toBe(true)
     await expect(page.locator('[data-panel="season"]')).toHaveCount(0)
     // Season and time sit about evenly between Layer and Places, with a little more room above.
     const gaps = await panel.evaluate((el) => {

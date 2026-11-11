@@ -40,10 +40,8 @@ export function chipText(route, layer, info) {
 }
 
 /** Under the legend: the settings are fixed for the walk. "Summer, 15:00. To change the layer, season or time, exit the walk." */
-export function fixedLine(info) {
-  const cap = (s) => s[0].toUpperCase() + s.slice(1)
-  const when = info ? `${cap(info.season)}, ${info.time}. ` : ''
-  return `${when}To change the layer, season or time, exit the walk.`
+export function fixedLine() {
+  return 'To change the layer, season or time, exit the walk.'
 }
 
 /**

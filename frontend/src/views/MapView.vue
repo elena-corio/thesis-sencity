@@ -22,7 +22,6 @@ import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import WalkChip from '../components/WalkChip.vue'
 import WalkDetails from '../components/WalkDetails.vue'
-import WalkLegend from '../components/WalkLegend.vue'
 import WalkNotice from '../components/WalkNotice.vue'
 import WalkPhoto from '../components/WalkPhoto.vue'
 import WalkSide from '../components/WalkSide.vue'
@@ -50,7 +49,8 @@ const routeIdle = computed(() => !routes.hasResult && routes.load === 'idle')
 const hasCard = computed(() => (routesMode.value ? !routeIdle.value : area.step === 'analysed'))
 // Below 1200 px the right card replaces the left panel (brief §3, fit every screen).
 // Routes keeps both: Start and End are always needed, and the two panels fit from 768 px up.
-const showLeft = computed(() => !phone.value && (routesMode.value || wide.value || !hasCard.value))
+// No left panel in the walk (Elena, 2026-11-11): its key is in the right card.
+const showLeft = computed(() => !phone.value && !walk.active && (routesMode.value || wide.value || !hasCard.value))
 // The hint needs the space between the panels; below 1200 px the route card says the same.
 const showHint = computed(() => !walk.active && (!routesMode.value || wide.value || routeIdle.value))
 
@@ -72,8 +72,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       <div class="slot s-top-centre"><ViewTabs /></div>
       <div class="slot s-top-right"><TopActions /></div>
       <div v-if="showLeft" class="slot s-left">
-        <WalkLegend v-if="walk.active" />
-        <RoutePanel v-else-if="routesMode" :get-centre="getCentre" @pick="onPick" />
+        <RoutePanel v-if="routesMode" :get-centre="getCentre" @pick="onPick" />
         <LayerPanel v-else :get-centre="getCentre" @pick="onPick" />
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>

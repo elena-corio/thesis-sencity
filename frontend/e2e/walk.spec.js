@@ -115,10 +115,12 @@ test.describe('desktop', () => {
     expect(eye.zoom).toBeGreaterThan(22)
     expect(buildings.requests).toHaveLength(1)
 
-    // Left: the legend only, read only; the settings are fixed for the walk.
-    const legend = page.locator('[data-panel="layers"]')
-    await expect(legend).toContainText('Summer, 15:00. To change the layer, season or time, exit the walk.')
-    await expect(legend.getByRole('radio')).toHaveCount(0)
+    // No left panel: the key is at the top of the right card, read only; the settings are fixed for the walk.
+    await expect(page.locator('[data-panel="layers"]')).toHaveCount(0)
+    const right = page.locator('[data-panel="walk-side"]')
+    await expect(right.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
+    await expect(right).toContainText('To change the layer, season or time, exit the walk.')
+    await expect(right.getByRole('radio')).toHaveCount(0)
     // Navigation stays.
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible()
 

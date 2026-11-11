@@ -9,7 +9,9 @@ import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
+import ComfortKey from './ComfortKey.vue'
 import RouteBar from './RouteBar.vue'
+import ThermalLegend from './ThermalLegend.vue'
 import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
 
@@ -63,6 +65,9 @@ const bName = (r) => (r.kind === 'easiest' ? 'easiest' : 'alternative')
 /** Each layer's own numbers: Thermal's come with the routes, Senses' from the ratings as they are on the stretches. */
 const routeHard = (r) => (routes.layer === 'senses' ? hardShare(r.stretches) : r.hard_share)
 const hardColour = (r) => (routeHard(r) === 0 ? 'clear' : '')
+/** The legend straight under the bars: the key (Senses, Overall), or on Thermal the full legend (Elena, 2026-11-11). */
+const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
+const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown) : routes.verdict))
 const coverage = computed(() => {
   const [a, b] = routes.shown
@@ -162,9 +167,14 @@ function onLeave() { routes.hoverRoute = null }
           <span class="hard" :class="hardColour(r)">hard {{ pct(routeHard(r)) }}</span>
         </p>
         <div class="bar-row">
-          <span class="muted bar-label">{{ routes.layer === 'senses' ? 'Senses' : 'Thermal' }}</span>
           <RouteBar :route="r" />
         </div>
+      </div>
+      <!-- The legend straight after the bars (Elena, 2026-11-11). -->
+      <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
+      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" rule />
+      <div v-else-if="!phone" class="thermal-block" role="group" aria-label="Legend">
+        <ThermalLegend :values="thermalValues" :window="routes.info" :extra="NO_VALUE" />
       </div>
       <p class="verdict">{{ verdictText }}</p>
       <SensesPanel v-if="routes.layer === 'senses'" scope="routes" />
@@ -232,10 +242,10 @@ function onLeave() { routes.hoverRoute = null }
 .route + .route { padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .route-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: 0; }
 .route-line strong { font-weight: var(--fw-semibold); }
-.hard { margin-left: auto; font-size: var(--fs-sm); color: var(--text-2); }
+.hard { margin-left: auto; color: var(--text-2); } /* the same size as the row (Elena, 2026-11-11) */
 .hard.clear { color: var(--easy); }
-.bar-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); margin-top: var(--space-1); }
-.bar-label { font-size: var(--fs-sm); }
+.thermal-block { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
+.bar-row { margin-top: var(--space-1); } /* full width, as the area's bar; the key below names the layer (Elena, 2026-11-11) */
 .verdict {
   margin: var(--space-3) 0 0; padding: var(--space-3);
   border-radius: var(--radius-btn); background: var(--ground);

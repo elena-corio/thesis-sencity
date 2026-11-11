@@ -148,8 +148,12 @@ test.describe('desktop', () => {
     expect(lit.filter).toEqual(['has', 'thermal_state'])
     expect(new Set(lit.states)).toEqual(new Set(['easy', 'mixed', 'hard']))
     const card = page.locator('[data-panel="area-card"]')
-    await expect(card).toContainText(`Thermal · ${AREA.features.length} street stretches`)
-    await expect(card.getByRole('img', { name: /^Thermal: Easy \d+, Mixed \d+, Hard \d+/ })).toBeVisible()
+    // As a route row: the stretches and the hard share of the street length, then the bar; the counts are its label.
+    await expect(card.locator('.stack-head')).toContainText(`${AREA.features.length} street stretches`)
+    await expect(card.locator('.stack-head')).toContainText(/hard \d+%/)
+    await expect(card.getByRole('img', { name: /^Thermal: \d+ easy, \d+ mixed, \d+ hard, \d+ without a value\. Hard \d+% of the street length\.$/ })).toBeVisible()
+    await expect(card.getByTestId('thermal-legend')).toBeVisible() // Thermal: the full legend at the bottom, no short key
+    await expect(card.getByTestId('comfort-key')).toHaveCount(0)
     await expect(card).toContainText('Places here')
     await page.screenshot({ path: 'e2e/screens/places-dark-thermal.png' })
 

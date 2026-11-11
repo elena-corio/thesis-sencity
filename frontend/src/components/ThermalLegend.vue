@@ -1,5 +1,6 @@
 <script setup>
-// Thermal legend (Area left panel and Routes panel, always the last block). Title "Thermal comfort °C"
+// Thermal legend (Elena, 2026-11-11): in the right card on Thermal, straight after the bar (the area, the routes), or at
+// the top of the loading card; never the left panel. Title "Thermal comfort °C"
 // with a small info icon: its tooltip explains the feels-like temperature and names the source, on
 // hover, keyboard focus or tap (touch has no hover); Esc, blur or a tap elsewhere close it. Easy always
 // shows its range; Mixed and Hard only the side the values on screen reach (heat, cold or both).
@@ -13,6 +14,8 @@ const props = defineProps({
   values: { type: Array, default: () => [] },
   /** Extra rows after Hard, e.g. "No value" on the routes. */
   extra: { type: Array, default: () => [] },
+  /** { season, time } shown, named in the title as on the key ("· summer, 15:00"), or null. */
+  window: { type: Object, default: null },
 })
 const limits = computed(() => thermalLimits())
 const side = computed(() => thermalSide(props.values, limits.value))
@@ -40,7 +43,7 @@ function onKey(e) {
 <template>
   <div class="thermal-legend">
     <h2 class="legend-title">
-      Thermal comfort °C
+      <span>Thermal comfort °C<span v-if="window" class="when"> · {{ window.season }}, {{ window.time }}</span></span>
       <span class="info" tabindex="0" role="img" :aria-label="info" :aria-describedby="shown ? tipId : undefined"
             @focus="focused = true" @blur="focused = false" @click="focused = true"
             @mouseenter="hovered = true" @mouseleave="hovered = false" @keydown="onKey">
@@ -66,6 +69,7 @@ function onKey(e) {
 <style scoped>
 /* The tooltip spans the legend's width, just above it. */
 .thermal-legend { position: relative; }
+.when { font-weight: var(--fw-regular); color: var(--text-2); }
 .legend-title {
   display: flex; align-items: center; gap: var(--space-2); margin: 0;
   font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text);
@@ -79,7 +83,8 @@ function onKey(e) {
   background: var(--panel); box-shadow: var(--shadow); color: var(--text);
   font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh); white-space: normal;
 }
-.legend { list-style: none; padding: 0; margin: var(--space-2) 0 0; display: grid; gap: var(--space-2); }
+/* The same text size as the key (Elena, 2026-11-11). */
+.legend { list-style: none; padding: 0; margin: var(--space-2) 0 0; display: grid; gap: var(--space-1); font-size: var(--fs-sm); }
 .legend li { display: flex; align-items: flex-start; gap: var(--space-2); }
 .swatch { width: var(--space-5); height: var(--swatch-h); margin-top: calc((1em * var(--lh) - var(--swatch-h)) / 2); border-radius: var(--radius-pill); flex: none; }
 .row-text { display: flex; flex-direction: column; }

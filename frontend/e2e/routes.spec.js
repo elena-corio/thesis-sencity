@@ -42,13 +42,13 @@ test.describe('desktop', () => {
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/1b-preview.png' })
     expect(mock.requests).toHaveLength(0)
-    // No legend before the routes are ready; then it is the last block of the panel.
-    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
+    // The legend is never in the left panel (Elena, 2026-11-11): on Thermal it is the last block of the route card.
     await analyse(page)
 
     await expect(card(page)).toContainText('Which way feels better?')
     await expect(card(page)).toContainText('hard 40%')
-    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toContainText('Thermal comfort °C')
+    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
+    await expect(card(page).getByRole('group', { name: 'Legend' })).toContainText('Thermal comfort °C · summer, 15:00')
     await expect(card(page)).toContainText('hard 0%')
     await expect(card(page)).toContainText('avoids the hot stretch on Heissgasse')
     await expect(card(page)).toContainText('Predictions, not reasons')

@@ -10,7 +10,7 @@ import { useRoutesStore } from '../stores/routes.js'
 import AppIcon from './AppIcon.vue'
 import { useSensesStore } from '../stores/senses.js'
 import AreaCard from './AreaCard.vue'
-import LayerLegend from './LayerLegend.vue'
+import ComfortKey from './ComfortKey.vue'
 import LayerPanel from './LayerPanel.vue'
 import LoadingCard from './LoadingCard.vue'
 import MapAttribution from './MapAttribution.vue'
@@ -151,7 +151,8 @@ function onHeadClick(e) {
   if (justDragged) e.stopPropagation()
 }
 
-const showLegend = computed(() => (props.routesMode ? routes.hasResult : area.legendReady))
+// The key floats on the map above the sheet; not with a place or stretch open, which has its own label and bars.
+const showLegend = computed(() => (props.routesMode ? routes.hasResult && !routes.selectedStretch : area.legendReady && !area.selectedId))
 watch(showLegend, settleSoon)
 const legendLayer = computed(() => (props.routesMode ? routes.layer : area.layer))
 const settingsLine = computed(() => {
@@ -183,7 +184,7 @@ defineExpose({ show })
     <div v-if="!walk.active" class="floating">
       <MapAttribution in-sheet />
       <div v-if="showLegend && !walk.active" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
-        <LayerLegend :layer="legendLayer" compact />
+        <ComfortKey :layer="legendLayer" :window="props.routesMode ? routes.info : area.thermalInfo" />
       </div>
     </div>
 

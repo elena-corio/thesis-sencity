@@ -41,8 +41,8 @@ describe('chipText', () => {
     expect(routeKind({ id: 'B', kind: 'second' })).toBe('alternative')
   })
   it('says the settings are fixed', () => {
-    expect(fixedLine({ season: 'summer', time: '15:00' })).toBe('Summer, 15:00. To change the layer, season or time, exit the walk.')
-    expect(fixedLine(null)).toBe('To change the layer, season or time, exit the walk.')
+    // The season and time are in the key above it (Elena, 2026-11-11).
+    expect(fixedLine()).toBe('To change the layer, season or time, exit the walk.')
   })
 })
 

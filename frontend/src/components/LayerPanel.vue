@@ -1,22 +1,20 @@
 <script setup>
-// Left panel (boards Flow 1c, 2, 2e), controls first and the legend last: the area inputs and Analyse →
-// Layer → Season and time (for Thermal and Overall) → Places → the legend of the chosen layer. On a phone
-// it is the Settings tab of the sheet: no panel of its own, and the legend floats on the map instead.
+// Left panel (boards Flow 1c, 2, 4), settings only: the area inputs and Analyse → Layer → Season and time (for Thermal
+// and Overall) → Places → one line on what the layer's colours mean. The legend is never here (Elena, 2026-11-11): it is in
+// the right card, and on a phone it floats on the map. On a phone this is the Settings tab of the sheet.
 import { computed, ref } from 'vue'
+import { layerNote } from '../lib/legend.js'
 import { PLACE_FILTERS } from '../lib/place.js'
 import { useAreaStore } from '../stores/area.js'
 import AreaInputs from './AreaInputs.vue'
 import ChoiceButtons from './ChoiceButtons.vue'
 import LayerButtons from './LayerButtons.vue'
-import LayerLegend from './LayerLegend.vue'
 import SeasonTime from './SeasonTime.vue'
 
 defineProps({ phone: Boolean, getCentre: { type: Function, default: () => null } })
 const emit = defineEmits(['pick'])
 const area = useAreaStore()
 const menuOpen = ref(false)
-/** Feels-like values of the whole loaded area, for the season and time shown (the legend's side). */
-const thermalValues = computed(() => (area.segments?.features ?? []).map((f) => f.properties.utci).filter((v) => v != null))
 
 /** Season and time matter for Thermal and Overall, not for Senses (photo ratings). */
 const showWindow = computed(() => area.layer !== 'senses')
@@ -36,8 +34,8 @@ const placesReady = computed(() => area.step === 'analysed' && area.load === 're
       <ChoiceButtons class="chips" label="Show places" :options="PLACE_FILTERS" :value="area.placeFilter"
                      :disabled="!placesReady" @choose="area.setPlaceFilter" />
     </section>
-    <section v-if="area.legendReady && !phone" class="legend-section" aria-label="Legend">
-      <LayerLegend :layer="area.layer" :values="thermalValues" />
+    <section>
+      <p class="layer-note" data-testid="layer-note">{{ layerNote(area.layer, area.thermalWindow) }}</p>
     </section>
   </aside>
 </template>
@@ -52,4 +50,5 @@ section + section { border-top: var(--hairline) solid var(--line); margin-top: v
 .area-inputs + section { padding-top: var(--space-1); }
 .places-title { margin-top: var(--space-4); }
 .chips { margin-top: var(--space-3); }
+.layer-note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh); color: var(--text-2); }
 </style>

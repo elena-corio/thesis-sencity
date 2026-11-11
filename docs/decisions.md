@@ -2,6 +2,19 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-11 – The legend is in the right card, straight after the bar (accepted)
+**Context.** Elena: new boards Flow 4 and Routes 3 (legend and summary changes), then on the result: one text size, the legend always straight after the bar, "Sensory comfort", and route bars without the layer word.
+**Decision.**
+- *Left panel (Elena):* settings only, on every view (Area, Routes; no left panel at all in the walk). Its last line says what the colours mean: Overall "Each street stretch shows the worse of thermal comfort (summer, 15:00) and the rating of its photo."; Senses "Each street stretch is rated from its photo."; Thermal "Each street stretch shows its simulated feels-like temperature (summer, 15:00)."
+- *The key (Elena):* one shared component (`ComfortKey`), straight after the bar(s), with a thin line above: "Sensory comfort" on Senses (no season and time: the photo rating does not change with them), "<Layer> · <season>, <time>" otherwise, then Easy / Mixed / Hard / No photo on one line (No value on Thermal). Where a card has no bar, at its top: the walk's right card (under "Exit walk, back to comparison", then "To change the layer, season or time, exit the walk.") and the loading card.
+- *Thermal (Elena):* the full thermal legend (bands in °C and the info tip) takes the key's place, straight after the bar, titled "Thermal comfort °C · summer, 15:00" so the card still names its window. The personal heat limits and "Change limits" wait for profiles (no placeholder).
+- *Area summary (Elena):* "<n> street stretches … hard x%", as a route row, then the bar, then the legend. The bar and "hard x%" are by street length, as a route's ("hard 22%" = 22% of the street length; parks and squares have no length and are left out of the bar); a tooltip and the aria-label say so. The four rows of counts are gone; the counts are in the bar's aria-label ("21 easy, 18 mixed, 13 hard, 6 without a value").
+- *Route bars (Elena):* full width, as the area's: no "Thermal" / "Senses" word before them (the legend below names the layer). The route row and the area row are the same text size, "hard x%" included; the legend's text is all one size.
+- *Detail cards (Elena):* place, photo, enlarged photo, stretch and no-photo cards have their own label and bars, so no key. No card today has neither.
+- *Phone (Elena):* the key floats on the map above the sheet (the phone's right card); not with a place or stretch open, and not repeated inside the sheet.
+- *Designed, not built yet (Elena):* on the Flow 4 board, the title "This area, for you", the "Why hard" section and the "Area ready · 52 of 58 streets rated" banner.
+**Consequences.** The legend moves with the card's content, so on a long card it may be below the fold on a small screen; the left panel is shorter.
+
 ## 2026-11-11 – The model rates the Mapillary photo the app shows; no Street View left in the app (accepted)
 **Context.** Elena: in the app the model must rate the same photo the person sees. The cards and the walk showed Mapillary photos while the ratings came from Street View photos that were never shown.
 **Decision.**
