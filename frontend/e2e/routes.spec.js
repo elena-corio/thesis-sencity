@@ -101,7 +101,7 @@ test.describe('desktop', () => {
     })
     await page.mouse.click(px.x, px.y)
     await expect(stretch(page)).toContainText('stretch 3 of 5')
-    await expect(page.locator('.ring')).toBeVisible()
+    await expect(page.locator('.point')).toBeVisible()
   })
 
   test('every street of a route can be selected, also next to one in the same state', async ({ page }) => {
