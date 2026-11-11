@@ -1,0 +1,121 @@
+[
+  {
+    "code": "signs_ads",
+    "en": "Signs, ads (sight)",
+    "it": "Insegne, pubblicità (vista)",
+    "sense": "sight",
+    "kind": "bothering"
+  },
+  {
+    "code": "traffic_trams_crowds",
+    "en": "Traffic, trams, crowds (hearing)",
+    "it": "Traffico, tram, folla (udito)",
+    "sense": "hearing",
+    "kind": "bothering"
+  },
+  {
+    "code": "bins_stalls_exhaust",
+    "en": "Trash bins, food stalls, car exhaust (smell)",
+    "it": "Cestini e bidoni dei rifiuti, bancarelle di cibo, gas di scarico delle auto (olfatto)",
+    "sense": "smell",
+    "kind": "bothering"
+  },
+  {
+    "code": "hard_surfaces",
+    "en": "Asphalt, stone, concrete (touch)",
+    "it": "Asfalto, pietra, cemento (tatto)",
+    "sense": "touch",
+    "kind": "bothering"
+  },
+  {
+    "code": "sun_little_shade",
+    "en": "Direct sun, little shade (thermal)",
+    "it": "Sole diretto, ombra scarsa (termico)",
+    "sense": "thermal",
+    "kind": "bothering"
+  },
+  {
+    "code": "steps_slopes_potholes",
+    "en": "Steps, slopes, potholes (balance and movement)",
+    "it": "Gradini, pendenze, buche (equilibrio e movimento)",
+    "sense": "balance_movement",
+    "kind": "bothering"
+  },
+  {
+    "code": "narrow_close",
+    "en": "Narrow paths, people or vehicles close (body awareness)",
+    "it": "Percorsi stretti, persone o veicoli vicini (consapevolezza del corpo)",
+    "sense": "body_awareness",
+    "kind": "bothering"
+  },
+  {
+    "code": "no_seats",
+    "en": "No seats, nowhere to stop (internal sensations)",
+    "it": "Nessuna seduta, nessun posto dove fermarsi (sensazioni interne)",
+    "sense": "inner_sensations",
+    "kind": "bothering"
+  },
+  {
+    "code": "greenery_water_buildings",
+    "en": "Greenery, water, nice buildings (sight)",
+    "it": "Verde, acqua, edifici belli (vista)",
+    "sense": "sight",
+    "kind": "pleasant"
+  },
+  {
+    "code": "running_water_trees",
+    "en": "Running water, trees (hearing)",
+    "it": "Acqua corrente, alberi (udito)",
+    "sense": "hearing",
+    "kind": "pleasant"
+  },
+  {
+    "code": "plants_flowers",
+    "en": "Plants, flowers (smell)",
+    "it": "Piante, fiori (olfatto)",
+    "sense": "smell",
+    "kind": "pleasant"
+  },
+  {
+    "code": "natural_materials",
+    "en": "Grass, wood, soil (touch)",
+    "it": "Erba, legno, terra (tatto)",
+    "sense": "touch",
+    "kind": "pleasant"
+  },
+  {
+    "code": "shade",
+    "en": "Shade from trees, pergolas or buildings (thermal)",
+    "it": "Ombra di alberi, pergolati o edifici (termico)",
+    "sense": "thermal",
+    "kind": "pleasant"
+  },
+  {
+    "code": "open_sports",
+    "en": "Open space, sports areas (balance and movement)",
+    "it": "Spazio aperto, aree sportive (equilibrio e movimento)",
+    "sense": "balance_movement",
+    "kind": "pleasant"
+  },
+  {
+    "code": "wide_car_free",
+    "en": "Wide paths, car-free zones (body awareness)",
+    "it": "Percorsi larghi, zone senza auto (consapevolezza del corpo)",
+    "sense": "body_awareness",
+    "kind": "pleasant"
+  },
+  {
+    "code": "seats_fountains_toilets",
+    "en": "Seats, drinking fountains, toilets (internal sensations)",
+    "it": "Sedute, fontanelle, bagni (sensazioni interne)",
+    "sense": "inner_sensations",
+    "kind": "pleasant"
+  },
+  {
+    "code": "nothing",
+    "en": "Nothing",
+    "it": "Niente",
+    "sense": null,
+    "kind": null
+  }
+]

@@ -23,8 +23,9 @@ from shapely.prepared import prep
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection
 from tool.infrared import ThermalError, count_jobs
+from tool import osm_local
 from tool.osm import build_segments, fetch_buildings_in, fetch_ways_in, parse, parse_buildings
-from tool.routing import Graph, alternatives, build_graph, find_b, parts, shares, shortest_path, snap
+from tool.routing import Graph, alternatives, build_graph, different_share, find_b, parts, shares, shortest_path, snap
 from tool.thermal import proj_geom, thermal_state
 
 from . import area as area_mod
@@ -133,7 +134,8 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None 
     ways_data = steps.load(where, key, "ways") if key else None
     if ways_data is None:
         yield {"type": "stage", "stage": "streets"}
-        ways_data = fetch_ways_in(ring_lonlat(ellipse, proj), cfg)
+        ring = ring_lonlat(ellipse, proj)
+        ways_data = osm_local.ways_in(ring, cfg) or fetch_ways_in(ring, cfg)
         if key:
             steps.save(where, key, "ways", ways_data)
     ways, node_xy, _areas, _dropped = parse(ways_data, proj, cfg)
@@ -161,7 +163,8 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None 
     try:
         bdata = steps.load(where, key, "buildings") if key else None
         if bdata is None:
-            bdata = fetch_buildings_in(ring_lonlat(zone.simplify(10.0), proj), cfg)
+            ring = ring_lonlat(zone.simplify(10.0), proj)
+            bdata = osm_local.buildings_in(ring, cfg) or fetch_buildings_in(ring, cfg)
             if key:
                 steps.save(where, key, "buildings", bdata)
         footprints = parse_buildings(bdata, proj, 0)
@@ -282,3 +285,28 @@ def find_routes(fc: dict, start: dict, end: dict, values: dict, limits: dict, cf
         "segments": {"type": "FeatureCollection", "features": [f for f in fc["features"] if f["properties"]["id"] in used]},
         "values": {k: values.get(k) for k in used},
     }
+
+
+def find_candidates(fc: dict, start: dict, end: dict, limit: int, cfg: dict) -> dict:
+    """The ways a Senses route chooses from: the shortest, then others at most a quarter longer that really differ
+    from those already kept, at most `limit` in all. The browser rates their streets and keeps the easiest as B."""
+    r = cfg["routes"]
+    lat, lon = middle(start, end)
+    proj = LocalProjection(lat, lon)
+    graph = _graph_of(fc, proj, r["connect_gap_m"])
+    node_a = snap(graph, proj.to_xy(start["lon"], start["lat"]), r["snap_max_m"])
+    node_b = snap(graph, proj.to_xy(end["lon"], end["lat"]), r["snap_max_m"])
+    shortest = shortest_path(graph, node_a, node_b) if node_a and node_b else None
+    if shortest is None:
+        raise RouteError("No walking way was found between these two points.")
+    kept = [shortest]
+    for path in alternatives(graph, node_a, node_b, shortest, r["length_ratio"], r["candidates"], r["candidate_penalty"]):
+        if len(kept) < limit and all(different_share(path, k) >= r["min_difference_share"] for k in kept):
+            kept.append(path)
+    by_id = {f["properties"]["id"]: f for f in fc["features"]}
+    no_state = lambda _seg: None  # noqa: E731
+    ways = [_summary("A" if i == 0 else f"C{i}", "shortest" if i == 0 else "candidate", p, no_state, by_id, proj, cfg)
+            for i, p in enumerate(kept)]
+    used = {p["segment_id"] for w in ways for p in w["parts"] if p["segment_id"]}
+    return {"candidates": ways, "values": {},
+            "segments": {"type": "FeatureCollection", "features": [f for f in fc["features"] if f["properties"]["id"] in used]}}

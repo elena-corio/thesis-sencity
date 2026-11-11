@@ -6,8 +6,9 @@ How the tool is built **now**:
 - **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `GET /api/photo/{pano_id}` (Street View images, passed through).
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
+- **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v0/`. Places appear on the map as ratings arrive, with recommendations beside them.
 
-There is no AI rating yet, so Senses and Overall stay inactive.
+There are no profiles yet, and Overall stays inactive.
 
 ## Data flow
 
@@ -51,6 +52,13 @@ flowchart LR
   API -- "corridor polygon, middle point, season and hour (key)" --> IR2["Infrared.city API (billed; preview free)"]
   API -- "corridor streets + photo metadata, under a hashed name (no start or end)" --> RCACHE[("runs/routes/&lt;key&gt;.json")]
   API -- "progress counts, then the two ways, their streets, °C, verdict" --> APP
+  APP -- "pano IDs + headings of an area or the two routes, nearest first (no profile)" --> API
+  API -- "pano ID + heading, key, for photos not in the cache" --> SVI3["Street View Static API (paid)"]
+  SVI3 -- "image ⇢ in memory only, never stored" --> API
+  API -- "system instructions, task text, the picture (base64, in memory), schema; key" --> OR["OpenRouter → Vertex EU (zero data retention, paid)"]
+  OR -- "comfort 1–5, elements, explanation, usage and cost" --> API
+  API -- "JSON output, model ID, latency, cost (no image)" --> SCACHE[("runs/senses/predictions.json")]
+  API -- "each rating as it finishes, cached ones first; element labels, model, cost" --> APP
 ```
 
 ⚠ marks data that may be personal: what people type in search can be their own address. It is never logged or stored: the API forwards it to Photon and passes the answer back. Photon sees the API's address, not the user's. The start and end of a route can be a home and a workplace: they are never logged or stored. The services see only polygons around the way, but the search ellipse's foci are the two points and the corridor runs from one to the other, so these do show roughly where someone walks, as does the route cache. No other arrow carries personal data. Review notes are Elena's own judgement of the photos. The selected area stays in the browser (Pinia store) until analysis is built.
@@ -61,6 +69,7 @@ flowchart LR
 |---|---|
 | `backend/tool/fetch_photos.py` | CLI: OSM → segments → metadata → selection → outputs; optional image check |
 | `backend/tool/osm.py` | Overpass query, tag filters, sidewalk test, street and area segments |
+| `backend/tool/osm_local.py` | Local copy of OpenStreetMap for Vienna, in tiles (`python -m tool.osm_local`); answers for a circle or a polygon in Overpass's shape, or leaves it to Overpass |
 | `backend/tool/segments.py` | Pure: chains between intersections, clip to circle, cut into ~50 m pieces, merge leftovers under 10 m |
 | `backend/tool/candidates.py` | Sample points, metadata lookups with the contributor-photo retry, one candidate per (pano, heading) |
 | `backend/tool/selection.py` | Pure: the photo choice rule (brief §4, steps 1–3 and 6), official only on streets, contributor fallback in areas, indoor photos rejected |
@@ -78,6 +87,8 @@ flowchart LR
 | `backend/app/area.py` | Segments and chosen photos for one circle (the `tool/` pipeline, run in parallel), progress events, the area cache, the list of photos `/photo` may fetch; the thermal step and its cache |
 | `backend/tool/routing.py` | Pure: the graph on the street segments (gaps closed with short connectors), snapping a point to a street, Dijkstra, different ways, choosing B |
 | `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
+| `backend/app/senses.py` | Senses mode: reads and checks `model/app_v0/` on every request, splits a list of photos into cached and new (the cap), rates the new ones 4 at a time: the picture from Street View in memory, the task text, the OpenRouter request, the reply validated (one retry); the cache |
+| `model/app_v0/` | Exported from the thesis repo: system instructions, task text, the two schemas, element labels, model settings, MANIFEST. The only source of these; replaced as a folder |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
 
@@ -112,7 +123,7 @@ flowchart LR
 | `src/components/StepHint.vue`, `AreaCard.vue` | Step hints (Flow 1, 1b, 1c; Routes 1), with "type an address" that opens the inputs and focuses the first empty field, and the "This area" card (Flow 4 once loaded: the street stretches of the layer as one stacked bar with counts and %, "Likely easiest for you" (numbered as the map pins, seen ticks, or "Nothing easy here"), places by type, Print area report as "Coming soon"; or why thermal is missing, with Try again; a bottom sheet on a phone) |
 | `src/components/MarkerPin.vue` | The numbered marker badge (map pin and list row) |
 | `src/components/ThermalLegend.vue` | The thermal legend, last in the Area and Routes panels after a divider, shown once the area's thermal comfort or the routes are loaded: title "Thermal comfort °C" with an info icon (tooltip on hover, focus or tap: what the feels-like temperature is, the easy range, the source), Easy with its range, Mixed and Hard only for the side the values reach |
-| `src/components/LoadingCard.vue` | "Loading this area" (Flow 2): streets, then street photos with progress; thermal, and rating greyed; Cancel |
+| `src/components/LoadingCard.vue` | "Loading this area" (Flow 2, 3): streets, then street photos with progress; thermal, or on Senses the rating with its progress and running cost; Cancel (while rating, it only stops the rating) |
 | `src/components/PlaceCard.vue` | The selected street (2f, 2g; phone P2): photo with arrows, enlarge badge, credit, thumbnails, date and direction; "Not rated yet"; on the Thermal layer the photo and name, then thermal comfort (2e): feels-like °C, state and why, a temperature bar on the legend's side rule, a cooler (or warmer) street nearby as a link that selects it and zooms there, and "Back to <street>" on the card it opens; no-photo state with "Go to the nearest street with photos" |
 | `src/components/PhotoViewer.vue` | Enlarged photo (2f+; phone P2+ as a full page): arrows, swipe, thumbnails, keyboard, focus trap |
 | `src/map/segments.js` | Segment layers (halo, core, dim, selected edge, invisible hit line) with hover and selection as feature-states; the Thermal layer lights every street with a value in its state colour |
@@ -121,6 +132,11 @@ flowchart LR
 | `src/lib/suggest.js` | "Likely easiest for you": `pickSuggestions` (greedy, at least `config.suggest.minApartM` apart, a new type first within `margin`, ties to the nearer centre; any layer passes its own keep and value) and `thermalSuggestions` (easy places in the Places filter, closest to the middle of the easy range first, via `comfortKey`) |
 | `src/lib/nearby.js` | "Easier street nearby": `easierNearby` (within `config.nearby.maxM`, at least one level better, the best rank first, then the shortest walk; any layer passes its own level and rank) and `easierThermalNearby` (Thermal, ranked by `comfortKey`) |
 | `src/lib/place.js` | The place filter (All, Streets, Parks, Squares) and which one a segment belongs to; words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
+| `src/stores/senses.js` | Pinia: starts the rating when an area or the two routes are ready; the ratings by photo, the run (progress, cost, the question above the cap, errors, Retry), the state of each street for the map |
+| `src/components/SensesPanel.vue` | In the area and route cards: progress and running cost, the question above the cap, the label and status line, and once the rating has ended most comfortable nearby |
+| `src/lib/senses.js` | Pure: one place from its photos (median, shared elements), the recommendations, a route's hard share and verdict on Senses, a 1–5 rating to its state (easy, mixed, hard), "4 · fairly comfortable" (the survey's words for 1 and 5), an element's label in the app's language, the status line |
+| `src/components/SensesFoot.vue` | The end of a Senses card, area or routes: "General prediction: not yet personal" and the status line |
+| `src/components/SensesPrediction.vue`, `SenseIcon.vue` | A place's rating on the place and stretch card (board 2c), from the ratings already here: waiting, "Could not rate" with Retry, the rating bar, might bother and feel good, the model's explanation; one sense icon |
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
 | `src/config.js` | Radius limits, start view, map style URLs, photo estimate, default thermal window |
@@ -155,7 +171,7 @@ flowchart LR
 
 **Thermal on a segment, app** (added in the browser, `lib/thermal.js`): `utci` float (°C) · `thermal_state` "easy" | "mixed" | "hard" (no score).
 
-**Routes** (`POST /api/routes`): request `{ start: {lat, lon}, end: {lat, lon}, limits: {heat: [3 °C], cold: [4 °C]}, season?, time? }`. Refused with 422 when the points are under 50 m or over 1.5 km apart, 429 for too many new routes. Newline-separated JSON events: `{type: "stage", stage: "streets" | "thermal" | "routes"}`, `{type: "segments", total}`, `{type: "segment", done, total}` (counts only: nothing is drawn yet), then `{type: "routes", season, time, station, routes, verdict, segments: FeatureCollection (the streets of both ways, as in Area), values: {segment id: °C | null}}`. Or `{type: "error", message}` or `{type: "thermal_error", message}`; the stream ends.
+**Routes** (`POST /api/routes`): request `{ start: {lat, lon}, end: {lat, lon}, limits: {heat: [3 °C], cold: [4 °C]}, season?, time?, layer?: "senses" | "thermal" | "overall" }` (`senses`: no thermal stage; season, time and station are null, and the "routes" event has empty `routes` and a `candidates` list of ways, in the shape of a route, from which the app picks A and B once their streets are rated). Refused with 422 when the points are under 50 m or over 1.5 km apart, 429 for too many new routes. Newline-separated JSON events: `{type: "stage", stage: "streets" | "thermal" | "routes"}`, `{type: "segments", total}`, `{type: "segment", done, total}` (counts only: nothing is drawn yet), then `{type: "routes", season, time, station, routes, verdict, segments: FeatureCollection (the streets of both ways, as in Area), values: {segment id: °C | null}}`. Or `{type: "error", message}` or `{type: "thermal_error", message}`; the stream ends.
 
 **A route**: `id` "A" | "B" · `kind` "shortest" | "easiest" | "second" · `length_m` · `minutes` · `hard_share`, `mixed_share`, `thermal_share`, `photo_share` (0–1, of the length) · `parts` [{ `segment_id` str | null (a connector), `length_m`, `coordinates` [[lon, lat]] }] in walking order.
 
@@ -163,9 +179,17 @@ flowchart LR
 
 **Route cache** (`runs/routes/<key>.json`, not committed): `{ created, lat, lon (the middle), zone (corridor polygon), area: FeatureCollection }`. The key is a hash of the two points, either way round, and the settings. No start or end, and nothing about the person. Thermal comfort for it is in `runs/thermal/`, as for an area.
 
+**Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
+
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
-Not built yet: the profile, the photo rating and the rating cache entry.
+**Senses rating** (`POST /api/senses/rate`): request `{ photos: [{ pano_id, heading }] }`, nearest first. Newline-separated JSON events: `{type: "start", model, cached, to_rate, remaining}`; one `{type: "photo", pano_id, heading, status: "ok" | "failed", cached, result | error, cost_usd?, streetview_usd?}` per photo; then `{type: "done", seconds, failed, remaining, estimate_usd, estimate_streetview_usd}`, or `{type: "error", message}` when going on is pointless. A result: `{ comfort: 1–5, anchors: [words of 1, words of 5], bothers: [element], feels_good: [element], reason, model, latency_ms, cost_usd | null, cached }`; an element as in `elements.json`: `{ code, en, it, sense | null, kind | null }`. Errors before the stream: 429 (rate limit), 503 (`model/app_v0/` unusable, or no key).
+
+**A place, Senses, app** (`lib/senses.js`, in the browser only): `status` "pending" | "rated" | "failed" · `comfort` 1–5 (median of its photos) · `level` easy | mixed | hard · `bothers`, `feelsGood` (elements shared by the photos) · `rep` (the photo the card opens on) · `nPhotos`, `nRated`, `nFailed`, `nPending`.
+
+**Senses cache** (`runs/senses/predictions.json`, not committed): `{ "<pano ID>|<heading>|<MANIFEST commit>": { output: the model's JSON, model: string, latency_ms: int, cost_usd: number | null } }`. No images, nothing about the person.
+
+Not built yet: the profile.
 
 ## External services
 
@@ -177,12 +201,14 @@ Not built yet: the profile, the photo rating and the rating cache entry.
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |
 | Google Fonts | Inter font for the app | Google | Request logs (IP address) |
 | Infrared.city API (api.infrared.city) | Thermal comfort (UTCI) for one circle and window: weather station lookup, public buildings, trees and ground materials, the simulation (billed, 10 tokens per 512 m tile) | Infrared.city | API usage per key; it receives the circle and the window from our API, nothing about the person |
+| OpenRouter → Google Vertex AI (EU endpoint) | The general prediction for one street photo, with the model and pinned endpoint in `model/app_v0/model.json` (paid per call) | EU endpoint (`google-vertex/eu`) | Zero data retention requested on every call (`zdr: true`, `data_collection: deny`, no fallbacks); it receives the picture, the system instructions and the task text, nothing about the person |
 | Photon (photon.komoot.io) | Address and place search, OpenStreetMap data | Germany (komoot) | Request logs per its fair-use terms; it receives the search text and the map centre, or a clicked point rounded to about 10 m, from our API, never the user's IP |
 
 ## Configuration
 
-- **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`. Template: `.env.example`.
-- **`config/tool.yaml`**: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
+- **Environment** (`.env` at the repo root, names only): `GOOGLE_MAPS_API_KEY`, `INFRARED_API_KEY`, `OPENROUTER_API_KEY`. Template: `.env.example`.
+- **`model/app_v0/`**: all model settings for the Senses predictions, as exported from the thesis repo.
+- **`config/tool.yaml`**, `osm_local`: the city's box, tile size, pause and folder of the local OpenStreetMap copy (its own section, so the area and route cache keys do not change with it). Also: `routes` section (longest walk, tile limit, 25% rule, search ellipse, corridor width, gap closing, weights for finding B, cache folder, new routes per IP per hour); `thermal` section (season days, default window, station radius, job limit, buffer, percentile, cache folder, runs per IP per hour); `api` section (allowed browser origins, Photon URL, search limits, rate limit per IP); radius limits, optional allowed-area polygon, OSM tag lists, segment length, photo source, Street View crop and prices, sampling, selection thresholds, image check thresholds, run folder.
 - **`backend/requirements.txt`**: Python 3.11+ dependencies.
 - **`frontend/src/config.js`**: radius limits (50–500 m, default 200, rounding 10 m), start view, map style URLs, photo estimate, default season and time, thermal limits (°C), route limits (shown before asking; keep them equal to `routes` in `config/tool.yaml`), API base (`VITE_API_BASE`, empty = same origin), search timing.
 - **`frontend/vite.config.js`**: dev server on port 5173, `/api` forwarded to the API on port 8000. `frontend/dev-api.js` starts the API with `npm run dev`.

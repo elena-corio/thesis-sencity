@@ -2,6 +2,104 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-10 – A street without a value is grey (accepted)
+**Context.** Elena: streets whose photos are found but not rated yet were drawn light teal; they should be grey.
+**Decision (Elena).** A street with photos is drawn at full width with its soft halo in grey (`--map-seg-pending`) until it has a value on the chosen layer (a rating on Senses, a feels-like value on Thermal), then in its state colour. This replaces the light teal "has photos, not rated yet" (2026-11-01). A street with no photo stays thin and dim. The buttons and labels on a photo (arrows, enlarge, counter, credit) get their own colours with more contrast: white with dark teal in light mode, near solid dark teal in dark mode, with a small shadow (`--photo-btn-*`).
+
+## 2026-11-10 – Routes open on Senses too (accepted)
+**Context.** Elena: Routes still opened on Thermal. It was kept there while the ways could only be found on thermal comfort; a Senses route now finds its own.
+**Decision (Elena).** Routes open on the same layer as Area, `config.layerDefault` (Senses). A new route on the default layer therefore starts no Infrared.city run.
+
+## 2026-11-09 – A Senses route chooses B from rated candidates (accepted)
+**Context.** Elena asked how a best route can be chosen without ratings: on Senses it was not, B was only the next different way. Replaces "only the streets on the two routes" and "Which ways on Senses" below.
+**Decision (Elena chose the option; details proposed).**
+- *Candidates:* up to 4 ways (`api.senses.route_candidates`), the shortest included, each at most 25% longer than A and differing from the others along at least 10% (the existing rule), from the same search as Thermal.
+- *Choosing:* their streets are rated (all kept photos per place, cached as usual); then A is the shortest and B the easiest, by Thermal's rule: least hard, then least mixed or unrated, then shortest, if easier than A; otherwise the next way, as "alternative". A street with no rating counts as no better than mixed.
+- *When:* the two ways appear when the rating ends, also if it stops at the cap or is cancelled, then from what is rated. Retry or Continue chooses again.
+- *Changing layer:* each layer finds its own two ways, so B can differ between Thermal and Senses. Going back costs little: streets, ratings and thermal comfort are cached.
+**Consequences.** About twice the photos of rating two ways: roughly 200 to 300 per new route, $1.40 to $2.10 for Street View at list price (free within 10,000 a month) and about $0.20 for the model.
+
+## 2026-11-09 – A Senses route follows board Routes 3 (accepted)
+**Context.** Elena: stick to the design and remove the Route A and Route B details. Replaces "for a route, the overall comfort and its hardest stretch".
+**Decision (Elena; details marked proposed).** The card has the same rows as on Thermal: length and minutes, "hard" %, the bar, one sentence, and "Based on photos along …". Hard % is the share of the route's length rated 1 or 2. The sentence is plain rules: how much longer B is, and whether it has less or more hard walking (proposed). "General prediction: not yet personal" and the status line stay under it.
+
+## 2026-11-09 – Each layer of a route loads and speaks only of its own data (accepted)
+**Context.** Elena: the Thermal route also rated photos and showed a hardest stretch. Each layer should show its own coverage: Thermal loads streets, photos and thermal comfort; Senses loads streets, photos and ratings; Overall both. Replaces "a route is rated as soon as it is ready, on any layer" (entry on rating up front), and carries out "Senses in Routes skipping thermal" (2026-11-08).
+**Decision (Elena; details marked proposed).**
+- *Thermal:* no rating, no Senses panel; "Thermal along …" only.
+- *Senses:* no thermal run. "Photos along …" only, a rating row while loading, then each way's comfort and hardest stretch.
+- *Which ways on Senses (proposed):* A is the shortest and B the next way that differs, labelled "alternative". The easiest way cannot be picked from the ratings, because only the streets on the two ways are rated (Elena), and B is not chosen from anything before them.
+- *Changing layer (proposed):* Thermal to Senses rates the ways already on the map, with no new search. Senses to Thermal asks for thermal comfort (billed unless cached), which can change B.
+- *Overall:* still inactive; its coverage line names both.
+
+## 2026-11-09 – A local copy of Vienna's street data (proposed details)
+**Context.** Elena: pre-download all of Vienna's street segments, since waiting for them is what takes longest. Not the photos: no photo lookups and no rating.
+**Decision (Elena; details marked proposed).** `python -m tool.osm_local` stores the raw OpenStreetMap data for Vienna in `data/osm/vienna/` and the API reads it instead of asking Overpass.
+- *Raw data, not finished segments (proposed):* segments are cut for each circle, clipped at its edge, so ready-made ones could not match a circle. Cutting takes seconds; the wait was for the server.
+- *Tiles (proposed):* 112 tiles of 0.03° (about 2 x 3 km), one at a time with a pause, because the public server refuses heavy use. It takes about one to two hours, resumes, and fetches the centre first. Same tag lists as the live queries, so the same parser reads them.
+- *Fallback:* outside Vienna, or with a tile missing or unreadable, the live query is used as before; any location can still be chosen.
+- *Cache keys:* the settings are a section of their own, `osm_local`, because the area and route keys hash `osm`. Otherwise every cached area, and its paid thermal comfort, would have been asked for again.
+**Consequences.** `data/` is not committed, so the deployed app keeps asking Overpass unless the script is also run there. The copy ages: `--refresh` updates it.
+
+## 2026-11-09 – Senses recommends only at the end, and only positively (accepted)
+**Context.** Elena: recommendations should not appear while loading, and places to avoid should go. Replaces "a recommendation panel that updates as ratings come in", "the places to avoid" and the pins for them in the entries below.
+**Decision (Elena; details marked proposed).** While rating, the loading card shows the progress and running cost, and the streets take their colours as ratings arrive. The numbered pins and the list "Most comfortable nearby" (up to 3 places rated 3 or better) appear once the rating has ended, also when it stopped at the cap or was cancelled, then from what is rated (proposed). A route's summary follows the same rule. A place rated 1 or 2 is never listed. A route still names its hardest stretch (proposed: it describes the way, and is not a list of places to avoid).
+
+## 2026-11-09 – Senses on the map follows Thermal: coloured streets and numbered pins (accepted)
+**Context.** Elena tried it: a dot on every street made it harder to see what is recommended, and the boards (Flow 4, 4b) have only numbered pins. Replaces "each place as a marker coloured by its rating, instead of numbers" and the dots in the entry below.
+**Decision (Elena; details marked proposed).** Streets take their state colour as ratings arrive, and the recommended places are the same numbered pins as the Thermal suggestions, with the same selecting, seen ticks and hiding when another place is opened. The area card has Thermal's bar with counts and "Places here". Places to avoid are pinned too (Elena allowed it): most comfortable are numbered 1 to 3, those to avoid go on from 4, in their state colour (proposed). A place that could not be rated has a thin grey street and "Could not rate" on its card, as brief §3 asks. Routes have no markers, as on Thermal: the ways are coloured stretch by stretch.
+
+## 2026-11-09 – Senses rates the whole area up front, then recommends (accepted; details marked proposed)
+**Context.** Elena: rating only on a click does not let people compare places. Rate every photo as soon as an area or route is ready, show results as they arrive, and recommend. Replaces the click flow in the two entries below. Senses is now also the layer Area opens on (Elena), replacing "Area always opens on Thermal" (2026-11-08); a new area on the default layer therefore starts no Infrared.city run.
+**Decision (Elena; details marked proposed).**
+- *Which photos:* all kept photos of each place (up to 3). Area: the circle's streets, parks and squares. Routes: only the streets on the two ways, not the corridor. In Area it starts on the Senses layer, so Thermal still skips ratings; a route is rated as soon as it is ready, on any layer, and is found on Thermal as before.
+- *A place from its photos (tool choice, not the study):* the median rating and the elements named in at least 2 of 3 (brief §4). **The study rates one photo per place, so this combination is the app's, not the validated V0.** Proposed: with two photos, the lower rating, so a rating stays a whole number and doubt counts against comfort; elements named in both. A place shows as soon as one photo is rated and updates as the others arrive.
+- *Concurrency:* at most 4 photos at a time (`api.senses.concurrency`).
+- *Cap:* 250 new photos per run (`api.senses.cap_photos`), so the default 200 m area (about 236 photos) finishes without asking. Cached photos do not count (proposed), as they cost nothing. Above it the nearest 250 are rated, then the app asks, showing the estimated cost of the rest: about $0.001 per model call (`estimate_call_usd`) plus Street View at list price. Continue sends the same list: rated photos come back from the cache, and the next 250 are rated.
+- *Order:* nearest the centre first; on routes, along A from the start, then the rest of B (proposed).
+- *Images (Elena):* the backend fetches them from Street View, only for photos not in the cache, in memory only. This replaces the upload from the browser, and with it the wrong-picture risk. Each new photo is also a paid Street View image, about $0.007 at list price (10,000 a month free), about ten times the model's cost: for the default area about $1.65 at list price, inside the free allowance.
+- *Failures (proposed):* an invalid reply is retried once, then the photo is marked failed; a place with no rated photo keeps a grey dot with an amber edge and "Could not rate". Retry asks only for what is missing. A refused key, no credit or no endpoint (401, 402, 403, 404) stops the run at once, so no more images are paid for.
+- *Cache:* every rating, by pano ID + heading + MANIFEST commit, as before. Reopening answers without a model call or an image.
+- *Map (proposed):* a dot in the §9 colour at each rated place, no numbers, and its street in the same colour (board 2c). The dots are a map layer, not buttons: a click reaches the street under it, and the keyboard list of streets still works.
+- *Recommendation rules (proposed, `config.sensesRecommend`):* **most comfortable nearby:** up to 3 places rated 3 or better, best first, ties to the place nearer the centre. **To avoid:** up to 3 places rated 1 or 2, worst first, each with up to 2 bothering elements. Picks of a list are at least 75 m apart, so one long street does not fill it; both follow the Places filter. A place rated 1 or 2 is never recommended, even when nothing better exists. **Route:** the median comfort weighted by length (the lower on a tie), the share of its length rated, and the hardest stretch (lowest comfort, then the longest). All with "General prediction: not yet personal".
+- *Detail:* from the ratings already in the browser, with no new call: the place's rating and elements, and the model's explanation of the photo on the card, which opens on the photo closest to the median (brief §4).
+- *Status line:* model, places rated, cached and new (photos), the model's real cost plus Street View at list price, and time.
+- *Loading card (boards Flow 2, 3; brief §3):* on Senses it stays until the rating ends, with a row "Rating 12 of 40 places…" and its bar. The recommendations already fill in under it, as asked. The row does not say "for your profile", as on the boards, since the rating is general. Cancel during the rating only stops the rating (proposed): the area and what is rated stay, and the area card offers Continue.
+**Limits.** The default route layer stays Thermal, because the ways are found on it. Overall stays inactive. The per-IP limit is 30 runs with new photos per hour.
+
+## 2026-11-09 – Senses predictions stand for the study's V0: task text, brief §9 colours, the survey's scale words (accepted)
+**Context.** Elena reviewed the first version below. The predictions should stand for the study's V0, and the app should stay consistent with the brief.
+**Decision (Elena; details marked proposed).**
+- *Task text:* the request now holds what the study sends: `system_instructions.txt` as the system message, then `task_part_b.txt` and the image as the user content. This replaces "the image is the only user content".
+- *Option lists:* filled in as the study's code does ("- code: English label", shuffled per question, "nothing" last). Checked against the study's own `task_text`: identical for the same order.
+- *Order (proposed):* the study seeds the order per participant, version, photo and run. The app has no participant, so it seeds per pano ID, heading and commit: the order varies between photos and is fixed for one photo. The first idea, a fixed order, would favour the same options on every photo.
+- *Colours:* brief §9. The marker takes its state colour (brief §4: 4–5 easy, 3 mixed, 1–2 hard), the bar runs hard, mixed, easy as on board 2c, the legend is the board's rows, and the card names the state. The pink-to-cyan scale is gone.
+- *Words:* 1 and 5 are the survey's B1 anchors, read from the B1 line of `task_part_b.txt` ("not at all, too much for my senses", "very much"); 2 to 4 stay "not very", "somewhat", "fairly comfortable".
+- *"Nothing" with other elements:* invalid (retry once, then the error). The rule belongs in `schema_validate.json`, so it is not in the code and applies once the export has it.
+- *Input:* `photo_description` and `description` stay refused, with the message below.
+- *Label:* "General prediction: not yet personal" on every result, also in the enlarged photo.
+- *Accepted as they were:* the element labels without the sense word, "Model's explanation", the photo arrows, no onboarding card.
+**Consequences.** `task_part_b.txt` is now a required file of the export; the app also refuses it if an option slot or the B1 scale is missing. Replaces the colour, words and "no task text" points of the entry below.
+
+## 2026-11-09 – Senses mode: a general prediction per clicked street, from model/app_v0/ (proposed)
+**Context.** Elena: send the photo of a clicked point to the model and show its general prediction (no profile), using only the files exported from the thesis repo.
+**Decision (Elena; details marked proposed).**
+- *Source (Elena):* `model/app_v0/` as it is. Missing or broken files stop the request and name the file. No defaults. The image is the only user content.
+- *The folder is read on every request (proposed):* so replacing it needs no restart, and a broken replacement is noticed at once.
+- *Extra refusals (proposed):* an export with `zdr` not true, `data_collection` not deny, fallbacks allowed, no pinned endpoint or a `:free` model; schemas whose property order contradicts `reasoning_position`; an element code with no label.
+- *Reasoning order:* it is the order of the properties in the schemas, which the export writes, so it is sent as in the file.
+- *Input (limit):* only `photo` can be built. `photo_description` and `description` need a describer model, its prompt and a description of each new photo, and none of these is in the export: such a setting is refused with that reason. If the pilot chooses one, the export and the app both need extending.
+- *Picture (Elena):* the browser sends the picture it already shows, from its own cache, so no second Street View call. It stays in memory.
+- *Guards (proposed):* only (pano ID, heading) pairs of a loaded area are accepted, at most 5 MB, must decode as a picture, 20 new predictions per IP per minute. The server trusts the browser that the picture matches the pano ID, so a tampered client could cache a wrong result; acceptable for a private prototype, and to be fetched server-side before any public release.
+- *Which photo (proposed):* the one on the card. Moving to another photo of the street asks about that one and updates the street's marker, so there is one marker per street. Brief §4's median of up to 3 photos waits for area rating. A failed photo waits for Retry when reopened, so reopening never spends by itself.
+- *Colour (Elena):* marker, bar and legend run from pink `#f0557e` to cyan `#40c5e8` (`--senses-low`, `--senses-high`), for the per-click prediction only. This differs from brief §9 and board 2c (pink, amber, cyan by state); the number is always on the marker, so colour is never the only cue.
+- *Words (proposed):* 1 not at all, 2 not very, 3 somewhat, 4 fairly, 5 very comfortable (`config.comfortWords`), from Elena's "4 · fairly comfortable" and the survey's anchors.
+- *Labels (proposed):* the labels of `elements.json`, without the sense in brackets, since the icon shows it (boards 2, 2c); the word stays as the icon's name. Language: `config.language`, `en`, as the app has no language setting yet.
+- *"Model's explanation" (proposed):* the title of the model's text, not "Reason", since every rating is "a prediction, not a reason".
+- *Card (board 2c):* no thumbnail row, as on Thermal; arrows on the photo stay. "General prediction: not yet personal" and "A prediction, not a reason." sit with the rating, so they are in view without scrolling.
+- *Not built:* the "Not personalised yet" card with "Create your profile" (board 2c), as onboarding does not exist; street colours by state, which need every street rated.
+**Consequences.** The request has no task text, unlike the study (`task_part_b.txt`: the question, the option labels, "only what is visible"): the model sees only the system instruction, the photo and the schema's codes. Predictions may therefore differ from the benchmark's V0. The study also rejects "nothing" alongside other elements; `schema_validate.json` does not express this, so the app accepts it.
+
 ## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
 **Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
 **Decision (Elena; details marked proposed).**

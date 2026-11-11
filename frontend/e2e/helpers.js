@@ -1,10 +1,29 @@
 import { expect } from '@playwright/test'
 
-/** No place names unless a test sets its own: a clicked point reads "Point on map". */
-const noPlaceNames = (page) => page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+/** Set by a test that mocks the rating itself. */
+const ratingMocked = new WeakSet()
+export const markRatingMocked = (page) => ratingMocked.add(page)
 
-/** Open /area in a theme and wait until the map has drawn once. */
-export async function openMap(page, theme) {
+/** No place names unless a test sets its own: a clicked point reads "Point on map". And no test ever reaches the
+ *  real rating endpoint: an API already running on this machine would make paid calls with the placeholder image. */
+const noPlaceNames = async (page) => {
+  await page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
+  await page.route('**/api/senses/**', (route) => {
+    if (ratingMocked.has(page)) return route.fallback()
+    const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: 0, remaining: 0 },
+      { type: 'done', seconds: 0, failed: 0, remaining: 0, estimate_usd: 0, estimate_streetview_usd: 0 }]
+    return route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+  })
+}
+
+/** Choose a layer directly in the app's state (it is in the sheet on a phone, the panel elsewhere). */
+export const chooseLayer = (page, layer, store = 'area') => page.evaluate(([l, s]) => {
+  document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value[s].layer = l
+}, [layer, store])
+
+/** Open /area in a theme and wait until the map has drawn once. Most checks are about Thermal, so that is the layer
+ *  unless they ask for another; layer: null keeps the one the app opens on. */
+export async function openMap(page, theme, { layer = 'thermal' } = {}) {
   await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
@@ -12,6 +31,7 @@ export async function openMap(page, theme) {
   await page.goto('/area')
   await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
   await page.evaluate(() => document.fonts.ready)
+  if (layer) await chooseLayer(page, layer)
 }
 
 /** Wait for the map to finish drawing after a change. */
@@ -186,7 +206,8 @@ export async function openSegment(page, id) {
 
 // Routes: mock POST /api/routes (streamed like the API). Five stretches on A (mixed, hard, mixed, hard,
 // mixed), three on B (easy, mixed, easy), built around the points the app sends.
-export async function openRoutes(page, theme) {
+/** Open /routes. As for openMap, the checks are about Thermal unless they ask for another layer; null keeps the default. */
+export async function openRoutes(page, theme, { layer = 'thermal' } = {}) {
   await noPlaceNames(page)
   await page.addInitScript((t) => {
     try { localStorage.setItem('sencity-appearance', t) } catch {}
@@ -194,6 +215,7 @@ export async function openRoutes(page, theme) {
   await page.goto('/routes')
   await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
   await page.evaluate(() => document.fonts.ready)
+  if (layer) await chooseLayer(page, layer, 'routes')
 }
 
 /** Two free map points, in viewport pixels, about 400 m apart at the start zoom. */
@@ -257,7 +279,15 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     if (hold) { mock.requests.push(route.request().postDataJSON()); return }
     const asked = route.request().postDataJSON()
     mock.requests.push(asked)
-    const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }, { type: 'stage', stage: 'thermal' }]
+    const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }]
+    if (asked.layer === 'senses') {
+      const found = routeResponse(asked, sameState, longName)
+      lines.push({ type: 'stage', stage: 'routes' }, { ...found, season: null, time: null, station: null, values: {}, verdict: '', routes: [],
+        candidates: found.routes.map((r, i) => ({ ...r, id: i ? 'C1' : 'A', kind: i ? 'candidate' : 'shortest' })) })
+      await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
+      return
+    }
+    lines.push({ type: 'stage', stage: 'thermal' })
     if (mock.thermal === 'route-error') lines.push({ type: 'stage', stage: 'routes' }, { type: 'error', message: 'No walking way was found between these two points.' })
     else if (mock.thermal === 'error') lines.push({ type: 'thermal_error', message: 'No weather station near this area, so thermal comfort is not available here.' })
     else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second))

@@ -17,6 +17,7 @@ import MapAttribution from '../components/MapAttribution.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import MapControls from '../components/MapControls.vue'
 import PhoneSheet from '../components/PhoneSheet.vue'
+import { useSensesStore } from '../stores/senses.js'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -24,6 +25,7 @@ import ViewTabs from '../components/ViewTabs.vue'
 
 const area = useAreaStore()
 const routes = useRoutesStore()
+const senses = useSensesStore()
 const route = useRoute()
 const routesMode = computed(() => route.params.mode === 'routes')
 const phone = useMedia('(max-width: 767px)')
@@ -41,7 +43,7 @@ const showLeft = computed(() => !phone.value && (routesMode.value || wide.value 
 const showHint = computed(() => !routesMode.value || wide.value || routeIdle.value)
 
 const loadingCard = computed(() => area.step === 'analysed' &&
-  (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading'))
+  (area.load === 'loading' || area.load === 'error' || area.thermal === 'loading' || senses.areaRating))
 
 const getCentre = () => mapRef.value?.getCentre() ?? null
 const onPick = (place) => mapRef.value?.flyToPlace(place)

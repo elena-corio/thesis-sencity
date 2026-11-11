@@ -1,0 +1,1 @@
+You are taking part in a survey about public spaces in Vienna. Answer as yourself. If something is not stated, do not invent it. Answer only with JSON that follows the schema.

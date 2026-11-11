@@ -2,7 +2,7 @@
 // Place card (boards 2f, 2g; phone P2): the selected segment's photo and name. On the Thermal layer
 // (board 2e) the photo stays (Elena's choice) and the rest is thermal comfort only: how warm or cold it
 // feels, the state and why, a temperature bar (the legend's side) and a cooler (or warmer) street nearby.
-// No photo ratings yet.
+// On the Senses layer the photo on the card goes to the model (board 2c, SensesPrediction).
 // Images load only now, on click: the current photo, and the others of this street (at most 3,
 // so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -11,9 +11,12 @@ import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
 import { credit, nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
 import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
+import { GENERAL_LABEL, comfortLabel } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
+import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import PhotoViewer from './PhotoViewer.vue'
+import SensesPrediction from './SensesPrediction.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -38,7 +41,13 @@ const src = computed(() => props.source ?? fromArea.value)
 const backBtn = ref(null)
 const fromBtn = ref(null)
 const enlargeBtn = ref(null)
-const index = ref(0)
+const senses = useSensesStore()
+/** In Senses the card opens on the photo closest to the place's rating (brief §4). */
+function startIndex() {
+  if (src.value.layer !== 'senses') return 0
+  return senses.placeFor(src.value.feature?.properties.photos).rep ?? 0
+}
+const index = ref(startIndex())
 const viewerOpen = ref(false)
 const failed = ref(new Set())
 
@@ -75,9 +84,17 @@ const cameFrom = computed(() => (!props.source && area.cameFrom?.id !== area.sel
 const alongWord = computed(() => (feature.value?.geometry.type === 'Polygon' ? 'in this place' : 'along this street'))
 
 watch(() => src.value.key, () => {
-  index.value = 0
+  index.value = startIndex()
   failed.value = new Set()
 })
+
+// Senses: the place from the ratings already here, never a new call. Also for a stretch of a route.
+const sensesOn = computed(() => src.value.layer === 'senses')
+const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
+const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
+const viewerRating = computed(() => (shownRating.value?.status === 'ok' ? `${comfortLabel(shownRating.value.result)}, this photo` : 'Not rated yet'))
+const viewerNote = computed(() => (shownRating.value?.status === 'ok' ? `${GENERAL_LABEL}. A prediction, not a reason.` : ''))
+const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
 
 function step(d) {
   const n = photos.value.length
@@ -192,7 +209,9 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     </template>
 
     <template v-else>
-      <template v-if="photo">
+      <SensesPrediction v-if="sensesPlace" :place="sensesPlace" :shown="shownRating" :photo-number="index + 1" :along="alongWord"
+                        @retry="retryRating" />
+      <template v-else-if="photo">
         <div class="thumbs-row">
           <div v-if="photos.length > 1" class="thumbs" role="group" aria-label="Photos of this street">
             <button v-for="(ph, i) in photos" :key="ph.pano_id + ph.heading" type="button" class="thumb"
@@ -223,7 +242,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
-                 :failed="failed" @close="closeViewer" @failed="onImgError" />
+                 :failed="failed" :rating="viewerRating" :rating-note="viewerNote" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 
@@ -291,7 +310,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 .badge, .arrow {
   position: absolute; display: grid; place-items: center;
   width: var(--touch); height: var(--touch); border: 0; border-radius: 50%;
-  background: var(--backdrop); color: var(--logo);
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow);
 }
 .badge.enlarge { top: var(--space-1); right: var(--space-1); border-radius: var(--radius-btn); }
 .arrow { top: 50%; transform: translateY(-50%); }
@@ -300,7 +319,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 .counter, .credit {
   position: absolute; bottom: var(--space-1);
   padding: 0 var(--space-2); border-radius: var(--radius-chip);
-  background: var(--backdrop); color: var(--logo); font-size: var(--fs-xs);
+  background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); font-size: var(--fs-xs);
 }
 .counter { left: var(--space-1); }
 .credit { right: var(--space-1); }

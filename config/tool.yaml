@@ -100,6 +100,15 @@ runs:
 # Thermal comfort (brief §4, §5): Infrared.city thermal-comfort-index (UTCI, "feels like" °C, 1 m
 # ground grid), sampled onto the street segments. The 1–5 score and the limits live in the app,
 # because personal limits come from the profile, which stays in the browser.
+# A local copy of OpenStreetMap, so a new area or route does not wait for the public server (python -m tool.osm_local).
+# Its own section, not under osm: the area and route cache keys hash osm, and must not change with these settings.
+osm_local:
+  dir: data/osm/vienna       # one JSON per tile, not committed; a request that a tile cannot answer asks Overpass
+  bbox: [16.18, 48.11, 16.58, 48.33]   # west, south, east, north: Vienna
+  tile_deg: 0.03             # about 2 x 3 km: a circle or a route touches only a few
+  pause_s: 3                 # between tiles, to be gentle with the public server
+  timeout_s: 180
+
 thermal:
   analysis: thermal-comfort-index
   default: {season: summer, time: "15:00"}
@@ -166,3 +175,13 @@ api:
   photo:
     rate_per_minute: 60          # images per IP; each is a paid Street View call
     browser_cache_s: 3600        # Cache-Control: private, so only the browser keeps it, briefly
+  senses:                        # model settings are NOT here: they come only from model/app_v0/
+    url: https://openrouter.ai/api/v1/chat/completions
+    timeout_s: 60
+    cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
+    concurrency: 4               # photos rated at the same time
+    route_candidates: 4          # ways rated for a Senses route, the shortest included; B is the easiest of them
+    cap_photos: 250              # new photos per run; above this the app asks first, with the estimated cost
+    estimate_call_usd: 0.001     # one model call, only for that estimate
+    max_photos_per_request: 3000 # a longer list is refused
+    runs_per_hour: 30            # runs with new photos, per IP

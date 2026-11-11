@@ -37,6 +37,7 @@ const summary = computed(() => {
 const showAnalyse = computed(() => !routes.hasResult && routes.load === 'idle')
 const note = computed(() => {
   if (!routes.previewing) return `Walking routes up to about ${formatKm(config.routes.maxM)}.`
+  if (routes.layer === 'senses') return `${formatLength(routes.aerialDistance)} in a straight line. Ready in a few minutes.`
   const { season, time } = routes.thermalWindow
   return `${formatLength(routes.aerialDistance)} in a straight line, thermal for ${season}, ${time}. Ready in a few minutes.`
 })

@@ -15,10 +15,12 @@ import { typeLabel } from '../lib/place.js'
 import { boundsOf, formatLength, stretchFeature } from '../lib/routes.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
+import { useSensesStore } from '../stores/senses.js'
 import { useThemeStore } from '../stores/theme.js'
 import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
+useSensesStore() // its watchers start the rating
 const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
@@ -295,6 +297,7 @@ const ringPx = computed(() => {
   if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
   return area.selectedId ? project(area.selectedPoint) : null
 })
+
 const pulsing = ref(false)
 let pulseTimer
 function restartPulse() {

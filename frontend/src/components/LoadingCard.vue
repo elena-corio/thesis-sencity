@@ -1,13 +1,18 @@
 <script setup>
-// "Loading this area" (boards Flow 2, Flow 3): the streets, their photos, then thermal comfort
-// (Infrared.city), then rating (shown greyed: it does not exist yet). Streets light up on the map as their photos are
-// found, then in their thermal colour.
+// "Loading this area" (boards Flow 2, Flow 3): the streets, their photos, then thermal comfort (Infrared.city) or the
+// rating of the photos. Streets are grey on the map until they have a value, then take its colour. Recommendations
+// wait for the end of the rating. Cancel while rating only stops the rating: the area stays.
 import { computed, onMounted, ref } from 'vue'
+import { GENERAL_LABEL, moneyLine } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
+import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 
 defineProps({ phone: Boolean })
 const area = useAreaStore()
+const senses = useSensesStore()
+const rating = computed(() => senses.areaProgress)
+const cancel = () => (senses.areaRating ? senses.stopHere('area') : area.cancelLoad())
 const cancelBtn = ref(null)
 // Started with the keyboard: focus Cancel, so Enter or Space can stop it.
 onMounted(() => { if (area.byKeyboard) cancelBtn.value?.focus() })
@@ -30,7 +35,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
         <h2 id="loading-title" class="title">Loading this area</h2>
         <p class="meta">{{ area.analysed?.radius }} m around the point you clicked</p>
       </div>
-      <button type="button" class="icon-btn" aria-label="Cancel loading" @click="area.cancelLoad()">
+      <button type="button" class="icon-btn" aria-label="Cancel loading" @click="cancel">
         <AppIcon name="close" />
       </button>
     </div>
@@ -59,12 +64,24 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
-      <li v-if="area.layer !== 'thermal'" class="next">
+      <!-- Senses rates every photo once they are found (board Flow 3). General, so not "for your profile" yet. -->
+      <li v-if="area.layer === 'senses'" :class="{ next: !senses.areaRating, active: senses.areaRating }" data-testid="rating-step">
+        <AppIcon name="pending" />
+        <span class="label" role="status">{{ senses.areaRating ? `Rating ${rating.done} of ${rating.total} places…` : 'Rating the photos' }}</span>
+        <span v-if="senses.areaRating" class="bar" aria-hidden="true">
+          <span :style="{ width: `${rating.total ? Math.round((100 * rating.done) / rating.total) : 0}%` }" />
+        </span>
+      </li>
+      <li v-if="area.layer === 'overall'" class="next">
         <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>
 
     <p v-if="area.load === 'error'" class="note error">{{ area.loadError }}</p>
+    <p v-else-if="senses.areaRating" class="note">
+      Streets light up as they are rated; you can keep exploring. <span data-testid="senses-cost">{{ moneyLine(senses.runs.area) }} so far.</span>
+      <strong class="general">{{ GENERAL_LABEL }}</strong>
+    </p>
     <p v-else-if="area.thermal === 'loading'" class="note">
       Simulating sun, shade and wind for this area. This can take a few minutes; click a street to see its photos meanwhile.
     </p>
@@ -72,12 +89,12 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
       Finding the streets, parks and squares in this circle. This can take up to a minute; you can keep exploring.
     </p>
     <p v-else class="note">
-      Streets light up as their photos are found. You can keep exploring.
+      Streets appear in grey as they are found, and take their colour once they have a value. You can keep exploring.
     </p>
 
     <div class="buttons">
       <button v-if="area.load === 'error'" type="button" class="btn btn-primary" @click="area.retryLoad()">Try again</button>
-      <button ref="cancelBtn" type="button" class="btn" @click="area.cancelLoad()">Cancel</button>
+      <button ref="cancelBtn" type="button" class="btn" @click="cancel">Cancel</button>
     </div>
     <slot />
   </section>
@@ -85,6 +102,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
 
 <style scoped>
 .card { padding: var(--space-5); overflow-y: auto; }
+.general { display: block; margin-top: var(--space-2); font-weight: var(--fw-semibold); }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }

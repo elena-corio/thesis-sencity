@@ -1,30 +1,28 @@
-// Street segment layers (brief §4). Before rating: segments with photos are one neutral light teal
-// with a soft halo ("has data, not rated yet"); segments without photos are thin and dim (unlit).
-// Thermal layer: every segment with a feels-like value is lit in its state colour (easy / mixed /
-// hard), photo or not. Hover and selection are feature-states on the segment itself, never an extra
-// line on top.
+// Street segment layers (brief §4). A street with photos (or, on Thermal, a feels-like value) is drawn at full width
+// with a soft halo: grey until it has a value on the chosen layer, then in its state colour (easy / mixed / hard)
+// (Elena, 2026-11-10). A street with no photo is thin and dim. Hover and selection are feature-states on the segment
+// itself, never an extra line on top.
 import { cssVar } from '../composables.js'
 
 const EMPTY = { type: 'FeatureCollection', features: [] }
 const num = (name) => Number(cssVar(name))
 
-const photoCount = ['length', ['coalesce', ['get', 'photos'], ['literal', []]]]
-const HAS_PHOTOS = ['>', photoCount, 0]
 const IS_AREA = ['==', ['geometry-type'], 'Polygon']
+const HAS_PHOTOS = ['>', ['length', ['coalesce', ['get', 'photos'], ['literal', []]]], 0]
 const HAS_THERMAL = ['has', 'thermal_state']
 const selected = ['boolean', ['feature-state', 'selected'], false]
 const hover = ['boolean', ['feature-state', 'hover'], false]
 
 export const HIT_LAYER = 'sc-seg-hit'
 
-/** Which segments are lit, and in what colour, for a layer (null = photos only, before rating). */
+/** Which segments are drawn at full width, and in what colour: grey (--map-seg-pending) until the street has a value. */
 function lit(layer) {
   return layer === 'thermal' ? HAS_THERMAL : HAS_PHOTOS
 }
 function litColor(layer) {
-  if (layer !== 'thermal') return cssVar('--map-seg')
-  return ['match', ['get', 'thermal_state'],
-    'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'), cssVar('--map-seg-none')]
+  if (layer !== 'thermal' && layer !== 'senses') return cssVar('--map-seg-pending')
+  return ['match', ['get', `${layer}_state`], 'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'),
+    cssVar('--map-seg-pending')]
 }
 
 export function addSegmentLayers(map, layer = null) {

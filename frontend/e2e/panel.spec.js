@@ -55,22 +55,22 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/panel-dark-left.png' })
   })
 
-  test('Area opens on Thermal, Senses and Overall are inactive, and the loading skips only the rating', async ({ page }) => {
+  test('Area opens on Senses, Overall is inactive, and Senses skips the thermal step', async ({ page }) => {
     await mockArea(page, { hold: true })
-    await openMap(page, 'dark')
+    await openMap(page, 'dark', { layer: null })
     const panel = page.locator('[data-panel="layers"]')
     const radio = (name) => panel.getByRole('radio', { name, exact: true })
-    await expect(radio('Thermal')).toHaveAttribute('aria-checked', 'true')
-    await expect(radio('Senses')).toBeDisabled()
+    await expect(radio('Senses')).toHaveAttribute('aria-checked', 'true')
+    await expect(radio('Thermal')).toBeEnabled()
     await expect(radio('Overall')).toBeDisabled()
     await expect(panel.locator('[aria-label="Legend"]')).toHaveCount(0)
 
     const asked = page.waitForRequest('**/api/area')
     await analyseCentre(page)
-    expect((await asked).postDataJSON().layer).toBe('thermal')
+    expect((await asked).postDataJSON().layer).toBe('senses')
     const loading = page.locator('[data-panel="loading-card"]')
     await expect(loading).toContainText('Street photos')
-    await expect(loading).toContainText('Thermal')
+    await expect(loading).not.toContainText('Thermal')
     await expect(loading).not.toContainText('Rating for your profile')
   })
 

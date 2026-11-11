@@ -1,0 +1,141 @@
+import { describe, expect, it } from 'vitest'
+import { combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
+
+const anchors = ['not at all, too much for my senses', 'very much']
+const el = (code) => ({ code, en: code, it: code, sense: 'sight' })
+const ok = (comfort, bothers = ['a'], good = ['b'], reason = `r${comfort}`) =>
+  ({ status: 'ok', result: { comfort, anchors, bothers: bothers.map(el), feels_good: good.map(el), reason } })
+const photos = (n) => Array.from({ length: n }, (_, i) => ({ pano_id: `p${i}`, heading: 0, date: `2024-0${i + 1}` }))
+const place =(...states) => {
+  const list = photos(states.length)
+  return combinePlace(list, (p) => states[list.indexOf(p)])
+}
+
+describe('Senses words', () => {
+  it('uses the survey words for 1 and 5, and our own for 2 to 4', () => {
+    expect(comfortLabel({ comfort: 1, anchors })).toBe('1 · not at all, too much for my senses')
+    expect(comfortLabel({ comfort: 4, anchors })).toBe('4 · fairly comfortable')
+    expect(comfortLabel({ comfort: 5, anchors })).toBe('5 · very much')
+  })
+
+  it('maps a rating to its state', () => {
+    expect([1, 2, 3, 4, 5].map(comfortLevel)).toEqual(['hard', 'hard', 'mixed', 'easy', 'easy'])
+  })
+
+  it('splits the sense from the label, and leaves "Nothing" alone', () => {
+    expect(elementLabel({ en: 'Signs, ads (sight)' })).toEqual({ text: 'Signs, ads', sense: 'sight' })
+    expect(elementLabel({ en: 'Nothing' })).toEqual({ text: 'Nothing', sense: '' })
+  })
+})
+
+describe('one place from its photos', () => {
+  it('takes the median of three and the elements named in at least two', () => {
+    const p = place(ok(2, ['a', 'c']), ok(4, ['a']), ok(5, ['d']))
+    expect(p.comfort).toBe(4)
+    expect(p.level).toBe('easy')
+    expect(p.bothers.map((e) => e.code)).toEqual(['a'])
+  })
+
+  it('takes the lower of two, and elements named in both', () => {
+    const p = place(ok(3, ['a', 'c']), ok(4, ['a']))
+    expect(p.comfort).toBe(3)
+    expect(p.bothers.map((e) => e.code)).toEqual(['a'])
+  })
+
+  it('uses one photo as it is', () => {
+    expect(place(ok(2, ['a', 'c'])).bothers.map((e) => e.code)).toEqual(['a', 'c'])
+  })
+
+  it('opens on the photo closest to the median, then the most recent', () => {
+    expect(place(ok(1), ok(4), ok(5)).rep).toBe(1)
+    expect(place(ok(4), ok(4)).rep).toBe(1)
+  })
+
+  it('counts what is failed or still pending, and never hides a failure', () => {
+    const some = place(ok(4), { status: 'failed', error: 'x' }, undefined)
+    expect(some).toMatchObject({ status: 'rated', nRated: 1, nFailed: 1, nPending: 1 })
+    expect(place({ status: 'failed', error: 'bad' })).toMatchObject({ status: 'failed', error: 'bad' })
+    expect(place(undefined).status).toBe('pending')
+    expect(place().status).toBe('pending') // a street with no photo has nothing that could fail
+  })
+
+})
+
+const at = (id, lon, comfort) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[lon, 48.2], [lon, 48.2001]] },
+  properties: { id, place_type: 'street', ...(comfort ? { senses_comfort: comfort } : {}) } })
+
+describe('the markers', () => {
+  const centre = { lat: 48.2, lon: 16.37 }
+  const ids = (ms) => ms.map((m) => m.f.properties.id)
+
+  it('numbers the best first, and never recommends a hard place', () => {
+    const fs = [at('a', 16.37, 3), at('b', 16.372, 5), at('c', 16.374, 1), at('d', 16.376, 2), at('e', 16.378, 4), at('f', 16.38, null)]
+    const ms = sensesMarkers(fs, centre)
+    expect(ids(ms)).toEqual(['b', 'e', 'a'])
+    expect(ms.map((m) => m.n)).toEqual([1, 2, 3])
+    expect(ms.map((m) => m.level)).toEqual(['easy', 'easy', 'mixed'])
+  })
+
+  it('keeps picks apart, so one street does not fill the list', () => {
+    expect(ids(sensesMarkers([at('a', 16.37, 5), at('b', 16.3701, 5), at('c', 16.375, 4)], centre))).toEqual(['a', 'c'])
+  })
+})
+
+describe('a route on Senses', () => {
+  const st = (length_m, state) => ({ length_m, state })
+
+  it('measures the hard share by length', () => {
+    expect(hardShare([st(100, 'hard'), st(300, 'easy')])).toBeCloseTo(0.25)
+    expect(hardShare([])).toBe(0)
+  })
+
+  it('says in one sentence how the two ways compare', () => {
+    const a = { minutes: 6, stretches: [st(100, 'hard'), st(100, 'easy')] }
+    const easier = { minutes: 8, kind: 'easiest', stretches: [st(200, 'easy')] }
+    const second = { minutes: 7, kind: 'second', stretches: [st(200, 'hard')] }
+    expect(sensesVerdict([a, easier])).toBe('B is 2 minutes longer but has less hard walking.')
+    expect(sensesVerdict([a, second])).toContain('A is already the easiest way')
+    expect(sensesVerdict([a])).toContain('only one sensible way')
+  })
+})
+
+describe('choosing the two ways from rated candidates', () => {
+  const way = (id, ...segs) => ({ id, length_m: segs.length * 100, parts: segs.map((segment_id) => ({ segment_id, length_m: 100 })) })
+  const states = { h: 'hard', m: 'mixed', e: 'easy' }
+  const stateOf = (id) => states[id[0]] ?? null
+
+  it('keeps the shortest as A and the easiest as B', () => {
+    const [a, b] = pickWays([way('A', 'h1', 'h2'), way('C1', 'm1', 'm2', 'm3'), way('C2', 'e1', 'e2', 'e3')], stateOf)
+    expect(a.id).toBe('A')
+    expect(b).toMatchObject({ id: 'B', kind: 'easiest', length_m: 300 })
+    expect(b.parts[0].segment_id).toBe('e1')
+  })
+
+  it('counts a street without a rating as no better than mixed', () => {
+    const [, b] = pickWays([way('A', 'm1'), way('C1', 'x1', 'x2'), way('C2', 'e1', 'e2')], stateOf)
+    expect(b.parts[0].segment_id).toBe('e1')
+  })
+
+  it('offers the next way as an alternative when none is easier than A', () => {
+    const [, b] = pickWays([way('A', 'e1'), way('C1', 'm1', 'm2'), way('C2', 'h1', 'h2')], stateOf)
+    expect(b).toMatchObject({ kind: 'second' })
+    expect(b.parts[0].segment_id).toBe('m1')
+  })
+
+  it('gives one way when there is only one', () => {
+    expect(pickWays([way('A', 'e1')], stateOf)).toHaveLength(1)
+  })
+})
+
+it('puts the state on the segments, and changes nothing when it is already there', () => {
+  const fc = { features: [{ properties: { id: 'a' } }] }
+  const states = new Map([['a', { state: 'easy', comfort: 4 }]])
+  const next = withSenses(fc, states)
+  expect(next.features[0].properties).toMatchObject({ senses_state: 'easy', senses_comfort: 4 })
+  expect(withSenses(next, states)).toBe(next)
+})
+
+it('writes the status line', () => {
+  const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, streetviewUsd: 0.672, seconds: 38.2 }
+  expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model, about $0.67 Street View · 38 s')
+})

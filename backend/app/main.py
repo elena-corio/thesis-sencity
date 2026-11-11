@@ -7,6 +7,7 @@
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - GET  /api/photo/{pano_id}?heading=…   one Street View image, streamed through, never stored
+- POST /api/senses/rate   the model's general predictions for a list of photos, streamed; cached ones cost nothing
 
 Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
 the body, not the URL, so they do not appear in access logs or the browser history either.
@@ -31,6 +32,7 @@ from tool.photos.provider import get_provider
 from . import area as area_mod
 from . import routes as routes_mod
 from . import search as search_mod
+from . import senses as senses_mod
 from . import steps
 
 full_cfg = load_config()
@@ -208,6 +210,8 @@ class RoutesRequest(BaseModel):
     limits: ThermalLimits
     season: str = Field(full_cfg["thermal"]["default"]["season"], pattern="^(" + "|".join(full_cfg["thermal"]["seasons"]) + ")$")
     time: str = Field(full_cfg["thermal"]["default"]["time"], pattern="^([01][0-9]|2[0-3]):00$")
+    # Senses loads streets and photos only, with no billed thermal run: B is chosen from rated candidates.
+    layer: str = Field("thermal", pattern="^(senses|thermal|overall)$")
 
 
 @app.post("/api/routes")
@@ -257,21 +261,26 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         lat, lon = routes_mod.middle(start, end)
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
         thermal = None
-        for event in area_mod.thermal_events(key, fc, lat, lon, zone, body.season, body.time, thermal_cfg, allowed):
-            if event["type"] == "thermal":
-                thermal = event
-            else:
-                yield _ndjson(event)
-        if thermal is None:
-            return
+        if body.layer != "senses":
+            for event in area_mod.thermal_events(key, fc, lat, lon, zone, body.season, body.time, thermal_cfg, allowed):
+                if event["type"] == "thermal":
+                    thermal = event
+                else:
+                    yield _ndjson(event)
+            if thermal is None:
+                return
         yield _ndjson({"type": "stage", "stage": "routes"})
         try:
-            found = routes_mod.find_routes(fc, start, end, thermal["values"], limits, full_cfg)
+            found = (routes_mod.find_routes(fc, start, end, thermal["values"], limits, full_cfg) if thermal
+                     else routes_mod.find_candidates(fc, start, end, cfg["senses"]["route_candidates"], full_cfg))
         except routes_mod.RouteError as e:
             yield _ndjson({"type": "error", "message": str(e)})
             return
-        yield _ndjson({"type": "routes", "season": thermal["season"], "time": thermal["time"],
-                       "station": thermal["station"], **found})
+        if thermal:
+            yield _ndjson({"type": "routes", "season": thermal["season"], "time": thermal["time"],
+                           "station": thermal["station"], **found})
+        else:  # no window, and no routes yet: the browser rates the candidates and chooses B
+            yield _ndjson({"type": "routes", "season": None, "time": None, "station": None, "routes": [], "verdict": "", **found})
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 
@@ -296,3 +305,37 @@ def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=3
     # In memory only: never written to disk (Google terms). Only the browser keeps it, briefly.
     return Response(content, media_type="image/jpeg",
                     headers={"Cache-Control": f"private, max-age={cfg['photo']['browser_cache_s']}"})
+
+
+# Senses mode: general predictions for the photos of an area or route (no profile), from model/app_v0/
+
+class SensesPhoto(BaseModel):
+    pano_id: str
+    heading: float = Field(..., ge=0, lt=360)
+
+
+class SensesRateRequest(BaseModel):
+    photos: list[SensesPhoto] = Field(..., max_length=cfg["senses"]["max_photos_per_request"])
+
+
+@app.post("/api/senses/rate")
+def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
+    """Rates the photos in the order given (nearest first). Cached ones answer at once and cost nothing; of the rest,
+    at most cfg["senses"]["cap_photos"] are rated and "done" says how many are left. Streams newline-separated JSON
+    (app/senses.py). Images are fetched here, kept in memory only, and never logged."""
+    known, unknown = [], []
+    for p in body.photos:
+        pair = (p.pano_id, round(p.heading, 1))
+        (known if PANO_ID.match(p.pano_id) and pair in _known_photos else unknown).append((p.pano_id, p.heading))
+    try:
+        plan = senses_mod.plan_rating(known, cfg["senses"])
+    except senses_mod.ExportError as e:
+        log.warning("senses: the export cannot be used")
+        raise HTTPException(503, f"The model settings cannot be used. {e}") from None
+    except senses_mod.PredictionError as e:
+        raise HTTPException(e.status, e.message) from None
+    if plan.to_rate and _rate_limited("senses", _ip(request), cfg["senses"]["runs_per_hour"], 3600):
+        raise HTTPException(429, "Too many rating runs in a short time. Wait a while, then retry.")
+    prov = provider() if plan.to_rate else None
+    return StreamingResponse((_ndjson(e) for e in senses_mod.rate_events(plan, cfg["senses"], prov, unknown)),
+                             media_type="application/x-ndjson")

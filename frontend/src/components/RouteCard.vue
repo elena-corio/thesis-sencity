@@ -4,12 +4,20 @@
 // panel (Settings on a phone), and the map hint says what to do.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
+import { GENERAL_LABEL, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
 import { useRoutesStore } from '../stores/routes.js'
+import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import RouteBar from './RouteBar.vue'
+import SensesFoot from './SensesFoot.vue'
+import SensesPanel from './SensesPanel.vue'
 
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
+const senses = useSensesStore()
+const rating = computed(() => senses.routesProgress)
+const ratingShare = computed(() => (rating.value.total ? Math.round((100 * rating.value.done) / rating.value.total) : 0))
+const cancel = () => (senses.routesRating ? senses.stopHere('routes') : routes.cancel())
 const cancelBtn = ref(null)
 const verb = computed(() => (props.phone ? 'Tap' : 'Click'))
 const pct = (x) => `${Math.round(x * 100)}%`
@@ -47,16 +55,22 @@ const share = computed(() => {
   const p = routes.progress
   return p.total ? Math.round((100 * p.done) / p.total) : 0
 })
-const loading = computed(() => routes.load === 'loading' || routes.load === 'error')
+const loading = computed(() => routes.load === 'loading' || routes.load === 'error' || senses.routesRating)
 
 const bName = (r) => (r.kind === 'easiest' ? 'easiest' : 'alternative')
-const hardColour = (r) => (r.hard_share === 0 ? 'clear' : '')
+/** Each layer's own numbers: Thermal's come with the routes, Senses' from the ratings as they are on the stretches. */
+const routeHard = (r) => (routes.layer === 'senses' ? hardShare(r.stretches) : r.hard_share)
+const hardColour = (r) => (routeHard(r) === 0 ? 'clear' : '')
+const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown) : routes.verdict))
 const coverage = computed(() => {
   const [a, b] = routes.shown
   const each = (key) => {
     if (!b) return `${pct(a[key])} of A`
     return pct(a[key]) === pct(b[key]) ? `${pct(a[key])} of A and B` : `${pct(a[key])} of A and ${pct(b[key])} of B`
   }
+  // Each layer speaks only of what it rests on; Overall rests on both.
+  if (routes.layer === 'thermal') return `Thermal along ${each('thermal_share')}.`
+  if (routes.layer === 'senses') return `Based on photos along ${each('photo_share')}.`
   return `Thermal along ${each('thermal_share')}, photos along ${each('photo_share')}.`
 })
 
@@ -80,7 +94,7 @@ function onLeave() { routes.hoverRoute = null }
           <h2 id="route-title" class="title">Comparing two ways</h2>
           <p class="meta">Loading the streets between start and end</p>
         </div>
-        <button type="button" class="icon-btn" aria-label="Cancel" @click="routes.cancel()"><AppIcon name="close" /></button>
+        <button type="button" class="icon-btn" aria-label="Cancel" @click="cancel"><AppIcon name="close" /></button>
       </div>
       <ul class="steps">
         <li :class="rowState('streets')">
@@ -94,18 +108,24 @@ function onLeave() { routes.hoverRoute = null }
           <span v-if="rowState('photos') === 'active'" class="detail" role="status">{{ routes.progress.done }} of {{ routes.progress.total }}</span>
           <span v-if="rowState('photos') === 'active'" class="progress" aria-hidden="true"><span :style="{ width: `${share}%` }" /></span>
         </li>
-        <li :class="rowState('thermal')">
+        <li v-if="routes.layer !== 'senses'" :class="rowState('thermal')">
           <AppIcon :name="rowState('thermal') === 'done' ? 'check' : 'pending'" />
           <span class="label">Thermal</span>
           <span class="detail">{{ routes.thermalWindow.season }}, {{ routes.thermalWindow.time }}</span>
           <span v-if="rowState('thermal') === 'active'" class="progress waiting" aria-hidden="true"><span /></span>
         </li>
-        <li v-if="routes.layer !== 'thermal'" class="next">
-          <AppIcon name="pending" /><span class="label">Rating for your profile</span>
+        <li v-if="routes.layer === 'senses'" :class="senses.routesRating ? 'active' : 'next'" data-testid="rating-step">
+          <AppIcon name="pending" />
+          <span class="label" role="status">{{ senses.routesRating ? `Rating ${rating.done} of ${rating.total} places…` : 'Rating the photos' }}</span>
+          <span v-if="senses.routesRating" class="progress" aria-hidden="true"><span :style="{ width: `${ratingShare}%` }" /></span>
         </li>
       </ul>
       <p v-if="routes.load === 'error'" class="note error" role="alert">{{ routes.error }}</p>
-      <p v-else-if="routes.hasResult" class="note">
+      <p v-else-if="senses.routesRating" class="note">
+        The two ways appear when the rating ends. <span data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
+        <strong class="general">{{ GENERAL_LABEL }}</strong>
+      </p>
+      <p v-else-if="routes.hasResult && routes.info" class="note">
         The ways on the map are for {{ routes.info.season }}, {{ routes.info.time }} until the new ones are ready.
       </p>
       <p v-else-if="routes.progress.stage === 'thermal'" class="note">
@@ -114,7 +134,7 @@ function onLeave() { routes.hoverRoute = null }
       <p v-else class="note">The two ways appear once the streets between start and end are ready. A new route takes a few minutes.</p>
       <div class="buttons">
         <button v-if="routes.load === 'error'" type="button" class="btn btn-primary" @click="routes.find({ resume: true })">Try again</button>
-        <button ref="cancelBtn" type="button" class="btn" @click="routes.cancel()">
+        <button ref="cancelBtn" type="button" class="btn" @click="cancel">
           {{ routes.load === 'error' ? 'Back' : 'Cancel' }}
         </button>
       </div>
@@ -137,14 +157,16 @@ function onLeave() { routes.hoverRoute = null }
           <span :class="['sample', r.id]" aria-hidden="true" />
           <strong>{{ r.id }}</strong>
           <span class="muted">{{ formatKm(r.length_m) }} · {{ r.minutes }} min</span>
-          <span class="hard" :class="hardColour(r)">hard {{ pct(r.hard_share) }}</span>
+          <span class="hard" :class="hardColour(r)">hard {{ pct(routeHard(r)) }}</span>
         </p>
         <div class="bar-row">
-          <span class="muted bar-label">Thermal</span>
+          <span class="muted bar-label">{{ routes.layer === 'senses' ? 'Senses' : 'Thermal' }}</span>
           <RouteBar :route="r" />
         </div>
       </div>
-      <p class="verdict">{{ routes.verdict }}</p>
+      <p class="verdict">{{ verdictText }}</p>
+      <SensesPanel v-if="routes.layer === 'senses'" scope="routes" />
+      <SensesFoot v-if="routes.layer === 'senses'" scope="routes" />
       <p v-if="routes.windowError" class="window-error" role="status">{{ routes.windowError }}</p>
       <p class="foot">
         {{ coverage }} {{ verb }} a stretch on the map or a section of a bar to see it. Predictions, not reasons.
@@ -165,6 +187,7 @@ function onLeave() { routes.hoverRoute = null }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .muted { color: var(--text-2); }
 
+.general { display: block; margin-top: var(--space-2); font-weight: var(--fw-semibold); }
 .foot { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 
 .steps { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-3); }

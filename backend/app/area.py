@@ -22,6 +22,7 @@ from tool.candidates import candidates_for, make_lookup, photos_for_segment
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection, circle
 from tool.infrared import ThermalError, run_utci
+from tool import osm_local
 from tool.osm import build_segments, fetch_overpass, parse, parse_buildings
 from tool.selection import select
 from tool.thermal import segment_values
@@ -115,7 +116,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str 
     data = steps.load(where, key, "osm") if key else None
     if data is None:
         yield {"type": "stage", "stage": "streets"}
-        data = fetch_overpass(lat, lon, radius, cfg, with_buildings=True)
+        data = osm_local.around(lat, lon, radius, cfg) or fetch_overpass(lat, lon, radius, cfg, with_buildings=True)
         if key:
             steps.save(where, key, "osm", data)
     footprints = parse_buildings(data, proj, 0)
