@@ -59,7 +59,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 
       <!-- The photo, and under it Play and the bar, as wide as the photo; the arrows beside the photo, at its middle. -->
       <div class="stage">
-        <button v-if="!isPlace" type="button" class="arrow prev" aria-label="Previous stretch" title="Previous"
+        <button v-if="!isPlace" type="button" class="arrow prev" aria-label="Previous stretch" title="Previous stretch"
                 :aria-disabled="walk.index === 0" @click="walk.step(-1, $event.detail === 0)">
           <AppIcon name="chevronLeft" />
         </button>
@@ -68,7 +68,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
           <WalkControls v-if="!isPlace" :phone="props.phone" />
           <ComfortKey v-else inline :layer="walk.layer" :window="walk.info" />
         </div>
-        <button v-if="!isPlace" type="button" class="arrow next" aria-label="Next stretch" title="Next"
+        <button v-if="!isPlace" type="button" class="arrow next" aria-label="Next stretch" title="Next stretch"
                 :aria-disabled="walk.atEnd" @click="walk.step(1, $event.detail === 0)">
           <AppIcon name="chevronRight" />
         </button>

@@ -60,11 +60,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <p class="coverage">{{ coverage }}</p>
       <!-- Stays in view while the card scrolls on a short screen. -->
       <div class="steps">
-        <button type="button" class="btn" :disabled="stretch.index === 0" @click="routes.stepStretch(-1)">
-          <AppIcon name="chevronLeft" /> Previous stretch
+        <button type="button" class="btn" aria-label="Previous stretch" :disabled="stretch.index === 0" @click="routes.stepStretch(-1)">
+          <AppIcon name="chevronLeft" /> Previous
         </button>
-        <button type="button" class="btn" :disabled="stretch.index === count - 1" @click="routes.stepStretch(1)">
-          Next stretch <AppIcon name="chevronRight" />
+        <button type="button" class="btn" aria-label="Next stretch" :disabled="stretch.index === count - 1" @click="routes.stepStretch(1)">
+          Next <AppIcon name="chevronRight" />
         </button>
       </div>
     </template>
