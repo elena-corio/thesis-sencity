@@ -7,6 +7,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Decision.**
 - *Check (Elena):* every file in `model/app_v9/` matched its sha256 in the MANIFEST before it was added.
 - *Archive (Elena):* `model/app_v0/` moved to `model/archive/app_v0/`, unchanged. The app keeps reading it from there (`EXPORT_DIR` in `backend/app/senses.py`) until the switch.
+- *Presence files (Elena):* re-exported the same day (source commit ed963d2) with `presence_prompt.txt` and `presence_schema.json`, the study's presence rule for the automatic element list in step 2. All 11 hashes matched the new MANIFEST; the other 9 files are unchanged. The presence prompt's element lines and the schema's codes match `elements.json` in order and wording.
 - *Order (Elena):* step 1 this import; step 3 the profile builder, as the in-app onboarding; step 2 the switch of the Senses rating to v9 after it.
 **Consequences.** No change in what the app sends or shows. `model/app_v9/` is in the repo but not read yet.
 

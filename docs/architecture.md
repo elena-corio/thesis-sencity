@@ -93,7 +93,7 @@ flowchart LR
 | `backend/app/routes.py` | Two routes: search ellipse, corridor that fits the tile limit, its photos, the route cache, A and B, the verdict sentence |
 | `backend/app/senses.py` | Senses mode: reads and checks `model/archive/app_v0/` on every request, splits a list of Mapillary photos into cached and new (the cap), rates the new ones 4 at a time: the picture from Mapillary in memory, the task text, the OpenRouter request, the reply validated (one retry); the cache, and the stale marks on old Street View ratings |
 | `model/archive/app_v0/` | The V0 export from the thesis repo (codebook 2026-11-08): system instructions, task text, the two schemas, element labels, model settings, MANIFEST. Archived, but still what the app reads until the v9 switch |
-| `model/app_v9/` | The survey v9 export (codebook 2026-11-12, file hashes in its MANIFEST): 20 elements in EN and IT, Part A, profile template and rules, task template and rules, schema template, model settings. Added, not read by the app yet |
+| `model/app_v9/` | The survey v9 export (codebook 2026-11-12, file hashes in its MANIFEST): 20 elements in EN and IT, Part A, profile template and rules, task template and rules, schema template, presence prompt and schema (the automatic element list per photo), model settings. Added, not read by the app yet |
 | `backend/app/__main__.py` | `python -m app`: runs the API with access logs off |
 | `backend/tests/` | Unit tests for segment splitting, selection and search (no API calls) |
 

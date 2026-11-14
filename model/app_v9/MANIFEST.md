@@ -1,11 +1,12 @@
 # SenCity export for the app: survey v9
 
-- Source commit: 2464e64e745949345219ccf00a0a302396ae9d1b
+- Source commit: ed963d2a8dcd951da3ab6e3552796707f915444e
 - Export date: 2026-11-14
 - Codebook: config/codebook_2026-11-12.yaml (version 2026-11-12, sha 91b6f48a684a)
 - Contains no participant data, no images, no API keys.
 - Profile: every field is filled from `part_a.json` alone (A11, A12, A13, A16) plus the answer language; no field comes from A1-A5 or A15.
 - Task: `task_template.txt` is the study's v9 single-photo task text (B1 + B2, eight-senses line included); the element list is filled per photo (`task_rules.json`).
+- Presence check (D150, run once on the 20 study photos, untuned): agreement with the confirmed lists 91.7% (365/398 answers); 96% of the confirmed elements found; 82% of the model's elements are in the confirmed lists. App lists run about 18% long, mostly Direct sun, Shade and Nice buildings; Crowds was missed on 3 of 20 photos. Future work: users review the automatic lists before they are used.
 
 ## Files (sha256)
 
@@ -18,3 +19,5 @@
 - `task_rules.json`: f3959a0db1a7ddace32e249d9ee53f4d04c9d9605b48f128dd45252099ac0864
 - `schema_template.json`: 5d296ff5fc593134b85f5159facc886e11f640adabd90b37315d2d1fa547e3b1
 - `model.json`: 54f12e719b964b58cfd09a3413533d2b470d349ff2dbd90ffe834f153d8941ca
+- `presence_prompt.txt`: 156bf2bf65244140f65aa12c2a1490c6f52faabef7d729014330483d8db09b77
+- `presence_schema.json`: a592292e3866d951a0ac9d7ff05135d99f598c13e6e9c0c23e2fd890f9c22ea9
