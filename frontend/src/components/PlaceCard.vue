@@ -255,7 +255,8 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <slot name="foot" />
     <slot />
     <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
-                 :photos="photos" :failed="failed" :rating="viewerRating" :rating-note="viewerNote" @close="closeViewer" @failed="onImgError" />
+                 :photos="photos" :failed="failed" :rating="viewerRating" :rating-note="viewerNote" :steps="src.steps ?? null"
+                 @step="(d, keyboard) => src.step?.(d, keyboard)" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 

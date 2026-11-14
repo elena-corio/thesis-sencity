@@ -2,6 +2,16 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The enlarged photo says what its arrows step through, and the mouse can do it too (accepted)
+**Context.** Elena: in the enlarged photo of a route stretch, ← → moved on but there were no arrows to click, and it was not clear whether they went to the next photo or the next stretch. Each street now has one photo, so the viewer drew no arrows; the stretch card's keys reached through it (after a click on the photo the focus left the dialog) and stepped the stretches behind it.
+**Decision.**
+- *Opened from a stretch (Elena: clear, and both ways):* the arrows step through the route's stretches. They are named "Previous stretch" / "Next stretch", the counter reads "Stretch 3 of 8", and the hint says "The arrows, or the ← → keys: previous or next stretch." (phone: "Swipe or tap the arrows …"). The keys, the arrow buttons and a swipe do the same, the card behind follows, and they stop at the first and the last stretch (the arrow there is shown faded, `aria-disabled`) (proposed: stop rather than go round, as the card's own buttons do).
+- *A place with more than one photo:* as before, the arrows step through its photos ("Photo 2 of 3"), going round.
+- *A place with one photo:* no arrows, no counter, and the arrow keys do nothing; the hint says "Esc to go back."
+- *Keys:* the viewer takes them while it is open, wherever the focus is; the dialog keeps the focus when its photo is clicked.
+
+**Consequences.** On a stretch with several photos (not the case with one Mapillary photo per street), the arrows step stretches and the thumbnails choose the photo.
+
 ## 2026-11-14 – The walk: a rating always with its photo (accepted)
 **Context.** Elena: on a stretch without a photo the walk said "No photo for this stretch, rated from the map", while the card said "No photo, so no Senses rating here" and the line kept the street's colour. The caption was left from the first walk (11 Nov), when stretches kept their street's rating. Since the walk rates each stretch's own photo, the line, bar and mini map were coloured from the street's photo while the card rated the stretch's own: two photos for one stretch.
 **Decision.**

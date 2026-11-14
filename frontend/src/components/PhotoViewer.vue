@@ -1,6 +1,8 @@
 <script setup>
 // Enlarged photo (board 2f+; phone P2+). Over the dimmed app (90%) on desktop, a full page on a
-// phone. Arrow keys switch photos, Esc goes back, focus stays inside while it is open.
+// phone. Esc goes back, focus stays inside while it is open. What the arrows step through is named on them, in the
+// counter and in the hint, and the keys, the arrow buttons and a swipe do the same (Elena, 2026-11-14): the stretches of
+// a route when opened from a stretch (one photo each), the photos when a place has more than one; nothing otherwise.
 // Images are Mapillary's thumbnails, loaded on demand and never stored.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
@@ -18,8 +20,10 @@ const props = defineProps({
   rating: { type: String, default: 'Not rated yet' },
   /** What kind of rating it is, shown under it. */
   ratingNote: { type: String, default: '' },
+  /** Opened from a stretch of a route: { noun: 'stretch', index, count }; the arrows step through them ("step"). */
+  steps: { type: Object, default: null },
 })
-const emit = defineEmits(['update:index', 'close', 'failed'])
+const emit = defineEmits(['update:index', 'close', 'failed', 'step'])
 
 const dialog = ref(null)
 const backBtn = ref(null)
@@ -27,22 +31,32 @@ const photos = computed(() => props.photos ?? props.feature.properties.photos ??
 const photo = computed(() => photos.value[props.index])
 const name = computed(() => props.feature.properties.name)
 const n = computed(() => photos.value.length)
+/** What the arrows step through: the route's stretches, the place's photos, or nothing (null). */
+const nav = computed(() => {
+  if (props.steps?.count > 1) return { noun: props.steps.noun, i: props.steps.index, n: props.steps.count, ends: true }
+  return n.value > 1 ? { noun: 'photo', i: props.index, n: n.value, ends: false } : null
+})
+const Noun = computed(() => (nav.value ? nav.value.noun[0].toUpperCase() + nav.value.noun.slice(1) : ''))
+/** Stretches stop at the first and the last; photos go round. */
+const canGo = (d) => !!nav.value && (!nav.value.ends || (nav.value.i + d >= 0 && nav.value.i + d < nav.value.n))
 
-function go(d) {
-  if (n.value > 1) emit('update:index', (props.index + d + n.value) % n.value)
+function go(d, keyboard = false) {
+  if (!canGo(d)) return
+  if (nav.value.ends) emit('step', d, keyboard)
+  else emit('update:index', (props.index + d + n.value) % n.value)
 }
 
+// The keys are the viewer's while it is open, wherever the focus is (a click on the photo must not hand them to the card
+// behind it).
 function onKey(e) {
   if (e.key === 'Escape') {
     e.preventDefault()
     e.stopPropagation()
     emit('close')
-  } else if (e.key === 'ArrowRight') {
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
     e.preventDefault()
-    go(1)
-  } else if (e.key === 'ArrowLeft') {
-    e.preventDefault()
-    go(-1)
+    e.stopPropagation()
+    go(e.key === 'ArrowRight' ? 1 : -1, true)
   } else if (e.key === 'Tab') {
     // Keep focus inside the dialog.
     const items = [...dialog.value.querySelectorAll('button:not([disabled])')]
@@ -67,24 +81,29 @@ function onPointerUp(e) {
 onMounted(() => {
   nextTick(() => backBtn.value?.focus())
   document.body.style.overflow = 'hidden'
+  window.addEventListener('keydown', onKey, true)
 })
-onBeforeUnmount(() => { document.body.style.overflow = '' })
+onBeforeUnmount(() => {
+  document.body.style.overflow = ''
+  window.removeEventListener('keydown', onKey, true)
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div ref="dialog" class="viewer" :class="{ phone }" role="dialog" aria-modal="true" data-viewer
-         :aria-label="`Photo ${index + 1} of ${n}, ${name}`" @keydown="onKey">
+    <div ref="dialog" class="viewer" :class="{ phone }" role="dialog" aria-modal="true" data-viewer tabindex="-1"
+         :aria-label="nav ? `Photo, ${nav.noun} ${nav.i + 1} of ${nav.n}, ${name}` : `Photo, ${name}`">
       <div class="inner">
         <header class="bar">
           <button ref="backBtn" type="button" class="back" @click="emit('close')">
             <AppIcon name="chevronLeft" /> Back to place
           </button>
-          <span class="count" aria-live="polite">Photo {{ index + 1 }} of {{ n }}</span>
+          <span v-if="nav" class="count" aria-live="polite" data-testid="viewer-count">{{ Noun }} {{ nav.i + 1 }} of {{ nav.n }}</span>
         </header>
 
         <div class="stage" @pointerdown="onPointerDown" @pointerup="onPointerUp">
-          <button v-if="n > 1" type="button" class="arrow prev" aria-label="Previous photo" @click="go(-1)">
+          <button v-if="nav" type="button" class="arrow prev" :aria-label="`Previous ${nav.noun}`" :title="`Previous ${nav.noun}`"
+                  :aria-disabled="!canGo(-1)" @click="go(-1)">
             <AppIcon name="chevronLeft" />
           </button>
           <div class="photo">
@@ -94,7 +113,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
             <a v-if="photoLink(photo)" class="credit" :href="photoLink(photo)" target="_blank" rel="noopener">{{ photoCredit(photo) }}</a>
             <span v-else class="credit">{{ photoCredit(photo) }}</span>
           </div>
-          <button v-if="n > 1" type="button" class="arrow next" aria-label="Next photo" @click="go(1)">
+          <button v-if="nav" type="button" class="arrow next" :aria-label="`Next ${nav.noun}`" :title="`Next ${nav.noun}`"
+                  :aria-disabled="!canGo(1)" @click="go(1)">
             <AppIcon name="chevronRight" />
           </button>
         </div>
@@ -123,8 +143,9 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         </div>
 
         <p class="hint">
-          <template v-if="phone">Swipe or tap the arrows for the next photo.</template>
-          <template v-else>Arrow keys for the next photo, Esc to go back.</template>
+          <template v-if="nav && phone">Swipe or tap the arrows for the previous or next {{ nav.noun }}.</template>
+          <template v-else-if="nav">The arrows, or the ← → keys: previous or next {{ nav.noun }}. Esc to go back.</template>
+          <template v-else-if="!phone">Esc to go back.</template>
           <template v-if="!ratingNote">Ratings come in the next step.</template>
           <template v-else-if="n > 1">The street rating combines all {{ n }} photos.</template>
         </p>
@@ -172,6 +193,7 @@ a.credit:hover { text-decoration: underline; }
   border: var(--hairline) solid var(--line); border-radius: 50%;
   background: var(--panel); color: var(--text);
 }
+.arrow[aria-disabled="true"] { opacity: var(--inactive-opacity); cursor: default; }
 .info { width: var(--viewer-photo); display: flex; justify-content: space-between; gap: var(--space-4); align-items: flex-start; }
 .info h2 { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .muted { margin: var(--space-1) 0 0; color: var(--text-2); }

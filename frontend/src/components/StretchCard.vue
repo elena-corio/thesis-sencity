@@ -25,6 +25,9 @@ const source = computed(() => ({
   subtitle: stretchLine(stretch.value),
   byKeyboard: routes.byKeyboard,
   back: (keyboard) => routes.back(keyboard),
+  // The enlarged photo steps through the route's stretches, one photo each (PhotoViewer).
+  steps: { noun: 'stretch', index: stretch.value.index, count: count.value },
+  step: (d, keyboard) => routes.stepStretch(d, keyboard),
 }))
 
 const coverage = computed(() => {
@@ -35,7 +38,8 @@ const coverage = computed(() => {
 
 function onKey(e) {
   if (e.defaultPrevented || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return
-  if (e.target.closest?.('input, select, [data-viewer]')) return
+  // With the enlarged photo open, the keys are the viewer's (it steps the stretches itself).
+  if (e.target.closest?.('input, select, [data-viewer]') || document.querySelector('[data-viewer]')) return
   e.preventDefault()
   routes.stepStretch(e.key === 'ArrowLeft' ? -1 : 1, true)
 }

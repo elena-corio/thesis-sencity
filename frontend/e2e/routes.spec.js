@@ -104,6 +104,40 @@ test.describe('desktop', () => {
     await expect(page.locator('.point')).toBeVisible()
   })
 
+  test('the enlarged photo of a stretch steps through the stretches, with the keys and with the mouse', async ({ page }) => {
+    await mockRoutes(page)
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await page.locator('[data-stretch="A-0"]').click()
+    await stretch(page).getByRole('button', { name: 'Enlarge photo', exact: true }).click()
+    const viewer = page.locator('[data-viewer]')
+    // It says what the arrows do: the stretches of the route (Elena, 2026-11-14).
+    await expect(viewer.getByTestId('viewer-count')).toHaveText('Stretch 1 of 5')
+    await expect(viewer).toContainText('previous or next stretch')
+    await expect(viewer.getByRole('button', { name: 'Previous stretch' })).toHaveAttribute('aria-disabled', 'true')
+    // The mouse.
+    await viewer.getByRole('button', { name: 'Next stretch' }).click()
+    await expect(viewer.getByTestId('viewer-count')).toHaveText('Stretch 2 of 5')
+    await expect(stretch(page)).toContainText('stretch 2 of 5') // the card behind follows
+    // The keys, also after a click on the photo, and one stretch at a time.
+    await viewer.locator('.photo img').click()
+    await page.keyboard.press('ArrowRight')
+    await expect(viewer.getByTestId('viewer-count')).toHaveText('Stretch 3 of 5')
+    await expect(stretch(page)).toContainText('stretch 3 of 5')
+    await page.keyboard.press('ArrowLeft')
+    await expect(viewer.getByTestId('viewer-count')).toHaveText('Stretch 2 of 5')
+    // It stops at the last stretch.
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight')
+    await expect(viewer.getByTestId('viewer-count')).toHaveText('Stretch 5 of 5')
+    await expect(viewer.getByRole('button', { name: 'Next stretch' })).toHaveAttribute('aria-disabled', 'true')
+    await page.keyboard.press('Escape')
+    await expect(viewer).toHaveCount(0)
+    await expect(stretch(page)).toContainText('stretch 5 of 5')
+  })
+
   test('every street of a route can be selected, also next to one in the same state', async ({ page }) => {
     await mockRoutes(page, { sameState: true })
     await openRoutes(page, 'dark')
