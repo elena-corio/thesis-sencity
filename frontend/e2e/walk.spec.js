@@ -1,8 +1,8 @@
-// Walk along a route at eye level (boards Routes 5, P6), with the API mocked: no Overpass, Street View, Infrared.city or
-// model calls. The buildings are boxes either side of the walked line, the Mapillary photos placeholders. The app ships
-// with Mapillary in the walk (lib/photos.js); some checks run with Street View or with no photos.
+// The walk along a route (Elena, 2026-11-14: a slideshow of photos, no 3D street, no turning camera), with the API
+// mocked: no Overpass, Street View, Infrared.city or model calls. The Mapillary photos are placeholders. The app ships with
+// Mapillary in the walk (lib/photos.js); one check runs with no photos.
 import { expect, test } from '@playwright/test'
-import { PHOTO, layoutProblems, mapIdle, mockRoutes, openRoutes, routeClicks } from './helpers.js'
+import { PHOTO, layoutProblems, mockRoutes, openRoutes, routeClicks } from './helpers.js'
 
 /** Mock POST /api/mapillary/along: a photo at the start of every stretch, facing along it, except for the keys in `missing`. */
 async function mockMapillary(page, { missing = [], panos = [] } = {}) {
@@ -37,31 +37,6 @@ async function mockMapillary(page, { missing = [], panos = [] } = {}) {
   return mock
 }
 
-/** Mock POST /api/buildings: a box 20 m to each side of every point of the line, 12 to 40 m high. fail: 503. */
-async function mockBuildings(page, { fail = false } = {}) {
-  const mock = { requests: [] }
-  await page.route('**/api/buildings', async (route) => {
-    const { line } = route.request().postDataJSON()
-    mock.requests.push(line)
-    if (fail) {
-      await route.fulfill({ status: 503, json: { detail: 'Buildings could not be loaded here.' } })
-      return
-    }
-    const box = ([lon, lat], dx, dy, h) => {
-      const m = 1 / 111320
-      const k = 1 / Math.cos((lat * Math.PI) / 180)
-      const x = lon + dx * m * k
-      const y = lat + dy * m
-      const w = 14 * m * k
-      const d = 14 * m
-      return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[x, y], [x + w, y], [x + w, y + d], [x, y + d], [x, y]]] }, properties: { h, b: 0 } }
-    }
-    const features = line.flatMap((p, i) => [box(p, -34, 20, 12 + (i % 4) * 7), box(p, 20, -34, 40 - (i % 3) * 9)])
-    await route.fulfill({ json: { type: 'FeatureCollection', features, source: 'Stadt Wien – data.wien.gv.at' } })
-  })
-  return mock
-}
-
 /** Street View images asked for (the app has none any more), and with thumbs also the Mapillary thumbnails. */
 function watchPhotos(page, { thumbs = false } = {}) {
   const urls = []
@@ -80,106 +55,89 @@ async function toRoutes(page, { theme = 'dark', phone = false, photos = 'mapilla
   await expect(page.getByRole('button', { name: 'Walk route B' })).toBeVisible()
 }
 
-/** Take the photos off one street of the routes (the app's state), so a stretch has none. */
-const noPhotosOn = (page, id) => page.evaluate((segment) => {
-  const routes = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('routes')
-  const next = new Map(routes.segments)
-  const f = next.get(segment)
-  next.set(segment, { ...f, properties: { ...f.properties, photos: [] } })
-  routes.segments = next
-}, id)
-
-const camera = (page) => page.evaluate(() => {
-  const m = window.__sencityMap
-  return { pitch: m.getPitch(), zoom: m.getZoom(), bearing: m.getBearing() }
-})
-const settle = (page) => page.waitForFunction(() => !window.__sencityMap.isMoving(), null, { timeout: 10_000 })
+const view = (page) => page.locator('[data-panel="walk-view"]')
+const card = (page) => page.locator('[data-panel="walk-card"]')
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' })
 
-  test('walk the easiest route at eye level, stretch by stretch, then back to the comparison', async ({ page }) => {
+  test('walk the easiest route as photos, stretch by stretch, then back to the comparison', async ({ page }) => {
     await mockRoutes(page)
-    const buildings = await mockBuildings(page)
+    let buildings = 0
+    await page.route('**/api/buildings', (route) => { buildings++; return route.abort() })
     await mockMapillary(page)
     await toRoutes(page)
     const photoUrls = watchPhotos(page)
-    await expect(page.getByRole('button', { name: 'Walk A' })).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/walk/0-route-card.png' })
 
     await page.getByRole('button', { name: 'Walk route B' }).click()
-    await expect(page.getByRole('status').filter({ hasText: 'Walking route B' })).toContainText('easiest thermal, summer 15:00')
-    await settle(page)
-    const eye = await camera(page)
-    expect(eye.pitch).toBeGreaterThan(80) // eye level, looking along the street
-    expect(eye.zoom).toBeGreaterThan(22)
-    expect(buildings.requests).toHaveLength(1)
+    const v = view(page)
+    await expect(v.getByRole('status').filter({ hasText: 'Walking route B' })).toContainText('easiest thermal, summer 15:00')
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3')
+    // No 3D street: the map stays flat and no buildings are asked for.
+    expect(await page.evaluate(() => window.__sencityMap.getPitch())).toBe(0)
+    expect(buildings).toBe(0)
 
-    // No left panel: the key is at the top of the right card, read only; the settings are fixed for the walk.
+    // No left panel or route card: the walk is its own view; the key is in its right column, read only.
     await expect(page.locator('[data-panel="layers"]')).toHaveCount(0)
-    const right = page.locator('[data-panel="walk-side"]')
-    await expect(right.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
-    await expect(right).toContainText('To change the layer, season or time, exit the walk.')
-    await expect(right.getByRole('radio')).toHaveCount(0)
-    // Navigation stays.
+    await expect(page.locator('[data-panel="route-card"]')).toHaveCount(0)
+    await expect(v.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
+    await expect(v).toContainText('To change the layer, season or time, exit the walk.')
+    await expect(v.getByRole('radio')).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible()
 
-    // Centre: the Mapillary photo facing along the walk, credited inside its frame; the card under it.
+    // The photo the stretch is rated from, credited inside its frame; the stretch's card on the right.
     const photo = page.getByTestId('walk-photo')
     await expect(photo).toBeVisible()
-    const credit = photo.getByRole('link', { name: 'anna · 2024 · CC BY-SA 4.0' })
-    await expect(credit).toHaveAttribute('href', 'https://www.mapillary.com/app/?pKey=img0')
+    await expect(photo.getByRole('link', { name: 'anna · 2024 · CC BY-SA 4.0' })).toHaveAttribute('href', 'https://www.mapillary.com/app/?pKey=img0')
     await expect(page.locator('[data-panel="attribution"]')).toContainText('photo: Mapillary')
-    const card = page.locator('[data-panel="walk-card"]')
-    await expect(card).toContainText('Kuehlgasse')
-    await expect(card).toContainText('180 m · about 2 min')
+    await expect(page.locator('[data-panel="attribution"]')).not.toContainText('buildings')
+    await expect(card(page)).toContainText('Kuehlgasse')
+    await expect(card(page)).toContainText('180 m · about 2 min')
     const details = page.locator('#walk-details')
     await expect(details).toContainText('Might bother you')
-    await expect(details).toContainText('Might feel good')
     await expect(details.getByRole('button', { name: 'Rate 1 of 5' })).toHaveAttribute('aria-disabled', 'true')
-
-    // Right: exit, where you are, the progress, previous / play / next; no segment bar.
-    const side = page.locator('[data-panel="walk-side"]')
-    await expect(side.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeVisible()
-    await expect(side).toContainText('Where you are')
-    await expect(side).toContainText(/0\.09 of 0\.6 km, 1 of 7 min/)
-    await expect(side.getByRole('button', { name: 'Pause' })).toBeVisible() // it opens playing (Elena, 2026-11-11)
-    await expect(page.locator('[data-panel="attribution"]')).toContainText('buildings: Stadt Wien – data.wien.gv.at via Infrared.city')
-    await mapIdle(page)
+    await expect(v).toContainText('Where you are')
+    await expect(v).toContainText(/0\.09 of 0\.6 km, 1 of 7 min/)
+    await expect(v.getByRole('button', { name: 'Pause' })).toBeVisible() // it opens playing (Elena, 2026-11-11)
     await page.screenshot({ path: 'e2e/screens/walk/1-walk-dark.png' })
     expect(await layoutProblems(page)).toEqual([])
 
     // Keys: space pauses and plays; the arrows go along the route.
     await page.locator('body').press('Space')
-    await expect(side.getByRole('button', { name: 'Play' })).toBeVisible()
+    await expect(v.getByRole('button', { name: 'Play' })).toBeVisible()
     await page.locator('body').press('ArrowRight')
-    await expect(card).toContainText('Marktgasse')
+    await expect(card(page)).toContainText('Marktgasse')
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 2 of 3')
     await page.locator('body').press('ArrowLeft')
-    await expect(card).toContainText('Kuehlgasse')
-    await page.locator('body').press('Space')
-    await expect(side.getByRole('button', { name: 'Pause' })).toBeVisible()
-    await page.locator('body').press('Space')
-    await expect(side.getByRole('button', { name: 'Play' })).toBeVisible()
+    await expect(card(page)).toContainText('Kuehlgasse')
+    await expect(v.getByRole('button', { name: 'Previous stretch' })).toHaveAttribute('aria-disabled', 'true')
+
+    // The mouse: the arrows beside the photo, and the route bar.
+    await v.getByRole('button', { name: 'Next stretch' }).click()
+    await expect(card(page)).toContainText('Marktgasse')
+    const bar = v.getByRole('group', { name: /Route B, 3 stretches/ })
+    await bar.locator('[data-stretch="B-2"]').click()
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 3 of 3')
+    await expect(bar.locator('[data-stretch="B-2"]')).toHaveAttribute('aria-current', 'step')
+    await expect(v.getByRole('button', { name: 'Next stretch' })).toHaveAttribute('aria-disabled', 'true')
 
     // Where you are: each stretch can be jumped to (a button for the keyboard too).
-    const third = side.getByRole('button', { name: /stretch 3 of 3/ })
-    await third.focus()
-    await third.press('Enter')
-    await expect(card).toContainText('Kuehlgasse')
-    await expect(side.getByRole('button', { name: 'Next stretch' })).toHaveAttribute('aria-disabled', 'true')
+    const first = v.locator('.mini').getByRole('button', { name: /stretch 1 of 3/ })
+    await first.focus()
+    await first.press('Enter')
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3')
 
-    // No Street View image was asked for: nothing of Google's next to a map.
+    // No Street View image was asked for.
     expect(photoUrls).toHaveLength(0)
 
-    await side.getByRole('button', { name: 'Exit walk, back to comparison' }).click()
+    await v.getByRole('button', { name: 'Exit walk, back to comparison' }).click()
     await expect(page.locator('[data-panel="route-card"]')).toContainText('Which way feels better?')
-    await settle(page)
-    expect((await camera(page)).pitch).toBe(0)
+    await expect(view(page)).toHaveCount(0)
   })
 
-  test('a stretch with no photo of its own shows its street\'s photo, and says so', async ({ page }) => {
+  test("a stretch with no photo of its own shows its street's photo, and says so", async ({ page }) => {
     await mockRoutes(page)
-    await mockBuildings(page)
     await mockMapillary(page, { missing: ['B-1'] })
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
@@ -192,23 +150,20 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('walk-no-photo')).toHaveCount(0)
   })
 
-  test('a stretch with no photo at all shows the 3D street, and no rating', async ({ page }) => {
+  test('a stretch with no photo at all says so, and has no rating', async ({ page }) => {
     await mockRoutes(page, { bare: ['b2'] })
-    await mockBuildings(page)
     await mockMapillary(page, { missing: ['B-1'] })
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
     await page.locator('body').press('ArrowRight')
     await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, so no rating.')
-    await settle(page)
-    await mapIdle(page)
+    await expect(page.getByTestId('walk-photo')).toHaveCount(0)
     await page.screenshot({ path: 'e2e/screens/walk/2-no-photo.png' })
   })
 
   test('a panorama is shown at the walk bearing', async ({ page }) => {
     await mockRoutes(page)
-    await mockBuildings(page)
     await mockMapillary(page, { panos: ['A-1'] })
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk A' }).click()
@@ -220,68 +175,51 @@ test.describe('desktop', () => {
     const { shift, width } = await pano.evaluate((el) => ({ shift: parseFloat(getComputedStyle(el).backgroundPositionX), width: el.clientWidth }))
     const eAt = shift + 0.75 * 4 * width
     expect(Math.abs(eAt - width / 2)).toBeLessThan(width * 0.05)
-    await settle(page)
-    await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/walk/7-pano.png' })
   })
 
-  test('with photos off, the 3D street alone and no image loaded', async ({ page }) => {
+  test('with photos off, no image is loaded and the square says so', async ({ page }) => {
     await mockRoutes(page)
-    await mockBuildings(page)
     const mly = await mockMapillary(page)
     await toRoutes(page, { photos: 'none' })
     const photoUrls = watchPhotos(page, { thumbs: true })
     await page.getByRole('button', { name: 'Walk route B' }).click()
-    await expect(page.locator('[data-panel="walk-card"]')).toContainText('Kuehlgasse')
+    await expect(card(page)).toContainText('Kuehlgasse')
     await expect(page.getByTestId('walk-photo')).toHaveCount(0)
-    await expect(page.getByTestId('walk-no-photo')).toHaveCount(0)
+    await expect(page.getByTestId('walk-no-photo')).toHaveText('Photos are not shown.')
     expect(photoUrls).toHaveLength(0)
     // The stretches' photos are still found (not shown): in Senses they are the ones rated.
     await expect.poll(() => mly.requests).toBe(1)
   })
 
-  test('without buildings the walk goes on flat, with a notice and Retry', async ({ page }) => {
-    await mockRoutes(page)
-    await mockMapillary(page)
-    await mockBuildings(page, { fail: true })
-    await toRoutes(page)
-    await page.getByRole('button', { name: 'Walk A' }).click()
-    const notice = page.getByRole('status').filter({ hasText: 'without buildings' })
-    await expect(notice).toContainText('Buildings could not be loaded here.')
-    await expect(notice.getByRole('button', { name: 'Retry' })).toBeVisible()
-    await expect(page.locator('[data-panel="walk-card"]')).toContainText('Mittelgasse')
-  })
-
   test('Esc and Area leave the walk; focus goes back to its button', async ({ page }) => {
     await mockRoutes(page)
     await mockMapillary(page)
-    await mockBuildings(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).focus()
     await page.keyboard.press('Enter')
-    await expect(page.locator('[data-panel="walk-card"]')).toBeVisible()
+    await expect(card(page)).toBeVisible()
+    await expect(view(page).getByRole('button', { name: 'Exit walk, back to comparison' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Walk route B' })).toBeFocused()
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Area' }).click()
-    await expect(page.locator('[data-panel="walk-card"]')).toHaveCount(0)
+    await expect(card(page)).toHaveCount(0)
   })
 })
 
 test.describe('reduced motion', () => {
   test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark', reducedMotion: 'reduce' })
 
-  test('jumps between stretches instead of gliding', async ({ page }) => {
+  test('opens paused, and steps only when asked', async ({ page }) => {
     await mockRoutes(page)
     await mockMapillary(page)
-    await mockBuildings(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
-    await expect(page.locator('[data-panel="walk-card"]')).toContainText('Kuehlgasse')
-    expect(await page.evaluate(() => window.__sencityMap.isMoving())).toBe(false)
-    await page.getByRole('button', { name: 'Next stretch' }).click()
-    expect(await page.evaluate(() => window.__sencityMap.isMoving())).toBe(false)
-    expect((await camera(page)).pitch).toBeGreaterThan(80)
+    await expect(card(page)).toContainText('Kuehlgasse')
+    await expect(view(page).getByRole('button', { name: 'Play' })).toBeVisible()
+    await view(page).getByRole('button', { name: 'Next stretch' }).click()
+    await expect(card(page)).toContainText('Marktgasse')
   })
 })
 
@@ -291,11 +229,9 @@ test.describe('light', () => {
   test('the walk in light mode', async ({ page }) => {
     await mockRoutes(page)
     await mockMapillary(page)
-    await mockBuildings(page)
     await toRoutes(page, { theme: 'light' })
     await page.getByRole('button', { name: 'Walk route B' }).click()
-    await settle(page)
-    await mapIdle(page)
+    await expect(page.getByTestId('walk-photo')).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/walk/4-walk-light.png' })
     expect(await layoutProblems(page)).toEqual([])
   })
@@ -305,30 +241,25 @@ for (const theme of ['dark', 'light']) {
   test.describe(`phone, ${theme}`, () => {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: theme, hasTouch: true })
 
-    test('the walk in the sheet, with the tab bar', async ({ page }) => {
+    test('the walk as one column, with the tab bar', async ({ page }) => {
       await mockRoutes(page, { bare: ['b2'] })
       await mockMapillary(page, { missing: ['B-1'] })
-      await mockBuildings(page)
       await toRoutes(page, { theme, phone: true })
       await page.getByRole('button', { name: 'Walk route B' }).click()
-      const sheet = page.locator('[data-panel="sheet"]')
-      await expect(sheet.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeInViewport()
-      await expect(sheet.getByRole('group', { name: 'Walk controls' })).toBeVisible()
-      await expect(sheet).toContainText('Might feel good')
+      const v = view(page)
+      await expect(v.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeInViewport()
+      await expect(page.getByTestId('walk-photo')).toBeInViewport()
+      await expect(v.getByRole('group', { name: 'Walk controls' })).toBeVisible()
+      await expect(v).toContainText('Might feel good')
       await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible() // the tab bar stays
-      await expect(page.getByRole('button', { name: 'Layer, season and time' })).toHaveCount(0) // no layer button
-      await expect(page.getByTestId('walk-photo')).toBeVisible()
-      await settle(page)
-      await mapIdle(page)
+      await expect(page.locator('[data-panel="sheet"]')).toBeHidden()
       await page.screenshot({ path: `e2e/screens/walk/5-phone-${theme}.png` })
       expect(await layoutProblems(page)).toEqual([])
-      // A stretch with no photo: the 3D street and the line.
-      await sheet.getByRole('button', { name: 'Next stretch' }).click()
+      // A stretch with no photo: the square says so.
+      await v.getByRole('button', { name: 'Next stretch' }).tap()
       await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, so no rating.')
-      await settle(page)
-      await mapIdle(page)
       await page.screenshot({ path: `e2e/screens/walk/6-phone-no-photo-${theme}.png` })
-      await sheet.getByRole('button', { name: 'Exit walk, back to comparison' }).click()
+      await v.getByRole('button', { name: 'Exit walk, back to comparison' }).tap()
       await expect(page.getByRole('button', { name: 'Walk route B' })).toBeVisible()
     })
   })

@@ -148,24 +148,20 @@
   --viewer-photo: min(70vh, 80vw, calc(100dvh - var(--viewer-chrome)));  /* brief: min(70vh, 80vw) */
   --viewer-arrow: 52px;
 
-  /* Walk along a route (board Routes 5, phone P6) */
-  --walk-photo: 440px;             /* the square photo, and the card under it (desktop) */
-  --walk-photo-phone: 220px;
-  --walk-side-w: 300px;            /* the legend on the left and the card on the right */
-  --walk-details-h: 300px;         /* room kept under the photo for its card */
+  /* Walk along a route (WalkView, Elena 2026-11-14: photos, no 3D street) */
+  --walk-view-side-w: 340px;       /* the walk: the right column (where you are, the key, the stretch) */
+  --walk-view-photo-max: 720px;    /* the walk: the photo, at most */
+  --walk-arrow: 48px;              /* the walk: previous and next stretch beside the photo */
   --walk-mini-ratio: 268 / 200;    /* "Where you are" */
   --map-mini-end-r: 5;             /* its Start ring and End dot */
   --map-mini-end-stroke: 2.5;
-  --walk-step-btn: 44px;           /* previous and next stretch */
+  --walk-step-btn: 44px;           /* the height of Play */
   --walk-play-w: 52px;
-  --walk-marker-w: 4px;            /* where you are on the strip */
-  --walk-marker-h: 20px;
   --walk-chip-h: 40px;             /* the "Walking route" chip and the Layer button on a phone */
   --rate-w: 40px;                  /* "Rate this place" buttons */
   --rate-h: 36px;
   --rate-w-phone: 44px;
   --rate-h-phone: 40px;
-  --map-building-opacity: 0.95;
 }
 
 :root[data-theme="dark"] {
@@ -221,14 +217,10 @@
   --ring: #ffffff;
   --ring-edge: #13232a;
   --overlay-photo: rgba(10, 20, 24, 0.9);   /* enlarged photo: app dimmed 90% (brief §3) */
-  --map-building: #25444c;         /* walk view: extruded buildings (board Routes 5) */
-  --map-sky: #1c3941;              /* walk view at street level: the sky, and the haze at the horizon */
   --arc-glow: 0 0 3px rgba(238, 243, 244, 0.6);   /* the direction arc's glow (none in light mode) */
   --arc-on-pin: #ffffff;           /* the arc on a suggestion's circle on the map: white here, teal in light mode */
   --marker-map-edge: #13232a;      /* the map circle's outline and number: dark here; in light mode a white outline and a teal number */
   --marker-map-text: #13232a;
-  --map-horizon: #13232a;
-  --walk-marker-glow: 0 0 6px rgba(238, 243, 244, 0.7);
 }
 
 :root[data-theme="light"] {
@@ -267,15 +259,11 @@
   --ring: #15474a;
   --ring-edge: #ffffff;
   --overlay-photo: rgba(238, 243, 244, 0.92);
-  --map-building: #d1dfe3;
-  --map-sky: #ffffff;
   --arc-glow: 0 0 0 transparent;
   --arc-on-pin: #15474a;           /* light mode (Elena, 2026-11-11): a teal arc... */
   --marker-map-edge: #ffffff;      /* ...a white outline, a teal number */
   --marker-map-text: #15474a;
   --marker-outline: #15474a;       /* ...and a teal outline on its street (Elena, 2026-11-11) */
-  --map-horizon: #f4f8f9;
-  --walk-marker-glow: 0 0 6px rgba(19, 35, 42, 0.35);
 }
 
 @media (max-width: 767px) {

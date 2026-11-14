@@ -1,11 +1,10 @@
 <script setup>
-// The photo of the stretch ahead (boards Routes 5, P6): one square photo, centred, facing along the walk, so it reads as
-// a window onto the 3D street behind it. No enlarge, no arrows, no labels: only the credit, inside the frame (Mapillary:
-// "{username} · {year} · CC BY-SA 4.0", linked to the image page). The photo is the one the stretch is rated from (its own,
-// else its street's: stores/walk.js). With no photo, or one that does not load, the centre shows the 3D street and says
-// so, and there is no rating either (Elena, 2026-11-14); with photos not shown (lib/photos.js) the 3D street alone. Images
-// are loaded when shown, never stored.
+// The photo of the stretch ahead (WalkView): one square photo, facing along the walk. No enlarge and no labels: only the
+// credit, inside the frame (Mapillary: "{username} · {year} · CC BY-SA 4.0", linked to the image page). The photo is the
+// one the stretch is rated from (its own, else its street's: stores/walk.js). With no photo, or one that does not load,
+// the square says so, and there is no rating either (Elena, 2026-11-14). Images are loaded when shown, never stored.
 import { computed } from 'vue'
+import AppIcon from './AppIcon.vue'
 import { panoShift, photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
 import { useWalkStore } from '../stores/walk.js'
 
@@ -17,7 +16,8 @@ const message = computed(() => {
   if (walk.photoState === 'none-here') return 'No photo for this stretch, so no rating.'
   if (walk.photoState === 'unloaded') return 'The photo could not be loaded, so no rating.'
   if (walk.photoState === 'error') return 'Photos could not be loaded. The walk goes on without them.'
-  return ''
+  if (walk.photoState === 'loading') return 'Finding the photos…'
+  return 'Photos are not shown.'
 })
 /** A panorama: the 90 degree view at the walk's bearing, cut from the equirectangular thumbnail (lib/photos.js). */
 const panoStyle = computed(() => (walk.photo?.pano ? {
@@ -38,12 +38,15 @@ const failed = () => walk.photoFailed(walk.photo)
       <a v-if="photoLink(walk.photo)" class="credit" :href="photoLink(walk.photo)" target="_blank" rel="noopener">{{ photoCredit(walk.photo) }}</a>
       <span v-else class="credit">{{ photoCredit(walk.photo) }}</span>
     </figure>
-    <p v-else-if="message" class="no-photo panel" role="status" data-testid="walk-no-photo">{{ message }}</p>
+    <div v-else class="empty">
+      <AppIcon name="cameraOff" />
+      <p role="status" data-testid="walk-no-photo">{{ message }}</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.walk-photo { display: flex; align-items: flex-end; justify-content: center; width: 100%; aspect-ratio: 1; }
+.walk-photo { width: 100%; aspect-ratio: 1; }
 .frame {
   position: relative; width: 100%; height: 100%; margin: 0; overflow: hidden;
   border: var(--hairline) solid var(--line); border-radius: var(--radius-panel); background: var(--ground); box-shadow: var(--shadow);
@@ -63,6 +66,11 @@ const failed = () => walk.photoFailed(walk.photo)
 .phone .credit { white-space: normal; text-align: right; line-height: 1.3; font-size: var(--fs-2xs); }
 a.credit { text-decoration: none; }
 a.credit:hover { text-decoration: underline; }
-.no-photo { margin: 0 0 var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-btn); font-size: var(--fs-sm); text-align: center; }
-.phone .no-photo { margin-bottom: var(--space-2); font-size: var(--fs-xs); }
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
+  width: 100%; height: 100%; padding: var(--space-4);
+  border: var(--hairline) dashed var(--line); border-radius: var(--radius-panel); color: var(--text-2); text-align: center;
+}
+.empty p { margin: 0; font-size: var(--fs-sm); }
+.phone .empty { border-radius: var(--radius-bar); }
 </style>

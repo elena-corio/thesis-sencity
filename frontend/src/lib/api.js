@@ -99,25 +99,6 @@ export function loadRoutes(request, onEvent, signal) {
   return streamEvents('/api/routes', request, onEvent, signal)
 }
 
-/**
- * Footprints and heights of the buildings along a walked route, for the walk view (POST /api/buildings).
- * The line travels in the body. Answer: a FeatureCollection of Polygons with h (height) and b (base) in
- * metres, and `source` for the credits.
- * @param {number[][]} line [[lon, lat], …]
- * @param {AbortSignal} [signal]
- * @returns {Promise<{type:'FeatureCollection', features:object[], source:string}>}
- */
-export async function loadBuildings(line, signal) {
-  const res = await fetch(`${config.apiBase}/api/buildings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ line }),
-    signal,
-  })
-  if (!res.ok) throw new ApiError(res.status, await errorText(res))
-  return res.json()
-}
-
 async function streamEvents(path, body, onEvent, signal) {
   const res = await fetch(`${config.apiBase}${path}`, {
     method: 'POST',

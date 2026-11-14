@@ -1,5 +1,5 @@
 <script setup>
-// The stretch ahead, under the photo (board Routes 5) or in the phone sheet (P6): name, length and time; the comfort
+// The stretch ahead, in the walk's right column (WalkView): name, length and time; the comfort
 // label and its reason; what might bother and what might feel good, in two columns; and "Rate this place", drawn as on
 // the boards and not built yet (Elena, 2026-11-11: Coming soon). Details are always shown. Everything comes from what is
 // loaded: the Senses ratings already here, never a new call.
@@ -35,7 +35,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
 
 <template>
   <div v-if="walk.current" class="details" :class="{ phone }">
-    <section class="head" :class="{ panel: !phone }" data-panel="walk-card" aria-label="Stretch ahead">
+    <section class="head" data-panel="walk-card" aria-label="Stretch ahead">
       <p class="title"><span class="name" lang="de">{{ p.name }}</span><span class="meta">{{ stretchLine(walk.current) }}</span></p>
       <p class="state" data-testid="walk-state">
         <span class="swatch" :style="{ background: swatch }" />
@@ -45,8 +45,8 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
       <p v-if="streetPhoto" class="note" data-testid="walk-street-photo">The street's photo: none along this stretch faces this way.</p>
       <p class="note">A prediction, not a reason.</p>
     </section>
-    <div v-if="phone" class="rule" />
-    <section id="walk-details" class="body" :class="{ panel: !phone }" aria-label="Details of the stretch">
+    <div class="rule" />
+    <section id="walk-details" class="body" aria-label="Details of the stretch">
       <div class="columns">
         <div v-for="c in columns" :key="c.kind" class="column">
           <h3>{{ c.title }}</h3>
@@ -77,13 +77,10 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
 
 <style scoped>
 p { margin: 0; }
-.details { display: flex; flex-direction: column; }
+.details { display: flex; flex-direction: column; gap: var(--space-3); }
 .details.phone { gap: calc(var(--space-2) + 2px); }
-/* Desktop (board Routes 5): one card in two parts, the head and the details under it. */
 .head { display: flex; flex-direction: column; gap: calc(var(--space-2) - 2px); }
-.head.panel { padding: var(--space-3) var(--space-4); border-radius: var(--radius-bar) var(--radius-bar) 0 0; }
 .body { display: flex; flex-direction: column; gap: calc(var(--space-3) + 2px); }
-.body.panel { padding: var(--space-4); border-top: 0; border-radius: 0 0 var(--radius-bar) var(--radius-bar); box-shadow: none; }
 .phone .body { gap: calc(var(--space-2) + 2px); }
 
 .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }

@@ -1,7 +1,8 @@
 <script setup>
-// "Where you are" (board Routes 5): a small flat map of the walked route, coloured by comfort, that follows you: your
-// place is always the circle in its middle. A click on a stretch jumps there; for the keyboard each stretch is also a
-// button (in a list only screen readers and Tab see). Desktop only: the phone has no mini map (board P6).
+// "Where you are" (WalkView): a small flat map of the walked route, north up, coloured as the walk rates its stretches,
+// that follows you: your place (the photo's spot) is always the circle in its middle, with the photo's direction as an
+// arc. A click on a stretch jumps there; for the keyboard each stretch is also a button (in a list only screen readers
+// and Tab see).
 import { Map as MapLibreMap } from 'maplibre-gl'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
@@ -70,8 +71,8 @@ function restyle() {
 }
 function follow() {
   const m = map.value
-  if (!m || !walk.view) return
-  const center = [walk.view.lon, walk.view.lat]
+  if (!m || !walk.point) return
+  const center = [walk.point.lon, walk.point.lat]
   if (reducedMotion.value) m.jumpTo({ center })
   else m.easeTo({ center, duration: config.walk.glideMs })
 }
@@ -80,7 +81,7 @@ onMounted(() => {
   const m = new MapLibreMap({
     container: container.value,
     style: config.mapStyles[theme.resolved],
-    center: walk.view ? [walk.view.lon, walk.view.lat] : [config.start.lon, config.start.lat],
+    center: walk.point ? [walk.point.lon, walk.point.lat] : [config.start.lon, config.start.lat],
     zoom: config.walk.miniZoom,
     interactive: true, dragPan: false, scrollZoom: false, boxZoom: false, dragRotate: false, keyboard: false,
     doubleClickZoom: false, touchZoomRotate: false, touchPitch: false, pitchWithRotate: false, maxPitch: 0,
@@ -105,7 +106,7 @@ watch(() => walk.stretches, () => {
   map.value?.getSource(`${SOURCE}-ends`)?.setData(ends())
 })
 watch(() => walk.index, () => { restyle(); follow() })
-watch(() => walk.view, follow)
+watch(() => walk.point, follow)
 watch(() => theme.resolved, (t) => map.value?.setStyle(config.mapStyles[t], { diff: false }))
 </script>
 

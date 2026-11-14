@@ -1,7 +1,7 @@
 <script setup>
 // Map view: the map with floating panels (brief §3, boards Flow 1, 1b, 1c; phone P1, P5).
 // Fit every screen: panels are placed from the viewport and never overlap; the page never scrolls.
-// Walk along a route (boards Routes 5, P6): the same map, tilted, with the walk's own panels.
+// Walk along a route (WalkView): its own panel over the map, under the top bar (on a phone, above the tab bar).
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMedia } from '../composables.js'
@@ -20,11 +20,7 @@ import MapControls from '../components/MapControls.vue'
 import PhoneSheet from '../components/PhoneSheet.vue'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
-import WalkChip from '../components/WalkChip.vue'
-import WalkDetails from '../components/WalkDetails.vue'
-import WalkNotice from '../components/WalkNotice.vue'
-import WalkPhoto from '../components/WalkPhoto.vue'
-import WalkSide from '../components/WalkSide.vue'
+import WalkView from '../components/WalkView.vue'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
@@ -76,20 +72,12 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <LayerPanel v-else :get-centre="getCentre" @pick="onPick" />
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>
-      <template v-if="walk.active">
-        <div class="slot s-walk-top"><WalkChip /><WalkNotice /></div>
-        <!-- Board Routes 5: the photo in the middle (a window onto the 3D street behind), its card under it. -->
-        <div class="slot s-walk-centre">
-          <div class="walk-window" data-walk-window><WalkPhoto /></div>
-          <WalkDetails />
-        </div>
-      </template>
-      <div v-if="routesMode" class="slot s-card">
-        <WalkSide v-if="walk.active" />
-        <StretchCard v-else-if="routes.selectedStretch" />
+      <div v-if="walk.active" class="slot s-walk"><WalkView /></div>
+      <div v-if="routesMode && !walk.active" class="slot s-card">
+        <StretchCard v-if="routes.selectedStretch" />
         <RouteCard v-else-if="hasCard" />
       </div>
-      <div v-else class="slot s-card">
+      <div v-else-if="!routesMode" class="slot s-card">
         <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
         <PlaceCard v-if="area.selectedId" />
         <LoadingCard v-else-if="loadingCard" />
@@ -104,12 +92,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
     <template v-else>
       <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
       <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
-      <template v-if="walk.active">
-        <div class="slot s-p-walk"><WalkChip phone /><WalkNotice /></div>
-        <div class="slot s-p-photo"><div class="walk-window" data-walk-window><WalkPhoto phone /></div></div>
-      </template>
+      <div v-if="walk.active" class="slot s-p-walk"><WalkView phone /></div>
       <div v-else class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
-      <div class="slot s-p-sheet">
+      <div v-show="!walk.active" class="slot s-p-sheet">
         <PhoneSheet ref="sheetRef" :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
                     @settled="mapRef?.reveal()" />
       </div>
@@ -187,31 +172,10 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
 
-/* Walk, desktop and tablet (board Routes 5): the side panels narrower; the chip at the top between them; the photo in
-   the middle, as wide as the card under it, and smaller on a short screen. */
-.walking { --panel-left-w: var(--walk-side-w); --panel-right-w: var(--walk-side-w); }
-.s-walk-top {
-  top: var(--row-main); left: var(--reserve-left); right: var(--reserve-right);
-  display: flex; flex-direction: column; align-items: center; gap: var(--gap);
-}
-.s-walk-top > * { max-width: 100%; }
-.s-walk-centre {
-  --walk-size: min(var(--walk-photo), calc(100vw - var(--reserve-left) - var(--reserve-right)),
-    calc(100dvh - var(--row-main) - var(--walk-chip-h) - 2 * var(--gap) - var(--walk-details-h) - var(--margin)));
-  top: calc(var(--row-main) + var(--walk-chip-h) + 2 * var(--gap)); left: 50%; width: var(--walk-size); transform: translateX(-50%);
-  max-height: calc(100dvh - var(--row-main) - var(--walk-chip-h) - 2 * var(--gap) - var(--margin));
-  display: flex; flex-direction: column; gap: var(--gap);
-}
-/* The photo's square lets the 3D street show through when there is no photo. */
-.s-walk-centre .walk-window { pointer-events: none; }
-.s-walk-centre .walk-window > * { pointer-events: auto; }
-/* Walk, phone (board P6): the chip under the top bar, the photo centred under it, the sheet down to the tab bar. */
+/* Walk (WalkView): one panel from under the top bar down to the credits; on a phone from under the search to the tab bar. */
+.s-walk { top: var(--row-main); left: var(--margin); right: var(--margin); bottom: var(--row-bottom); }
 .s-p-walk {
-  top: calc(var(--margin) + var(--p-top-h) + var(--space-2)); left: var(--margin); right: var(--margin);
-  display: flex; flex-direction: column; gap: var(--space-2);
-}
-.s-p-photo {
-  top: calc(var(--margin) + var(--p-top-h) + 2 * var(--space-2) + var(--walk-chip-h)); left: 50%;
-  width: var(--walk-photo-phone); transform: translateX(-50%); pointer-events: none;
+  top: calc(var(--margin) + var(--p-top-h) + var(--space-2)); left: 0; right: 0;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
 }
 </style>

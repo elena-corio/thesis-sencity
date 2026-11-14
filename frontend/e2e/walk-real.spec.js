@@ -1,13 +1,13 @@
-// The walk with real Mapillary photos and real buildings, for a visual check: only the routes are mocked (no billed
-// thermal run or model call); /api/mapillary/along and /api/buildings go to the running API, which calls Mapillary and
-// reads the city's building model (both free). It needs MAPILLARY_ACCESS_TOKEN in .env, so it runs only on request:
+// The walk with real Mapillary photos, for a visual check: only the routes are mocked (no billed thermal run or model
+// call); /api/mapillary/along goes to the running API, which calls Mapillary (free). It needs MAPILLARY_ACCESS_TOKEN in
+// .env, so it runs only on request:
 //   REAL_PHOTOS=1 npx playwright test e2e/walk-real.spec.js
-// REAL_API=http://127.0.0.1:8001 sends those two to another API (one started with the current code).
+// REAL_API=http://127.0.0.1:8001 sends it to another API (one started with the current code).
 // Screenshots go to e2e/screens/walk-real/ (not committed). Nothing else is saved.
 import { expect, test } from '@playwright/test'
 import { mapIdle, mockRoutes, openRoutes, routeClicks } from './helpers.js'
 
-test.skip(!process.env.REAL_PHOTOS, 'Set REAL_PHOTOS=1 to call the real Mapillary and buildings lookups.')
+test.skip(!process.env.REAL_PHOTOS, 'Set REAL_PHOTOS=1 to call the real Mapillary lookup.')
 
 const settle = (page) => page.waitForFunction(() => !window.__sencityMap.isMoving(), null, { timeout: 15_000 })
 const walkStore = (page, expr) => page.evaluate((e) => {
@@ -32,11 +32,10 @@ for (const [name, viewport, phone] of [['desktop', { width: 1440, height: 900 },
     test(`${name}: a real Mapillary photo, and a stretch without one`, async ({ page }) => {
       test.setTimeout(120_000)
       await mockRoutes(page)
-      // With REAL_API set (e.g. http://127.0.0.1:8001), the two real lookups go to that API, not the dev proxy's.
+      // With REAL_API set (e.g. http://127.0.0.1:8001), the real lookup goes to that API, not the dev proxy's.
       if (process.env.REAL_API) {
-        for (const path of ['/api/mapillary/along', '/api/buildings']) {
-          await page.route(`**${path}`, async (route) => route.fulfill({ response: await route.fetch({ url: process.env.REAL_API + path }) }))
-        }
+        const path = '/api/mapillary/along'
+        await page.route(`**${path}`, async (route) => route.fulfill({ response: await route.fetch({ url: process.env.REAL_API + path }) }))
       }
       await openRoutes(page, 'dark', { photos: 'mapillary' })
       const { a, b } = routeClicks(page.viewportSize(), phone)
@@ -47,9 +46,9 @@ for (const [name, viewport, phone] of [['desktop', { width: 1440, height: 900 },
       await page.getByRole('button', { name: 'Walk route B' }).click()
       await page.waitForFunction(() => {
         const w = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('walk')
-        return w.photoState !== 'loading' && w.buildingsState !== 'loading'
+        return w.photoState !== 'loading'
       }, null, { timeout: 60_000 })
-      const state = await walkStore(page, '({ photos: w.photoState, buildings: w.buildingsState, n: w.stretches.length })')
+      const state = await walkStore(page, '({ photos: w.photoState, n: w.stretches.length })')
       console.log(name, JSON.stringify(state))
 
       if (await goTo(page, true)) {

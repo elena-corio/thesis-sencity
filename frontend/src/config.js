@@ -83,7 +83,7 @@ export default {
   // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
   // or jumps with reduced motion. A route's walk opens paused.
   // miniZoom: the "Where you are" map on the right.
-  walk: { eyeHeightM: 1.7, pitch: 84, maxPitch: 85, maxZoom: 24, glideMs: 1600, stretchMs: 8000, miniZoom: 16 },
+  walk: { glideMs: 600, stretchMs: 8000, miniZoom: 16 },
 
   // Street photos shown in the app (lib/photos.js): 'mapillary' | 'none'. They are rated either way; Street View is not
   // used (Elena, 2026-11-11).

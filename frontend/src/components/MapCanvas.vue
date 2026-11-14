@@ -1,7 +1,7 @@
 <script setup>
 // The map, the two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c) and the
 // street segments of the analysed area: hover, click to select, selection ring (brief §4).
-// The walk along a route (board Routes 5) tilts this same map over the walked stretch, with buildings.
+// The walk along a route is its own view over the map (WalkView.vue): the map stays flat and as it was.
 import { Map as MapLibreMap } from 'maplibre-gl'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
@@ -9,7 +9,6 @@ import { cssVar, useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { darkenBaseMap } from '../map/base.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
-import { addBuildingLayers, setBuildings } from '../map/buildings.js'
 import { addRouteLayers, ROUTE_HIT_LAYER, styleRoutes, updateRouteLayers } from '../map/routes.js'
 import { addMarkerLayers, setMarkers } from '../map/markers.js'
 import { addSegmentLayers, HIT_LAYER, setSegmentLayer, setSegments, setSegmentState } from '../map/segments.js'
@@ -19,7 +18,6 @@ import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useThemeStore } from '../stores/theme.js'
-import { useWalkStore } from '../stores/walk.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import MarkerArc from './MarkerArc.vue'
 import MarkerPin from './MarkerPin.vue'
@@ -29,7 +27,6 @@ useSensesStore() // its watchers start the rating
 const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
-const walk = useWalkStore()
 const cardPhotos = useCardPhotosStore()
 const finePointer = useMedia('(pointer: fine)')
 const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
@@ -49,19 +46,8 @@ const edge = computed(() =>
 function project(p) {
   frame.value // dependency: recompute after the map moves
   if (!map.value || !p) return null
-  if (walk.active && !inFront(p)) return null
   const { x, y } = map.value.project([p.lon, p.lat])
   return { x, y }
-}
-/** At street level a point behind the camera has no place on the screen: the pins and the ring hide then. The
- *  camera stands at walk.view (walkCamera). */
-function inFront(p) {
-  const at = walk.view
-  if (!at) return true
-  const from = { lon: at.lon, lat: at.lat }
-  if (Math.abs(from.lon - p.lon) < 1e-7 && Math.abs(from.lat - p.lat) < 1e-7) return false // under your feet
-  const turn = ((bearing(from, p) - map.value.getBearing() + 540) % 360) - 180
-  return Math.abs(turn) < 75
 }
 const centrePx = computed(() => project(area.centre))
 const edgePx = computed(() => project(edge.value))
@@ -118,13 +104,6 @@ function setRadiusTo(point) {
 // Pointer input
 function onClick(e) {
   const p = lngLatToPoint(e.lngLat)
-  if (walk.active) {
-    // A stretch of the walked route: go there.
-    const key = routeStretchAt(e.point)
-    const i = walk.stretches.findIndex((s) => s.key === key)
-    if (i >= 0) walk.go(i)
-    return
-  }
   if (props.routesMode) {
     // A Start or End field had the focus: this click fills that field (otherwise the next empty one).
     const field = routes.takeField()
@@ -184,17 +163,6 @@ function routeStretchAt(point) {
   return m.queryRenderedFeatures(point, { layers: [ROUTE_HIT_LAYER] })[0]?.properties.key ?? null
 }
 function routeLayerState() {
-  if (walk.active) {
-    // Only the walked route, solid, its current stretch selected.
-    return {
-      routes: walk.shown ? [walk.shown] : [],
-      visible: { A: walk.route?.id === 'A', B: walk.route?.id === 'B' },
-      selected: walk.current?.key ?? null,
-      hoverKey: null,
-      hoverRoute: null,
-      solid: true,
-    }
-  }
   return {
     routes: routes.shown,
     visible: routes.visible,
@@ -205,7 +173,7 @@ function routeLayerState() {
 }
 function syncRoutes() {
   if (!map.value) return
-  updateRouteLayers(map.value, props.routesMode || walk.active ? routeLayerState() : { ...routeLayerState(), routes: [] })
+  updateRouteLayers(map.value, props.routesMode ? routeLayerState() : { ...routeLayerState(), routes: [] })
 }
 watch(() => routes.shown, syncRoutes)
 watch(() => [routes.visible, routes.selected, routes.hoverKey, routes.hoverRoute], () => {
@@ -230,85 +198,9 @@ function revealRoutes() {
   }
 }
 watch(() => routes.routes, (r) => {
-  if (props.routesMode && r.length && !walk.active) nextTick(() => requestAnimationFrame(revealRoutes))
+  if (props.routesMode && r.length) nextTick(() => requestAnimationFrame(revealRoutes))
 })
 
-// Walk (Elena, 2026-11-11): at street level, eyes 1.7 m above where the stretch's photo was taken, looking its way
-// (or the start of the stretch, along it: walk.view). The view is aimed at the middle of the photo's square, so the
-// photo reads as a window onto the street. It glides to the next stretch (a fly would rise and fall); reduced motion jumps.
-const NO_PADDING = { top: 0, bottom: 0, left: 0, right: 0 }
-/** Padding that puts the map's centre in the middle of the photo's square. */
-function windowPadding() {
-  const el = document.querySelector('[data-walk-window]')
-  if (!el || !container.value) return NO_PADDING
-  const r = el.getBoundingClientRect()
-  const c = container.value.getBoundingClientRect()
-  const cx = r.left + r.width / 2 - c.left
-  const cy = r.top + r.height / 2 - c.top
-  return {
-    top: Math.max(0, 2 * cy - c.height), bottom: Math.max(0, c.height - 2 * cy),
-    left: Math.max(0, 2 * cx - c.width), right: Math.max(0, c.width - 2 * cx),
-  }
-}
-const WALK_LOCKED = ['keyboard', 'scrollZoom', 'dragPan', 'doubleClickZoom', 'boxZoom', 'touchZoomRotate']
-function walkCamera(duration = config.walk.glideMs) {
-  const m = map.value
-  const v = walk.view
-  if (!m || !v) return
-  const { eyeHeightM, pitch } = config.walk
-  const padding = windowPadding()
-  m.setPadding(padding) // set first: the camera is solved for this padding
-  const camera = { ...m.calculateCameraOptionsFromCameraLngLatAltRotation([v.lon, v.lat], eyeHeightM, v.bearing, pitch), padding }
-  if (reducedMotion.value) m.jumpTo(camera)
-  else m.easeTo({ ...camera, duration, essential: false })
-}
-function enterWalk() {
-  const m = map.value
-  m.setMaxPitch(config.walk.maxPitch)
-  m.setMaxZoom(config.walk.maxZoom)
-  // The eyes stay 1.7 m above the street: no zooming or panning away. The walk controls, the arrow keys and a click on
-  // the route move you along it.
-  for (const h of WALK_LOCKED) m[h].disable()
-  stopPulse()
-  setBuildings(m, walk.buildings)
-  syncRoutes()
-  m.getCanvas().setAttribute('aria-label', canvasLabel())
-  nextTick(() => requestAnimationFrame(() => walkCamera(config.walk.glideMs * 1.5)))
-}
-function leaveWalk() {
-  const m = map.value
-  setBuildings(m, null)
-  m.setPadding(NO_PADDING)
-  for (const h of WALK_LOCKED) m[h].enable()
-  m.touchZoomRotate.disableRotation()
-  syncRoutes()
-  m.getCanvas().setAttribute('aria-label', canvasLabel())
-  const flat = () => {
-    m.setMaxPitch(0)
-    m.setMaxZoom(null) // back to the map's own maximum
-    nextTick(() => requestAnimationFrame(revealRoutes))
-  }
-  if (reducedMotion.value) {
-    m.jumpTo({ pitch: 0, bearing: 0 })
-    flat()
-  } else {
-    m.once('moveend', flat)
-    m.easeTo({ pitch: 0, bearing: 0, zoom: Math.min(m.getZoom(), 17), duration: config.walk.glideMs / 2 })
-  }
-}
-watch(() => walk.active, (on) => {
-  if (!map.value) return
-  if (on) enterWalk()
-  else leaveWalk()
-})
-watch(() => walk.current?.key, (key) => {
-  if (!map.value || !walk.active || !key) return
-  styleRoutes(map.value, routeLayerState())
-  restartPulse()
-  walkCamera()
-})
-watch(() => walk.shown, () => { if (walk.active) syncRoutes() })
-watch(() => walk.buildings, (fc) => { if (map.value && walk.active) setBuildings(map.value, fc) })
 watch(() => routes.step, (s) => {
   if (props.routesMode && s === 'set') nextTick(() => requestAnimationFrame(revealRoutes))
 })
@@ -361,11 +253,6 @@ watch(() => area.visibleSegments, (fc) => {
 const hoverPx = ref(null) // pointer position over a street, for the name label
 const routeHoverPx = ref(null)
 function onSegmentHover(e) {
-  if (walk.active) {
-    hoverId.value = null
-    map.value.getCanvas().style.cursor = routeStretchAt(e.point) ? 'pointer' : ''
-    return
-  }
   if (props.routesMode) {
     hoverId.value = null
     const key = routes.hasResult ? routeStretchAt(e.point) : null
@@ -418,19 +305,13 @@ watch(shownMarkers, (ms) => { if (map.value) setMarkers(map.value, ms) })
 // Selection ring at the clicked point, with a soft pulse that stops after a few seconds or
 // on interaction; no pulse with reduced motion (brief §4).
 const ringPx = computed(() => {
-  if (walk.active) return project(walk.point)
   if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
   return area.selectedId ? project(area.selectedPoint) : null
 })
 
-/** The photo's direction on the selected point, in screen degrees (the map may be turned in the walk), or null: the
- *  walk's photo, or the photo on the open card (boards Flow 4, 4b). No photo, no direction: the dot alone. */
-const ringAngle = computed(() => {
-  frame.value // the walk turns the map
-  const h = walk.active ? walk.photo?.heading : cardPhotos.shownHeading
-  if (h == null || !map.value) return null
-  return h - map.value.getBearing()
-})
+/** The photo's direction on the selected point, in degrees (the map points north), or null: the photo on the open
+ *  card (boards Flow 4, 4b). No photo, no direction: the dot alone. */
+const ringAngle = computed(() => cardPhotos.shownHeading ?? null)
 /** A suggestion pin's direction: its street's photo (Mapillary once fetched), or null. */
 const pinAngle = (m) => cardPhotos.headingOf(m.f)
 
@@ -601,10 +482,6 @@ function onKeyDown(e) {
 
 function onWindowKey(e) {
   if (e.key !== 'Escape' || e.defaultPrevented) return
-  if (walk.active) {
-    walk.exit(true) // Exit walk
-    return
-  }
   if (props.routesMode) {
     // Esc: back to the comparison, or start choosing again. While loading, Cancel does it.
     if (routes.selected) routes.back(true)
@@ -637,8 +514,8 @@ watch(() => theme.resolved, (t) => {
 
 // Once the circle is fixed, the card (or the phone sheet) appears: pan so the whole circle
 // stays visible in the space the panels leave free.
-const TOP_PANELS = ['search', 'tabs', 'actions', 'hint', 'walk-chip']
-const BOTTOM_PANELS = ['controls', 'tabbar', 'attribution', 'sheet', 'legend', 'walk-controls']
+const TOP_PANELS = ['search', 'tabs', 'actions', 'hint']
+const BOTTOM_PANELS = ['controls', 'tabbar', 'attribution', 'sheet', 'legend']
 
 const MIN_FREE_PX = 80
 
@@ -653,7 +530,7 @@ function freePadding() {
     if (!r.width || !r.height) continue
     const name = el.dataset.panel
     if (name !== 'legend' && el.parentElement.closest('[data-panel="sheet"]')) continue // a card inside the phone sheet
-    const card = ['area-card', 'place-card', 'loading-card', 'route-card', 'walk-card'].includes(name)
+    const card = ['area-card', 'place-card', 'loading-card', 'route-card'].includes(name)
     const sheet = card && r.width > W * 0.8
     if (TOP_PANELS.includes(name)) pad.top = Math.max(pad.top, r.bottom + gap)
     else if (BOTTOM_PANELS.includes(name) || sheet) pad.bottom = Math.max(pad.bottom, H - r.top + gap)
@@ -749,16 +626,12 @@ onMounted(() => {
     addAreaLayers(m)
     addSegmentLayers(m, area.mapLayer)
     addMarkerLayers(m)
-    addBuildingLayers(m) // under the routes, so the walked route reads on top
     addRouteLayers(m)
     syncLayers()
     setSegments(m, props.routesMode ? null : area.visibleSegments)
     setMarkers(m, shownMarkers.value)
     setSegmentState(m, area.selectedId, { selected: true }) // states are lost with the old style
     syncRoutes()
-    if (walk.active) setBuildings(m, walk.buildings)
-    m.setSky({ 'sky-color': cssVar('--map-sky'), 'horizon-color': cssVar('--map-horizon'), 'fog-color': cssVar('--map-horizon'),
-      'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.4 })
   })
   m.on('move', () => { frame.value++ })
   // Only the person's own pan or zoom stops the pulse; the app's camera moves (going to a nearby
@@ -775,7 +648,6 @@ onMounted(() => {
   m.on('mouseout', onMouseOut)
   m.on('contextmenu', onContextMenu)
   m.once('idle', () => { document.documentElement.dataset.mapReady = 'true' })
-  m.once('load', () => { if (walk.active) enterWalk() })
 
   const canvas = m.getCanvas()
   canvas.setAttribute('aria-label', canvasLabel())
@@ -795,7 +667,6 @@ onBeforeUnmount(() => {
 })
 
 function canvasLabel() {
-  if (walk.active) return 'Map, tilted along the walked route. The arrow keys go to the previous or next stretch, space pauses or plays.'
   return props.routesMode
     ? 'Map. Press Enter to set the start at the map centre, move the map with the arrow keys, then press Enter to set the end.'
     : 'Map. Press Enter to place the centre of your area at the map centre, then the arrow keys to change the radius and Enter to fix it.'
@@ -807,10 +678,6 @@ function zoomOut() { map.value?.zoomOut({ animate: !reducedMotion.value }) }
 function recentre() {
   const m = map.value
   if (!m) return
-  if (walk.active) {
-    walkCamera()
-    return
-  }
   if (props.routesMode) {
     const pts = routePoints()
     if (pts.length) {
@@ -847,10 +714,6 @@ function flyToPlace(place) {
 /** Keep what is shown in the free space, after the phone sheet has changed height. */
 function reveal() {
   if (!map.value) return
-  if (walk.active) {
-    walkCamera()
-    return
-  }
   if (props.routesMode) {
     const stretch = routes.selectedStretch
     if (stretch) revealBounds(boundsOf(stretch.coordinates))
@@ -907,11 +770,6 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
       <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 23 13 23s13-13.5 13-23C27 6.8 21.2 1 14 1z" />
       <circle cx="14" cy="14" r="5" />
     </svg>
-    <!-- Walk (board Routes 5): the two ends are named. -->
-    <template v-if="walk.active">
-      <span v-if="startPx" class="pin-tag start" aria-hidden="true" :style="{ left: `${startPx.x}px`, top: `${startPx.y}px` }">Start</span>
-      <span v-if="endPx" class="pin-tag end" aria-hidden="true" :style="{ left: `${endPx.x}px`, top: `${endPx.y}px` }">End</span>
-    </template>
 
     <!-- Numbered pins of the marked places: a 44 px button around the visible badge, centred on the
          middle of its stretch. The selected one gives way to the selection ring. -->
@@ -1020,12 +878,6 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
 }
 .route-end path { fill: var(--ring); stroke: var(--ring-edge); stroke-width: var(--hairline); }
 .route-end circle { fill: var(--ring-edge); }
-.pin-tag {
-  position: absolute; padding: calc(var(--space-1) - 1px) var(--space-2); border-radius: var(--radius-chip);
-  background: var(--line); color: var(--text); font-size: var(--fs-2xs); white-space: nowrap; pointer-events: none;
-}
-.pin-tag.start { transform: translate(-50%, calc(-100% - var(--route-start-size) / 2 - var(--space-1))); }
-.pin-tag.end { transform: translate(-50%, calc(-100% - var(--route-pin-h) - var(--space-1))); }
 
 .crosshair {
   position: absolute;

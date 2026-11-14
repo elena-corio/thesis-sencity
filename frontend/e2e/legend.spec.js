@@ -86,7 +86,6 @@ for (const [device, viewport, phone] of [['desktop', { width: 1440, height: 900 
         await mockRoutes(page)
         // The walk's photos: none (never the running API).
         await page.route('**/api/mapillary/along', (route) => route.fulfill({ json: { photos: {} } }))
-        await page.route('**/api/buildings', (route) => route.fulfill({ json: { type: 'FeatureCollection', features: [], source: 'test' } }))
         await openRoutes(page, theme)
         const { a, b } = routeClicks(page.viewportSize(), phone)
         await page.mouse.click(a.x, a.y)
@@ -111,9 +110,9 @@ for (const [device, viewport, phone] of [['desktop', { width: 1440, height: 900 
         await page.getByRole('button', { name: 'Pause' }).first().click()
         if (!phone) {
           await expect(page.locator('[data-panel="layers"]')).toHaveCount(0) // no left panel in the walk
-          const side = page.locator('[data-panel="walk-side"]')
+          const side = page.locator('[data-panel="walk-view"]')
           await expect(side.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
-          await fitsOnScreen(page, '[data-panel="walk-side"]')
+          await fitsOnScreen(page, '[data-panel="walk-view"]')
         }
         await settle(page)
         await mapIdle(page)

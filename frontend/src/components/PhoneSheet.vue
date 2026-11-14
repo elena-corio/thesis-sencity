@@ -18,9 +18,6 @@ import PlaceCard from './PlaceCard.vue'
 import RouteCard from './RouteCard.vue'
 import RoutePanel from './RoutePanel.vue'
 import StretchCard from './StretchCard.vue'
-import WalkControls from './WalkControls.vue'
-import WalkDetails from './WalkDetails.vue'
-import { useWalkStore } from '../stores/walk.js'
 
 const props = defineProps({
   routesMode: Boolean,
@@ -30,7 +27,6 @@ const emit = defineEmits(['pick', 'recentre', 'settled'])
 const area = useAreaStore()
 const routes = useRoutesStore()
 const senses = useSensesStore()
-const walk = useWalkStore()
 const uid = useId()
 
 const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'results', label: 'Results' }]
@@ -71,13 +67,6 @@ watch(() => routes.previewing, (on) => { if (on) show('settings') })
 watch(() => routes.load, (load) => { if (load === 'loading' && !routes.hasResult) show('results') })
 watch(() => routes.selected?.key, (key) => { if (key) show('results') })
 watch(() => routes.inputsOpen, (on) => { if (on) show('settings') })
-// Walk (board P6): the stretch and the controls open at once, from the top.
-watch(() => walk.active, async (on) => {
-  if (!on) return
-  show('results')
-  await nextTick()
-  if (panels.value.results) panels.value.results.scrollTop = 0 // from the top: the controls first
-})
 
 // The map keeps its content in view when the sheet changes height or the legend appears above it.
 let settleTimer
@@ -119,8 +108,7 @@ function onTabKey(e) {
 let drag = null
 let justDragged = false
 function onDown(e) {
-  // The walk's sheet stays open at one height (board P6): its grip is only drawn.
-  if (e.button !== 0 || walk.active) return
+  if (e.button !== 0) return
   drag = { y: e.clientY, height: root.value.offsetHeight, moved: false }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
@@ -179,18 +167,18 @@ defineExpose({ show })
 </script>
 
 <template>
-  <section ref="root" class="phone-sheet panel" :class="[size, { dragging: dragHeight !== null, walking: walk.active }]" data-panel="sheet"
-           data-scrollable :aria-label="walk.active ? 'Walk' : 'Settings and results'" :style="dragHeight !== null ? { height: `${dragHeight}px` } : null">
-    <div v-if="!walk.active" class="floating">
+  <section ref="root" class="phone-sheet panel" :class="[size, { dragging: dragHeight !== null }]" data-panel="sheet"
+           data-scrollable aria-label="Settings and results" :style="dragHeight !== null ? { height: `${dragHeight}px` } : null">
+    <div class="floating">
       <MapAttribution in-sheet />
-      <div v-if="showLegend && !walk.active" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
+      <div v-if="showLegend" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
         <ComfortKey :layer="legendLayer" :window="props.routesMode ? routes.info : area.thermalInfo" />
       </div>
     </div>
 
     <div class="head" @pointerdown="onDown" @click.capture="onHeadClick">
       <div class="grip" aria-hidden="true" />
-      <div v-if="!walk.active" class="tab-row" :class="{ open }">
+      <div class="tab-row" :class="{ open }">
         <div class="tabs" role="tablist" aria-label="Settings and results" @keydown="onTabKey">
           <button v-for="t in TABS" :id="`${uid}-tab-${t.id}`" :key="t.id" type="button" role="tab" class="tab"
                   :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :aria-controls="`${uid}-panel-${t.id}`"
@@ -214,16 +202,7 @@ defineExpose({ show })
       </div>
       <div v-show="tab === 'results'" :id="`${uid}-panel-results`" :ref="(el) => { panels.results = el }" class="tabpanel"
            role="tabpanel" tabindex="-1" :aria-labelledby="`${uid}-tab-results`">
-        <!-- Board P6: exit, the stretch, then where you are with previous / play / next. -->
-        <div v-if="walk.active" class="walk-body">
-          <button type="button" class="walk-exit" @click="walk.exit($event.detail === 0)"><AppIcon name="chevronLeft" /> Exit walk, back to comparison</button>
-          <WalkDetails phone />
-          <div class="rule" />
-          <WalkControls phone />
-          <!-- The credits: over the photo they would hide it (board P6 has none there). -->
-          <MapAttribution in-sheet />
-        </div>
-        <template v-else-if="routesMode">
+        <template v-if="routesMode">
           <StretchCard v-if="routes.selectedStretch" phone />
           <RouteCard v-else-if="hasResults" phone />
           <p v-else class="empty">Results appear here after Analyse.</p>
@@ -292,17 +271,4 @@ defineExpose({ show })
 }
 .empty { margin: 0; color: var(--text-2); }
 
-/* Walk (board P6): no tab row; from under the photo down to the tab bar. */
-.phone-sheet.walking {
-  --sheet-open-h: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - var(--margin) - var(--topbar-h) - 3 * var(--space-2)
-    - var(--walk-chip-h) - var(--walk-photo-phone) - var(--space-3));
-  height: var(--sheet-open-h); max-height: none;
-}
-.walking .tabpanel { padding-top: var(--space-1); }
-.walk-body { display: flex; flex-direction: column; gap: calc(var(--space-2) + 2px); }
-.walk-body .rule { height: var(--hairline); background: var(--line); }
-.walk-exit {
-  display: inline-flex; align-self: flex-start; align-items: center; gap: var(--space-2); min-height: var(--touch-phone);
-  padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm);
-}
 </style>

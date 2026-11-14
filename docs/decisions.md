@@ -2,6 +2,17 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The walk is a slideshow of photos: no 3D street, no turning camera (accepted)
+**Context.** Elena: the walk "is giving me a bit of headache, always turning". The camera stood at eye level where each photo was taken and turned to its direction at every stretch. The people SenCity is for are often sensitive to motion. This changes the walk at eye level with buildings of boards Routes 5 and P6 and the walk entries of 2026-11-11.
+**Decision (Elena).**
+- *No 3D:* the map no longer tilts, turns or shows buildings in the walk; the buildings are not asked for (`/api/buildings` stays in the API, unused, until it is removed).
+- *Layout:* the walk is its own panel over the map, under the top bar (on a phone one scrolling column above the tab bar). Left: Exit, which way is walked, "Stretch n of N", the photo the stretch is rated from, as large as the space allows, with previous / next stretch beside it, then Play and the route bar, which is also the progress bar (a click jumps to a stretch). Right: "Where you are" (a flat mini map, north up, that follows the photo's spot and shows its direction), the key and "To change the layer, season or time, exit the walk.", then the stretch's card.
+- *Moving:* the photo changes on Play (paused with reduced motion, as before); ← →, the arrows and the bar step stretches; space plays or pauses; Esc exits.
+- *Next (agreed, a second commit):* the enlarged photo of a stretch or place opens this same view; from a stretch it starts paused there, with Play; from an area place there is nothing to walk, so no Play or arrows.
+- *Proposed:* the mini map glides to the next spot in 0.6 s (jumps with reduced motion); with no photo, the square says why ("No photo for this stretch, so no rating.", "Photos are not shown.").
+
+**Consequences.** Boards Routes 5 and P6 no longer match the app; the screenshots in `frontend/e2e/screens/walk/` show the new view. The walk's chip, key, card and controls are the same components as before, in the new places.
+
 ## 2026-11-14 – One photo per place: ← → always mean "stretch", never "photo" (accepted)
 **Context.** Elena: the same keys changed photos or stretches depending on the case (entry below). Each street and place has had one photo since 11 Nov, so photo stepping only showed in the e2e test data.
 **Decision (Elena).**
