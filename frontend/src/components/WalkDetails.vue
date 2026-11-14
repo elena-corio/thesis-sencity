@@ -45,6 +45,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
       <p class="detail" data-testid="walk-detail">{{ comfort.detail }}</p>
       <p class="note">A prediction, not a reason.</p>
     </section>
+    <template v-if="walk.layer === 'senses'">
     <div class="rule" />
     <section id="walk-details" class="body" aria-label="Details of the stretch">
       <div class="columns">
@@ -53,7 +54,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
           <ul v-if="c.rows.length">
             <SenseItem v-for="r in c.rows" :key="r.sense" :row="r" :kind="c.kind" :small="phone" />
           </ul>
-          <p v-else class="none">{{ walk.layer === 'senses' ? 'Nothing named here' : 'Only on Senses' }}</p>
+          <p v-else class="none">Nothing named here</p>
         </div>
       </div>
       <div class="rule" />
@@ -72,6 +73,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
         <span id="walk-rate-soon" class="visually-hidden">Coming soon</span>
       </div>
     </section>
+    </template>
   </div>
 </template>
 

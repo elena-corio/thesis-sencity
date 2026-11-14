@@ -23,7 +23,7 @@ const walk = useWalkStore()
 const backBtn = ref(null)
 const count = computed(() => `Stretch ${walk.index + 1} of ${walk.stretches.length}`)
 const isPlace = computed(() => walk.mode === 'place')
-const BACK = { comparison: 'Exit walk, back to comparison', stretch: 'Back to the stretch', place: 'Back to place' }
+const BACK = { comparison: 'Exit walk, back to comparison', stretch: 'Back to preview', place: 'Back to place' }
 
 // Esc goes back, before the map or a card behind can take it (the view covers them).
 function onKey(e) {

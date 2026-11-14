@@ -80,9 +80,9 @@ test.describe('desktop', () => {
     await expect(page.locator('[data-panel="attribution"]')).not.toContainText('buildings')
     await expect(card(page)).toContainText('Kuehlgasse')
     await expect(card(page)).toContainText('180 m · about 2 min')
-    const details = page.locator('#walk-details')
-    await expect(details).toContainText('Might bother you')
-    await expect(details.getByRole('button', { name: 'Rate 1 of 5' })).toHaveAttribute('aria-disabled', 'true')
+    // On Thermal the card has no sense lists and no "Rate this place" (Elena, 2026-11-14).
+    await expect(page.locator('#walk-details')).toHaveCount(0)
+    await expect(v.getByTestId('comfort-key')).toContainText('Thermal')
     await expect(v).toContainText('Where you are')
     await expect(v).toContainText(/0\.09 of 0\.6 km · 6 min left/)
     await expect(v.getByRole('button', { name: 'Pause' })).toBeVisible() // it opens playing (Elena, 2026-11-11)
@@ -205,7 +205,7 @@ for (const theme of ['dark', 'light']) {
       await expect(v.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeInViewport()
       await expect(page.getByTestId('walk-photo')).toBeInViewport()
       await expect(v.getByRole('group', { name: 'Walk controls' })).toBeVisible()
-      await expect(v).toContainText('Might feel good')
+      await expect(v).not.toContainText('Might feel good') // a Thermal walk: no sense lists (Elena, 2026-11-14)
       await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible() // the tab bar stays
       await expect(page.locator('[data-panel="sheet"]')).toBeHidden()
       await page.screenshot({ path: `e2e/screens/walk/5-phone-${theme}.png` })

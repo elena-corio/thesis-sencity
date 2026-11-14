@@ -118,7 +118,7 @@ test.describe('desktop', () => {
     const view = page.locator('[data-panel="walk-view"]')
     await expect(view.getByTestId('walk-count')).toHaveText('Stretch 2 of 5')
     await expect(view.getByRole('button', { name: 'Play' })).toBeVisible()
-    await expect(view.getByRole('button', { name: 'Back to the stretch' })).toBeVisible()
+    await expect(view.getByRole('button', { name: 'Back to preview' })).toBeVisible()
     await expect(view.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', photo)
     // The mouse and the keys step the stretches.
     await view.getByRole('button', { name: 'Next stretch' }).click()
