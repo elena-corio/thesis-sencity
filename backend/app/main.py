@@ -332,7 +332,7 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
         raise HTTPException(503, str(e)) from None
 
 
-# Senses mode: general predictions for the photos of an area or route (no profile), from model/app_v0/
+# Senses mode: general predictions for the photos of an area or route (no profile), from model/archive/app_v0/
 
 # Ratings made from Street View photos are stale from now on (Elena, 2026-11-11): marked on the first rating request
 # (their keys never match a Mapillary photo anyway; the mark is for the record).

@@ -1,6 +1,6 @@
 <script setup>
 // One thing that might bother or feel good (boards Routes 5, P2, P6): the icon of its main sense, from the codebook
-// (model/app_v0/elements.json), and its label. A row, never a pill: no border. Used by the walk, the place card and the
+// (model/archive/app_v0/elements.json), and its label. A row, never a pill: no border. Used by the walk, the place card and the
 // stretch card, so they read the same.
 import { computed } from 'vue'
 import { elementLabel } from '../lib/senses.js'

@@ -1,6 +1,6 @@
 """Senses mode: a general prediction for one street photo (no profile).
 
-model/app_v0/ (exported from the thesis repo) is the only source of the instructions, task text, schemas, labels and
+model/archive/app_v0/ (exported from the thesis repo) is the only source of the instructions, task text, schemas, labels and
 model settings. It is read again on every request, so replacing the folder changes the setting without a code change or
 a restart. If a file is missing, broken or unsafe the request stops with ExportError: there are no defaults.
 
@@ -31,7 +31,7 @@ from PIL import Image, UnidentifiedImageError
 from tool.config import REPO_ROOT, get_key
 from tool.photos.mapillary import NotThisPhoto
 
-EXPORT_DIR = REPO_ROOT / "model" / "app_v0"
+EXPORT_DIR = REPO_ROOT / "model" / "archive" / "app_v0"
 log = logging.getLogger("sencity.api")
 
 # What this app needs from model.json. A file that breaks a privacy rule is refused, whatever else it says.
@@ -79,7 +79,7 @@ FATAL_STATUSES = (401, 402, 403, 404)  # key, credit or endpoint: no use trying 
 
 
 class ExportError(Exception):
-    """model/app_v0/ cannot be used. The message says which file and why."""
+    """model/archive/app_v0/ cannot be used. The message says which file and why."""
 
 
 class PredictionError(Exception):

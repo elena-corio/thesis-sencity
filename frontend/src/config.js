@@ -32,9 +32,9 @@ export default {
   // The layer Area and Routes open on.
   layerDefault: 'senses',
 
-  // The app's language: which label of model/app_v0/elements.json is shown ('en' or 'it').
+  // The app's language: which label of model/archive/app_v0/elements.json is shown ('en' or 'it').
   language: 'en',
-  // The words of a comfort rating of 2, 3 and 4. Those of 1 and 5 are the survey's, from model/app_v0/.
+  // The words of a comfort rating of 2, 3 and 4. Those of 1 and 5 are the survey's, from model/archive/app_v0/.
   comfortWords: { 2: 'not very comfortable', 3: 'somewhat comfortable', 4: 'fairly comfortable' },
   // The recommendations in Senses (lib/senses.js): how many to list, and at least this far apart (between middles),
   // so one long street does not fill the list.

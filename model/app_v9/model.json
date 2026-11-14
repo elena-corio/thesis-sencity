@@ -1,0 +1,33 @@
+{
+  "model": "google/gemini-3.1-flash-lite",
+  "provider": {
+    "zdr": true,
+    "data_collection": "deny",
+    "require_parameters": true,
+    "allow_fallbacks": false,
+    "only": [
+      "google-vertex/eu"
+    ]
+  },
+  "provider_name": "Google",
+  "pinned_endpoint": [
+    "google-vertex/eu"
+  ],
+  "zero_data_retention": true,
+  "allow_fallbacks": false,
+  "temperature": 0.7,
+  "max_tokens": 600,
+  "reasoning": {
+    "effort": "none"
+  },
+  "input": "photo",
+  "reasoning_position": "after",
+  "placement": "system",
+  "image": {
+    "format": "JPEG",
+    "mime_type": "image/jpeg",
+    "encoding": "base64 data URL",
+    "quality": 90,
+    "max_px": 1024
+  }
+}

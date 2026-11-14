@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The v9 export is added; the V0 export is archived and still in use (accepted)
+**Context.** Elena: import the survey v9 export from the thesis repo. Its files are not a drop-in replacement for V0 (other file names, 20 elements instead of 17 with new codes, a per-photo element list, a profile template), so the switch needs code and is done in steps.
+**Decision.**
+- *Check (Elena):* every file in `model/app_v9/` matched its sha256 in the MANIFEST before it was added.
+- *Archive (Elena):* `model/app_v0/` moved to `model/archive/app_v0/`, unchanged. The app keeps reading it from there (`EXPORT_DIR` in `backend/app/senses.py`) until the switch.
+- *Order (Elena):* step 1 this import; step 3 the profile builder, as the in-app onboarding; step 2 the switch of the Senses rating to v9 after it.
+**Consequences.** No change in what the app sends or shows. `model/app_v9/` is in the repo but not read yet.
+
 ## 2026-11-11 – The legend is in the right card, straight after the bar (accepted)
 **Context.** Elena: new boards Flow 4 and Routes 3 (legend and summary changes), then on the result: one text size, the legend always straight after the bar, "Sensory comfort", and route bars without the layer word.
 **Decision.**

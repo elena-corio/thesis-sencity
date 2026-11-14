@@ -1,4 +1,4 @@
-"""Senses mode: the request is built from model/app_v0/ as it is on disk, and replies are validated. No API calls."""
+"""Senses mode: the request is built from model/archive/app_v0/ as it is on disk, and replies are validated. No API calls."""
 import base64
 import io
 import json
@@ -67,7 +67,7 @@ def calls(monkeypatch):
 
 
 def test_request_is_built_from_the_export_as_model_json_says():
-    """Loads model/app_v0/, builds a request without sending it, and checks it against model.json."""
+    """Loads model/archive/app_v0/, builds a request without sending it, and checks it against model.json."""
     model = json.loads((EXPORT_DIR / "model.json").read_text(encoding="utf-8"))
     schema_text = (EXPORT_DIR / "schema.json").read_text(encoding="utf-8")
     system = (EXPORT_DIR / "system_instructions.txt").read_text(encoding="utf-8")

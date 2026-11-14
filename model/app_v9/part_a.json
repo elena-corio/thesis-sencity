@@ -1,0 +1,202 @@
+{
+  "intro": {
+    "en": "Think of all eight senses: sight, hearing, smell, touch, temperature, balance and movement, how close things are to your body, and inner signals such as needing to rest, drink or find a toilet.",
+    "it": "Pensa a tutti e otto i sensi: vista, udito, olfatto, tatto, temperatura, equilibrio e movimento, quanto le cose sono vicine al tuo corpo, e i segnali interni come il bisogno di riposarti, bere o trovare un bagno."
+  },
+  "questions": [
+    {
+      "code": "A11",
+      "type": "scale_1_5",
+      "required": true,
+      "title": {
+        "en": "In general, how sensory-comfortable do you feel spending time in outdoor public spaces?",
+        "it": "In generale, quanto ti senti a tuo agio a livello sensoriale a trascorrere del tempo negli spazi pubblici all'aperto?"
+      },
+      "labels": {
+        "1": {
+          "en": "Not at all",
+          "it": "Per niente"
+        },
+        "5": {
+          "en": "Very much",
+          "it": "Moltissimo"
+        }
+      }
+    },
+    {
+      "code": "A12",
+      "type": "grid_1_5",
+      "required": true,
+      "title": {
+        "en": "In outdoor public spaces, how pleasant or unpleasant to your senses is each of these elements?",
+        "it": "Negli spazi pubblici all'aperto, quanto è piacevole o spiacevole per i tuoi sensi ciascuno di questi elementi?"
+      },
+      "help": {
+        "en": "1 = very unpleasant · 2 = a little unpleasant · 3 = neither · 4 = a little pleasant · 5 = very pleasant",
+        "it": "1 = molto spiacevole · 2 = un po' spiacevole · 3 = né l'uno né l'altro · 4 = un po' piacevole · 5 = molto piacevole"
+      },
+      "scale": {
+        "en": [
+          "very unpleasant",
+          "a little unpleasant",
+          "neither",
+          "a little pleasant",
+          "very pleasant"
+        ],
+        "it": [
+          "molto spiacevole",
+          "un po' spiacevole",
+          "né l'uno né l'altro",
+          "un po' piacevole",
+          "molto piacevole"
+        ]
+      },
+      "rows": [
+        {
+          "code": "greenery_trees",
+          "en": "Greenery, trees",
+          "it": "Verde, alberi"
+        },
+        {
+          "code": "nice_buildings",
+          "en": "Nice buildings",
+          "it": "Begli edifici"
+        },
+        {
+          "code": "signs_ads",
+          "en": "Signs, ads",
+          "it": "Insegne, pubblicità"
+        },
+        {
+          "code": "fountains_water",
+          "en": "Fountains, water",
+          "it": "Fontane, acqua"
+        },
+        {
+          "code": "traffic_trams",
+          "en": "Traffic, trams",
+          "it": "Traffico, tram"
+        },
+        {
+          "code": "plants_flowers",
+          "en": "Plants, flowers",
+          "it": "Piante, fiori"
+        },
+        {
+          "code": "trash_bins",
+          "en": "Waste containers",
+          "it": "Bidoni dei rifiuti"
+        },
+        {
+          "code": "food_stalls_cafes",
+          "en": "Food stalls, cafés",
+          "it": "Bancarelle di cibo, bar"
+        },
+        {
+          "code": "grass_soil",
+          "en": "Grass, soil",
+          "it": "Erba, terra"
+        },
+        {
+          "code": "asphalt_stone_concrete",
+          "en": "Asphalt, stone, concrete",
+          "it": "Asfalto, pietra, cemento"
+        }
+      ]
+    },
+    {
+      "code": "A13",
+      "type": "grid_1_5",
+      "required": true,
+      "title": {
+        "en": "In outdoor public spaces, how pleasant or unpleasant to your senses is each of these elements?",
+        "it": "Negli spazi pubblici all'aperto, quanto è piacevole o spiacevole per i tuoi sensi ciascuno di questi elementi?"
+      },
+      "help": {
+        "en": "1 = very unpleasant · 2 = a little unpleasant · 3 = neither · 4 = a little pleasant · 5 = very pleasant",
+        "it": "1 = molto spiacevole · 2 = un po' spiacevole · 3 = né l'uno né l'altro · 4 = un po' piacevole · 5 = molto piacevole"
+      },
+      "scale": {
+        "en": [
+          "very unpleasant",
+          "a little unpleasant",
+          "neither",
+          "a little pleasant",
+          "very pleasant"
+        ],
+        "it": [
+          "molto spiacevole",
+          "un po' spiacevole",
+          "né l'uno né l'altro",
+          "un po' piacevole",
+          "molto piacevole"
+        ]
+      },
+      "rows": [
+        {
+          "code": "shade",
+          "en": "Shade from trees or buildings",
+          "it": "Ombra di alberi o edifici"
+        },
+        {
+          "code": "direct_sun",
+          "en": "Direct sun, little shade",
+          "it": "Sole diretto, poca ombra"
+        },
+        {
+          "code": "open_space",
+          "en": "Open space",
+          "it": "Spazio aperto"
+        },
+        {
+          "code": "heights_bridges",
+          "en": "Heights, bridges",
+          "it": "Altezze, ponti"
+        },
+        {
+          "code": "car_free",
+          "en": "Car-free zones",
+          "it": "Zone senza auto"
+        },
+        {
+          "code": "crowds",
+          "en": "Crowds",
+          "it": "Folla"
+        },
+        {
+          "code": "narrow_shared",
+          "en": "Narrow or shared paths",
+          "it": "Percorsi stretti o condivisi"
+        },
+        {
+          "code": "seats",
+          "en": "Seats",
+          "it": "Sedute"
+        },
+        {
+          "code": "drinking_fountains_toilets",
+          "en": "Drinking fountains, toilets",
+          "it": "Fontanelle, bagni"
+        },
+        {
+          "code": "steps_slopes",
+          "en": "Steps, slopes",
+          "it": "Scale, pendenze"
+        }
+      ]
+    },
+    {
+      "code": "A16",
+      "type": "open_text",
+      "required": false,
+      "title": {
+        "en": "Is there anything else in public spaces that pleases or bothers your senses? (optional)",
+        "it": "C'è qualcos'altro negli spazi pubblici che è piacevole o fastidioso per i tuoi sensi? (facoltativo)"
+      },
+      "help": {
+        "en": "For example, a sound, a smell, a situation, or something that helps you feel at ease or bothers you.",
+        "it": "Per esempio un suono, un odore, una situazione, o qualcosa che ti fa sentire a tuo agio o ti disturba."
+      }
+    }
+  ]
+}

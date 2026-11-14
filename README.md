@@ -19,7 +19,7 @@ cp .env.example .env                         # then fill in the key
 | `GOOGLE_MAPS_API_KEY` | Google Maps Platform key with **Street View Static API** enabled, for the step-1 tool and its review page only (`tool.fetch_photos`, `tool.review_server`): the app uses no Street View. Backend only: never name it `VITE_*`, because Vite would put it in the browser bundle. |
 | `MAPILLARY_ACCESS_TOKEN` | Mapillary token for the app's street photos (free). Backend only: the browser gets only the public thumbnail URLs. |
 | `INFRARED_API_KEY` | Infrared.city key for thermal comfort. Each new area or route and season/time is billed: 10 tokens per 512 m tile (a circle up to ~250 m is usually 1 tile, 500 m up to 4; a route about 4–6, at most 8). Backend only. |
-| `OPENROUTER_API_KEY` | OpenRouter key for the Senses predictions. Each new photo is one paid call, sent to the zero-retention endpoint pinned in `model/app_v0/model.json`. Backend only: never name it `VITE_*`. |
+| `OPENROUTER_API_KEY` | OpenRouter key for the Senses predictions. Each new photo is one paid call, sent to the zero-retention endpoint pinned in `model/archive/app_v0/model.json`. Backend only: never name it `VITE_*`. |
 
 All thresholds are in `config/tool.yaml`.
 
@@ -141,7 +141,7 @@ A new **route** costs one thermal run on a corridor around its possible ways: ab
 
 **Costs.** Each new photo is one paid model call (about $0.00076, the mean of 1,630 calls); the Mapillary photos are free. A default 200 m area around Stephansplatz has 126 places, 115 with a Mapillary photo: 113 calls, about $0.09. A walk rates its stretches' own photos where they differ from their streets' (at most one call per stretch). A run rates at most 250 new photos; above that the app asks first, with the estimated cost of the rest. A photo already rated costs nothing.
 
-Everything about the model comes from `model/app_v0/` (exported from the thesis repo), read on every request. To change the setting, replace that folder: no code change or restart. The reasoning order and any model, endpoint or image setting are picked up. If a file is missing or does not parse, or the export breaks a privacy rule (`zdr`, `data_collection`, `allow_fallbacks`, a free endpoint), the app shows which file is wrong and sends nothing. An `input` other than `photo` is refused too: the export has no describer model or prompt to build it from.
+Everything about the model comes from `model/archive/app_v0/` (exported from the thesis repo), read on every request. To change the setting, replace that folder: no code change or restart. The reasoning order and any model, endpoint or image setting are picked up. If a file is missing or does not parse, or the export breaks a privacy rule (`zdr`, `data_collection`, `allow_fallbacks`, a free endpoint), the app shows which file is wrong and sends nothing. An `input` other than `photo` is refused too: the export has no describer model or prompt to build it from.
 
 Results are cached in `runs/senses/predictions.json` (not committed) per Mapillary image ID, heading, model and the MANIFEST's commit, so a new model or export starts fresh. It holds only the JSON output, the model ID, latency and cost: never an image. Ratings made earlier from Street View photos stay in the file marked `stale` and are never used. Other settings (OpenRouter URL, timeout, how many at a time, the cap, the limit per IP) are in `api.senses` in `config/tool.yaml`.
 
@@ -153,7 +153,7 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests/test_senses.py --rootdir backend   # only the Senses request and replies
 ```
 
-These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the request built from `model/app_v0/`, validated replies, the retry, the cache, the cap, at most 4 at a time). They make no API calls.
+These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the request built from `model/archive/app_v0/`, validated replies, the retry, the cache, the cap, at most 4 at a time). They make no API calls.
 
 ## Frontend
 
@@ -209,7 +209,7 @@ npm run dev                     # starts the API too, and opens http://localhost
 |---|---|
 | `Missing GOOGLE_MAPS_API_KEY` | Add the key to `.env` at the repo root. An old `VITE_GOOGLE_MAPS_KEY` is not read. |
 | The Senses card says "add OPENROUTER_API_KEY to .env" | Add the key to `.env` at the repo root, then press Retry. No restart is needed. |
-| The Senses card says "The model settings cannot be used" | It names the file in `model/app_v0/` that is missing or wrong. Export the folder again from the thesis repo. |
+| The Senses card says "The model settings cannot be used" | It names the file in `model/archive/app_v0/` that is missing or wrong. Export the folder again from the thesis repo. |
 | "Thermal comfort is not set up on the server." | Add `INFRARED_API_KEY` to `.env` and restart the API. |
 | "No weather station near this area…" | No public station within `thermal.station_radius_km`; the area has no thermal comfort. |
 | `Street View metadata error: REQUEST_DENIED` | The key is wrong, or Street View Static API is not enabled for it in the Google Cloud console |

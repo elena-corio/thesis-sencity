@@ -1,5 +1,5 @@
 // Senses mode: from one rating per photo to one rating per place, and what to recommend. The labels themselves
-// come from the API, which reads them from model/app_v0/; nothing about the model is hard-coded here.
+// come from the API, which reads them from model/archive/app_v0/; nothing about the model is hard-coded here.
 import config from '../config.js'
 import { pickSuggestions } from './suggest.js'
 

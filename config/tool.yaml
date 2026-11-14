@@ -204,7 +204,7 @@ api:
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
     rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)
-  senses:                        # model settings are NOT here: they come only from model/app_v0/
+  senses:                        # model settings are NOT here: they come only from model/archive/app_v0/
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60
     cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
