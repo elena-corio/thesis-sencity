@@ -252,6 +252,39 @@ test.describe('Senses mode', () => {
     await page.screenshot({ path: 'e2e/screens/senses-route.png' })
   })
 
+  test('walking a Senses route shows the same photos and ratings as the preview, and rates nothing again', async ({ page }) => {
+    const rate = await mockSenses(page, { comfort: (i) => [2, 3, 5][i % 3] })
+    await mockRoutes(page)
+    let lookups = 0
+    await page.route('**/api/mapillary/along', (route) => { lookups++; return route.abort() })
+    await analyseRoute(page, true)
+    const card = page.locator('[data-panel="route-card"]')
+    await expect(card).toContainText('General prediction: not yet personal')
+    const walkBtn = card.locator('[data-walk]').first()
+    const id = await walkBtn.getAttribute('data-walk')
+    const fills = (bar) => bar.locator('[data-stretch] .fill').evaluateAll((els) => els.map((e) => e.className))
+    const preview = await fills(card.locator(`[data-route="${id}"]`))
+    expect(preview.some((c) => /easy|mixed|hard/.test(c))).toBe(true)
+    // The photo and rating of the first stretch, on its card.
+    await card.locator(`[data-stretch="${id}-0"]`).click()
+    const stretchCard = page.locator('[data-panel="place-card"]')
+    const photo = await stretchCard.locator('.photo img').getAttribute('src')
+    const rating = (await stretchCard.getByTestId('senses-result').locator('.scale-head strong').textContent()).trim()
+    await page.getByRole('button', { name: 'Back to comparison' }).click()
+
+    // Walk it (Elena, 2026-11-14): stable and the same as the preview, the same photos.
+    await page.locator(`[data-walk="${id}"]`).first().click()
+    const view = page.locator('[data-panel="walk-view"]')
+    await view.getByRole('button', { name: 'Pause' }).click()
+    await expect(page.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', photo)
+    expect(await fills(view)).toEqual(preview)
+    await expect(view.getByTestId('walk-state')).toContainText(rating.split(' · ')[0])
+    await view.getByRole('button', { name: 'Next stretch' }).click()
+    expect(await fills(view)).toEqual(preview) // nothing changes colour while walking
+    expect(rate.requests).toHaveLength(1) // no new rating run
+    expect(lookups).toBe(0) // no photos of its own
+  })
+
   test('a Thermal route rates nothing and speaks only of thermal comfort', async ({ page }) => {
     const rate = await mockSenses(page)
     const routes = await mockRoutes(page)

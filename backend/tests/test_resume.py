@@ -111,7 +111,7 @@ def test_a_retry_is_not_counted_as_a_new_area(setup, monkeypatch):
 def test_route_try_again_goes_on_from_the_failed_photos(setup):
     client, prov, calls, tmp = setup
     assert events(client.post("/api/routes", json=ROUTE_REQ))[-1]["type"] == "error"
-    key = routes_mod.route_key(START, END, main.full_cfg)
+    key = routes_mod.corridor_key(START, END, main.full_cfg)  # the corridor's steps: streets and photos
     where = tmp / "routes"
     assert steps.load(where, key, "ways") is not None
     kept = steps.load(where, key, "photos") or {}

@@ -1,21 +1,21 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
-import { loadMapillaryAlong } from '../lib/api.js'
 import { showsWalkPhotos } from '../lib/photos.js'
 import { stretchFeature, stretchesOf, stretchMiddle } from '../lib/routes.js'
 import { photoKey } from '../lib/senses.js'
-import { ratedPhotoOf, sensesStateOf } from '../lib/walk.js'
+import { ratedPhotoOf } from '../lib/walk.js'
 import { useRoutesStore } from './routes.js'
 import { useSensesStore } from './senses.js'
 
 /**
  * Walk along a route: one of the two ways, stretch by stretch, as a slideshow of photos (Elena, 2026-11-14: no 3D street,
  * no turning camera; components/WalkView.vue). The layer, season and time are fixed when the walk starts (Elena,
- * 2026-11-11): exit the walk to change them. The walked route is a copy. One photo per stretch, and it is the one rated in
- * Senses (Elena, 2026-11-14: both or neither): the one that faces along the walk (Mapillary, from the backend), else the
- * street's photo; on Senses each stretch is coloured from that photo's rating. It opens playing (paused with reduced
- * motion); Play goes on every config.walk.stretchMs. Ratings and thermal values come from the routes store, never a new call.
+ * 2026-11-11): exit the walk to change them. The walked route is a copy. Each stretch shows its street's photo and rating,
+ * the same as the Routes view and the stretch card, so nothing is looked up or rated again and nothing changes colour
+ * (Elena, 2026-11-14: stable and the same as the preview; a rating never without its photo). It opens playing (paused
+ * with reduced motion); Play goes on every config.walk.stretchMs. Ratings and thermal values come from the routes store,
+ * never a new call.
  */
 export const useWalkStore = defineStore('walk', () => {
   const routes = useRoutesStore()
@@ -28,42 +28,34 @@ export const useWalkStore = defineStore('walk', () => {
   const info = shallowRef(null)
   /** The last step was done with the keyboard, so focus can follow (Exit walk goes back to its button). */
   const byKeyboard = ref(false)
-  /** Mapillary (lib/photos.js 'mapillary'): one photo or null per stretch key; 'idle' | 'loading' | 'ready' | 'error'. */
-  const mapillary = shallowRef({})
-  const mapillaryState = ref('idle')
   /** Photo keys whose image could not be loaded: shown as no photo, so with no rating either. */
   const unloaded = shallowRef(new Set())
   let timer = null
-  let photoController = null
 
-  /** The walk's own photos by stretch key; null while they are being found ({} if that failed: the streets' photos stay). */
-  const own = computed(() => ({ ready: mapillary.value, error: {} })[mapillaryState.value] ?? null)
-  const ratedOf = (s) => ratedPhotoOf(s, own.value, routes.segments)
-  /** On Senses a stretch is coloured from its rated photo (lib/walk.js), the photo its window shows; while the walk's photos
-   *  are being found, from its street's. */
+  const ratedOf = (s) => ratedPhotoOf(s, routes.segments, useSensesStore().placeFor)
+  /** The stretches as the Routes view colours them; on Senses one whose photo did not load is unlit (no photo, no rating). */
   const stretches = computed(() => {
     const base = route.value ? stretchesOf(route.value, routes.segments, layer.value) : []
-    if (layer.value !== 'senses' || own.value === null) return base
-    const senses = useSensesStore()
-    return base.map((s) => ({ ...s, state: sensesStateOf(ratedOf(s), senses.placeFor, unloaded.value) }))
+    if (layer.value !== 'senses' || !unloaded.value.size) return base
+    return base.map((s) => {
+      const rated = ratedOf(s)
+      return rated && unloaded.value.has(photoKey(rated.photo)) ? { ...s, state: 'none' } : s
+    })
   })
   const current = computed(() => stretches.value[index.value] ?? null)
   const feature = computed(() => (current.value ? stretchFeature(current.value, routes.segments) : null))
-  /** The current stretch's rated photo, whether or not photos are shown: { photo, from: 'stretch' | 'street' }, null with
-   *  none, undefined while the walk's photos are being found. */
+  /** The current stretch's photo and rating, whether or not photos are shown: { photo, photos, place }, or null with none. */
   const ratedPhoto = computed(() => (current.value ? ratedOf(current.value) : null))
   const isUnloaded = computed(() => !!ratedPhoto.value && unloaded.value.has(photoKey(ratedPhoto.value.photo)))
   /** The photo shown, or null (none for the stretch, not loaded, or photos not shown). */
   const photo = computed(() => (showsWalkPhotos() && ratedPhoto.value && !isUnloaded.value ? ratedPhoto.value.photo : null))
-  /** What the photo window shows: 'shown' | 'loading' | 'error' | 'unloaded' (its image did not load) | 'none-here' (no
-   *  photo for this stretch) | 'off' (photos not shown: the 3D street alone). */
+  /** What the photo square shows: 'shown' | 'unloaded' (its image did not load) | 'none-here' (no photo for this stretch) |
+   *  'off' (photos not shown). */
   const photoState = computed(() => {
     if (!current.value) return 'off'
     if (photo.value) return 'shown'
     if (!showsWalkPhotos()) return 'off'
-    if (ratedPhoto.value === undefined) return 'loading'
-    if (isUnloaded.value) return 'unloaded'
-    return mapillaryState.value === 'error' ? 'error' : 'none-here'
+    return isUnloaded.value ? 'unloaded' : 'none-here'
   })
   /** The shown photo's image did not load: from now on it counts as no photo, with no rating. */
   function photoFailed(p) {
@@ -79,21 +71,6 @@ export const useWalkStore = defineStore('walk', () => {
   const shown = computed(() => (route.value ? { ...route.value, stretches: stretches.value } : null))
   const atEnd = computed(() => index.value >= stretches.value.length - 1)
 
-  async function fetchMapillary() {
-    photoController?.abort()
-    mapillary.value = {}
-    photoController = new AbortController()
-    const { signal } = photoController
-    mapillaryState.value = 'loading'
-    try {
-      mapillary.value = await loadMapillaryAlong(stretches.value.map((s) => ({ key: s.key, coordinates: s.coordinates })), signal)
-      mapillaryState.value = 'ready'
-    } catch {
-      if (signal.aborted) return
-      mapillaryState.value = 'error'
-    }
-  }
-
   function start(id, keyboard = false) {
     const r = routes.routes.find((x) => x.id === id)
     if (!r) return
@@ -108,7 +85,6 @@ export const useWalkStore = defineStore('walk', () => {
     routes.hoverKey = null
     routes.hoverRoute = null
     active.value = true
-    fetchMapillary()
     // Play is the default (Elena, 2026-11-11); with reduced motion it opens paused and Next / Previous jump.
     if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) play()
   }
@@ -116,7 +92,6 @@ export const useWalkStore = defineStore('walk', () => {
   /** Back to the route card, with the same routes. */
   function exit(keyboard = false) {
     pause()
-    photoController?.abort()
     const id = route.value?.id
     active.value = false
     route.value = null
@@ -163,6 +138,6 @@ export const useWalkStore = defineStore('walk', () => {
 
   return {
     active, route, index, playing, layer, info, byKeyboard, stretches, current, feature, ratedPhoto, photo, photoState, photoFailed,
-    point, shown, atEnd, mapillary, mapillaryState, start, exit, go, step, play, pause, toggle,
+    point, shown, atEnd, start, exit, go, step, play, pause, toggle,
   }
 })

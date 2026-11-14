@@ -44,12 +44,30 @@ def cache_dir(cfg: dict) -> FilePath:
 
 def route_key(start: dict, end: dict, cfg: dict) -> str:
     """Same two points (to about a metre, either way round) and same settings → same key, so swapping
-    start and end is never paid for twice. The file name does not show the points."""
+    start and end never pays for thermal comfort twice. The file name does not show the points."""
     settings = {"photos": "mapillary", **{k: cfg[k] for k in ("osm", "segments", "routes")},
                 "mapillary": {k: cfg["mapillary"][k] for k in area_mod.PHOTO_SETTINGS}}
     points = sorted([[round(start["lat"], 5), round(start["lon"], 5)], [round(end["lat"], 5), round(end["lon"], 5)]])
     raw = json.dumps({"points": points, "settings": settings}, sort_keys=True, default=str)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+def corridor_key(start: dict, end: dict, cfg: dict) -> str:
+    """The key of the corridor's streets and photos. Unlike route_key it keeps the direction: a street's photo faces the
+    way the routes walk it (Elena, 2026-11-14), so start → end and end → start have their own photos."""
+    return hashlib.sha1(json.dumps({"route": route_key(start, end, cfg), "photos": "facing the walk",
+                                    "from": [round(start["lat"], 5), round(start["lon"], 5)]}).encode()).hexdigest()[:16]
+
+
+def walk_directions(paths: list) -> dict:
+    """{segment id: True if walked along its own drawing, False if against it}, from the ways found, the shortest first:
+    a street the ways walk both ways keeps the direction of the first."""
+    out = {}
+    for path in paths:
+        for e, forward in path.steps:
+            if e.segment_id is not None and e.segment_id not in out:
+                out[e.segment_id] = forward
+    return out
 
 
 def load_cached(key: str, cfg: dict) -> dict | None:
@@ -166,7 +184,7 @@ def build_corridor(start: dict, end: dict, cfg: dict, key: str | None = None):
     yield {"type": "segments", "total": total, "done": total - len(todo)}
     finished = False
     try:
-        for done, seg, photos in area_mod.lookup_photos(todo, proj, cfg):
+        for done, seg, photos in area_mod.lookup_photos(todo, proj, cfg, walk_directions(ways_found)):
             found[seg.id] = photos
             yield {"type": "segment", "done": total - len(todo) + done, "total": total}
         finished = True

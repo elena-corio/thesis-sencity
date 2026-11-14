@@ -148,6 +148,14 @@ def photo_for(s: requests.Session, coordinates: list[list[float]], kind: str, cf
     return pick(search(s, coordinates, cfg), coordinates, cfg, kind=kind)
 
 
+def photo_facing(s: requests.Session, coordinates: list[list[float]], cfg: dict) -> dict | None:
+    """The photo of a street that a route walks from coordinates[0] to coordinates[-1] (Elena, 2026-11-14: photos in the
+    direction of the route first): one that faces that way ('walk'), else one either way along the street ('street').
+    One search: the same images are judged twice."""
+    images = search(s, coordinates, cfg)
+    return pick(images, coordinates, cfg, kind="walk") or pick(images, coordinates, cfg, kind="street")
+
+
 def along(stretches: list[dict], cfg: dict) -> dict:
     """{key: photo or None} for [{key, coordinates, kind?}], one Graph search per stretch, a few at a time."""
     s = session()

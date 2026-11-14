@@ -127,24 +127,6 @@ async function streamEvents(path, body, onEvent, signal) {
 }
 
 /**
- * One Mapillary photo per stretch of a walk (POST /api/mapillary/along): the newest flat photo within 30 m facing along
- * it, or null. The stretches travel in the body; the token stays on the server. Answer: {photos: {key: photo | null}},
- * each photo {id, lon, lat, heading, year, date, creator, thumb_url, link}.
- * @param {{key:string, coordinates:number[][]}[]} stretches
- * @param {AbortSignal} [signal]
- */
-export async function loadMapillaryAlong(stretches, signal) {
-  const res = await fetch(`${config.apiBase}/api/mapillary/along`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stretches }),
-    signal,
-  })
-  if (!res.ok) throw new ApiError(res.status, await errorText(res))
-  return (await res.json()).photos
-}
-
-/**
  * The model's general predictions for a list of Mapillary photos, nearest first (POST /api/senses/rate): the photos the
  * app shows. Events: {type: "start", model, cached, to_rate, remaining} · {type: "photo", id, heading,
  * status: "ok"|"failed", cached, result|error, cost_usd} · {type: "done", seconds, failed, remaining, estimate_usd} or

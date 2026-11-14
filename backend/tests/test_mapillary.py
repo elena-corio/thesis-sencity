@@ -65,6 +65,25 @@ def test_a_place_any_direction_inside_it():
     assert p["date"] == "2026-06"
 
 
+def test_a_route_street_prefers_a_photo_facing_the_walk_else_either_way(monkeypatch):
+    # Elena, 2026-11-14: photos in the direction of the route first. One search, judged twice.
+    searches = []
+
+    def search(s, coords, cfg):
+        searches.append(coords)
+        return images
+    monkeypatch.setattr(mly, "search", search)
+    images = [image("backwards-near", 180, 2026), image("forwards-far", 2, 2020, lon=16.37025)]
+    assert mly.photo_facing(None, NORTH, full_cfg)["id"] == "forwards-far"
+    # Walked the other way (south), the other photo faces the walk.
+    assert mly.photo_facing(None, NORTH[::-1], full_cfg)["id"] == "backwards-near"
+    # None facing the walk: one either way along the street will do.
+    images = [image("backwards", 180, 2026)]
+    p = mly.photo_facing(None, NORTH, full_cfg)
+    assert (p["id"], p["turn"]) == ("backwards", 0.0)
+    assert len(searches) == 3
+
+
 def test_no_photo_when_none_fits():
     assert mly.pick([image("backwards", 180, 2026), image("ancient", 0, 2010)], NORTH, full_cfg, now=NOW) is None
 

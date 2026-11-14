@@ -1,36 +1,23 @@
 // Walk along a route (board Routes 5): where you are on the way, which way the camera looks, and the lines of
 // the chip and the stretch card. Everything comes from what is already loaded: no new call.
 import config from '../config.js'
-import { comfortLabel, elementLabel, levelWord, photoKey } from './senses.js'
+import { comfortLabel, elementLabel, levelWord } from './senses.js'
 import { formatDegrees } from './thermal.js'
 
 /**
- * The photo a stretch is rated from, which is also the photo its window shows (Elena, 2026-11-14: a rating never
- * without its photo, nor a photo without its rating): its own photo, facing along the walk; else its street's photo
- * (the one the map is coloured from); else none.
+ * What a stretch of the walk shows and is rated from: its street's photos and their rating, exactly as the Routes view
+ * and the stretch card (Elena, 2026-11-14: the walk is stable and the same as the preview; a rating never without its
+ * photo). The photo shown is the one the card opens on, the closest to the rating (`rep`).
  * @param {object} stretch a stretch (lib/routes.js stretchesOf)
- * @param {object|null} own the walk's photos by stretch key, or null while they are being found
  * @param {Map} segments the routes' segments by id
- * @returns {{photo:object, from:'stretch'|'street'}|null|undefined} undefined while the stretch's own photo is being found
- */
-export function ratedPhotoOf(stretch, own, segments) {
-  if (own === null) return undefined
-  if (own[stretch.key]) return { photo: own[stretch.key], from: 'stretch' }
-  const street = segments.get(stretch.segmentId)?.properties.photos?.[0]
-  return street ? { photo: street, from: 'street' } : null
-}
-
-/**
- * A stretch's state on Senses, from its rated photo alone: the photo's rating level; 'failed' if it could not be rated;
- * 'none' with no photo, a photo that could not be loaded, or no rating yet.
- * @param {{photo:object}|null} rated ratedPhotoOf()
  * @param {(photos: object[]) => object} placeFor stores/senses.js placeFor
- * @param {Set<string>} unloaded photo keys whose image could not be loaded
+ * @returns {{photo:object, photos:object[], place:object}|null} null when the street has no photo
  */
-export function sensesStateOf(rated, placeFor, unloaded) {
-  if (!rated || unloaded.has(photoKey(rated.photo))) return 'none'
-  const place = placeFor([rated.photo])
-  return place.status === 'rated' ? place.level : place.status === 'failed' ? 'failed' : 'none'
+export function ratedPhotoOf(stretch, segments, placeFor) {
+  const photos = segments.get(stretch.segmentId)?.properties.photos ?? []
+  if (!photos.length) return null
+  const place = placeFor(photos)
+  return { photo: photos[place.rep ?? 0], photos, place }
 }
 
 /** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. */

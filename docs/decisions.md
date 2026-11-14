@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The walk shows the routes' own photos and ratings; route photos face the walk (accepted)
+**Context.** Elena: "the walking mode changes ratings every time, it should be stable and coherent with the preview", "it should also show the same photos", and "photos in the direction of the route should be privileged". The walk looked up a photo of its own per stretch (facing the walk) and rated those in a run of its own: stretches started unlit and changed colour as ratings came, and wherever the walk's photo was not the street's, the colour and the rating differed from the Routes view and the stretch card.
+**Decision (Elena).**
+- *The walk:* each stretch shows its street's photo and rating, exactly as the Routes view and the stretch card (the same function, the photo the card opens on). No photo lookup and no rating run of its own: nothing changes colour, and nothing costs anything more. A photo that does not load still counts as no photo, no rating. Replaces "a walk rates each stretch's own photo" (2026-11-11) and the walk's rated-photo rule of the entry "a rating always with its photo".
+- *Route photos face the walk:* when the routes are loaded, a street that the ways found walk gets a photo facing the way it is walked (a panorama shown that way), else one either way along it, as before. One Mapillary search per street, as before. The ways found before the photo step decide the direction; a street walked both ways keeps the direction of the first (the shortest) (proposed). Streets of the corridor that no way walks, and every street of an area, keep "either way".
+- *Caches:* the corridor (streets and photos) has its own key that keeps the direction (`corridor_key`), so the way back has its own photos; thermal comfort keeps the key either way round and is still paid for once. Routes cached before this are not reused: their streets and photos are looked up again (free), and photos that change are rated once (paid, a few cents for a route).
+
+**Consequences.** The preview, the stretch card and the walk always show the same photo and rating. A walk's photo can face either way where no photo faces the walk. A way chosen after the photo step that walks a street against the direction recorded shows that street's photo facing the other way. `/api/mapillary/along` is no longer called by the app.
+
 ## 2026-11-14 – The walk is a slideshow of photos: no 3D street, no turning camera (accepted)
 **Context.** Elena: the walk "is giving me a bit of headache, always turning". The camera stood at eye level where each photo was taken and turned to its direction at every stretch. The people SenCity is for are often sensitive to motion. This changes the walk at eye level with buildings of boards Routes 5 and P6 and the walk entries of 2026-11-11.
 **Decision (Elena).**

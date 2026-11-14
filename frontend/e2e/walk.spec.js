@@ -1,40 +1,14 @@
 // The walk along a route (Elena, 2026-11-14: a slideshow of photos, no 3D street, no turning camera), with the API
-// mocked: no Overpass, Street View, Infrared.city or model calls. The Mapillary photos are placeholders. The app ships with
-// Mapillary in the walk (lib/photos.js); one check runs with no photos.
+// mocked: no Overpass, Street View, Infrared.city or model calls. The Mapillary photos are placeholders. Each stretch shows
+// its street's photo and rating, the same as the Routes view and the stretch card. One check runs with no photos.
 import { expect, test } from '@playwright/test'
-import { PHOTO, layoutProblems, mockRoutes, openRoutes, routeClicks } from './helpers.js'
+import { layoutProblems, mockRoutes, openRoutes, routeClicks } from './helpers.js'
 
-/** Mock POST /api/mapillary/along: a photo at the start of every stretch, facing along it, except for the keys in `missing`. */
-async function mockMapillary(page, { missing = [], panos = [] } = {}) {
-  const mock = { requests: 0 }
-  await page.route('**/mly-thumb/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
-  // A test panorama: equirectangular, its middle looking north (pano_heading 0), so E is at 75 % and W at 25 %.
-  const letters = [['S', 0], ['W', 512], ['N', 1024], ['E', 1536], ['S', 2048]]
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1024"><rect width="2048" height="1024" fill="#7a96a0"/>` +
-    letters.map(([t, x]) => `<text x="${x}" y="560" font-size="160" font-family="Arial" font-weight="700" text-anchor="middle" fill="#13232a">${t}</text>`).join('') + '</svg>'
-  await page.route('**/mly-pano/**', (route) => route.fulfill({ contentType: 'image/svg+xml', body: svg }))
-  await page.route('**/api/mapillary/along', async (route) => {
-    mock.requests++
-    const { stretches } = route.request().postDataJSON()
-    const toRad = (d) => (d * Math.PI) / 180
-    const bearing = ([lo1, la1], [lo2, la2]) => {
-      const y = Math.sin(toRad(lo2 - lo1)) * Math.cos(toRad(la2))
-      const x = Math.cos(toRad(la1)) * Math.sin(toRad(la2)) - Math.sin(toRad(la1)) * Math.cos(toRad(la2)) * Math.cos(toRad(lo2 - lo1))
-      return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
-    }
-    const photos = Object.fromEntries(stretches.map((s, i) => {
-      if (missing.includes(s.key)) return [s.key, null]
-      const [lon, lat] = s.coordinates[0]
-      if (panos.includes(s.key)) {
-        return [s.key, { id: `pano${i}`, lon, lat, heading: bearing(s.coordinates[0], s.coordinates.at(-1)), pano: true, pano_heading: 0,
-          turn: 0, year: 2023, date: '2023-05-01', creator: 'bea', thumb_url: `/mly-pano/${s.key}.svg`, link: `https://www.mapillary.com/app/?pKey=pano${i}` }]
-      }
-      return [s.key, { id: `img${i}`, lon, lat, heading: bearing(s.coordinates[0], s.coordinates.at(-1)), year: 2024, date: '2024-06-01',
-        creator: 'anna', thumb_url: `/mly-thumb/${s.key}.png`, link: `https://www.mapillary.com/app/?pKey=img${i}` }]
-    }))
-    await route.fulfill({ json: { photos } })
-  })
-  return mock
+/** The walk looks nothing up (Elena, 2026-11-14: it shows the routes' own photos): count any call to the old lookup. */
+async function noLookup(page) {
+  const calls = { along: 0, rate: 0 }
+  await page.route('**/api/mapillary/along', (route) => { calls.along++; return route.abort() })
+  return calls
 }
 
 /** Street View images asked for (the app has none any more), and with thumbs also the Mapillary thumbnails. */
@@ -65,10 +39,17 @@ test.describe('desktop', () => {
     await mockRoutes(page)
     let buildings = 0
     await page.route('**/api/buildings', (route) => { buildings++; return route.abort() })
-    await mockMapillary(page)
+    const lookups = await noLookup(page)
     await toRoutes(page)
     const photoUrls = watchPhotos(page)
     await page.screenshot({ path: 'e2e/screens/walk/0-route-card.png' })
+    // The preview: each stretch's colour on route B's bar, and the photo its stretch card shows.
+    const barStates = (root) => root.locator('[data-stretch^="B-"] .fill').evaluateAll((els) => els.map((e) => e.className))
+    const preview = await barStates(page.locator('[data-panel="route-card"]'))
+    await page.locator('[data-stretch="B-0"]').click()
+    const cardPhoto = await page.locator('[data-panel="place-card"] .photo img').getAttribute('src')
+    const cardCredit = await page.locator('[data-panel="place-card"] .credit').textContent()
+    await page.getByRole('button', { name: 'Back to comparison' }).click()
 
     await page.getByRole('button', { name: 'Walk route B' }).click()
     const v = view(page)
@@ -89,7 +70,11 @@ test.describe('desktop', () => {
     // The photo the stretch is rated from, credited inside its frame; the stretch's card on the right.
     const photo = page.getByTestId('walk-photo')
     await expect(photo).toBeVisible()
-    await expect(photo.getByRole('link', { name: 'anna · 2024 · CC BY-SA 4.0' })).toHaveAttribute('href', 'https://www.mapillary.com/app/?pKey=img0')
+    // The same photo as the stretch card, and the same colours as the preview: nothing is looked up or rated again.
+    await expect(photo.locator('img')).toHaveAttribute('src', cardPhoto)
+    await expect(photo.locator('.credit')).toHaveText(cardCredit)
+    expect(await barStates(v)).toEqual(preview)
+    expect(lookups.along).toBe(0)
     await expect(page.locator('[data-panel="attribution"]')).toContainText('photo: Mapillary')
     await expect(page.locator('[data-panel="attribution"]')).not.toContainText('buildings')
     await expect(card(page)).toContainText('Kuehlgasse')
@@ -136,23 +121,9 @@ test.describe('desktop', () => {
     await expect(view(page)).toHaveCount(0)
   })
 
-  test("a stretch with no photo of its own shows its street's photo, and says so", async ({ page }) => {
-    await mockRoutes(page)
-    await mockMapillary(page, { missing: ['B-1'] })
-    await toRoutes(page)
-    await page.getByRole('button', { name: 'Walk route B' }).click()
-    await expect(page.getByTestId('walk-photo')).toBeVisible()
-    await expect(page.getByTestId('walk-street-photo')).toHaveCount(0)
-    await page.locator('body').press('ArrowRight')
-    // The photo it is rated from is shown: never a rating without its photo (Elena, 2026-11-14).
-    await expect(page.getByTestId('walk-photo')).toBeVisible()
-    await expect(page.getByTestId('walk-street-photo')).toHaveText("The street's photo: none along this stretch faces this way.")
-    await expect(page.getByTestId('walk-no-photo')).toHaveCount(0)
-  })
-
   test('a stretch with no photo at all says so, and has no rating', async ({ page }) => {
     await mockRoutes(page, { bare: ['b2'] })
-    await mockMapillary(page, { missing: ['B-1'] })
+    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
@@ -162,25 +133,9 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/walk/2-no-photo.png' })
   })
 
-  test('a panorama is shown at the walk bearing', async ({ page }) => {
-    await mockRoutes(page)
-    await mockMapillary(page, { panos: ['A-1'] })
-    await toRoutes(page)
-    await page.getByRole('button', { name: 'Walk A' }).click()
-    await page.locator('body').press('ArrowRight') // A-1, Heissgasse, runs east
-    const pano = page.getByTestId('walk-pano')
-    await expect(pano).toBeVisible()
-    await expect(page.getByTestId('walk-photo').getByRole('link', { name: 'bea · 2023 · CC BY-SA 4.0' })).toBeVisible()
-    // The walk runs east: E (75 % across the image) is in the middle of the frame.
-    const { shift, width } = await pano.evaluate((el) => ({ shift: parseFloat(getComputedStyle(el).backgroundPositionX), width: el.clientWidth }))
-    const eAt = shift + 0.75 * 4 * width
-    expect(Math.abs(eAt - width / 2)).toBeLessThan(width * 0.05)
-    await page.screenshot({ path: 'e2e/screens/walk/7-pano.png' })
-  })
-
   test('with photos off, no image is loaded and the square says so', async ({ page }) => {
     await mockRoutes(page)
-    const mly = await mockMapillary(page)
+    const lookups = await noLookup(page)
     await toRoutes(page, { photos: 'none' })
     const photoUrls = watchPhotos(page, { thumbs: true })
     await page.getByRole('button', { name: 'Walk route B' }).click()
@@ -188,13 +143,12 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('walk-photo')).toHaveCount(0)
     await expect(page.getByTestId('walk-no-photo')).toHaveText('Photos are not shown.')
     expect(photoUrls).toHaveLength(0)
-    // The stretches' photos are still found (not shown): in Senses they are the ones rated.
-    await expect.poll(() => mly.requests).toBe(1)
+    expect(lookups.along).toBe(0)
   })
 
   test('Esc and Area leave the walk; focus goes back to its button', async ({ page }) => {
     await mockRoutes(page)
-    await mockMapillary(page)
+    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).focus()
     await page.keyboard.press('Enter')
@@ -213,7 +167,7 @@ test.describe('reduced motion', () => {
 
   test('opens paused, and steps only when asked', async ({ page }) => {
     await mockRoutes(page)
-    await mockMapillary(page)
+    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(card(page)).toContainText('Kuehlgasse')
@@ -228,7 +182,7 @@ test.describe('light', () => {
 
   test('the walk in light mode', async ({ page }) => {
     await mockRoutes(page)
-    await mockMapillary(page)
+    await noLookup(page)
     await toRoutes(page, { theme: 'light' })
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
@@ -243,7 +197,7 @@ for (const theme of ['dark', 'light']) {
 
     test('the walk as one column, with the tab bar', async ({ page }) => {
       await mockRoutes(page, { bare: ['b2'] })
-      await mockMapillary(page, { missing: ['B-1'] })
+      await noLookup(page)
       await toRoutes(page, { theme, phone: true })
       await page.getByRole('button', { name: 'Walk route B' }).click()
       const v = view(page)

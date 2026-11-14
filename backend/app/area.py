@@ -78,18 +78,23 @@ def feature(seg, proj: LocalProjection, photos: list | None) -> dict:
     }
 
 
-def lookup_photos(segments: list, proj: LocalProjection, cfg: dict):
+def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None):
     """Yield (done, segment, [its photo] or []) as the Mapillary lookups finish, several at a time. A street counts
-    either way along it, a park or square in any direction. Stops as soon as the caller stops reading."""
+    either way along it, a park or square in any direction. `directions` (routes): {segment id: True if walked along its
+    own drawing, False if against it}; such a street prefers a photo facing the way it is walked. Stops as soon as the
+    caller stops reading."""
     s = mapillary.session()
+    directions = directions or {}
 
     def one(seg):
         geom = proj.geom_to_lonlat(seg.geom)
         if seg.kind == "area":
-            coords, kind = [list(c) for c in geom.exterior.coords], "area"
+            photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", cfg)
+        elif seg.id in directions:
+            coords = [list(c) for c in geom.coords]
+            photo = mapillary.photo_facing(s, coords if directions[seg.id] else coords[::-1], cfg)
         else:
-            coords, kind = [list(c) for c in geom.coords], "street"
-        photo = mapillary.photo_for(s, coords, kind, cfg)
+            photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", cfg)
         return seg, [photo] if photo else []
 
     pool = ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"])

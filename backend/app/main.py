@@ -222,10 +222,11 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         raise HTTPException(422, "Start and end are too close together. Choose points further apart.")
     if straight > r["max_walk_m"]:
         raise HTTPException(422, f"Start and end are too far apart. Routes go up to {r['max_walk_m'] / 1000:.1f} km for now.")
-    key = routes_mod.route_key(start, end, full_cfg)
+    key = routes_mod.route_key(start, end, full_cfg)  # thermal comfort: either way round
+    corridor_key = routes_mod.corridor_key(start, end, full_cfg)  # streets and photos: the photos face the walk
     ip = _ip(request)
-    cached = routes_mod.load_cached(key, full_cfg)
-    resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), key)
+    cached = routes_mod.load_cached(corridor_key, full_cfg)
+    resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), corridor_key)
     if cached is None and not resuming and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
         raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
     limits = body.limits.model_dump()
@@ -236,7 +237,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         corridor = cached
         if corridor is None:
             try:
-                for event in routes_mod.build_corridor(start, end, full_cfg, key):
+                for event in routes_mod.build_corridor(start, end, full_cfg, corridor_key):
                     if event["type"] == "corridor":
                         corridor = event
                     else:
@@ -249,8 +250,8 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
                 yield _ndjson({"type": "error", "message": "Could not load the streets between start and end. Try again."})
                 return
             lat, lon = routes_mod.middle(start, end)
-            routes_mod.save_cached(key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
-            steps.clear(routes_mod.cache_dir(full_cfg), key)
+            routes_mod.save_cached(corridor_key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
+            steps.clear(routes_mod.cache_dir(full_cfg), corridor_key)
         fc, zone = corridor["area"], corridor["zone"]
         lat, lon = routes_mod.middle(start, end)
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731

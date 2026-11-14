@@ -1,7 +1,7 @@
 <script setup>
 // The photo of the stretch ahead (WalkView): one square photo, facing along the walk. No enlarge and no labels: only the
 // credit, inside the frame (Mapillary: "{username} · {year} · CC BY-SA 4.0", linked to the image page). The photo is the
-// one the stretch is rated from (its own, else its street's: stores/walk.js). With no photo, or one that does not load,
+// one the stretch is rated from, its street's, as on the stretch card (stores/walk.js). With no photo, or one that does not load,
 // the square says so, and there is no rating either (Elena, 2026-11-14). Images are loaded when shown, never stored.
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
@@ -15,8 +15,6 @@ const source = 'Mapillary'
 const message = computed(() => {
   if (walk.photoState === 'none-here') return 'No photo for this stretch, so no rating.'
   if (walk.photoState === 'unloaded') return 'The photo could not be loaded, so no rating.'
-  if (walk.photoState === 'error') return 'Photos could not be loaded. The walk goes on without them.'
-  if (walk.photoState === 'loading') return 'Finding the photos…'
   return 'Photos are not shown.'
 })
 /** A panorama: the 90 degree view at the walk's bearing, cut from the equirectangular thumbnail (lib/photos.js). */

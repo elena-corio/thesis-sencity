@@ -7,23 +7,18 @@ import { computed } from 'vue'
 import { stretchLine } from '../lib/routes.js'
 import { bySense } from '../lib/senses.js'
 import { comfortLine } from '../lib/walk.js'
-import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import SenseItem from './SenseItem.vue'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
-const senses = useSensesStore()
 
 const p = computed(() => walk.feature?.properties ?? {})
-/** Senses: the rating of the photo in the window, never of another (null: no photo; pending while it is found). */
+/** Senses: the stretch's rating as the Routes view and the stretch card have it (null: no photo). */
 const place = computed(() => {
-  if (walk.ratedPhoto === undefined) return { status: 'pending' }
   if (walk.photoState === 'unloaded') return { status: 'unloaded' }
-  return walk.ratedPhoto ? senses.placeFor([walk.ratedPhoto.photo]) : null
+  return walk.ratedPhoto ? walk.ratedPhoto.place : null
 })
-/** No photo along the stretch faces the walk, so the window shows (and the card rates) the street's photo. */
-const streetPhoto = computed(() => walk.photo && walk.ratedPhoto?.from === 'street')
 const comfort = computed(() => comfortLine(walk.layer, p.value, walk.layer === 'senses' ? place.value : null))
 const rated = computed(() => walk.layer === 'senses' && place.value?.status === 'rated')
 const columns = computed(() => [
@@ -42,7 +37,6 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
         <strong :class="['label', comfort.state]">{{ comfort.label }}</strong>
         <span class="muted">{{ comfort.reason }}</span>
       </p>
-      <p v-if="streetPhoto" class="note" data-testid="walk-street-photo">The street's photo: none along this stretch faces this way.</p>
       <p class="note">A prediction, not a reason.</p>
     </section>
     <div class="rule" />
