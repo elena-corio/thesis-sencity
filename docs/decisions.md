@@ -2,11 +2,20 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – One photo per place: ← → always mean "stretch", never "photo" (accepted)
+**Context.** Elena: the same keys changed photos or stretches depending on the case (entry below). Each street and place has had one photo since 11 Nov, so photo stepping only showed in the e2e test data.
+**Decision (Elena).**
+- The enlarged photo and the place card no longer step through photos: no "Previous / Next photo" arrows, no "1 / 3" or "Photo 2 of 3" counter, no thumbnails, no dots. With more than one photo, the card shows the one closest to the place's rating, as it already opened on.
+- ← → and the arrows mean "stretch" wherever there are stretches (the stretch card, the walk, the enlarged photo of a stretch), and nothing elsewhere. An area place's enlarged photo has no arrows, and its arrow keys do nothing.
+- If places ever have more than one photo again, they get their own control (for example thumbnails), never the arrow keys.
+
+**Consequences.** Replaces the "place with more than one photo" point of the entry below. The e2e tests check one photo and no photo arrows.
+
 ## 2026-11-14 – The enlarged photo says what its arrows step through, and the mouse can do it too (accepted)
 **Context.** Elena: in the enlarged photo of a route stretch, ← → moved on but there were no arrows to click, and it was not clear whether they went to the next photo or the next stretch. Each street now has one photo, so the viewer drew no arrows; the stretch card's keys reached through it (after a click on the photo the focus left the dialog) and stepped the stretches behind it.
 **Decision.**
 - *Opened from a stretch (Elena: clear, and both ways):* the arrows step through the route's stretches. They are named "Previous stretch" / "Next stretch", the counter reads "Stretch 3 of 8", and the hint says "The arrows, or the ← → keys: previous or next stretch." (phone: "Swipe or tap the arrows …"). The keys, the arrow buttons and a swipe do the same, the card behind follows, and they stop at the first and the last stretch (the arrow there is shown faded, `aria-disabled`) (proposed: stop rather than go round, as the card's own buttons do).
-- *A place with more than one photo:* as before, the arrows step through its photos ("Photo 2 of 3"), going round.
+- *A place with more than one photo:* as before, the arrows step through its photos ("Photo 2 of 3"), going round. Replaced the same day: no photo stepping (entry above).
 - *A place with one photo:* no arrows, no counter, and the arrow keys do nothing; the hint says "Esc to go back."
 - *Keys:* the viewer takes them while it is open, wherever the focus is; the dialog keeps the focus when its photo is clicked.
 

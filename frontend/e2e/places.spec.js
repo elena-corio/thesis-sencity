@@ -32,7 +32,9 @@ test.describe('desktop', () => {
     const card = page.locator('[data-panel="place-card"]')
     await expect(card.getByRole('heading')).toBeVisible()
     await expect(card).toContainText('Not rated yet. Ratings come in the next step.')
-    await expect(card).toContainText('Photo 1 of')
+    await expect(card.locator('.photo-line')).toBeVisible()
+    // One photo, never stepped through (Elena, 2026-11-14).
+    await expect(card.getByRole('button', { name: /Previous photo|Next photo/ })).toHaveCount(0)
     await expect(card.locator('img').first()).toHaveJSProperty('complete', true)
     // Only this street's photos load (at most 3: the current one, the previous and the next).
     await expect.poll(() => new Set(photos).size).toBeGreaterThan(0)
@@ -70,12 +72,14 @@ test.describe('desktop', () => {
 
     await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
     const viewer = page.getByRole('dialog')
-    await expect(viewer).toContainText('Photo 1 of 3')
+    // A place of an area: nothing to step through, so no arrows, and the arrow keys do nothing.
+    const src = await viewer.locator('.photo img').getAttribute('src')
+    await expect(viewer.getByRole('button', { name: /Previous|Next/ })).toHaveCount(0)
+    await expect(viewer.getByTestId('viewer-count')).toHaveCount(0)
+    await expect(viewer).toContainText('Esc to go back.')
     await page.keyboard.press('ArrowRight')
-    await expect(viewer).toContainText('Photo 2 of 3')
-    await page.keyboard.press('ArrowLeft')
-    await page.keyboard.press('ArrowLeft')
-    await expect(viewer).toContainText('Photo 3 of 3')
+    await expect(viewer.locator('.photo img')).toHaveAttribute('src', src)
+    await expect(viewer).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/places-dark-viewer.png' })
 
     for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')
@@ -102,7 +106,7 @@ test.describe('desktop', () => {
     expect(photos).toHaveLength(0)
     await page.screenshot({ path: 'e2e/screens/places-light-no-photo.png' })
     await card.getByRole('button', { name: 'Go to the nearest street with photos' }).click()
-    await expect(card).toContainText('Photo 1 of')
+    await expect(card.locator('.photo-line')).toBeVisible()
   })
 
   test('thermal comfort arrives after the photos and becomes the layer', async ({ page }) => {
@@ -437,12 +441,13 @@ test.describe('phone', () => {
     await expect(page.getByText('street stretches')).toBeVisible()
     await openSegment(page, WITH_3.properties.id)
     const sheet = page.locator('[data-panel="place-card"]')
-    await expect(sheet).toContainText('Photo 1 of 3')
+    await expect(sheet.locator('.photo-line')).toBeVisible()
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/places-phone-sheet.png' })
     await sheet.getByRole('button', { name: 'Enlarge photo', exact: true }).tap()
-    await expect(page.getByRole('dialog')).toContainText('Swipe or tap the arrows')
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'Back to place' })).toBeVisible()
+    await expect(page.getByRole('dialog').getByRole('button', { name: /Previous|Next/ })).toHaveCount(0)
     await page.screenshot({ path: 'e2e/screens/places-phone-viewer.png' })
   })
 })

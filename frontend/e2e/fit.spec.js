@@ -45,7 +45,7 @@ for (const theme of ['dark', 'light']) {
         await page.getByRole('button', { name: 'Analyse this area' }).click()
         await expect(page.getByText('street stretches')).toBeVisible()
         await openSegment(page, WITH_3.properties.id)
-        await expect(page.locator('[data-panel="place-card"]')).toContainText('Photo 1 of 3')
+        await expect(page.locator('[data-panel="place-card"] .photo-line')).toBeVisible()
         await mapIdle(page)
         expect(await layoutProblems(page), 'place card').toEqual([])
         await page.screenshot({ path: `e2e/screens/fit/${vp.name}-${theme}-place.png` })
@@ -54,7 +54,7 @@ for (const theme of ['dark', 'light']) {
         // the whole view fits without scrolling inside it either.
         await page.locator('[data-panel="place-card"]').getByRole('button', { name: 'Enlarge photo', exact: true }).click()
         const viewer = page.locator('[data-viewer]')
-        await expect(viewer).toContainText('Photo 1 of 3')
+        await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
         const v = await viewer.evaluate((el) => ({
           over: el.scrollHeight - el.clientHeight,
           pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,

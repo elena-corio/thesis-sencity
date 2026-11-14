@@ -1,8 +1,8 @@
 <script setup>
 // Enlarged photo (board 2f+; phone P2+). Over the dimmed app (90%) on desktop, a full page on a
-// phone. Esc goes back, focus stays inside while it is open. What the arrows step through is named on them, in the
-// counter and in the hint, and the keys, the arrow buttons and a swipe do the same (Elena, 2026-11-14): the stretches of
-// a route when opened from a stretch (one photo each), the photos when a place has more than one; nothing otherwise.
+// phone. Esc goes back, focus stays inside while it is open. One photo per place (Elena, 2026-11-14: ← → always mean
+// "stretch", never "photo"): opened from a stretch of a route, the arrows step through the stretches, named on them, in
+// the counter and in the hint, and the keys, the arrow buttons and a swipe do the same; otherwise there are no arrows.
 // Images are Mapillary's thumbnails, loaded on demand and never stored.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
@@ -23,27 +23,21 @@ const props = defineProps({
   /** Opened from a stretch of a route: { noun: 'stretch', index, count }; the arrows step through them ("step"). */
   steps: { type: Object, default: null },
 })
-const emit = defineEmits(['update:index', 'close', 'failed', 'step'])
+const emit = defineEmits(['close', 'failed', 'step'])
 
 const dialog = ref(null)
 const backBtn = ref(null)
 const photos = computed(() => props.photos ?? props.feature.properties.photos ?? [])
 const photo = computed(() => photos.value[props.index])
 const name = computed(() => props.feature.properties.name)
-const n = computed(() => photos.value.length)
-/** What the arrows step through: the route's stretches, the place's photos, or nothing (null). */
-const nav = computed(() => {
-  if (props.steps?.count > 1) return { noun: props.steps.noun, i: props.steps.index, n: props.steps.count, ends: true }
-  return n.value > 1 ? { noun: 'photo', i: props.index, n: n.value, ends: false } : null
-})
+/** What the arrows step through: the route's stretches, or nothing (null). */
+const nav = computed(() => (props.steps?.count > 1 ? { noun: props.steps.noun, i: props.steps.index, n: props.steps.count } : null))
 const Noun = computed(() => (nav.value ? nav.value.noun[0].toUpperCase() + nav.value.noun.slice(1) : ''))
-/** Stretches stop at the first and the last; photos go round. */
-const canGo = (d) => !!nav.value && (!nav.value.ends || (nav.value.i + d >= 0 && nav.value.i + d < nav.value.n))
+/** They stop at the first and the last, as the card's own buttons do. */
+const canGo = (d) => !!nav.value && nav.value.i + d >= 0 && nav.value.i + d < nav.value.n
 
 function go(d, keyboard = false) {
-  if (!canGo(d)) return
-  if (nav.value.ends) emit('step', d, keyboard)
-  else emit('update:index', (props.index + d + n.value) % n.value)
+  if (canGo(d)) emit('step', d, keyboard)
 }
 
 // The keys are the viewer's while it is open, wherever the focus is (a click on the photo must not hand them to the card
@@ -68,7 +62,7 @@ function onKey(e) {
   }
 }
 
-// Phone: swipe left or right to change photo.
+// Phone: swipe left or right for the previous or next stretch.
 let swipeX = null
 function onPointerDown(e) { swipeX = e.clientX }
 function onPointerUp(e) {
@@ -119,10 +113,6 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div v-if="phone && n > 1" class="dots" aria-hidden="true">
-          <span v-for="i in n" :key="i" :class="{ on: i - 1 === index }" />
-        </div>
-
         <div class="info">
           <div>
             <h2>{{ name }}</h2>
@@ -134,20 +124,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-if="n > 1" class="thumbs" role="group" aria-label="All photos of this street">
-          <button v-for="(ph, i) in photos" :key="ph.id + ph.heading" type="button" class="thumb"
-                  :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
-                  @click="emit('update:index', i)">
-            <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" draggable="false" />
-          </button>
-        </div>
-
         <p class="hint">
           <template v-if="nav && phone">Swipe or tap the arrows for the previous or next {{ nav.noun }}.</template>
           <template v-else-if="nav">The arrows, or the ← → keys: previous or next {{ nav.noun }}. Esc to go back.</template>
           <template v-else-if="!phone">Esc to go back.</template>
           <template v-if="!ratingNote">Ratings come in the next step.</template>
-          <template v-else-if="n > 1">The street rating combines all {{ n }} photos.</template>
         </p>
       </div>
     </div>
@@ -201,14 +182,6 @@ a.credit:hover { text-decoration: underline; }
 .not-rated.wrap { white-space: normal; color: var(--text); font-weight: var(--fw-semibold); }
 .rating { min-width: 0; flex: 0 1 50%; }
 .rating-note { margin: var(--space-1) 0 0; color: var(--text-2); font-size: var(--fs-xs); }
-.thumbs { display: flex; gap: var(--space-3); }
-.thumb {
-  width: calc(var(--thumb) * 1.6); height: calc(var(--thumb) * 1.6); padding: 0;
-  border: var(--focus-width) solid transparent; border-radius: var(--radius-btn); overflow: hidden;
-  background: var(--no-photo);
-}
-.thumb.on { border-color: var(--accent); }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); text-align: center; }
 
 /* Phone (board P2+): a full page; the photo spans the width, arrows sit on it. */
@@ -225,11 +198,6 @@ a.credit:hover { text-decoration: underline; }
 }
 .phone .arrow.prev { left: var(--space-3); }
 .phone .arrow.next { right: var(--space-3); }
-.dots { display: flex; justify-content: center; gap: var(--space-2); }
-.dots span { width: var(--space-2); height: var(--space-2); border-radius: var(--radius-pill); background: var(--line); }
-.dots span.on { width: var(--space-5); background: var(--text); }
 .phone .info { width: auto; padding: 0 var(--space-4); flex-direction: column; gap: var(--space-2); }
-.phone .thumbs { padding: 0 var(--space-4); }
-.phone .thumb { width: calc(var(--thumb) * 1.4); height: calc(var(--thumb) * 1.4); }
 .phone .hint { padding: 0 var(--space-4); text-align: left; }
 </style>

@@ -3,8 +3,8 @@
 // (board 2e) the photo stays (Elena's choice) and the rest is thermal comfort only: how warm or cold it
 // feels, the state and why, a temperature bar (the legend's side) and a cooler (or warmer) street nearby.
 // On the Senses layer the photo on the card goes to the model (board 2c, SensesPrediction).
-// Images load only now, on click: the current photo, and the others of this street (at most 3,
-// so the previous and next ones) for the thumbnails. The same URL is reused, so each loads once.
+// One photo per place, never stepped through (Elena, 2026-11-14: on a stretch, ← → and the arrows mean "stretch"): with
+// more than one, the card shows the one closest to the place's rating. The image loads only now, on click.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { photoCredit, photoLink, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
@@ -105,11 +105,6 @@ const viewerRating = computed(() => (shownRating.value?.status === 'ok' ? `${com
 const viewerNote = computed(() => (shownRating.value?.status === 'ok' ? `${GENERAL_LABEL}. A prediction, not a reason.` : ''))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
 
-function step(d) {
-  const n = photos.value.length
-  if (n > 1) index.value = (index.value + d + n) % n
-}
-
 function openViewer() {
   if (photo.value && showsPhotos()) viewerOpen.value = true
 }
@@ -148,7 +143,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 
     <div class="top">
       <div v-if="photo && showsPhotos()" class="photo">
-        <button type="button" class="photo-open" :aria-label="`Enlarge photo ${index + 1} of ${photos.length}`"
+        <button type="button" class="photo-open" aria-label="Enlarge the photo"
                 @click="openViewer">
           <img v-if="!failed.has(index)" :src="shownPhotoUrl(photo)" :alt="`Street photo of ${p.name}, ${photoLine(photo)}`"
                @error="onImgError(index)" />
@@ -157,15 +152,6 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <button ref="enlargeBtn" type="button" class="badge enlarge" aria-label="Enlarge photo" @click="openViewer">
           <AppIcon name="expand" />
         </button>
-        <template v-if="photos.length > 1">
-          <button type="button" class="arrow prev" aria-label="Previous photo" @click="step(-1)">
-            <AppIcon name="chevronLeft" />
-          </button>
-          <button type="button" class="arrow next" aria-label="Next photo" @click="step(1)">
-            <AppIcon name="chevronRight" />
-          </button>
-        </template>
-        <span class="counter">{{ index + 1 }} / {{ photos.length }}</span>
         <a v-if="photoLink(photo)" class="credit" :href="photoLink(photo)" target="_blank" rel="noopener">{{ photoCredit(photo) }}</a>
         <span v-else class="credit">{{ photoCredit(photo) }}</span>
       </div>
@@ -226,20 +212,13 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
                         @retry="retryRating" />
       <template v-else-if="photo">
         <div class="thumbs-row">
-          <div v-if="photos.length > 1 && showsPhotos()" class="thumbs" role="group" aria-label="Photos of this street">
-            <button v-for="(ph, i) in photos" :key="ph.id + ph.heading" type="button" class="thumb"
-                    :class="{ on: i === index }" :aria-label="`Photo ${i + 1}`" :aria-pressed="i === index"
-                    @click="index = i">
-              <img v-if="!failed.has(i)" :src="shownPhotoUrl(ph)" alt="" @error="onImgError(i)" />
-            </button>
-          </div>
           <div class="along">
             <p>{{ photos.length }} photo{{ photos.length > 1 ? 's' : '' }} {{ alongWord }}</p>
             <p class="muted">{{ dates }}</p>
           </div>
         </div>
         <p class="photo-line">
-          Photo {{ index + 1 }} of {{ photos.length }} · {{ photoLine(photo) }}
+          {{ photoLine(photo) }}
           <span v-if="photo.contributor" class="flag">Contributor photo</span>
         </p>
         <p class="not-rated">Not rated yet. Ratings come in the next step.</p>
@@ -254,7 +233,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 
     <slot name="foot" />
     <slot />
-    <PhotoViewer v-if="viewerOpen" v-model:index="index" :feature="feature" :phone="props.phone"
+    <PhotoViewer v-if="viewerOpen" :index="index" :feature="feature" :phone="props.phone"
                  :photos="photos" :failed="failed" :rating="viewerRating" :rating-note="viewerNote" :steps="src.steps ?? null"
                  @step="(d, keyboard) => src.step?.(d, keyboard)" @close="closeViewer" @failed="onImgError" />
   </section>
@@ -321,27 +300,21 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
   border: var(--hairline) dashed var(--line); color: var(--text-2); font-size: var(--fs-sm);
 }
-.badge, .arrow {
+.badge {
   position: absolute; display: grid; place-items: center;
   width: var(--touch); height: var(--touch); border: 0; border-radius: 50%;
   background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow);
 }
 .badge.enlarge { top: var(--space-1); right: var(--space-1); border-radius: var(--radius-btn); }
-.arrow { top: 50%; transform: translateY(-50%); }
-.arrow.prev { left: var(--space-1); }
-.arrow.next { right: var(--space-1); }
-.counter, .credit {
+.credit {
   position: absolute; bottom: var(--space-1);
   padding: 0 var(--space-2); border-radius: var(--radius-chip);
   background: var(--photo-btn-bg); color: var(--photo-btn-fg); box-shadow: var(--photo-btn-shadow); font-size: var(--fs-xs);
 }
-.counter { left: var(--space-1); }
 .credit { right: var(--space-1); }
 /* A Mapillary credit is long: the licence must stay readable, so it wraps (small) rather than being cut. */
 a.credit { max-width: calc(100% - 2 * var(--space-1)); text-align: right; line-height: 1.3; font-size: var(--fs-2xs); text-decoration: none; }
 a.credit:hover { text-decoration: underline; }
-/* With a long credit, the counter would sit under it: the credit says enough. */
-.photo:has(a.credit) .counter { display: none; }
 .name { min-width: 0; }
 .name h2 {
   margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold);
@@ -350,14 +323,6 @@ a.credit:hover { text-decoration: underline; }
 }
 .type { margin: var(--space-1) 0 0; color: var(--text-2); font-size: var(--fs-sm); }
 .thumbs-row { display: flex; gap: var(--space-3); align-items: center; margin-top: var(--space-4); }
-.thumbs { display: flex; gap: var(--space-2); flex: none; }
-.thumb {
-  width: var(--thumb); height: var(--thumb); padding: 0; flex: none;
-  border: var(--focus-width) solid transparent; border-radius: var(--radius-chip); overflow: hidden;
-  background: var(--no-photo);
-}
-.thumb.on { border-color: var(--accent); }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .along p { margin: 0; font-size: var(--fs-sm); }
 .muted { color: var(--text-2); }
 .small { font-size: var(--fs-sm); }
@@ -377,7 +342,5 @@ a.credit:hover { text-decoration: underline; }
 /* Inside the phone sheet, which is the panel and does the scrolling. */
 .card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .sheet .photo { width: var(--card-photo-phone); }
-/* Phone (board P2): only the enlarge badge on the small photo; arrows and thumbnails are in the full page. */
-.sheet .arrow, .sheet .counter, .sheet .thumbs { display: none; }
 .sheet .btn, .sheet .back { min-height: var(--touch-phone); }
 </style>
