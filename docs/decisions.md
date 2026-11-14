@@ -2,6 +2,17 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The walk: a rating always with its photo (accepted)
+**Context.** Elena: on a stretch without a photo the walk said "No photo for this stretch, rated from the map", while the card said "No photo, so no Senses rating here" and the line kept the street's colour. The caption was left from the first walk (11 Nov), when stretches kept their street's rating. Since the walk rates each stretch's own photo, the line, bar and mini map were coloured from the street's photo while the card rated the stretch's own: two photos for one stretch.
+**Decision.**
+- *Rule (Elena):* the photo shown and its rating go together: both, or neither.
+- *Rated photo per stretch:* its own photo, facing along the walk; else its street's photo, the one the map is coloured from (proposed, as the simplest that keeps the walk and the Routes view the same colour); else none. The window shows it, the card rates it, and on Senses the stretch's colour on the line, bar and mini map comes from its rating alone. While the walk's photos are being found, stretches keep their street's colour.
+- *The street's photo:* the card says "The street's photo: none along this stretch faces this way." The camera stands where that photo was taken, as for any photo.
+- *No photo:* the 3D street, "No photo for this stretch, so no rating.", the card "No photo", the stretch unlit.
+- *A photo that does not load:* counts as no photo from then on: "The photo could not be loaded, so no rating.", the card "No photo", the stretch unlit.
+
+**Consequences.** On a stretch whose own photo differs from the street's, the walk's colour can now differ from the Routes view's, since each shows the rating of its own photo. With photos switched off (`photos.provider: 'none'`, lib/photos.js) ratings are still shown without photos, as decided on 11 Nov; the rule above does not cover that switch yet. The place card can also show a rating when its photo fails to load: not changed here.
+
 ## 2026-11-14 – Senses rates with the v9 export: an automatic presence step, then the study's task (accepted)
 **Context.** Elena: switch the app to v9 now, before the profile builder. The v9 task and schema list only the elements present in each photo; in the study a person confirmed those lists, and the app has nobody to do that.
 **Decision.**

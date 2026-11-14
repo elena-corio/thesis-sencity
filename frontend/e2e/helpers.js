@@ -239,7 +239,7 @@ export function routeClicks(viewport, phone = false) {
   return { a: { x: Math.round(viewport.width * left), y }, b: { x: Math.round(viewport.width * right), y } }
 }
 
-function routeResponse(req, sameState = false, longName = null, second = false) {
+function routeResponse(req, sameState = false, longName = null, second = false, bare = []) {
   const { start, end } = req
   const lerp = (t, lift) => [start.lon + t * (end.lon - start.lon), start.lat + t * (end.lat - start.lat) + lift]
   const features = []
@@ -247,7 +247,7 @@ function routeResponse(req, sameState = false, longName = null, second = false) 
   const part = (id, name, a, b, utci, length) => {
     features.push({
       type: 'Feature', id, geometry: { type: 'LineString', coordinates: [a, b] },
-      properties: { id, name, named: true, place_type: 'street', way_type: 'residential', length_m: length, photos: WITH_3.properties.photos },
+      properties: { id, name, named: true, place_type: 'street', way_type: 'residential', length_m: length, photos: bare.includes(id) ? [] : WITH_3.properties.photos },
     })
     values[id] = utci
     return { segment_id: id, length_m: length, coordinates: [a, b] }
@@ -284,8 +284,9 @@ function routeResponse(req, sameState = false, longName = null, second = false) 
   }
 }
 
-/** Mock the routes API and the photos. hold: never answer. thermal: 'error' sends a thermal_error (can be changed later). */
-export async function mockRoutes(page, { hold = false, thermal = true, sameState = false, longName = null, second = false } = {}) {
+/** Mock the routes API and the photos. hold: never answer. thermal: 'error' sends a thermal_error (can be changed later).
+ *  bare: segment ids whose street has no photo. */
+export async function mockRoutes(page, { hold = false, thermal = true, sameState = false, longName = null, second = false, bare = [] } = {}) {
   const mock = { requests: [], urls: [], thermal }
   await page.route('**/api/routes', async (route) => {
     mock.urls.push(route.request().url())
@@ -294,7 +295,7 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     mock.requests.push(asked)
     const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }]
     if (asked.layer === 'senses') {
-      const found = routeResponse(asked, sameState, longName)
+      const found = routeResponse(asked, sameState, longName, false, bare)
       lines.push({ type: 'stage', stage: 'routes' }, { ...found, season: null, time: null, station: null, values: {}, verdict: '', routes: [],
         candidates: found.routes.map((r, i) => ({ ...r, id: i ? 'C1' : 'A', kind: i ? 'candidate' : 'shortest' })) })
       await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
@@ -303,7 +304,7 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     lines.push({ type: 'stage', stage: 'thermal' })
     if (mock.thermal === 'route-error') lines.push({ type: 'stage', stage: 'routes' }, { type: 'error', message: 'No walking way was found between these two points.' })
     else if (mock.thermal === 'error') lines.push({ type: 'thermal_error', message: 'No weather station near this area, so thermal comfort is not available here.' })
-    else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second))
+    else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second, bare))
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   })
   await page.route('**/mly-thumb/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))

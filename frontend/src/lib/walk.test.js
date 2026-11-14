@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, fixedLine, progressAt, progressLine, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, fixedLine, progressAt, progressLine, ratedPhotoOf, routeKind, sensesStateOf, stretchBearing } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -66,5 +66,28 @@ describe('comfortLine', () => {
     expect(comfortLine('thermal', { utci: 33.4, thermal_state: 'hard' }, null))
       .toEqual({ state: 'hard', label: 'Hard', reason: 'thermal, feels like 33 °C' })
     expect(comfortLine('thermal', { utci: null }, null).state).toBe('none')
+  })
+})
+
+describe('the rated photo of a stretch: both the photo and its rating, or neither', () => {
+  const own = { id: '1', heading: 90 }
+  const street = { id: '2', heading: 270 }
+  const segments = new Map([['s1', { properties: { photos: [street] } }], ['s2', { properties: { photos: [] } }]])
+  it("is the stretch's own photo, else its street's, else none", () => {
+    expect(ratedPhotoOf({ key: 'A-0', segmentId: 's1' }, { 'A-0': own }, segments)).toEqual({ photo: own, from: 'stretch' })
+    expect(ratedPhotoOf({ key: 'A-1', segmentId: 's1' }, { 'A-0': own }, segments)).toEqual({ photo: street, from: 'street' })
+    expect(ratedPhotoOf({ key: 'A-2', segmentId: 's2' }, {}, segments)).toBeNull()
+    expect(ratedPhotoOf({ key: 'A-0', segmentId: 's1' }, null, segments)).toBeUndefined() // still being found
+  })
+  it('colours a stretch from that photo only', () => {
+    const placeFor = ([p]) => ({ 1: { status: 'rated', level: 'hard' }, 2: { status: 'failed' } }[p.id] ?? { status: 'pending' })
+    expect(sensesStateOf({ photo: own }, placeFor, new Set())).toBe('hard')
+    expect(sensesStateOf({ photo: street }, placeFor, new Set())).toBe('failed')
+    expect(sensesStateOf({ photo: { id: '3', heading: 0 } }, placeFor, new Set())).toBe('none') // not rated yet
+    expect(sensesStateOf(null, placeFor, new Set())).toBe('none')
+    expect(sensesStateOf({ photo: own }, placeFor, new Set(['1|90']))).toBe('none') // its image did not load
+  })
+  it('says so on the card when the photo did not load', () => {
+    expect(comfortLine('senses', {}, { status: 'unloaded' })).toEqual({ state: 'none', label: 'No photo', reason: 'the photo could not be loaded, so no rating' })
   })
 })

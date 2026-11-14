@@ -1,20 +1,21 @@
 <script setup>
 // The photo of the stretch ahead (boards Routes 5, P6): one square photo, centred, facing along the walk, so it reads as
 // a window onto the 3D street behind it. No enlarge, no arrows, no labels: only the credit, inside the frame (Mapillary:
-// "{username} · {year} · CC BY-SA 4.0", linked to the image page). With no photo for the stretch the centre shows the 3D
-// street and says so (Elena, 2026-11-11); with photos not shown (lib/photos.js) the 3D street alone. Images are loaded
-// when shown, never stored.
-import { computed, ref, watch } from 'vue'
+// "{username} · {year} · CC BY-SA 4.0", linked to the image page). The photo is the one the stretch is rated from (its own,
+// else its street's: stores/walk.js). With no photo, or one that does not load, the centre shows the 3D street and says
+// so, and there is no rating either (Elena, 2026-11-14); with photos not shown (lib/photos.js) the 3D street alone. Images
+// are loaded when shown, never stored.
+import { computed } from 'vue'
 import { panoShift, photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
 import { useWalkStore } from '../stores/walk.js'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
-const failed = ref(false)
 const name = computed(() => walk.feature?.properties.name ?? 'the street')
 const source = 'Mapillary'
 const message = computed(() => {
-  if (walk.photoState === 'none-here' || (walk.photoState === 'shown' && failed.value)) return 'No photo for this stretch, rated from the map.'
+  if (walk.photoState === 'none-here') return 'No photo for this stretch, so no rating.'
+  if (walk.photoState === 'unloaded') return 'The photo could not be loaded, so no rating.'
   if (walk.photoState === 'error') return 'Photos could not be loaded. The walk goes on without them.'
   return ''
 })
@@ -23,17 +24,17 @@ const panoStyle = computed(() => (walk.photo?.pano ? {
   backgroundImage: `url("${shownPhotoUrl(walk.photo)}")`,
   backgroundPositionX: `calc(${panoShift(walk.photo)} * 100cqw)`,
 } : null))
-watch(() => walk.photo, () => { failed.value = false })
+const failed = () => walk.photoFailed(walk.photo)
 </script>
 
 <template>
   <div class="walk-photo" :class="{ phone }">
-    <figure v-if="walk.photoState === 'shown' && !failed" class="frame" :aria-label="`${source} photo of the stretch ahead`" data-testid="walk-photo">
+    <figure v-if="walk.photoState === 'shown'" class="frame" :aria-label="`${source} photo of the stretch ahead`" data-testid="walk-photo">
       <template v-if="panoStyle">
         <div class="pano" role="img" :aria-label="`${source} panorama at eye level, looking along ${name}`" :style="panoStyle" data-testid="walk-pano" />
-        <img class="probe" :src="shownPhotoUrl(walk.photo)" alt="" @error="failed = true" />
+        <img class="probe" :src="shownPhotoUrl(walk.photo)" alt="" @error="failed" />
       </template>
-      <img v-else :src="shownPhotoUrl(walk.photo)" :alt="`${source} photo at eye level, looking along ${name}`" @error="failed = true" />
+      <img v-else :src="shownPhotoUrl(walk.photo)" :alt="`${source} photo at eye level, looking along ${name}`" @error="failed" />
       <a v-if="photoLink(walk.photo)" class="credit" :href="photoLink(walk.photo)" target="_blank" rel="noopener">{{ photoCredit(walk.photo) }}</a>
       <span v-else class="credit">{{ photoCredit(walk.photo) }}</span>
     </figure>

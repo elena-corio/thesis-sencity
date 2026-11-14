@@ -177,15 +177,30 @@ test.describe('desktop', () => {
     expect((await camera(page)).pitch).toBe(0)
   })
 
-  test('a stretch with no photo shows the 3D street and says so', async ({ page }) => {
+  test('a stretch with no photo of its own shows its street\'s photo, and says so', async ({ page }) => {
     await mockRoutes(page)
     await mockBuildings(page)
     await mockMapillary(page, { missing: ['B-1'] })
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
+    await expect(page.getByTestId('walk-street-photo')).toHaveCount(0)
     await page.locator('body').press('ArrowRight')
-    await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, rated from the map.')
+    // The photo it is rated from is shown: never a rating without its photo (Elena, 2026-11-14).
+    await expect(page.getByTestId('walk-photo')).toBeVisible()
+    await expect(page.getByTestId('walk-street-photo')).toHaveText("The street's photo: none along this stretch faces this way.")
+    await expect(page.getByTestId('walk-no-photo')).toHaveCount(0)
+  })
+
+  test('a stretch with no photo at all shows the 3D street, and no rating', async ({ page }) => {
+    await mockRoutes(page, { bare: ['b2'] })
+    await mockBuildings(page)
+    await mockMapillary(page, { missing: ['B-1'] })
+    await toRoutes(page)
+    await page.getByRole('button', { name: 'Walk route B' }).click()
+    await expect(page.getByTestId('walk-photo')).toBeVisible()
+    await page.locator('body').press('ArrowRight')
+    await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, so no rating.')
     await settle(page)
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/walk/2-no-photo.png' })
@@ -291,7 +306,7 @@ for (const theme of ['dark', 'light']) {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: theme, hasTouch: true })
 
     test('the walk in the sheet, with the tab bar', async ({ page }) => {
-      await mockRoutes(page)
+      await mockRoutes(page, { bare: ['b2'] })
       await mockMapillary(page, { missing: ['B-1'] })
       await mockBuildings(page)
       await toRoutes(page, { theme, phone: true })
@@ -309,7 +324,7 @@ for (const theme of ['dark', 'light']) {
       expect(await layoutProblems(page)).toEqual([])
       // A stretch with no photo: the 3D street and the line.
       await sheet.getByRole('button', { name: 'Next stretch' }).click()
-      await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, rated from the map.')
+      await expect(page.getByTestId('walk-no-photo')).toHaveText('No photo for this stretch, so no rating.')
       await settle(page)
       await mapIdle(page)
       await page.screenshot({ path: `e2e/screens/walk/6-phone-no-photo-${theme}.png` })

@@ -1,8 +1,37 @@
 // Walk along a route (board Routes 5): where you are on the way, which way the camera looks, and the lines of
 // the chip and the stretch card. Everything comes from what is already loaded: no new call.
 import config from '../config.js'
-import { comfortLabel, elementLabel, levelWord } from './senses.js'
+import { comfortLabel, elementLabel, levelWord, photoKey } from './senses.js'
 import { formatDegrees } from './thermal.js'
+
+/**
+ * The photo a stretch is rated from, which is also the photo its window shows (Elena, 2026-11-14: a rating never
+ * without its photo, nor a photo without its rating): its own photo, facing along the walk; else its street's photo
+ * (the one the map is coloured from); else none.
+ * @param {object} stretch a stretch (lib/routes.js stretchesOf)
+ * @param {object|null} own the walk's photos by stretch key, or null while they are being found
+ * @param {Map} segments the routes' segments by id
+ * @returns {{photo:object, from:'stretch'|'street'}|null|undefined} undefined while the stretch's own photo is being found
+ */
+export function ratedPhotoOf(stretch, own, segments) {
+  if (own === null) return undefined
+  if (own[stretch.key]) return { photo: own[stretch.key], from: 'stretch' }
+  const street = segments.get(stretch.segmentId)?.properties.photos?.[0]
+  return street ? { photo: street, from: 'street' } : null
+}
+
+/**
+ * A stretch's state on Senses, from its rated photo alone: the photo's rating level; 'failed' if it could not be rated;
+ * 'none' with no photo, a photo that could not be loaded, or no rating yet.
+ * @param {{photo:object}|null} rated ratedPhotoOf()
+ * @param {(photos: object[]) => object} placeFor stores/senses.js placeFor
+ * @param {Set<string>} unloaded photo keys whose image could not be loaded
+ */
+export function sensesStateOf(rated, placeFor, unloaded) {
+  if (!rated || unloaded.has(photoKey(rated.photo))) return 'none'
+  const place = placeFor([rated.photo])
+  return place.status === 'rated' ? place.level : place.status === 'failed' ? 'failed' : 'none'
+}
 
 /** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. */
 export function progressAt(stretches, index) {
@@ -58,6 +87,7 @@ export function comfortLine(layer, properties, place) {
     return { state, label: levelWord(state), reason: `thermal, feels like ${formatDegrees(properties.utci)}` }
   }
   if (!place) return { state: 'none', label: 'No photo', reason: 'so no Senses rating here' }
+  if (place.status === 'unloaded') return { state: 'none', label: 'No photo', reason: 'the photo could not be loaded, so no rating' }
   if (place.status === 'pending') return { state: 'none', label: 'Not rated yet', reason: 'waiting for its rating' }
   if (place.status === 'failed') return { state: 'none', label: 'Could not rate', reason: 'the photo and the map still work' }
   const bothers = place.bothers.slice(0, 2).map((e) => elementLabel(e).text.toLowerCase())
