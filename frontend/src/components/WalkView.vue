@@ -4,7 +4,7 @@
 // as wide as the photo, the route bar (a click on a section jumps there), Play, the progress and the key (board Routes 5,
 // photos and play). Right: "Where you are" (a flat mini map, north up, with your spot and the photo's direction) and the
 // stretch's card. On a phone, one
-// column that scrolls, above the tab bar. The keys: ← → the previous or next stretch, space plays or pauses
+// column that scrolls, above the tab bar, with where you are above the photo. The keys: ← → the previous or next stretch, space plays or pauses
 // (WalkControls), Esc goes back. It is also the enlarged photo (Elena, 2026-11-14): of a stretch, paused there; of a place
 // of an area ('place' mode), with no chip, count, arrows, Play or bar, only the key under the photo.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -51,6 +51,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
         <span v-if="!isPlace" class="count" data-testid="walk-count">{{ count }}</span>
       </div>
 
+      <!-- Phone (Elena, 2026-11-14): where you are first, the photo under it. -->
+      <template v-if="props.phone">
+        <p class="where"><span class="title">Where you are</span></p>
+        <WalkMiniMap />
+      </template>
+
       <!-- The photo, and under it Play and the bar, as wide as the photo; the arrows beside the photo, at its middle. -->
       <div class="stage">
         <button v-if="!isPlace" type="button" class="arrow prev" aria-label="Previous stretch" title="Previous stretch"
@@ -70,9 +76,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
     </div>
 
     <div class="side">
-      <p class="where"><span class="title">Where you are</span></p>
-      <WalkMiniMap />
-      <div class="rule" />
+      <template v-if="!props.phone">
+        <p class="where"><span class="title">Where you are</span></p>
+        <WalkMiniMap />
+        <div class="rule" />
+      </template>
       <WalkDetails :phone="props.phone" />
       <MapAttribution v-if="props.phone" in-sheet />
     </div>
@@ -127,6 +135,7 @@ p { margin: 0; }
 .phone .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); }
 .phone .head :deep(.chip) { order: 3; width: 100%; }
 .phone .back { min-height: var(--touch-phone); }
+.phone :deep(.mini) { aspect-ratio: var(--walk-mini-ratio-phone); }
 .phone .stage { position: relative; display: block; flex: none; container-type: normal; }
 .phone .column { width: 100%; }
 .phone .arrow {

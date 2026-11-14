@@ -20,6 +20,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Header (Elena):* Exit on the left, the chip centred over the photo, the count on the right. The chip: "easiest for your senses" (board), "easiest for thermal comfort" on Thermal (proposed), "shortest" and "alternative" with nothing after.
 - *Card (board):* "**Mixed** for your senses" (or "for thermal comfort") on one line, then "The model points to: asphalt, stone, concrete; direct sun, little shade." (on Thermal "Feels like 22 °C."). Element names have commas of their own, so a semicolon parts them (proposed).
 - *Icons (Elena):* what might bother is drawn in the Hard pink (`--hard`), not the lighter text pink, in both themes.
+- *Phone (Elena):* "Where you are" comes first, under the header, and the photo under it; the mini map is a strip there (5:2, proposed) so the photo still starts on the screen.
 
 **Consequences.** On Thermal the key under the photo can take a second line; the space under the photo is kept for it, so the photo is a little smaller than the board's on a short screen.
 

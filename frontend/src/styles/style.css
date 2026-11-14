@@ -156,6 +156,7 @@
   --walk-marker-w: 4px;            /* the walk: where you are on the bar */
   --walk-marker-h: 20px;
   --walk-mini-ratio: 268 / 200;    /* "Where you are" */
+  --walk-mini-ratio-phone: 5 / 2;  /* "Where you are" on a phone: a strip above the photo */
   --map-mini-end-r: 5;             /* its Start ring and End dot */
   --map-mini-end-stroke: 2.5;
   --walk-step-btn: 44px;           /* the height of Play */
