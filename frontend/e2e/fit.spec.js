@@ -53,7 +53,7 @@ for (const theme of ['dark', 'light']) {
         // Enlarged photo (board 2f+; phone P2+): the page never scrolls; on a desktop or tablet
         // the whole view fits without scrolling inside it either.
         await page.locator('[data-panel="place-card"]').getByRole('button', { name: 'Enlarge photo', exact: true }).click()
-        const viewer = page.locator('[data-viewer]')
+        const viewer = page.locator('[data-panel="walk-view"]')
         await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
         const v = await viewer.evaluate((el) => ({
           over: el.scrollHeight - el.clientHeight,

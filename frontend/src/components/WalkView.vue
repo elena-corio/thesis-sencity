@@ -5,10 +5,12 @@
 // photos and play). Right: "Where you are" (a flat mini map, north up, with your spot and the photo's direction) and the
 // stretch's card. On a phone, one
 // column that scrolls, above the tab bar. The keys: ← → the previous or next stretch, space plays or pauses
-// (WalkControls), Esc exits.
+// (WalkControls), Esc goes back. It is also the enlarged photo (Elena, 2026-11-14): of a stretch, paused there; of a place
+// of an area ('place' mode), with no chip, count, arrows, Play or bar, only the key under the photo.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
+import ComfortKey from './ComfortKey.vue'
 import MapAttribution from './MapAttribution.vue'
 import WalkChip from './WalkChip.vue'
 import WalkControls from './WalkControls.vue'
@@ -20,17 +22,21 @@ const props = defineProps({ phone: Boolean })
 const walk = useWalkStore()
 const backBtn = ref(null)
 const count = computed(() => `Stretch ${walk.index + 1} of ${walk.stretches.length}`)
+const isPlace = computed(() => walk.mode === 'place')
+const BACK = { comparison: 'Exit walk, back to comparison', stretch: 'Back to the stretch', place: 'Back to place' }
 
+// Esc goes back, before the map or a card behind can take it (the view covers them).
 function onKey(e) {
-  if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[data-viewer]')) return
+  if (e.key !== 'Escape' || e.defaultPrevented) return
   e.preventDefault()
+  e.stopPropagation()
   walk.exit(true)
 }
 onMounted(() => {
-  window.addEventListener('keydown', onKey)
+  window.addEventListener('keydown', onKey, true)
   if (walk.byKeyboard) nextTick(() => backBtn.value?.focus())
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 </script>
 
 <template>
@@ -39,23 +45,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="main">
       <div class="head">
         <button ref="backBtn" type="button" class="back" @click="walk.exit($event.detail === 0)">
-          <AppIcon name="chevronLeft" /> Exit walk, back to comparison
+          <AppIcon name="chevronLeft" /> {{ BACK[walk.back] }}
         </button>
-        <WalkChip :phone="props.phone" />
-        <span class="count" data-testid="walk-count">{{ count }}</span>
+        <WalkChip v-if="!isPlace" :phone="props.phone" />
+        <span v-if="!isPlace" class="count" data-testid="walk-count">{{ count }}</span>
       </div>
 
       <!-- The photo, and under it Play and the bar, as wide as the photo; the arrows beside the photo, at its middle. -->
       <div class="stage">
-        <button type="button" class="arrow prev" aria-label="Previous stretch" title="Previous stretch"
+        <button v-if="!isPlace" type="button" class="arrow prev" aria-label="Previous stretch" title="Previous stretch"
                 :aria-disabled="walk.index === 0" @click="walk.step(-1, $event.detail === 0)">
           <AppIcon name="chevronLeft" />
         </button>
         <div class="column">
           <div class="window"><WalkPhoto :phone="props.phone" /></div>
-          <WalkControls :phone="props.phone" />
+          <WalkControls v-if="!isPlace" :phone="props.phone" />
+          <ComfortKey v-else inline :layer="walk.layer" :window="walk.info" />
         </div>
-        <button type="button" class="arrow next" aria-label="Next stretch" title="Next stretch"
+        <button v-if="!isPlace" type="button" class="arrow next" aria-label="Next stretch" title="Next stretch"
                 :aria-disabled="walk.atEnd" @click="walk.step(1, $event.detail === 0)">
           <AppIcon name="chevronRight" />
         </button>

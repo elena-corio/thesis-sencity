@@ -68,7 +68,7 @@ export function chipText(route, layer) {
 export function comfortLine(layer, properties, place) {
   const none = (label, detail) => ({ state: 'none', label, context: '', detail })
   if (layer === 'thermal') {
-    if (properties.utci == null) return none('No value', 'No thermal comfort for this stretch.')
+    if (properties.utci == null) return none('No value', 'No thermal comfort here.')
     const state = properties.thermal_state
     return { state, label: levelWord(state), context: 'for thermal comfort', detail: `Feels like ${formatDegrees(properties.utci)}.` }
   }

@@ -71,23 +71,22 @@ test.describe('desktop', () => {
     await expect(card.getByRole('button', { name: 'Back to area' })).toBeFocused()
 
     await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
-    const viewer = page.getByRole('dialog')
-    // A place of an area: nothing to step through, so no arrows, and the arrow keys do nothing.
-    const src = await viewer.locator('.photo img').getAttribute('src')
-    await expect(viewer.getByRole('button', { name: /Previous|Next/ })).toHaveCount(0)
-    await expect(viewer.getByTestId('viewer-count')).toHaveCount(0)
-    await expect(viewer).toContainText('Esc to go back.')
+    // The walk's view, for a place of an area (Elena, 2026-11-14): nothing to walk, so no Play, arrows, bar or count.
+    const viewer = page.locator('[data-panel="walk-view"]')
+    const src = await viewer.getByTestId('walk-photo').locator('img').getAttribute('src')
+    await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
+    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
+    await expect(viewer.getByTestId('walk-count')).toHaveCount(0)
+    await expect(viewer.getByTestId('comfort-key')).toBeVisible()
+    await expect(viewer.locator('[data-panel="walk-card"]')).toContainText(WITH_3.properties.name)
+    await expect(page.locator('[data-panel="place-card"]')).toHaveCount(0) // not left under the view, where Tab would reach it
     await page.keyboard.press('ArrowRight')
-    await expect(viewer.locator('.photo img')).toHaveAttribute('src', src)
-    await expect(viewer).toBeVisible()
+    await expect(viewer.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', src)
     await page.screenshot({ path: 'e2e/screens/places-dark-viewer.png' })
-
-    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')
-    expect(await page.evaluate(() => !!document.activeElement.closest('[role="dialog"]'))).toBe(true)
 
     await page.keyboard.press('Escape')
     await expect(viewer).toHaveCount(0)
-    await expect(card.getByRole('button', { name: 'Enlarge photo', exact: true })).toBeFocused()
+    await expect(page.locator('[data-panel="place-card"]').getByRole('button', { name: 'Enlarge photo', exact: true })).toBeFocused()
     // A second Esc goes back to the area, and focus returns to the street that opened the card.
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-panel="place-card"]')).toHaveCount(0)
@@ -446,8 +445,9 @@ test.describe('phone', () => {
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/places-phone-sheet.png' })
     await sheet.getByRole('button', { name: 'Enlarge photo', exact: true }).tap()
-    await expect(page.getByRole('dialog').getByRole('button', { name: 'Back to place' })).toBeVisible()
-    await expect(page.getByRole('dialog').getByRole('button', { name: /Previous|Next/ })).toHaveCount(0)
+    const viewer = page.locator('[data-panel="walk-view"]')
+    await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
+    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
     await page.screenshot({ path: 'e2e/screens/places-phone-viewer.png' })
   })
 })

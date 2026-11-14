@@ -16,6 +16,10 @@ import { useSensesStore } from './senses.js'
  * (Elena, 2026-11-14: stable and the same as the preview; a rating never without its photo). It opens playing (paused
  * with reduced motion); Play goes on every config.walk.stretchMs. Ratings and thermal values come from the routes store,
  * never a new call.
+ *
+ * The enlarged photo is this same view (Elena, 2026-11-14): from a stretch of a route it opens paused at that stretch
+ * (Play goes on from there; Back returns to the stretch card, at the stretch you stopped on); from a place of an area it
+ * opens in 'place' mode, one stretch with no Play, arrows or bar (Back returns to the place card).
  */
 export const useWalkStore = defineStore('walk', () => {
   const routes = useRoutesStore()
@@ -28,14 +32,22 @@ export const useWalkStore = defineStore('walk', () => {
   const info = shallowRef(null)
   /** The last step was done with the keyboard, so focus can follow (Exit walk goes back to its button). */
   const byKeyboard = ref(false)
+  /** 'route' (a walk) or 'place' (the enlarged photo of a place of an area: one stretch). */
+  const mode = ref('route')
+  /** Where Back goes: 'comparison' (the route card), 'stretch' (the stretch card, at the current stretch) or 'place'. */
+  const back = ref('comparison')
+  /** The place shown in 'place' mode, with its own geometry (a street or a park). */
+  const place = shallowRef(null)
+  /** The segments the stretches come from: the routes', or the one place. */
+  const byId = computed(() => (mode.value === 'place' && place.value ? new Map([[place.value.properties.id, place.value]]) : routes.segments))
   /** Photo keys whose image could not be loaded: shown as no photo, so with no rating either. */
   const unloaded = shallowRef(new Set())
   let timer = null
 
-  const ratedOf = (s) => ratedPhotoOf(s, routes.segments, useSensesStore().placeFor)
+  const ratedOf = (s) => ratedPhotoOf(s, byId.value, useSensesStore().placeFor)
   /** The stretches as the Routes view colours them; on Senses one whose photo did not load is unlit (no photo, no rating). */
   const stretches = computed(() => {
-    const base = route.value ? stretchesOf(route.value, routes.segments, layer.value) : []
+    const base = route.value ? stretchesOf(route.value, byId.value, layer.value) : []
     if (layer.value !== 'senses' || !unloaded.value.size) return base
     return base.map((s) => {
       const rated = ratedOf(s)
@@ -43,7 +55,10 @@ export const useWalkStore = defineStore('walk', () => {
     })
   })
   const current = computed(() => stretches.value[index.value] ?? null)
-  const feature = computed(() => (current.value ? stretchFeature(current.value, routes.segments) : null))
+  const feature = computed(() => {
+    if (!current.value) return null
+    return mode.value === 'place' ? place.value : stretchFeature(current.value, byId.value)
+  })
   /** The current stretch's photo and rating, whether or not photos are shown: { photo, photos, place }, or null with none. */
   const ratedPhoto = computed(() => (current.value ? ratedOf(current.value) : null))
   const isUnloaded = computed(() => !!ratedPhoto.value && unloaded.value.has(photoKey(ratedPhoto.value.photo)))
@@ -71,35 +86,68 @@ export const useWalkStore = defineStore('walk', () => {
   const shown = computed(() => (route.value ? { ...route.value, stretches: stretches.value } : null))
   const atEnd = computed(() => index.value >= stretches.value.length - 1)
 
-  function start(id, keyboard = false) {
+  /** Overall is not built for the walk, so it is shown on the default layer. */
+  const walkLayer = (l) => (l === 'overall' ? config.layerDefault : l)
+
+  /**
+   * Walk a route. From "Walk route" it plays from the first stretch (Elena, 2026-11-11; paused with reduced motion);
+   * from the enlarged photo of a stretch it opens paused there, and Back returns to that card (Elena, 2026-11-14).
+   * @param {string} id the route
+   * @param {boolean} keyboard
+   * @param {{index?: number, autoplay?: boolean, backTo?: 'comparison'|'stretch'}} [options]
+   */
+  function start(id, keyboard = false, { index: at = 0, autoplay = true, backTo = 'comparison' } = {}) {
     const r = routes.routes.find((x) => x.id === id)
     if (!r) return
+    mode.value = 'route'
+    place.value = null
+    back.value = backTo
     route.value = r
-    index.value = 0
+    index.value = at
     playing.value = false
-    // Overall is not built for routes, so a route on it is walked on the default layer.
-    layer.value = routes.layer === 'overall' ? config.layerDefault : routes.layer
+    layer.value = walkLayer(routes.layer)
     info.value = routes.info
     byKeyboard.value = keyboard
     routes.selected = null
     routes.hoverKey = null
     routes.hoverRoute = null
     active.value = true
-    // Play is the default (Elena, 2026-11-11); with reduced motion it opens paused and Next / Previous jump.
-    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) play()
+    if (autoplay && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) play()
   }
 
-  /** Back to the route card, with the same routes. */
+  /** The enlarged photo of a place of an area: the same view, one stretch, nothing to walk (Elena, 2026-11-14). */
+  function openPlace(feature, mapLayer, window_, keyboard = false) {
+    const g = feature.geometry
+    const coordinates = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates
+    pause()
+    mode.value = 'place'
+    back.value = 'place'
+    place.value = feature
+    route.value = { id: 'place', minutes: 0, length_m: feature.properties.length_m ?? 0,
+      parts: [{ segment_id: feature.properties.id, length_m: feature.properties.length_m ?? 0, coordinates }] }
+    index.value = 0
+    layer.value = walkLayer(mapLayer)
+    info.value = window_
+    byKeyboard.value = keyboard
+    active.value = true
+  }
+
+  /** Back where the view was opened from: the route card, the stretch card (at the stretch you stopped on) or the
+   *  place card. Focus goes back to the button that opened it. */
   function exit(keyboard = false) {
     pause()
     const id = route.value?.id
+    const key = current.value?.key
+    const to = back.value
     active.value = false
     route.value = null
+    place.value = null
+    mode.value = 'route'
     routes.byKeyboard = keyboard
-    if (keyboard && id) {
-      // Focus goes back to the button that opened the walk.
-      requestAnimationFrame(() => document.querySelector(`[data-walk="${id}"]`)?.focus())
-    }
+    if (to === 'stretch' && key) routes.selectStretch(key, undefined, keyboard)
+    if (!keyboard) return
+    const target = to === 'comparison' ? `[data-walk="${id}"]` : '[data-panel="place-card"] .enlarge'
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(target)?.focus()))
   }
 
   function schedule() {
@@ -134,10 +182,10 @@ export const useWalkStore = defineStore('walk', () => {
   const toggle = () => (playing.value ? pause() : play())
 
   // The routes were cleared (a new start or end): there is nothing left to walk.
-  watch(() => routes.hasResult, (has) => { if (!has && active.value) exit() })
+  watch(() => routes.hasResult, (has) => { if (!has && active.value && mode.value === 'route') exit() })
 
   return {
-    active, route, index, playing, layer, info, byKeyboard, stretches, current, feature, ratedPhoto, photo, photoState, photoFailed,
-    point, shown, atEnd, start, exit, go, step, play, pause, toggle,
+    active, route, index, playing, layer, info, byKeyboard, mode, back, stretches, current, feature, ratedPhoto, photo, photoState,
+    photoFailed, point, shown, atEnd, start, openPlace, exit, go, step, play, pause, toggle,
   }
 })

@@ -4,7 +4,8 @@
 // feels, the state and why, a temperature bar (the legend's side) and a cooler (or warmer) street nearby.
 // On the Senses layer the photo on the card goes to the model (board 2c, SensesPrediction).
 // One photo per place, never stepped through (Elena, 2026-11-14: on a stretch, ← → and the arrows mean "stretch"): with
-// more than one, the card shows the one closest to the place's rating. The image loads only now, on click.
+// more than one, the card shows the one closest to the place's rating. The image loads only now, on click. Enlarge opens
+// the walk's view (Elena, 2026-11-14): from a stretch of a route, paused there; for a place of an area, with nothing to walk.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { photoCredit, photoLink, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
@@ -12,11 +13,10 @@ import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
 import { nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
 import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
-import { GENERAL_LABEL, comfortLabel } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
+import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
-import PhotoViewer from './PhotoViewer.vue'
 import SensesPrediction from './SensesPrediction.vue'
 
 const props = defineProps({
@@ -50,7 +50,6 @@ function startIndex() {
   return senses.placeFor(src.value.feature?.properties.photos).rep ?? 0
 }
 const index = ref(startIndex())
-const viewerOpen = ref(false)
 const failed = ref(new Set())
 
 const feature = computed(() => src.value.feature)
@@ -101,16 +100,15 @@ const sensesOn = computed(() => src.value.layer === 'senses')
 const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
 // The photo on the card is the one rated.
 const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
-const viewerRating = computed(() => (shownRating.value?.status === 'ok' ? `${comfortLabel(shownRating.value.result)}, this photo` : 'Not rated yet'))
-const viewerNote = computed(() => (shownRating.value?.status === 'ok' ? `${GENERAL_LABEL}. A prediction, not a reason.` : ''))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
 
-function openViewer() {
-  if (photo.value && showsPhotos()) viewerOpen.value = true
-}
-function closeViewer() {
-  viewerOpen.value = false
-  nextTick(() => enlargeBtn.value?.focus())
+const walk = useWalkStore()
+/** The enlarged photo is the walk's view: a stretch opens its route there, paused; a place opens on its own. */
+function openViewer(e) {
+  if (!photo.value || !showsPhotos()) return
+  const keyboard = e?.detail === 0
+  if (src.value.enlarge) src.value.enlarge(keyboard)
+  else walk.openPlace(feature.value, src.value.layer, src.value.info, keyboard)
 }
 
 function goNearest() {
@@ -233,9 +231,6 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 
     <slot name="foot" />
     <slot />
-    <PhotoViewer v-if="viewerOpen" :index="index" :feature="feature" :phone="props.phone"
-                 :photos="photos" :failed="failed" :rating="viewerRating" :rating-note="viewerNote" :steps="src.steps ?? null"
-                 @step="(d, keyboard) => src.step?.(d, keyboard)" @close="closeViewer" @failed="onImgError" />
   </section>
 </template>
 

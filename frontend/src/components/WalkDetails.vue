@@ -4,6 +4,7 @@
 // the boards and not built yet (Elena, 2026-11-11: Coming soon). Details are always shown. Everything comes from what is
 // loaded: the Senses ratings already here, never a new call.
 import { computed } from 'vue'
+import { sizeLabel, typeLabel } from '../lib/place.js'
 import { stretchLine } from '../lib/routes.js'
 import { bySense } from '../lib/senses.js'
 import { comfortLine } from '../lib/walk.js'
@@ -19,6 +20,10 @@ const place = computed(() => {
   if (walk.photoState === 'unloaded') return { status: 'unloaded' }
   return walk.ratedPhoto ? walk.ratedPhoto.place : null
 })
+/** A stretch: its length and walking time; a place of an area: what it is and its size, as on its card. */
+const meta = computed(() => (walk.mode === 'place'
+  ? `${typeLabel(p.value, walk.feature.geometry.type)} · ${sizeLabel(p.value)}`
+  : stretchLine(walk.current)))
 const comfort = computed(() => comfortLine(walk.layer, p.value, walk.layer === 'senses' ? place.value : null))
 const rated = computed(() => walk.layer === 'senses' && place.value?.status === 'rated')
 const columns = computed(() => [
@@ -31,7 +36,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
 <template>
   <div v-if="walk.current" class="details" :class="{ phone }">
     <section class="head" data-panel="walk-card" aria-label="Stretch ahead">
-      <p class="title"><span class="name" lang="de">{{ p.name }}</span><span class="meta">{{ stretchLine(walk.current) }}</span></p>
+      <p class="title"><span class="name" lang="de">{{ p.name }}</span><span class="meta">{{ meta }}</span></p>
       <p class="state" data-testid="walk-state">
         <span class="swatch" :style="{ background: swatch }" />
         <strong :class="['label', comfort.state]">{{ comfort.label }}</strong>

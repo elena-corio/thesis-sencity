@@ -4,12 +4,14 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { formatKm, stretchFeature, stretchLine } from '../lib/routes.js'
 import { useRoutesStore } from '../stores/routes.js'
+import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
 import PlaceCard from './PlaceCard.vue'
 import RouteBar from './RouteBar.vue'
 
 defineProps({ phone: Boolean })
 const routes = useRoutesStore()
+const walk = useWalkStore()
 const stretch = computed(() => routes.selectedStretch)
 const route = computed(() => routes.selectedRoute)
 const feature = computed(() => stretchFeature(stretch.value, routes.segments))
@@ -25,9 +27,8 @@ const source = computed(() => ({
   subtitle: stretchLine(stretch.value),
   byKeyboard: routes.byKeyboard,
   back: (keyboard) => routes.back(keyboard),
-  // The enlarged photo steps through the route's stretches, one photo each (PhotoViewer).
-  steps: { noun: 'stretch', index: stretch.value.index, count: count.value },
-  step: (d, keyboard) => routes.stepStretch(d, keyboard),
+  // The enlarged photo is the walk's view, paused at this stretch; Back returns here (Elena, 2026-11-14).
+  enlarge: (keyboard) => walk.start(route.value.id, keyboard, { index: stretch.value.index, autoplay: false, backTo: 'stretch' }),
 }))
 
 const coverage = computed(() => {
@@ -38,8 +39,7 @@ const coverage = computed(() => {
 
 function onKey(e) {
   if (e.defaultPrevented || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return
-  // With the enlarged photo open, the keys are the viewer's (it steps the stretches itself).
-  if (e.target.closest?.('input, select, [data-viewer]') || document.querySelector('[data-viewer]')) return
+  if (e.target.closest?.('input, select')) return
   e.preventDefault()
   routes.stepStretch(e.key === 'ArrowLeft' ? -1 : 1, true)
 }

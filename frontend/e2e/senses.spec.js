@@ -145,8 +145,11 @@ test.describe('Senses mode', () => {
     expect(mock.requests).toHaveLength(1)
 
     await page.getByRole('button', { name: 'Enlarge photo' }).first().click()
-    await expect(page.locator('[data-viewer]')).toContainText('4 · fairly comfortable, this photo')
-    await expect(page.locator('[data-viewer]')).toContainText('General prediction: not yet personal')
+    // The enlarged photo is the walk's view: the place's rating in its card (Elena, 2026-11-14).
+    const view = page.locator('[data-panel="walk-view"]')
+    await expect(view.getByTestId('walk-state')).toContainText('Easy')
+    await expect(view.getByTestId('walk-state')).toContainText('for your senses')
+    await expect(view).toContainText('A prediction, not a reason.')
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/senses-place.png' })
   })

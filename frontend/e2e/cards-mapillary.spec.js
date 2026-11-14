@@ -32,8 +32,9 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/cards-mapillary/1-place-card.png' })
 
     await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
-    const viewer = page.locator('[data-viewer]')
-    await expect(viewer.getByRole('link', { name: `carla · ${first.year} · CC BY-SA 4.0` })).toBeVisible()
+    // The enlarged photo is the walk's view (Elena, 2026-11-14).
+    const viewer = page.locator('[data-panel="walk-view"]')
+    await expect(viewer.getByTestId('walk-photo').getByRole('link', { name: `carla · ${first.year} · CC BY-SA 4.0` })).toBeVisible()
     await page.screenshot({ path: 'e2e/screens/cards-mapillary/2-enlarged.png' })
     await page.keyboard.press('Escape')
     expect(old).toHaveLength(0)

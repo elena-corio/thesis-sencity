@@ -29,7 +29,7 @@ const here = computed(() => {
 function onKey(e) {
   if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return
   const t = e.target
-  if (t.closest?.('input, select, textarea, [role="radiogroup"], [role="tablist"], [data-viewer]')) return
+  if (t.closest?.('input, select, textarea, [role="radiogroup"], [role="tablist"]')) return
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault()
     walk.step(e.key === 'ArrowLeft' ? -1 : 1, true)

@@ -33,8 +33,8 @@ const walk = useWalkStore()
 const route = useRoute()
 const sheetRef = ref(null)
 const routesMode = computed(() => route.params.mode === 'routes')
-// The walk belongs to Routes: going to Area ends it.
-watch(routesMode, (on) => { if (!on && walk.active) walk.exit() })
+// Going to the other view (Area or Routes) closes the walk or the enlarged photo.
+watch(routesMode, () => { if (walk.active) walk.exit() })
 const phone = useMedia('(max-width: 767px)')
 const wide = useMedia('(min-width: 1200px)')
 const mapRef = ref(null)
@@ -77,7 +77,7 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
         <StretchCard v-if="routes.selectedStretch" />
         <RouteCard v-else-if="hasCard" />
       </div>
-      <div v-else-if="!routesMode" class="slot s-card">
+      <div v-else-if="!routesMode && !walk.active" class="slot s-card">
         <!-- A clicked street shows its card even while the area is loading ("you can keep exploring"). -->
         <PlaceCard v-if="area.selectedId" />
         <LoadingCard v-else-if="loadingCard" />

@@ -2,6 +2,17 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The enlarged photo is the walk's view (accepted)
+**Context.** Elena: "make enlarge picture look the same. When clicking walk this route play is default, when enlarging the photo stop is default", and "in the case of area it should not have the play button".
+**Decision (Elena).**
+- *From a stretch card:* Enlarge opens the walk of that route at that stretch, paused, with Play; ← →, the arrows and the bar step the stretches. Back (or Esc) returns to the stretch card at the stretch you stopped on.
+- *From "Walk route":* as before, it plays from the first stretch (paused with reduced motion).
+- *From a place of an area:* the same view with nothing to walk: no chip, count, arrows, Play or bar; the photo, the key under it, "Where you are" and the place's card (what it is and its size instead of a walking time). Back (or Esc) returns to the place card. The place card is not left under the view, so Tab cannot reach it.
+- *Gone:* the photo viewer (`PhotoViewer.vue`) and its own arrows and hint.
+- *Proposed:* the Back button reads "Exit walk, back to comparison", "Back to the stretch" or "Back to place"; going to the other view (Area or Routes) closes it.
+
+**Consequences.** The walk card does not repeat "General prediction: not yet personal" (the board has no line for it); the place and stretch cards still say it.
+
 ## 2026-11-14 – The walk follows board Routes 5 "photos, play" (accepted)
 **Context.** Elena: a new board for the walk (Routes 5, photos and play), and: Play and the bar as wide as the photo and centred with it, the chip centred with the photo, the bother icons the same pink as Hard, "shortest" without "for what", and a card line that read "senses, because of asphalt, stone, concrete and direct sun, little shade".
 **Decision.**
