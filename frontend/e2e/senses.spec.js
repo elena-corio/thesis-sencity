@@ -279,6 +279,8 @@ test.describe('Senses mode', () => {
     await expect(page.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', photo)
     expect(await fills(view)).toEqual(preview)
     await expect(view.getByTestId('walk-state')).toContainText(rating.split(' · ')[0])
+    await page.waitForTimeout(800) // the mini map draws the route
+    await page.screenshot({ path: 'e2e/screens/walk/8-walk-senses.png' })
     await view.getByRole('button', { name: 'Next stretch' }).click()
     expect(await fills(view)).toEqual(preview) // nothing changes colour while walking
     expect(rate.requests).toHaveLength(1) // no new rating run

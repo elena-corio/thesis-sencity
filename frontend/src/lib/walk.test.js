@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, fixedLine, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -16,10 +16,10 @@ describe('progressAt', () => {
 
 describe('progressLine', () => {
   it('reads as on the board', () => {
-    expect(progressLine({ doneM: 350, totalM: 1600 }, 21)).toBe('0.35 of 1.6 km, 4 of 21 min')
+    expect(progressLine({ doneM: 350, totalM: 1600 }, 21)).toBe('0.35 of 1.6 km · 17 min left')
   })
   it('never passes the route time', () => {
-    expect(progressLine({ doneM: 1600, totalM: 1600 }, 19)).toBe('1.60 of 1.6 km, 19 of 19 min')
+    expect(progressLine({ doneM: 1600, totalM: 1600 }, 19)).toBe('1.60 of 1.6 km · 0 min left')
   })
 })
 
@@ -32,17 +32,12 @@ describe('stretchBearing', () => {
 })
 
 describe('chipText', () => {
-  it('names the route, its kind, the layer and the window', () => {
-    expect(chipText({ id: 'B', kind: 'easiest' }, 'overall', { season: 'summer', time: '15:00' }))
-      .toEqual({ title: 'Walking route B', detail: 'easiest overall, summer 15:00' })
-  })
-  it('has no window on a route found on Senses', () => {
-    expect(chipText({ id: 'A', kind: 'shortest' }, 'senses', null)).toEqual({ title: 'Walking route A', detail: 'shortest senses' })
+  it('says what the easiest way is easiest for; shortest is just shortest', () => {
+    expect(chipText({ id: 'B', kind: 'easiest' }, 'senses')).toEqual({ title: 'Walking route B', detail: 'easiest for your senses' })
+    expect(chipText({ id: 'B', kind: 'easiest' }, 'thermal').detail).toBe('easiest for thermal comfort')
+    expect(chipText({ id: 'A', kind: 'shortest' }, 'senses')).toEqual({ title: 'Walking route A', detail: 'shortest' })
+    expect(chipText({ id: 'B', kind: 'second' }, 'thermal').detail).toBe('alternative')
     expect(routeKind({ id: 'B', kind: 'second' })).toBe('alternative')
-  })
-  it('says the settings are fixed', () => {
-    // The season and time are in the key above it (Elena, 2026-11-11).
-    expect(fixedLine()).toBe('To change the layer, season or time, exit the walk.')
   })
 })
 
@@ -52,11 +47,13 @@ describe('comfortLine', () => {
     bothers: codes.map((en) => ({ en, code: en, icon_key: 'sight' })),
   })
   it('gives the reason on Senses from what might bother', () => {
-    expect(comfortLine('senses', { photos: [{}] }, place('hard', ['Crowds', 'Signs, ads'])))
-      .toEqual({ state: 'hard', label: 'Hard', reason: 'senses, because of crowds and signs, ads' })
+    // Names with commas of their own are parted by a semicolon, so the sentence still reads as a list.
+    expect(comfortLine('senses', { photos: [{}] }, place('hard', ['Asphalt, stone, concrete', 'Direct sun, little shade'])))
+      .toEqual({ state: 'hard', label: 'Hard', context: 'for your senses',
+        detail: 'The model points to: asphalt, stone, concrete; direct sun, little shade.' })
   })
   it('gives the comfort when nothing bothers', () => {
-    expect(comfortLine('senses', { photos: [{}] }, place('easy', [])).reason).toBe('senses, 4 · fairly comfortable')
+    expect(comfortLine('senses', { photos: [{}] }, place('easy', [])).detail).toBe('4 · fairly comfortable.')
   })
   it('says when there is no photo or no rating yet', () => {
     expect(comfortLine('senses', { photos: [] }, null).label).toBe('No photo')
@@ -64,7 +61,7 @@ describe('comfortLine', () => {
   })
   it('gives the feels-like value on Thermal', () => {
     expect(comfortLine('thermal', { utci: 33.4, thermal_state: 'hard' }, null))
-      .toEqual({ state: 'hard', label: 'Hard', reason: 'thermal, feels like 33 °C' })
+      .toEqual({ state: 'hard', label: 'Hard', context: 'for thermal comfort', detail: 'Feels like 33 °C.' })
     expect(comfortLine('thermal', { utci: null }, null).state).toBe('none')
   })
 })
@@ -81,6 +78,6 @@ describe('a stretch of the walk: the same photo and rating as the Routes view', 
     expect(ratedPhotoOf({ key: 'A-2', segmentId: 'gone' }, segments, placeFor)).toBeNull()
   })
   it('says so on the card when the photo did not load', () => {
-    expect(comfortLine('senses', {}, { status: 'unloaded' })).toEqual({ state: 'none', label: 'No photo', reason: 'the photo could not be loaded, so no rating' })
+    expect(comfortLine('senses', {}, { status: 'unloaded' })).toEqual({ state: 'none', label: 'No photo', context: '', detail: 'The photo could not be loaded, so no rating.' })
   })
 })

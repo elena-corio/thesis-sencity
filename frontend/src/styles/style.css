@@ -152,6 +152,9 @@
   --walk-view-side-w: 340px;       /* the walk: the right column (where you are, the key, the stretch) */
   --walk-view-photo-max: 720px;    /* the walk: the photo, at most */
   --walk-arrow: 48px;              /* the walk: previous and next stretch beside the photo */
+  --walk-controls-h: 104px;        /* the walk: room under the photo for the bar, then Play, the progress and the key (which may wrap) */
+  --walk-marker-w: 4px;            /* the walk: where you are on the bar */
+  --walk-marker-h: 20px;
   --walk-mini-ratio: 268 / 200;    /* "Where you are" */
   --map-mini-end-r: 5;             /* its Start ring and End dot */
   --map-mini-end-stroke: 2.5;

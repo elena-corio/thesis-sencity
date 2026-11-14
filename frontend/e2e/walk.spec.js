@@ -53,7 +53,7 @@ test.describe('desktop', () => {
 
     await page.getByRole('button', { name: 'Walk route B' }).click()
     const v = view(page)
-    await expect(v.getByRole('status').filter({ hasText: 'Walking route B' })).toContainText('easiest thermal, summer 15:00')
+    await expect(v.getByRole('status').filter({ hasText: 'Walking route B' })).toHaveText(/Walking route B\s*easiest for thermal comfort$/)
     await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3')
     // No 3D street: the map stays flat and no buildings are asked for.
     expect(await page.evaluate(() => window.__sencityMap.getPitch())).toBe(0)
@@ -62,8 +62,9 @@ test.describe('desktop', () => {
     // No left panel or route card: the walk is its own view; the key is in its right column, read only.
     await expect(page.locator('[data-panel="layers"]')).toHaveCount(0)
     await expect(page.locator('[data-panel="route-card"]')).toHaveCount(0)
-    await expect(v.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
-    await expect(v).toContainText('To change the layer, season or time, exit the walk.')
+    // The key is under the photo, on one line with Play (board Routes 5, photos and play), the window first on Thermal.
+    await expect(v.getByTestId('comfort-key')).toContainText('summer, 15:00')
+    await expect(v.getByTestId('comfort-key')).toContainText('No value')
     await expect(v.getByRole('radio')).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible()
 
@@ -83,7 +84,7 @@ test.describe('desktop', () => {
     await expect(details).toContainText('Might bother you')
     await expect(details.getByRole('button', { name: 'Rate 1 of 5' })).toHaveAttribute('aria-disabled', 'true')
     await expect(v).toContainText('Where you are')
-    await expect(v).toContainText(/0\.09 of 0\.6 km, 1 of 7 min/)
+    await expect(v).toContainText(/0\.09 of 0\.6 km · 6 min left/)
     await expect(v.getByRole('button', { name: 'Pause' })).toBeVisible() // it opens playing (Elena, 2026-11-11)
     await page.screenshot({ path: 'e2e/screens/walk/1-walk-dark.png' })
     expect(await layoutProblems(page)).toEqual([])

@@ -2,6 +2,16 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The walk follows board Routes 5 "photos, play" (accepted)
+**Context.** Elena: a new board for the walk (Routes 5, photos and play), and: Play and the bar as wide as the photo and centred with it, the chip centred with the photo, the bother icons the same pink as Hard, "shortest" without "for what", and a card line that read "senses, because of asphalt, stone, concrete and direct sun, little shade".
+**Decision.**
+- *Under the photo (board):* the route bar, as wide as the photo, with a light mark where you are; then Play, "0.35 of 1.6 km · 16 min left" and the key on one line (on Thermal the window first: "summer, 15:00", as the chip no longer says it). The right column is "Where you are" and the stretch card only: the key and "To change the layer, season or time, exit the walk." are gone from it.
+- *Header (Elena):* Exit on the left, the chip centred over the photo, the count on the right. The chip: "easiest for your senses" (board), "easiest for thermal comfort" on Thermal (proposed), "shortest" and "alternative" with nothing after.
+- *Card (board):* "**Mixed** for your senses" (or "for thermal comfort") on one line, then "The model points to: asphalt, stone, concrete; direct sun, little shade." (on Thermal "Feels like 22 °C."). Element names have commas of their own, so a semicolon parts them (proposed).
+- *Icons (Elena):* what might bother is drawn in the Hard pink (`--hard`), not the lighter text pink, in both themes.
+
+**Consequences.** On Thermal the key under the photo can take a second line; the space under the photo is kept for it, so the photo is a little smaller than the board's on a short screen.
+
 ## 2026-11-14 – The walk shows the routes' own photos and ratings; route photos face the walk (accepted)
 **Context.** Elena: "the walking mode changes ratings every time, it should be stable and coherent with the preview", "it should also show the same photos", and "photos in the direction of the route should be privileged". The walk looked up a photo of its own per stretch (facing the walk) and rated those in a run of its own: stretches started unlit and changed colour as ratings came, and wherever the walk's photo was not the street's, the colour and the rating differed from the Routes view and the stretch card.
 **Decision (Elena).**

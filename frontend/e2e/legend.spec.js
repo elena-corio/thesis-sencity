@@ -111,7 +111,7 @@ for (const [device, viewport, phone] of [['desktop', { width: 1440, height: 900 
         if (!phone) {
           await expect(page.locator('[data-panel="layers"]')).toHaveCount(0) // no left panel in the walk
           const side = page.locator('[data-panel="walk-view"]')
-          await expect(side.getByTestId('comfort-key')).toContainText('Thermal · summer, 15:00')
+          await expect(side.getByTestId('comfort-key')).toContainText('summer, 15:00')
           await fitsOnScreen(page, '[data-panel="walk-view"]')
         }
         await settle(page)

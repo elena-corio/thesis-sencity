@@ -35,8 +35,9 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
       <p class="state" data-testid="walk-state">
         <span class="swatch" :style="{ background: swatch }" />
         <strong :class="['label', comfort.state]">{{ comfort.label }}</strong>
-        <span class="muted">{{ comfort.reason }}</span>
+        <span v-if="comfort.context" class="context">{{ comfort.context }}</span>
       </p>
+      <p class="detail" data-testid="walk-detail">{{ comfort.detail }}</p>
       <p class="note">A prediction, not a reason.</p>
     </section>
     <div class="rule" />
@@ -86,7 +87,8 @@ p { margin: 0; }
 .swatch { flex: none; width: calc(var(--space-5) - 2px); height: calc(var(--swatch-h) + 1px); border-radius: var(--radius-pill); }
 .label { font-weight: var(--fw-semibold); }
 .label.hard { color: var(--hard-text); }
-.muted { color: var(--text-2); }
+.muted, .context { color: var(--text-2); }
+.detail { font-size: var(--fs-sm); }
 .note { font-size: var(--fs-xs); color: var(--text-2); }
 .rule { height: var(--hairline); background: var(--line); }
 

@@ -11,14 +11,17 @@ const props = defineProps({
   /** { season, time } of what is shown, or null. */
   window: { type: Object, default: null },
   rule: Boolean,
+  /** The walk (board Routes 5, photos and play): one line, no layer name; the window first when there is one. */
+  inline: Boolean,
 })
 const title = computed(() => keyTitle(props.layer, props.window))
 const rows = computed(() => keyRows(props.layer))
 </script>
 
 <template>
-  <div class="key" :class="{ rule }" data-testid="comfort-key">
-    <p class="title"><strong>{{ title.name }}</strong><template v-if="title.when"> · {{ title.when }}</template></p>
+  <div class="key" :class="{ rule, inline }" data-testid="comfort-key">
+    <p v-if="!inline" class="title"><strong>{{ title.name }}</strong><template v-if="title.when"> · {{ title.when }}</template></p>
+    <p v-else-if="title.when" class="title">{{ title.when }}</p>
     <ul class="rows" data-testid="legend-rows">
       <li v-for="r in rows" :key="r.id"><span class="swatch" :style="{ background: r.color }" />{{ r.label }}</li>
     </ul>
@@ -31,5 +34,8 @@ const rows = computed(() => keyRows(props.layer))
 .title strong { color: var(--text); font-weight: var(--fw-semibold); }
 .rows { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: var(--space-2) 0 0; padding: 0; font-size: var(--fs-sm); }
 .rows li { display: flex; align-items: center; gap: var(--space-2); }
+.key.inline { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1) var(--space-3); }
+.inline .rows { margin: 0; }
+.key.inline, .inline .rows { font-size: var(--fs-xs); }
 .swatch { flex: none; width: var(--space-4); height: var(--swatch-h); border-radius: var(--radius-pill); }
 </style>

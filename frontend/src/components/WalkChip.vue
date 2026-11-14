@@ -1,5 +1,5 @@
 <script setup>
-// "Walking route B · easiest overall, summer 15:00" (boards Routes 5, P6): which way is walked, on which layer and window.
+// "Walking route B · easiest for your senses" (board Routes 5, photos and play): which way is walked.
 // On a phone it fills the row under the top bar.
 import { computed } from 'vue'
 import { chipText } from '../lib/walk.js'
@@ -7,7 +7,7 @@ import { useWalkStore } from '../stores/walk.js'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
-const text = computed(() => chipText(walk.route, walk.layer, walk.info))
+const text = computed(() => chipText(walk.route, walk.layer))
 </script>
 
 <template>

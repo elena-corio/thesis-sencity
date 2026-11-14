@@ -28,10 +28,10 @@ export function progressAt(stretches, index) {
   return { doneM, totalM, share: totalM ? doneM / totalM : 0 }
 }
 
-/** "0.35 of 1.6 km, 5 of 21 min". minutes: the route's own walking time. */
+/** "0.35 of 1.6 km · 16 min left" (board Routes 5, photos and play). minutes: the route's own walking time. */
 export function progressLine({ doneM, totalM }, minutes) {
-  const done = Math.round(doneM / config.walkMetresPerMinute)
-  return `${(doneM / 1000).toFixed(2)} of ${(totalM / 1000).toFixed(1)} km, ${Math.min(done, minutes)} of ${minutes} min`
+  const done = Math.min(Math.round(doneM / config.walkMetresPerMinute), minutes)
+  return `${(doneM / 1000).toFixed(2)} of ${(totalM / 1000).toFixed(1)} km · ${minutes - done} min left`
 }
 
 /** Compass bearing in degrees (0 north, 90 east) from the stretch's first point to its last: the camera looks
@@ -48,36 +48,35 @@ export function stretchBearing(stretch) {
 /** The route's word on the comparison card: A shortest, B easiest (or the alternative). */
 export const routeKind = (route) => (route.id === 'A' ? 'shortest' : route.kind === 'easiest' ? 'easiest' : 'alternative')
 
-/** The chip at the top (boards Routes 5, P6): "Walking route B" and "easiest overall, summer 15:00". A route found on
- *  Senses has no season or time. */
-export function chipText(route, layer, info) {
-  const kind = `${routeKind(route)} ${layer}`
-  return { title: `Walking route ${route.id}`, detail: info ? `${kind}, ${info.season} ${info.time}` : kind }
-}
-
-/** Under the legend: the settings are fixed for the walk. "Summer, 15:00. To change the layer, season or time, exit the walk." */
-export function fixedLine() {
-  return 'To change the layer, season or time, exit the walk.'
+/** The chip (Elena, 2026-11-14; board Routes 5, photos and play): "Walking route B" and "easiest for your senses" (or
+ *  "easiest for thermal comfort"); "shortest" and "alternative" say nothing more. The window is in the key under the photo. */
+const EASIEST_FOR = { senses: 'easiest for your senses', thermal: 'easiest for thermal comfort' }
+export function chipText(route, layer) {
+  const kind = routeKind(route)
+  return { title: `Walking route ${route.id}`, detail: kind === 'easiest' ? EASIEST_FOR[layer] ?? kind : kind }
 }
 
 /**
- * The stretch's state and its reason, for the card: "Hard" and "senses, because of signs, ads".
+ * The stretch's state on the walk's card (board Routes 5, photos and play): "Mixed" and "for your senses" on one line, then
+ * "The model points to: asphalt, stone, concrete; direct sun, little shade." The names have commas of their own, so a
+ * semicolon parts them (Elena, 2026-11-14).
  * @param {string} layer 'senses' | 'thermal'
  * @param {object} properties the stretch's segment properties
- * @param {object|null} place Senses: the rating of the stretch's photo (stores/senses.js placeFor), or null with no photo
- * @returns {{state:string, label:string, reason:string}}
+ * @param {object|null} place Senses: the stretch's rating (stores/walk.js ratedPhoto.place), or null with no photo
+ * @returns {{state:string, label:string, context:string, detail:string}}
  */
 export function comfortLine(layer, properties, place) {
+  const none = (label, detail) => ({ state: 'none', label, context: '', detail })
   if (layer === 'thermal') {
-    if (properties.utci == null) return { state: 'none', label: 'No value', reason: 'no thermal comfort for this stretch' }
+    if (properties.utci == null) return none('No value', 'No thermal comfort for this stretch.')
     const state = properties.thermal_state
-    return { state, label: levelWord(state), reason: `thermal, feels like ${formatDegrees(properties.utci)}` }
+    return { state, label: levelWord(state), context: 'for thermal comfort', detail: `Feels like ${formatDegrees(properties.utci)}.` }
   }
-  if (!place) return { state: 'none', label: 'No photo', reason: 'so no Senses rating here' }
-  if (place.status === 'unloaded') return { state: 'none', label: 'No photo', reason: 'the photo could not be loaded, so no rating' }
-  if (place.status === 'pending') return { state: 'none', label: 'Not rated yet', reason: 'waiting for its rating' }
-  if (place.status === 'failed') return { state: 'none', label: 'Could not rate', reason: 'the photo and the map still work' }
+  if (!place) return none('No photo', 'So no Senses rating here.')
+  if (place.status === 'unloaded') return none('No photo', 'The photo could not be loaded, so no rating.')
+  if (place.status === 'pending') return none('Not rated yet', 'Waiting for its rating.')
+  if (place.status === 'failed') return none('Could not rate', 'The photo and the map still work.')
   const bothers = place.bothers.slice(0, 2).map((e) => elementLabel(e).text.toLowerCase())
-  const reason = place.level !== 'easy' && bothers.length ? `senses, because of ${bothers.join(' and ')}` : `senses, ${comfortLabel(place)}`
-  return { state: place.level, label: levelWord(place.level), reason }
+  const detail = place.level !== 'easy' && bothers.length ? `The model points to: ${bothers.join('; ')}.` : `${comfortLabel(place)}.`
+  return { state: place.level, label: levelWord(place.level), context: 'for your senses', detail }
 }

@@ -28,6 +28,6 @@ const text = computed(() => props.row.elements.map((e) => elementLabel(e).text).
 .sense-item.small { font-size: var(--fs-xs); }
 .sense-item :deep(.sense-icon) { width: calc(var(--icon) - 2px); height: calc(var(--icon) - 2px); }
 .small :deep(.sense-icon) { width: calc(var(--icon) - 4px); height: calc(var(--icon) - 4px); }
-.bother :deep(.sense-icon) { color: var(--hard-text); }
+.bother :deep(.sense-icon) { color: var(--hard); }
 .good :deep(.sense-icon) { color: var(--easy); }
 </style>
