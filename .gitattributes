@@ -1,0 +1,2 @@
+# The model exports are checked byte for byte against the sha256 in their MANIFEST: never convert line endings.
+model/** -text

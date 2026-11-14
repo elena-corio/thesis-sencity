@@ -49,11 +49,11 @@ describe('chipText', () => {
 describe('comfortLine', () => {
   const place = (level, codes) => ({
     status: 'ok', level, comfort: level === 'easy' ? 4 : 2, anchors: { 1: 'very uncomfortable', 5: 'very comfortable' },
-    bothers: codes.map((en) => ({ en, code: en })),
+    bothers: codes.map((en) => ({ en, code: en, icon_key: 'sight' })),
   })
   it('gives the reason on Senses from what might bother', () => {
-    expect(comfortLine('senses', { photos: [{}] }, place('hard', ['Many people close (social)', 'Signs, ads (sight)'])))
-      .toEqual({ state: 'hard', label: 'Hard', reason: 'senses, because of many people close and signs, ads' })
+    expect(comfortLine('senses', { photos: [{}] }, place('hard', ['Crowds', 'Signs, ads'])))
+      .toEqual({ state: 'hard', label: 'Hard', reason: 'senses, because of crowds and signs, ads' })
   })
   it('gives the comfort when nothing bothers', () => {
     expect(comfortLine('senses', { photos: [{}] }, place('easy', [])).reason).toBe('senses, 4 · fairly comfortable')

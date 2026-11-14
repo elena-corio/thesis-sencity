@@ -5,6 +5,7 @@
 // loaded: the Senses ratings already here, never a new call.
 import { computed } from 'vue'
 import { stretchLine } from '../lib/routes.js'
+import { bySense } from '../lib/senses.js'
 import { comfortLine } from '../lib/walk.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -23,8 +24,8 @@ const place = computed(() => {
 const comfort = computed(() => comfortLine(walk.layer, p.value, walk.layer === 'senses' ? place.value : null))
 const rated = computed(() => walk.layer === 'senses' && place.value?.status === 'rated')
 const columns = computed(() => [
-  { title: 'Might bother you', kind: 'bother', items: rated.value ? place.value.bothers : [] },
-  { title: 'Might feel good', kind: 'good', items: rated.value ? place.value.feelsGood : [] },
+  { title: 'Might bother you', kind: 'bother', rows: rated.value ? bySense(place.value.bothers) : [] },
+  { title: 'Might feel good', kind: 'good', rows: rated.value ? bySense(place.value.feelsGood) : [] },
 ])
 const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-photo' : comfort.value.state})`)
 </script>
@@ -45,8 +46,8 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-phot
       <div class="columns">
         <div v-for="c in columns" :key="c.kind" class="column">
           <h3>{{ c.title }}</h3>
-          <ul v-if="c.items.length">
-            <SenseItem v-for="e in c.items" :key="e.code" :element="e" :kind="c.kind" :small="phone" />
+          <ul v-if="c.rows.length">
+            <SenseItem v-for="r in c.rows" :key="r.sense" :row="r" :kind="c.kind" :small="phone" />
           </ul>
           <p v-else class="none">{{ walk.layer === 'senses' ? 'Nothing named here' : 'Only on Senses' }}</p>
         </div>

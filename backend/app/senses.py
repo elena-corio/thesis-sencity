@@ -1,21 +1,28 @@
-"""Senses mode: a general prediction for one street photo (no profile).
+"""Senses mode: a prediction for one street photo, from the survey v9 export.
 
-model/archive/app_v0/ (exported from the thesis repo) is the only source of the instructions, task text, schemas, labels and
+model/app_v9/ (exported from the thesis repo) is the only source of the instructions, task text, schemas, labels and
 model settings. It is read again on every request, so replacing the folder changes the setting without a code change or
-a restart. If a file is missing, broken or unsafe the request stops with ExportError: there are no defaults.
+a restart. Every file is first checked against its sha256 in MANIFEST.md; if one differs, is missing, broken or unsafe,
+the request stops with ExportError: there are no defaults.
+
+Each new photo takes two calls (Elena, 2026-11-14). The presence call (presence_prompt.txt, presence_schema.json) says
+which of the 20 elements are clearly visible; it is cached per photo. The rating call then sends the study's task and
+schema with that list. If nothing is listed, B2 takes no items and B2_none must be true. Without a profile the system
+message is system_instruction.txt alone: the study's V0. Unlike the study, no person confirms the lists.
 
 The model rates the photo the person sees (Elena, 2026-11-11): the Mapillary photo of the street, place or walk stretch
 (tool/photos/mapillary.py), a panorama rendered as the 90 degree view the app shows. The backend fetches each picture
 itself, only for photos not in the cache. Images stay in memory: they are never written to disk, cached or logged. Only
-the model's JSON output, the model ID, latency and cost are kept, in a git-ignored file, per Mapillary image ID + heading
-+ model + the export's commit. Ratings made earlier from Street View photos are marked stale and never used.
+the model's JSON output, the listed elements, the model ID, latency and cost are kept, in git-ignored files. Ratings
+made earlier from Street View photos or from the V0 export are marked stale and never used.
 """
 import base64
+import copy
+import hashlib
 import io
 import json
 import logging
 import os
-import random
 import re
 import threading
 import time
@@ -31,14 +38,19 @@ from PIL import Image, UnidentifiedImageError
 from tool.config import REPO_ROOT, get_key
 from tool.photos.mapillary import NotThisPhoto
 
-EXPORT_DIR = REPO_ROOT / "model" / "archive" / "app_v0"
+EXPORT_DIR = REPO_ROOT / "model" / "app_v9"
 log = logging.getLogger("sencity.api")
+
+# The files the app reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked, the
+# profile files too, though they are not read yet.
+FILES = ("system_instruction.txt", "task_template.txt", "schema_template.json", "elements.json", "model.json",
+         "presence_prompt.txt", "presence_schema.json")
+SENSES = ("sight", "hearing", "smell", "touch", "thermal", "balance_movement", "body_awareness", "inner_sensations")
 
 # What this app needs from model.json. A file that breaks a privacy rule is refused, whatever else it says.
 MODEL_RULES = {
     "type": "object",
-    "required": ["model", "provider", "temperature", "max_tokens", "reasoning", "input", "reasoning_position",
-                 "response_format", "image"],
+    "required": ["model", "provider", "temperature", "max_tokens", "reasoning", "input", "reasoning_position", "image"],
     "properties": {
         "model": {"type": "string", "minLength": 1, "not": {"pattern": ":free$"}},
         "provider": {
@@ -47,16 +59,13 @@ MODEL_RULES = {
             "properties": {"zdr": {"const": True}, "data_collection": {"const": "deny"}, "allow_fallbacks": {"const": False},
                            "only": {"type": "array", "minItems": 1, "items": {"type": "string"}}},
         },
+        "zero_data_retention": {"const": True},
+        "allow_fallbacks": {"const": False},
         "temperature": {"type": "number"},
         "max_tokens": {"type": "integer", "minimum": 1},
         "reasoning": {"type": ["object", "null"]},
         "input": {"type": "string"},
         "reasoning_position": {"enum": ["before", "after"]},
-        "response_format": {
-            "type": "object",
-            "required": ["type", "name", "strict"],
-            "properties": {"type": {"const": "json_schema"}, "name": {"type": "string"}, "strict": {"const": True}},
-        },
         "image": {
             "type": "object",
             "required": ["format", "mime_type", "encoding", "quality", "max_px"],
@@ -69,17 +78,30 @@ MODEL_RULES = {
 ELEMENT_RULES = {
     "type": "array",
     "minItems": 1,
-    "items": {"type": "object", "required": ["code", "en", "it", "sense", "kind"]},
+    "items": {"type": "object", "required": ["code", "n", "en", "it", "icon_key", "definition"],
+              "properties": {"code": {"type": "string", "pattern": "^[a-z_]+$"}, "n": {"type": "integer"},
+                             "en": {"type": "string", "minLength": 1}, "it": {"type": "string", "minLength": 1},
+                             "icon_key": {"enum": list(SENSES)}, "definition": {"type": "string", "minLength": 1},
+                             "also": {"type": "array", "items": {"enum": list(SENSES)}}}},
 }
-OUTPUT_FIELDS = ("B1_comfort", "B2_bothers", "B3_feels_good", "reasoning")
-# Where task_part_b.txt takes its option lists, and the option that always comes last (as in the study).
-OPTION_SLOTS = (("B2_bothers", " {bother options}"), ("B3_feels_good", " {feel-good options}"))
-NOTHING = "nothing"
+TEMPLATE_RULES = {
+    "type": "object",
+    "required": ["name", "strict", "schema"],
+    "properties": {"name": {"type": "string", "minLength": 1}, "strict": {"const": True}, "schema": {"type": "object"}},
+}
+PRESENCE_RULES = {**TEMPLATE_RULES, "required": [*TEMPLATE_RULES["required"], "temperature"],
+                  "properties": {**TEMPLATE_RULES["properties"], "temperature": {"type": "number"}}}
+OUTPUT_FIELDS = ("B1_comfort", "B2_marked", "B2_none", "reasoning")
+SLOT = "{ELEMENTS}"
+BOTHERS = ("unpleasant", "both")
+FEELS_GOOD = ("pleasant", "both")
+GENERAL = "general"  # the profile part of a rating key while there is no profile (the study's V0)
+CALLS_PER_PHOTO = 2  # presence + rating, for the cost estimate of photos left out by the cap
 FATAL_STATUSES = (401, 402, 403, 404)  # key, credit or endpoint: no use trying the next photo
 
 
 class ExportError(Exception):
-    """model/archive/app_v0/ cannot be used. The message says which file and why."""
+    """model/app_v9/ cannot be used. The message says which file and why."""
 
 
 class PredictionError(Exception):
@@ -98,26 +120,35 @@ class Export:
     system: str
     task: str
     anchors: tuple[str, str]  # the words of 1 and of 5, from the B1 line of the task
-    schema: dict
-    validator: Draft202012Validator
-    elements: dict  # code → the element as in elements.json
+    template: dict            # schema_template.json: name, strict, schema
+    presence_prompt: str
+    presence: dict            # presence_schema.json: name, strict, schema, temperature
+    elements: dict            # code → the element as in elements.json, in its order (n)
     model: dict
     commit: str
+    presence_version: str     # from the hashes of the presence files: a new presence rule is never answered from the cache
 
 
-def _text(folder: Path, name: str) -> str:
+def _read(folder: Path, name: str) -> bytes:
     try:
-        text = (folder / name).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        return (folder / name).read_bytes()
+    except OSError:
         raise ExportError(f"model/{folder.name}/{name} is missing or cannot be read.") from None
+
+
+def _text(folder: Path, name: str, data: bytes | None = None) -> str:
+    try:
+        text = (_read(folder, name) if data is None else data).decode("utf-8")
+    except UnicodeDecodeError:
+        raise ExportError(f"model/{folder.name}/{name} is not UTF-8 text.") from None
     if not text.strip():
         raise ExportError(f"model/{folder.name}/{name} is empty.")
     return text
 
 
-def _json(folder: Path, name: str):
+def _json(folder: Path, name: str, data: bytes):
     try:
-        return json.loads(_text(folder, name))
+        return json.loads(_text(folder, name, data))
     except json.JSONDecodeError as e:
         raise ExportError(f"model/{folder.name}/{name} does not parse: {e.msg} (line {e.lineno}).") from None
 
@@ -129,55 +160,96 @@ def _check(data, rules: dict, label: str) -> None:
         raise ExportError(f"{label}: {where}: {error.message}")
 
 
+def verified_files(folder: Path = EXPORT_DIR) -> tuple[dict, str, str]:
+    """({name: bytes} for FILES, the source commit, the presence version), after checking every file listed in
+    MANIFEST.md against its sha256. Raises ExportError on the first file that differs."""
+    manifest = _text(folder, "MANIFEST.md")
+    hashes = dict(re.findall(r"^- `([^`]+)`: ([0-9a-f]{64})\s*$", manifest, re.M))
+    unlisted = [n for n in FILES if n not in hashes]
+    if unlisted:
+        raise ExportError(f"MANIFEST.md has no sha256 for: {', '.join(unlisted)}.")
+    files = {}
+    for name, expected in hashes.items():
+        data = _read(folder, name)
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise ExportError(f"model/{folder.name}/{name} does not match its sha256 in MANIFEST.md. Export the folder "
+                              "again from the thesis repo.")
+        files[name] = data
+    commit = re.search(r"^- Source commit:\s*([0-9a-f]{7,40})\s*$", manifest, re.M)
+    if commit is None:
+        raise ExportError("MANIFEST.md has no \"- Source commit: <hash>\" line.")
+    presence = hashlib.sha256((hashes["presence_prompt.txt"] + hashes["presence_schema.json"]).encode()).hexdigest()
+    return files, commit.group(1), presence[:12]
+
+
+def _codes(schema: dict) -> list:
+    return schema["properties"]["B2_marked"]["items"]["properties"]["element"]["enum"]
+
+
 def load_export(folder: Path = EXPORT_DIR) -> Export:
     """Read and check the whole folder. Raises ExportError on the first problem."""
-    system = _text(folder, "system_instructions.txt")
-    task = _text(folder, "task_part_b.txt")
-    schema = _json(folder, "schema.json")
-    validate = _json(folder, "schema_validate.json")
-    elements = _json(folder, "elements.json")
-    model = _json(folder, "model.json")
-    manifest = _text(folder, "MANIFEST.md")
+    files, commit, presence_version = verified_files(folder)
+    system = _text(folder, "system_instruction.txt", files["system_instruction.txt"])
+    task = _text(folder, "task_template.txt", files["task_template.txt"])
+    template = _json(folder, "schema_template.json", files["schema_template.json"])
+    elements = _json(folder, "elements.json", files["elements.json"])
+    model = _json(folder, "model.json", files["model.json"])
+    presence_prompt = _text(folder, "presence_prompt.txt", files["presence_prompt.txt"])
+    presence = _json(folder, "presence_schema.json", files["presence_schema.json"])
 
     _check(model, MODEL_RULES, "model.json")
     _check(elements, ELEMENT_RULES, "elements.json")
+    _check(template, TEMPLATE_RULES, "schema_template.json")
+    _check(presence, PRESENCE_RULES, "presence_schema.json")
+    if model.get("pinned_endpoint", model["provider"]["only"]) != model["provider"]["only"]:
+        raise ExportError("model.json: pinned_endpoint and provider.only name different endpoints.")
     # The only input the folder can serve: the descriptions and their prompt are not part of the export.
     if model["input"] != "photo":
         raise ExportError(f"model.json asks for input \"{model['input']}\", but the export only has what is needed for "
                           "\"photo\": there is no describer model or prompt in it, so the app cannot build this request.")
-    commit = re.search(r"^- Source commit:\s*([0-9a-f]{7,40})\s*$", manifest, re.M)
-    if commit is None:
-        raise ExportError("MANIFEST.md has no \"- Source commit: <hash>\" line.")
-    for _field, slot in OPTION_SLOTS:
-        if task.count(slot) != 1:
-            raise ExportError(f"task_part_b.txt must contain \"{slot.strip()}\" exactly once.")
+    if task.count(SLOT) != 1:
+        raise ExportError(f"task_template.txt must contain \"{SLOT}\" exactly once.")
     anchors = re.search(r"^B1\..*\(1 = (.+?) … 5 = (.+?)\)\s*$", task, re.M)
     if anchors is None:
-        raise ExportError("task_part_b.txt has no B1 line with the scale, \"(1 = … … 5 = …)\".")
+        raise ExportError("task_template.txt has no B1 line with the scale, \"(1 = … … 5 = …)\".")
 
-    by_code = {e["code"]: e for e in elements}
-    position = 0 if model["reasoning_position"] == "before" else -1
-    for name, s in (("schema.json", schema), ("schema_validate.json", validate)):
-        try:
-            Draft202012Validator.check_schema(s)
-            props = list(s["properties"])
-            codes = [*s["properties"]["B2_bothers"]["items"]["enum"], *s["properties"]["B3_feels_good"]["items"]["enum"]]
-        except (SchemaError, KeyError, TypeError) as e:
-            raise ExportError(f"{name} is not the expected answer schema ({type(e).__name__}).") from None
-        if sorted(props) != sorted(OUTPUT_FIELDS):
-            raise ExportError(f"{name} must have exactly these fields: {', '.join(OUTPUT_FIELDS)}.")
-        # The reasoning order is the order of the properties in the schema: it is sent as it is in the file.
-        if props[position] != "reasoning":
-            raise ExportError(f"{name} does not match reasoning_position \"{model['reasoning_position']}\" in model.json.")
-        missing = sorted(set(codes) - set(by_code))
-        if missing:
-            raise ExportError(f"elements.json has no label for: {', '.join(missing)}.")
-    return Export(system, task, (anchors.group(1), anchors.group(2)), schema, Draft202012Validator(validate), by_code,
-                  model, commit.group(1))
+    by_code = {e["code"]: e for e in sorted(elements, key=lambda e: e["n"])}
+    codes = list(by_code)
+    if len(codes) != len(elements):
+        raise ExportError("elements.json lists a code twice.")
+    schema = template["schema"]
+    try:
+        Draft202012Validator.check_schema(schema)
+        props = list(schema["properties"])
+        template_codes = _codes(schema)
+    except (SchemaError, KeyError, TypeError) as e:
+        raise ExportError(f"schema_template.json is not the expected answer schema ({type(e).__name__}).") from None
+    if sorted(props) != sorted(OUTPUT_FIELDS):
+        raise ExportError(f"schema_template.json must have exactly these fields: {', '.join(OUTPUT_FIELDS)}.")
+    # The reasoning order is the order of the properties in the schema: it is sent as it is in the file.
+    if props[0 if model["reasoning_position"] == "before" else -1] != "reasoning":
+        raise ExportError(f"schema_template.json does not match reasoning_position \"{model['reasoning_position']}\" "
+                          "in model.json.")
+    if template_codes != codes:
+        raise ExportError("schema_template.json does not list the codes of elements.json, in its order.")
+    try:
+        Draft202012Validator.check_schema(presence["schema"])
+        presence_props = list(presence["schema"]["properties"])
+    except (SchemaError, KeyError, TypeError) as e:
+        raise ExportError(f"presence_schema.json is not the expected presence schema ({type(e).__name__}).") from None
+    if presence_props != codes or presence["schema"].get("required") != codes:
+        raise ExportError("presence_schema.json does not ask for every code of elements.json, in its order.")
+    missing = [c for c in codes if f"- {c} (" not in presence_prompt]
+    if missing:
+        raise ExportError(f"presence_prompt.txt does not list: {', '.join(missing)}.")
+    # The words of 1 and 5 in the app's style, "1 · not at all, …", as for 2 to 4.
+    low, high = (w[:1].lower() + w[1:] for w in anchors.groups())
+    return Export(system, task, (low, high), template, presence_prompt, presence, by_code, model, commit,
+                  presence_version)
 
 
 def encode_image(data: bytes, image: dict) -> str:
-    """The rule in model.json, in memory: an existing JPEG that already fits is sent unchanged; anything else is
+    """The image rule in model.json, in memory: an existing JPEG that already fits is sent unchanged; anything else is
     converted to RGB, scaled to fit and saved in the format and quality given."""
     try:
         with Image.open(io.BytesIO(data)) as pic:
@@ -195,36 +267,21 @@ def encode_image(data: bytes, image: dict) -> str:
     return f"data:{image['mime_type']};base64," + base64.b64encode(out).decode("ascii")
 
 
-def task_text(export: Export, seed: str) -> str:
-    """task_part_b.txt with its option lists filled in as the study does: "- code: English label", in an order
-    shuffled per question, with "nothing" last. The seed makes the order fixed for one photo."""
-    text = export.task
-    for field, slot in OPTION_SLOTS:
-        codes = export.schema["properties"][field]["items"]["enum"]
-        others = [c for c in codes if c != NOTHING]
-        random.Random(f"{seed}|{field}").shuffle(others)
-        ordered = others + [c for c in codes if c == NOTHING]
-        text = text.replace(slot, "".join(f"\n- {c}: {export.elements[c]['en']}" for c in ordered))
-    return text
-
-
-def build_request(export: Export, data_url: str, seed: str) -> dict:
-    """The OpenRouter request, exactly as model.json says and as the study builds it for V0: the system
-    instruction, then the task text followed by the image."""
+def _base(export: Export, temperature: float, data_url: str, text: str, fmt: dict, schema: dict, system=None) -> dict:
+    """What both calls share: the model and provider settings of model.json (pinned endpoint, zero retention, no
+    fallbacks), a strict JSON schema, and the user content as text then image."""
     m = export.model
-    fmt = m["response_format"]
+    messages = [{"role": "system", "content": system}] if system is not None else []
+    messages.append({"role": "user", "content": [{"type": "text", "text": text},
+                                                 {"type": "image_url", "image_url": {"url": data_url}}]})
     body = {
         "model": m["model"],
         "provider": m["provider"],
-        "temperature": m["temperature"],
+        "temperature": temperature,
         "max_tokens": m["max_tokens"],
-        "messages": [
-            {"role": "system", "content": export.system},
-            {"role": "user", "content": [{"type": "text", "text": task_text(export, seed)},
-                                         {"type": "image_url", "image_url": {"url": data_url}}]},
-        ],
-        "response_format": {"type": fmt["type"], "json_schema": {"name": fmt["name"], "strict": fmt["strict"],
-                                                                 "schema": export.schema}},
+        "messages": messages,
+        "response_format": {"type": "json_schema", "json_schema": {"name": fmt["name"], "strict": fmt["strict"],
+                                                                   "schema": schema}},
         "usage": {"include": True},
     }
     if m["reasoning"] is not None:
@@ -232,25 +289,82 @@ def build_request(export: Export, data_url: str, seed: str) -> dict:
     return body
 
 
+def build_presence_request(export: Export, data_url: str) -> dict:
+    """The presence call, as presence_schema.json says: the user message only (the prompt, then the photo), at its
+    own temperature, with the other settings of model.json."""
+    p = export.presence
+    return _base(export, p["temperature"], data_url, export.presence_prompt, p, p["schema"])
+
+
+def listed_from(export: Export, output: dict) -> list:
+    """The elements the presence call answered true, in elements.json order."""
+    return [c for c in export.elements if output.get(c) is True]
+
+
+def answer_schemas(export: Export, listed: list) -> tuple[dict, dict]:
+    """(the schema sent, the schema a reply must pass) for one photo. The element enum holds the listed codes
+    (schema_template.json, per_photo). With none listed, B2 takes no items and B2_none must be true (Elena)."""
+    sent = copy.deepcopy(export.template["schema"])
+    if listed:
+        sent["properties"]["B2_marked"]["items"]["properties"]["element"]["enum"] = list(listed)
+        return sent, sent
+    sent["properties"]["B2_marked"] = {"type": "array", "items": {"type": "string"}, "maxItems": 0}
+    check = copy.deepcopy(sent)
+    check["properties"]["B2_none"] = {"const": True}
+    return sent, check
+
+
+def task_text(export: Export, listed: list) -> str:
+    """task_template.txt with one line per listed element, as task_rules.json says: '- <code> (<en name>):
+    <definition>', in elements.json order. With none listed, the slot's line is left out."""
+    lines = "\n".join(f"- {c} ({export.elements[c]['en']}): {export.elements[c]['definition']}" for c in listed)
+    if lines:
+        return export.task.replace(SLOT, lines)
+    return export.task.replace(f"{SLOT}\n", "").replace(SLOT, "")
+
+
+def system_text(export: Export, profile: str | None = None) -> str:
+    """The system message: system_instruction.txt alone without a profile (the study's V0); with one, a blank line
+    and the filled profile after it (profile_rules.json, placement)."""
+    return export.system if not profile else f"{export.system.rstrip()}\n\n{profile}"
+
+
+def build_request(export: Export, data_url: str, listed: list, profile: str | None = None) -> dict:
+    """The rating call, as the study builds it: the system message, then the task text followed by the image, with
+    the answer schema for this photo's listed elements."""
+    sent, _check_schema = answer_schemas(export, listed)
+    return _base(export, export.model["temperature"], data_url, task_text(export, listed), export.template, sent,
+                 system=system_text(export, profile))
+
+
 def _short(text, limit: int = 200) -> str:
     text = " ".join(str(text or "").split())
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
-def problem_with(export: Export, output) -> str | None:
-    """Why an answer breaks schema_validate.json, or None when it is valid."""
-    error = next(export.validator.iter_errors(output), None)
+def problem_with(export: Export, listed: list, output) -> str | None:
+    """Why a rating breaks the answer schema for this photo, or None when it is valid."""
+    error = next(Draft202012Validator(answer_schemas(export, listed)[1]).iter_errors(output), None)
     return None if error is None else error.message
 
 
-def parse_reply(export: Export, text) -> tuple[dict | None, str | None]:
-    """(the answer, None), or (None, what is wrong with it)."""
+def presence_problem(export: Export, output) -> str | None:
+    error = next(Draft202012Validator(export.presence["schema"]).iter_errors(output), None)
+    return None if error is None else error.message
+
+
+def parse_reply(export: Export, listed: list, text) -> tuple[dict | None, str | None]:
+    """(the rating, None), or (None, what is wrong with it)."""
+    return _parse(text, lambda o: problem_with(export, listed, o))
+
+
+def _parse(text, problem) -> tuple[dict | None, str | None]:
     try:
         output = json.loads(text)
     except (TypeError, ValueError):
         return None, "not JSON"
-    problem = problem_with(export, output)
-    return (None, problem) if problem else (output, None)
+    found = problem(output)
+    return (None, found) if found else (output, None)
 
 
 def post_openrouter(body: dict, key: str, cfg: dict) -> dict:
@@ -282,25 +396,39 @@ def _reply_text(data: dict):
         return None
 
 
-# Cache: one JSON file, {key: {output, model, latency_ms, cost_usd}}. The key holds the model and the commit, so results
-# of another model or export are never found.
+# Two caches, each one JSON file. Ratings: {key: {output, listed, model, latency_ms, cost_usd}}; the key holds the
+# model, the export's commit and the profile, so results of another model, export or profile are never found.
+# Presence: {key: {present, model, latency_ms, cost_usd}}, per photo; the key holds the presence version.
 _cache_lock = threading.Lock()
 SOURCE = "mly"  # the photo source in every key; a key without it is a Street View rating, stale
 
 
-def cache_key(photo_id: str, heading: float, model: str, commit: str) -> str:
-    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|{commit}"
+def cache_key(photo_id: str, heading: float, model: str, commit: str, profile: str = GENERAL) -> str:
+    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|{commit}|{profile}"
+
+
+def presence_key(photo_id: str, heading: float, model: str, version: str) -> str:
+    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|presence {version}"
+
+
+def _stale_reason(key: str) -> str | None:
+    if not key.startswith(f"{SOURCE}:"):
+        return "streetview photo: the app now rates the Mapillary photo it shows"
+    if key.count("|") == 3:  # photo|heading|model|commit: no profile part, so made from the V0 export
+        return "V0 export: the app now rates with the v9 export"
+    return None
 
 
 def mark_stale(path: Path) -> int:
-    """Mark every rating made from a Street View photo as stale (Elena, 2026-11-11): kept for the record, never used
-    again. Returns how many were newly marked."""
+    """Mark every rating made from a Street View photo (Elena, 2026-11-11) or from the V0 export (2026-11-14) as
+    stale: kept for the record, never used again. Returns how many were newly marked."""
     with _cache_lock:
         data = _read_cache(path)
         n = 0
         for key, entry in data.items():
-            if not key.startswith(f"{SOURCE}:") and isinstance(entry, dict) and not entry.get("stale"):
-                entry["stale"] = "streetview photo: the app now rates the Mapillary photo it shows"
+            reason = _stale_reason(key)
+            if reason and isinstance(entry, dict) and not entry.get("stale"):
+                entry["stale"] = reason
                 n += 1
         if n:
             try:
@@ -334,13 +462,27 @@ def _save_cache(path: Path, key: str, entry: dict) -> None:
             log.warning("senses: cache not written: %s", type(e).__name__)
 
 
+def element_view(export: Export, code: str) -> dict:
+    """An element as the app shows it: its labels, and the icon of its main sense. The other senses are kept as data."""
+    e = export.elements[code]
+    return {"code": code, "n": e["n"], "en": e["en"], "it": e["it"], "icon_key": e["icon_key"], "also": e.get("also", [])}
+
+
 def _view(export: Export, entry: dict, cached: bool) -> dict:
     output = entry["output"]
+    answers = {}
+    for mark in output["B2_marked"]:
+        answers.setdefault(mark["element"], set()).add(mark["answer"])
+
+    def having(kinds):
+        return [element_view(export, c) for c in export.elements if answers.get(c, set()) & set(kinds)]
+
     return {
         "comfort": output["B1_comfort"],
         "anchors": list(export.anchors),
-        "bothers": [export.elements[c] for c in output["B2_bothers"]],
-        "feels_good": [export.elements[c] for c in output["B3_feels_good"]],
+        "bothers": having(BOTHERS),
+        "feels_good": having(FEELS_GOOD),
+        "listed": list(entry["listed"]),
         "reason": output["reasoning"],
         "model": entry["model"],
         "latency_ms": entry["latency_ms"],
@@ -360,35 +502,63 @@ def _api_key() -> str:
 class Plan:
     """What one rating request will do: the cached photos answer at once, the first `cap` new ones are rated."""
     export: Export
-    cached: list  # [(photo_id, heading, cache entry)]
-    to_rate: list  # [(photo_id, heading)], in the order asked (nearest first)
+    cached: list    # [(photo_id, heading, cache entry)]
+    to_rate: list   # [(photo_id, heading)], in the order asked (nearest first)
     remaining: int  # new photos left out by the cap
+    presence: dict  # (photo_id, heading) → the cached listed elements, for photos to rate whose presence is known
     api_key: str | None
 
 
 def plan_rating(photos: list, cfg: dict) -> Plan:
     """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError."""
     export = load_export()
+    model = export.model["model"]
     with _cache_lock:
         cache = _read_cache(REPO_ROOT / cfg["cache_file"])
+        presence_cache = _read_cache(REPO_ROOT / cfg["presence_cache_file"])
     cached, new, seen = [], [], set()
     for photo_id, heading in photos:
-        key = cache_key(photo_id, heading, export.model["model"], export.commit)
+        key = cache_key(photo_id, heading, model, export.commit)
         if key in seen:
             continue
         seen.add(key)
         hit = cache.get(key)
-        if isinstance(hit, dict) and not hit.get("stale") and problem_with(export, hit.get("output")) is None:
+        if (isinstance(hit, dict) and not hit.get("stale") and isinstance(hit.get("listed"), list)
+                and set(hit["listed"]) <= set(export.elements) and problem_with(export, hit["listed"], hit.get("output")) is None):
             cached.append((photo_id, heading, hit))
         else:
             new.append((photo_id, heading))
     cap = cfg["cap_photos"]
-    return Plan(export, cached, new[:cap], max(0, len(new) - cap), _api_key() if new else None)
+    to_rate = new[:cap]
+    known = {}
+    for photo_id, heading in to_rate:
+        hit = presence_cache.get(presence_key(photo_id, heading, model, export.presence_version))
+        if isinstance(hit, dict) and isinstance(hit.get("present"), list) and set(hit["present"]) <= set(export.elements):
+            known[(photo_id, heading)] = [c for c in export.elements if c in hit["present"]]
+    return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None)
+
+
+def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
+    """One call, retried once if the reply is not valid. Every cost goes in `costs`. The reply is shortened in the
+    error, never logged."""
+    text = None
+    for _ in range(2):
+        data = post_openrouter(body, key, cfg)
+        costs += [c for c in [(data.get("usage") or {}).get("cost")] if c is not None]
+        text = _reply_text(data)
+        output, _problem = parse(text)
+        if output is not None:
+            return output
+    log.warning("senses: invalid %s reply after the retry", what)
+    raise PredictionError(502, f"The model's {what} answer was not valid, twice, so nothing is shown. "
+                               f"It said: \"{_short(text)}\"", cost=sum(costs))
 
 
 def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> dict:
-    """One photo: the picture from Mapillary (in memory only), then the model. An invalid reply is retried once."""
+    """One photo: the picture from Mapillary (in memory only), the presence call unless its result is cached, then
+    the rating call. An invalid reply is retried once, for each call."""
     export = plan.export
+    model = export.model["model"]
     started = time.perf_counter()
     try:
         image = provider.fetch_image(photo_id, heading)
@@ -397,21 +567,29 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
     except (requests.RequestException, UnidentifiedImageError, OSError, ValueError) as e:
         log.warning("senses: photo failed: %s", type(e).__name__)
         raise PredictionError(502, "The street photo could not be loaded.") from None
-    body = build_request(export, encode_image(image, export.model["image"]),
-                         cache_key(photo_id, heading, export.model["model"], export.commit))
-    costs, text = [], None
-    for _ in range(2):
-        data = post_openrouter(body, plan.api_key, cfg)
-        costs += [c for c in [(data.get("usage") or {}).get("cost")] if c is not None]
-        text = _reply_text(data)
-        output, _problem = parse_reply(export, text)
-        if output is not None:
-            return {"output": output, "model": export.model["model"],
-                    "latency_ms": round((time.perf_counter() - started) * 1000),
-                    "cost_usd": sum(costs) if costs else None}
-    log.warning("senses: invalid reply after the retry")
-    raise PredictionError(502, f"The model's answer was not valid, twice, so nothing is shown. It said: \"{_short(text)}\"",
-                          cost=sum(costs))
+    data_url = encode_image(image, export.model["image"])
+    costs = []
+
+    listed = plan.presence.get((photo_id, heading))
+    if listed is None:
+        presence_started = time.perf_counter()
+        output = _ask(build_presence_request(export, data_url), plan.api_key, cfg,
+                      lambda t: _parse(t, lambda o: presence_problem(export, o)), costs, "presence")
+        listed = listed_from(export, output)
+        _save_cache(REPO_ROOT / cfg["presence_cache_file"],
+                    presence_key(photo_id, heading, model, export.presence_version),
+                    {"present": listed, "model": model,
+                     "latency_ms": round((time.perf_counter() - presence_started) * 1000),
+                     "cost_usd": sum(costs) if costs else None})
+
+    try:
+        output = _ask(build_request(export, data_url, listed), plan.api_key, cfg,
+                      lambda t: parse_reply(export, listed, t), costs, "rating")
+    except PredictionError as e:
+        e.cost = sum(costs)
+        raise
+    return {"output": output, "listed": listed, "model": model,
+            "latency_ms": round((time.perf_counter() - started) * 1000), "cost_usd": sum(costs) if costs else None}
 
 
 def rate_events(plan: Plan, cfg: dict, provider):
@@ -458,4 +636,4 @@ def rate_events(plan: Plan, cfg: dict, provider):
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)
     yield {"type": "done", "seconds": round(time.perf_counter() - started, 1), "failed": failed, "remaining": plan.remaining,
-           "estimate_usd": round(plan.remaining * cfg["estimate_call_usd"], 4)}
+           "estimate_usd": round(plan.remaining * CALLS_PER_PHOTO * cfg["estimate_call_usd"], 4)}

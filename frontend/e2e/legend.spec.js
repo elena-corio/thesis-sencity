@@ -6,7 +6,7 @@
 import { expect, test } from '@playwright/test'
 import { WITH_3, analyseCentre, chooseLayer, mapIdle, markRatingMocked, mockArea, mockRoutes, openMap, openRoutes, openSegment, routeClicks } from './helpers.js'
 
-const el = (code, en, sense) => ({ code, en, it: en, sense, kind: null })
+const el = (code, n, en, icon_key) => ({ code, n, en, it: en, icon_key, also: [] })
 /** Ratings for every photo: easy, mixed and hard in turn. */
 async function mockRatings(page) {
   markRatingMocked(page)
@@ -14,8 +14,8 @@ async function mockRatings(page) {
     const { photos } = route.request().postDataJSON()
     const lines = [{ type: 'start', model: 'test', cached: photos.length, to_rate: 0, remaining: 0 },
       ...photos.map((p, i) => ({ type: 'photo', ...p, status: 'ok', cached: true, result: {
-        comfort: [5, 3, 2][i % 3], anchors: ['not at all', 'very much'], bothers: [el('traffic_trams_crowds', 'Traffic, trams, crowds (hearing)', 'hearing')],
-        feels_good: [el('shade', 'Shade (thermal)', 'thermal')], reason: 'Test.', model: 'test', latency_ms: 1, cost_usd: null, cached: true } })),
+        comfort: [5, 3, 2][i % 3], anchors: ['not at all', 'very much'], bothers: [el('traffic_trams', 5, 'Traffic, trams', 'hearing')],
+        feels_good: [el('shade', 11, 'Shade from trees or buildings', 'thermal')], reason: 'Test.', model: 'test', latency_ms: 1, cost_usd: null, cached: true } })),
       { type: 'done', seconds: 0, failed: 0, remaining: 0, estimate_usd: 0 }]
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   })

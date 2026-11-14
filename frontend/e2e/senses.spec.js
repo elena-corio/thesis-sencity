@@ -3,9 +3,9 @@ import { AREA, WITH_3, analyseCentre, chooseLayer, layoutProblems, mapIdle, mark
 
 // The model is mocked: these checks never call OpenRouter or Mapillary.
 const anchors = ['not at all, too much for my senses', 'very much']
-const el = (code, en, sense) => ({ code, en, it: en, sense, kind: null })
-const TRAFFIC = el('traffic_trams_crowds', 'Traffic, trams, crowds (hearing)', 'hearing')
-const SHADE = el('shade', 'Shade from trees, pergolas or buildings (thermal)', 'thermal')
+const el = (code, n, en, icon_key) => ({ code, n, en, it: en, icon_key, also: [] })
+const TRAFFIC = el('traffic_trams', 5, 'Traffic, trams', 'hearing')
+const SHADE = el('shade', 11, 'Shade from trees or buildings', 'thermal')
 const result = (comfort) => ({
   comfort, anchors, bothers: [TRAFFIC], feels_good: [SHADE],
   reason: 'The trees give shade and the facades are pleasant, but the road carries steady traffic.',
@@ -135,8 +135,8 @@ test.describe('Senses mode', () => {
     await openSegment(page, WITH_3.properties.id)
     const card = page.locator('[data-panel="place-card"]')
     await expect(card).toContainText('Easy · 4 · fairly comfortable')
-    await expect(card).toContainText('Traffic, trams, crowds')
-    await expect(card).not.toContainText('(hearing)') // the sense is the icon
+    await expect(card).toContainText('Traffic, trams')
+    await expect(card.locator('.sense-item[data-sense="hearing"] [role="img"]')).toHaveAttribute('aria-label', 'hearing') // the sense is the icon
     await expect(card.getByRole('img', { name: 'hearing' })).toBeVisible()
     await expect(card).toContainText('The trees give shade')
     await expect(card).toContainText('Based on 3 photos')

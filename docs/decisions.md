@@ -2,13 +2,27 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – Senses rates with the v9 export: an automatic presence step, then the study's task (accepted)
+**Context.** Elena: switch the app to v9 now, before the profile builder. The v9 task and schema list only the elements present in each photo; in the study a person confirmed those lists, and the app has nobody to do that.
+**Decision.**
+- *Hash check (Elena):* every file in `model/app_v9/` is checked against its sha256 in the MANIFEST on every request; if one differs, nothing is sent. `.gitattributes` marks `model/**` as `-text` so a checkout never changes the bytes (proposed).
+- *Presence step (Elena):* one call per photo with `presence_prompt.txt` and `presence_schema.json` as exported (user message only, temperature 0, strict), on the same model, pinned EU endpoint, zero retention and no fallbacks as `model.json`. The elements answered true are the photo's list. Cached per photo (Mapillary image + heading + model + a version from the presence files' hashes), apart from the ratings, so a new export commit or a profile asks only the rating again.
+- *Rating (Elena):* `task_template.txt` with one line per listed element, `schema_template.json` with the element enum set to that list, both as `task_rules.json` and its `per_photo` say. No shuffling: v9 lists elements in `elements.json` order.
+- *Nothing detected (Elena):* B2 takes no items (`maxItems: 0`) and a reply must have `B2_none: true`, else it is retried once. The task's element line is left out rather than left empty (proposed).
+- *No profile (Elena):* the system message is `system_instruction.txt` alone, the study's V0 (no profile, no examples). The UI wording stays: "General prediction: not yet personal". The rating key ends in `|general`, ready for a profile hash.
+- *Results (proposed):* "unpleasant" and "both" go to Might bother, "pleasant" and "both" to Might feel good, in `elements.json` order. The B1 words of 1 and 5 keep the app's lower-case style ("1 · not at all, too much for my senses").
+- *Icons and rows (Elena):* the icon is the element's `icon_key` (main sense); the cards show one row per main sense, in the survey's sense order, with its elements in codebook order joined by " · " (proposed); `also` is sent and kept for later. The sense names (the icon's tooltip and screen-reader name) are the words of the V0 labels, since v9 gives only the key (proposed).
+- *Cache (Elena):* V0 ratings (keys with no profile part) are marked stale, as the Street View ones were; a cached rating with codes not in v9 is rated again. The 14 V0 codes are gone from the frontend and the tests.
+
+**Consequences.** **A difference from the study:** the element lists are the model's, not confirmed by a person. The thesis repo's check (D150, the 20 study photos, untuned) found 91.7% agreement with the confirmed lists, 96% of confirmed elements found and 82% of the model's elements confirmed: the app's lists run about 18% long (mostly Direct sun, Shade, Nice buildings), and Crowds was missed on 3 of 20 photos. A rating can only name a listed element, so a missed element is never shown. Each new photo now takes two paid calls instead of one. Whether the endpoint accepts `maxItems: 0` in strict mode is not yet tried with a real call. Future work: people review the automatic lists.
+
 ## 2026-11-14 – The v9 export is added; the V0 export is archived and still in use (accepted)
 **Context.** Elena: import the survey v9 export from the thesis repo. Its files are not a drop-in replacement for V0 (other file names, 20 elements instead of 17 with new codes, a per-photo element list, a profile template), so the switch needs code and is done in steps.
 **Decision.**
 - *Check (Elena):* every file in `model/app_v9/` matched its sha256 in the MANIFEST before it was added.
-- *Archive (Elena):* `model/app_v0/` moved to `model/archive/app_v0/`, unchanged. The app keeps reading it from there (`EXPORT_DIR` in `backend/app/senses.py`) until the switch.
+- *Archive (Elena):* `model/app_v0/` moved to `model/archive/app_v0/`, unchanged. The app read it from there until the switch (entry above).
 - *Presence files (Elena):* re-exported the same day (source commit ed963d2) with `presence_prompt.txt` and `presence_schema.json`, the study's presence rule for the automatic element list in step 2. All 11 hashes matched the new MANIFEST; the other 9 files are unchanged. The presence prompt's element lines and the schema's codes match `elements.json` in order and wording.
-- *Order (Elena):* step 1 this import; step 3 the profile builder, as the in-app onboarding; step 2 the switch of the Senses rating to v9 after it.
+- *Order (Elena):* step 1 this import; then the switch of the Senses rating to v9 (moved ahead the same day); then the profile builder, as the in-app onboarding.
 **Consequences.** No change in what the app sends or shows. `model/app_v9/` is in the repo but not read yet.
 
 ## 2026-11-11 – The legend is in the right card, straight after the bar (accepted)

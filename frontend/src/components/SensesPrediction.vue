@@ -3,7 +3,7 @@
 // be rated (with Retry), or the rating on its 1–5 bar, what might bother and feel good with sense icons, and the
 // model's explanation of the photo shown. Model text is shown as text only.
 import { computed } from 'vue'
-import { GENERAL_LABEL, comfortLabel, levelWord } from '../lib/senses.js'
+import { GENERAL_LABEL, bySense, comfortLabel, levelWord } from '../lib/senses.js'
 import AppIcon from './AppIcon.vue'
 import SenseItem from './SenseItem.vue'
 
@@ -18,8 +18,8 @@ const props = defineProps({
 })
 defineEmits(['retry'])
 const lists = computed(() => [
-  { title: 'Might bother', kind: 'bother', items: props.place.bothers },
-  { title: 'Might feel good', kind: 'good', items: props.place.feelsGood },
+  { title: 'Might bother', kind: 'bother', rows: bySense(props.place.bothers) },
+  { title: 'Might feel good', kind: 'good', rows: bySense(props.place.feelsGood) },
 ])
 const reason = computed(() => (props.shown?.status === 'ok' ? props.shown.result.reason : props.place.reason))
 const basedOn = computed(() => {
@@ -61,8 +61,8 @@ const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.sta
 
     <section v-for="l in lists" :key="l.kind" class="list">
       <h3>{{ l.title }}</h3>
-      <ul v-if="l.items.length" :class="l.kind">
-        <SenseItem v-for="e in l.items" :key="e.code" :element="e" :kind="l.kind" />
+      <ul v-if="l.rows.length" :class="l.kind">
+        <SenseItem v-for="r in l.rows" :key="r.sense" :row="r" :kind="l.kind" />
       </ul>
       <p v-else class="muted">Nothing named in enough of the photos.</p>
     </section>

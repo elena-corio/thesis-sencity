@@ -204,13 +204,14 @@ api:
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
     rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)
-  senses:                        # model settings are NOT here: they come only from model/archive/app_v0/
+  senses:                        # model settings are NOT here: they come only from model/app_v9/
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60
     cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
+    presence_cache_file: runs/senses/presence.json  # the elements listed per photo by the presence call (no images)
     concurrency: 4               # photos rated at the same time
     route_candidates: 4          # ways rated for a Senses route, the shortest included; B is the easiest of them
     cap_photos: 250              # new photos per run; above this the app asks first, with the estimated cost
-    estimate_call_usd: 0.001     # one model call, only for that estimate
+    estimate_call_usd: 0.001     # one model call, only for that estimate (a new photo takes two: presence + rating)
     max_photos_per_request: 3000 # a longer list is refused
     runs_per_hour: 30            # runs with new photos, per IP
