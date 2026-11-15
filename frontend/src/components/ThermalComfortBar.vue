@@ -11,7 +11,7 @@ import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   limits: { type: Object, required: true },
-  /** A start was moved by hand: Reset shows. */
+  /** A start was moved by hand: Reset works (it is shown either way). */
   moved: Boolean,
 })
 const emit = defineEmits(['move', 'reset'])
@@ -71,7 +71,9 @@ function key(side, e) {
   <div class="thermal-comfort" data-testid="thermal-comfort">
     <div class="card-head">
       <h3 id="thermal-comfort-title">Temperature that feels comfortable to you</h3>
-      <button v-if="moved" type="button" class="link" @click="emit('reset')">Reset</button>
+      <!-- Always there (Elena: it disappeared); it does something once a limit was moved by hand. -->
+      <button type="button" class="link" :disabled="!moved" :title="moved ? 'Back to the values from your answers' : 'Already the values from your answers'"
+              @click="emit('reset')">Reset</button>
     </div>
     <div class="row">
       <AppIcon name="snowflake" class="end" aria-hidden="true" />
@@ -104,6 +106,7 @@ p { margin: 0; }
 .card-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); }
 .card-head h3 { flex: 1; margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }
 .link { border: 0; background: none; padding: var(--space-2) 0; min-height: var(--touch); color: var(--text-2); text-decoration: underline; font-size: var(--fs-sm); }
+.link:disabled { opacity: var(--inactive-opacity); text-decoration: none; }
 .row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: var(--space-3); padding-top: var(--space-2); }
 .end { color: var(--text-2); justify-self: center; }
 /* The place card's bar: thin, rounded, the comfort colours blending (PlaceCard .track). */

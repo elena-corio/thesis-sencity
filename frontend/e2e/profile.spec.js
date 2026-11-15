@@ -159,6 +159,8 @@ test.describe('your sensory profile', () => {
     await expect(tc.locator('[data-tick]')).toHaveCount(4)
     const hot = tc.locator('[data-handle="heat"]')
     await expect(hot).toHaveAttribute('aria-valuenow', '23')
+    // Reset is always there; it works once a limit was moved by hand.
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeDisabled()
     const size = await hot.boundingBox()
     expect(size.width).toBeGreaterThanOrEqual(44)
     expect(size.height).toBeGreaterThanOrEqual(44)
@@ -183,6 +185,8 @@ test.describe('your sensory profile', () => {
     await tc.getByRole('button', { name: 'Reset' }).click()
     await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 23 °C')
     expect((await saved(page)).thermal).toBe(null)
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeVisible()
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeDisabled()
     // Dragging the start of cold.
     const track = await tc.locator('.track').boundingBox()
     const cold = tc.locator('[data-handle="cold"]')
