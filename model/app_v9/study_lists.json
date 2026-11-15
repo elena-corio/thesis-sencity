@@ -1,0 +1,287 @@
+{
+  "source": "config/codebook_2026-11-12.yaml (sha 91b6f48a684a)",
+  "rules": {
+    "elements": "the confirmed list: the elements the study offered for this photo (B2) and the task text lists (task_template.txt)",
+    "visible_not_listed": "visible in the photo but not offered in the study: treat as not offered, not as absent (excluded from presence comparison and B2 analysis)"
+  },
+  "places": [
+    {
+      "place": 1,
+      "photo": "place01",
+      "elements": [
+        "greenery_trees",
+        "signs_ads",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "steps_slopes"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 2,
+      "photo": "place02",
+      "elements": [
+        "signs_ads",
+        "traffic_trams",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 3,
+      "photo": "place03",
+      "elements": [
+        "greenery_trees",
+        "fountains_water",
+        "grass_soil",
+        "open_space",
+        "car_free",
+        "seats"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 4,
+      "photo": "place04",
+      "elements": [
+        "signs_ads",
+        "food_stalls_cafes",
+        "asphalt_stone_concrete",
+        "shade",
+        "car_free",
+        "crowds",
+        "narrow_shared",
+        "drinking_fountains_toilets"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 5,
+      "photo": "place05",
+      "elements": [
+        "greenery_trees",
+        "nice_buildings",
+        "fountains_water",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "open_space",
+        "car_free"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 6,
+      "photo": "place06",
+      "elements": [
+        "greenery_trees",
+        "trash_bins",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 7,
+      "photo": "place07",
+      "elements": [
+        "traffic_trams",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "narrow_shared"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 8,
+      "photo": "place08",
+      "elements": [
+        "greenery_trees",
+        "grass_soil",
+        "asphalt_stone_concrete",
+        "open_space",
+        "car_free",
+        "seats"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 9,
+      "photo": "place09",
+      "elements": [
+        "nice_buildings",
+        "signs_ads",
+        "food_stalls_cafes",
+        "asphalt_stone_concrete",
+        "shade",
+        "open_space",
+        "car_free",
+        "crowds",
+        "drinking_fountains_toilets"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 10,
+      "photo": "place10",
+      "elements": [
+        "greenery_trees",
+        "fountains_water",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun",
+        "open_space",
+        "car_free",
+        "crowds",
+        "seats"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 11,
+      "photo": "place11",
+      "elements": [
+        "nice_buildings",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 12,
+      "photo": "place12",
+      "elements": [
+        "greenery_trees",
+        "grass_soil",
+        "asphalt_stone_concrete",
+        "shade",
+        "car_free",
+        "narrow_shared"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 13,
+      "photo": "place13",
+      "elements": [
+        "fountains_water",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "open_space",
+        "heights_bridges",
+        "narrow_shared"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 14,
+      "photo": "place14",
+      "elements": [
+        "greenery_trees",
+        "nice_buildings",
+        "signs_ads",
+        "plants_flowers",
+        "food_stalls_cafes",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun",
+        "car_free"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 15,
+      "photo": "place15",
+      "elements": [
+        "greenery_trees",
+        "plants_flowers",
+        "food_stalls_cafes",
+        "asphalt_stone_concrete",
+        "shade",
+        "direct_sun",
+        "open_space",
+        "car_free",
+        "seats"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 16,
+      "photo": "place16",
+      "elements": [
+        "greenery_trees",
+        "signs_ads",
+        "grass_soil",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "open_space"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 17,
+      "photo": "place17",
+      "elements": [
+        "greenery_trees",
+        "nice_buildings",
+        "signs_ads",
+        "traffic_trams",
+        "asphalt_stone_concrete",
+        "open_space"
+      ],
+      "visible_not_listed": [
+        "shade",
+        "direct_sun"
+      ]
+    },
+    {
+      "place": 18,
+      "photo": "place18",
+      "elements": [
+        "greenery_trees",
+        "nice_buildings",
+        "plants_flowers",
+        "asphalt_stone_concrete",
+        "shade",
+        "heights_bridges",
+        "car_free",
+        "steps_slopes"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 19,
+      "photo": "place19",
+      "elements": [
+        "greenery_trees",
+        "nice_buildings",
+        "signs_ads",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "open_space",
+        "car_free",
+        "crowds"
+      ],
+      "visible_not_listed": []
+    },
+    {
+      "place": 20,
+      "photo": "place20",
+      "elements": [
+        "greenery_trees",
+        "signs_ads",
+        "plants_flowers",
+        "food_stalls_cafes",
+        "asphalt_stone_concrete",
+        "direct_sun",
+        "open_space",
+        "car_free",
+        "seats"
+      ],
+      "visible_not_listed": []
+    }
+  ]
+}
