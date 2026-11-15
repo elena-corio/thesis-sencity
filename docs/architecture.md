@@ -132,7 +132,7 @@ flowchart LR
 | `src/components/ProfileOnboarding.vue` | Boards 4, P4: one question group per screen, progress, Back and Next (never disabled: with an answer missing it says so and goes there), Skip for now (answers kept) or, when editing, Cancel and Save changes |
 | `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
 | `src/components/ProfileSummary.vue` | Board 5: the radar, the answers (folded) with Edit; in the right card overall sensory comfort (A11) as a gradient bar, your words, the strongest elements, the profile text, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
-| `src/components/ProfileRadar.vue` | Board 5: the radar of the eight senses (onboarding order, icons, rings 1–5): what bothers you (pink) and what feels good (cyan), a gap where a sense has no answers; tapping a sense lists its elements; legend |
+| `src/components/ProfileRadar.vue` | Board 5: the radar of the eight senses (onboarding order, icons, rings 1–5): what bothers you (pink) and what feels good (cyan), a gap where a sense has no answers; tapping a sense lists its elements in a card next to it; legend |
 | `src/components/ProfileEmpty.vue` | Board 5b: no profile yet, Create your profile, import, the dev-only test profile |
 | `src/components/DeleteProfileDialog.vue` | Board 5c: alert dialog, focus on Cancel, Download a copy first, Delete everything |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |

@@ -18,7 +18,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Decision (Elena).**
 - *Axes:* the 8 senses in the onboarding order (the main sense of each grid row, A12 then A13), icons instead of names, circular rings 1–5.
 - *Values:* each element counts only for its main sense (`icon_key` in `elements.json`). Per sense: *what bothers you* (pink) = 6 − its lowest answer, *what feels good* (cyan) = its highest answer, both 1–5; all "neither" is 3 and 3. Both shapes solid and filled. A sense with no answers is a gap (the line breaks there, no fill).
-- *Reading it:* tapping a sense (its icon or its slice) lists its elements with their answers, under the radar; "Show as a list" gives every sense as text; legend "What bothers you", "What feels good" (board 5). A11 is not on the radar; A16 stays in the right card, "In your words".
+- *Reading it:* tapping a sense (its icon or its slice) lists its elements with their answers in a small card next to it (first under the radar, where on a laptop it fell below the screen and tapping seemed to do nothing; Elena: "tap a sense does not work for me"); tapping again, elsewhere, or Esc closes it; "Tap a sense to see its elements." under the legend; "Show as a list" gives every sense as text; legend "What bothers you", "What feels good" (board 5). A11 is not on the radar; A16 stays in the right card, "In your words".
 - *Source:* the stored answers only, no model call; it follows every edit at once.
 
 ## 2026-11-15 – The onboarding and the profile screen (proposed)

@@ -136,8 +136,19 @@ test.describe('your sensory profile', () => {
     const detail = radar.getByTestId('radar-detail')
     await expect(detail).toContainText('Fountains, water5 · very pleasant')
     await expect(detail).toContainText('Traffic, trams1 · very unpleasant')
+    await expect(detail).toBeInViewport() // next to the sense, not under the chart
     await radar.locator('.radar').scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'e2e/screens/profile-radar-dark.png' })
+    // Esc closes it and focus goes back to the sense; a tap elsewhere closes it too; tapping inside a slice opens it.
+    await page.keyboard.press('Escape')
+    await expect(detail).toHaveCount(0)
+    await expect(radar.locator('button[data-sense="hearing"]')).toBeFocused()
+    const box = await radar.locator('.radar').boundingBox()
+    await page.mouse.click(box.x + box.width / 2 - box.width * 0.18, box.y + box.height / 2 + box.height * 0.18) // balance and movement's slice
+    await expect(detail).toContainText('Balance and movement')
+    await expect(detail).toBeInViewport()
+    await summary.getByRole('heading', { name: 'This is how you sense the city' }).click()
+    await expect(detail).toHaveCount(0)
     await expect(radar.locator('button[data-sense="inner_sensations"]')).toHaveAttribute('aria-label', 'Internal sensations: bothers you 3, feels good 5')
     await page.screenshot({ path: 'e2e/screens/profile-summary-dark.png' })
   })

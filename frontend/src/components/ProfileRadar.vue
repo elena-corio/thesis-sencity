@@ -4,7 +4,7 @@
 // feels good (cyan), 1–5 (lib/profile.js senseScores); a sense with no answers is a gap. Tapping a sense (its icon or
 // its slice) lists its elements with their answers; each icon names its sense and both values. Computed from the stored
 // answers only, so it changes as soon as an answer is edited; no model call.
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import config from '../config.js'
 import { senseScores } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
@@ -52,13 +52,35 @@ const name = (sense) => { const n = senseName(sense); return n[0].toUpperCase() 
 const both = (s) => (s.bothers == null ? 'no answers' : `bothers you ${s.bothers}, feels good ${s.good}`)
 const answerText = (e) => `${e.value} · ${scale.value[e.value - 1]}`
 const pick = (sense) => { selected.value = selected.value === sense ? null : sense }
+
+// The card next to the tapped sense: under it for the upper half, above it for the lower half.
+const pickedIndex = computed(() => scores.value.findIndex((s) => s.sense === selected.value))
+const popBelow = computed(() => pickedIndex.value >= 0 && at(pickedIndex.value, ICON_R)[1] <= 1)
+const popStyle = computed(() => (pickedIndex.value < 0 ? {} : place(pickedIndex.value)))
+const block = ref(null)
+function onOutside(e) {
+  if (block.value && !block.value.contains(e.target)) selected.value = null
+}
+function onKey(e) {
+  if (e.key !== 'Escape' || !selected.value) return
+  e.stopPropagation()
+  const sense = selected.value
+  selected.value = null
+  block.value?.querySelector(`button[data-sense="${sense}"]`)?.focus()
+}
+watch(selected, (s) => {
+  document.removeEventListener('pointerdown', onOutside, true)
+  if (s) document.addEventListener('pointerdown', onOutside, true)
+})
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside, true))
 </script>
 
 <template>
-  <figure class="radar-block" data-testid="profile-radar">
+  <figure ref="block" class="radar-block" data-testid="profile-radar" @keydown="onKey">
     <p class="legend">
       <span><i class="swatch bothers" aria-hidden="true" />What bothers you</span>
       <span><i class="swatch good" aria-hidden="true" />What feels good</span>
+      <span class="muted hint">Tap a sense to see its elements.</span>
     </p>
 
     <div class="radar">
@@ -73,14 +95,15 @@ const pick = (sense) => { selected.value = selected.value === sense ? null : sen
       </svg>
       <button v-for="(s, i) in scores" :key="`i${s.sense}`" type="button" class="icon" :class="{ on: selected === s.sense, gap: s.bothers == null }"
               :style="place(i)" :data-sense="s.sense" :aria-label="`${name(s.sense)}: ${both(s)}`"
-              :aria-expanded="selected === s.sense" aria-controls="radar-detail" @click="pick(s.sense)">
+              :aria-expanded="selected === s.sense" :aria-controls="selected === s.sense ? 'radar-detail' : undefined" @click="pick(s.sense)">
         <SenseIcon :sense="s.sense" />
       </button>
-    </div>
-
-    <div id="radar-detail" class="detail" aria-live="polite" data-testid="radar-detail">
-      <template v-if="picked">
-        <p class="detail-title"><strong>{{ name(picked.sense) }}</strong> · {{ both(picked) }}</p>
+      <!-- Next to the sense tapped, so it shows where you look (Elena: tapping seemed to do nothing when the list was
+           under the chart, below the screen). -->
+      <div v-if="picked" id="radar-detail" class="pop" :class="{ below: popBelow }" :style="popStyle" role="region"
+           :aria-label="name(picked.sense)" data-testid="radar-detail">
+        <p class="detail-title"><strong>{{ name(picked.sense) }}</strong></p>
+        <p class="detail-both">{{ both(picked) }}</p>
         <ul v-if="picked.elements.length">
           <li v-for="e in picked.elements" :key="e.code">
             <span>{{ e[lang] }}</span>
@@ -88,8 +111,7 @@ const pick = (sense) => { selected.value = selected.value === sense ? null : sen
           </li>
         </ul>
         <p v-else class="muted">No answers for this sense.</p>
-      </template>
-      <p v-else class="muted">Tap a sense to see its elements.</p>
+      </div>
     </div>
 
   </figure>
@@ -125,9 +147,16 @@ ul { padding: 0; list-style: none; }
 .icon.on { color: var(--text); background: var(--btn-selected-bg); }
 .icon.gap { opacity: var(--inactive-opacity); }
 
-.detail { min-height: calc(2 * var(--touch)); padding: var(--space-3) var(--space-4); border-radius: var(--radius-btn); background: var(--ground); border: var(--hairline) solid var(--line); }
-.detail-title { margin-bottom: var(--space-2); }
-.detail li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-1) 0; }
+.pop {
+  position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - var(--touch) / 2 - var(--space-1)));
+  width: max-content; max-width: min(var(--panel-left-w), 90vw);
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-btn);
+  background: var(--panel); border: var(--hairline) solid var(--line); box-shadow: var(--shadow);
+}
+.pop.below { transform: translate(-50%, calc(var(--touch) / 2 + var(--space-1))); }
+.detail-both { font-size: var(--fs-sm); color: var(--text-2); margin-bottom: var(--space-2); }
+.pop li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-1) 0; }
+.hint { flex-basis: 100%; }
 .val { color: var(--text-2); font-size: var(--fs-sm); text-align: right; }
 .val.g { color: var(--easy); }
 .val.b { color: var(--hard-text); }
