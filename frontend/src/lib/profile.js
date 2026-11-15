@@ -121,18 +121,30 @@ export function strongest(survey, answers, count = 4) {
   return pick
 }
 
+/** The eight senses in the order the onboarding first shows them (the main sense of each grid row, A12 then A13). */
+export function senseOrder(survey) {
+  return [...new Set(GRIDS.flatMap((g) => gridRows(survey, g).map((r) => r.icon_key)))]
+}
+
+/** One element on the 1–5 scale as the radar reads it: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x), 0–2. */
+export const elementValues = (x) => ({ pleasant: Math.max(0, x - 3), unpleasant: Math.max(0, 3 - x) })
+
 /**
- * The radar of the profile (board 5, brief §4): for each of the eight senses, in the survey's order, its elements (the
- * main sense, icon_key) and two values 1–5 from your answers to them: what bothers you = 6 − the lowest answer (the
- * most unpleasant element), what feels good = the highest answer (the most pleasant one). All at 3 ("neither") is 3
- * and 3. (Elena asked for the radar; the rule is proposed, docs/decisions.md 2026-11-15.)
+ * The radar of the profile (Elena, 2026-11-15): one axis per sense, in the onboarding's order; each element counts only
+ * for its main sense (icon_key). Per sense, pleasant and unpleasant are each the maximum over its answered elements
+ * (0–2). A sense with no answered element has null for both: a gap on the radar. From the stored answers only.
  */
-export function senseScores(survey, answers, senses) {
+export function senseScores(survey, answers) {
   const rows = GRIDS.flatMap((g) => gridRows(survey, g).map((r) => ({ ...r, value: answers[g]?.[r.code] })))
-  return senses.map((sense) => {
-    const mine = rows.filter((r) => r.icon_key === sense && Number.isInteger(r.value))
-    if (!mine.length) return { sense, elements: [], bothers: null, good: null }
-    const values = mine.map((r) => r.value)
-    return { sense, elements: mine, bothers: 6 - Math.min(...values), good: Math.max(...values) }
+  return senseOrder(survey).map((sense) => {
+    const elements = rows.filter((r) => r.icon_key === sense && Number.isInteger(r.value))
+      .map((r) => ({ code: r.code, en: r.en, it: r.it, value: r.value, ...elementValues(r.value) }))
+    if (!elements.length) return { sense, elements, pleasant: null, unpleasant: null }
+    return {
+      sense,
+      elements,
+      pleasant: Math.max(...elements.map((e) => e.pleasant)),
+      unpleasant: Math.max(...elements.map((e) => e.unpleasant)),
+    }
   })
 }

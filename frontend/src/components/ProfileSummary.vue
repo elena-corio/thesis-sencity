@@ -29,12 +29,8 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
   <div class="summary" data-panel="profile-summary">
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
-      <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
-      <p class="legend">
-        <span><i class="swatch bothers" aria-hidden="true" />What bothers you</span>
-        <span><i class="swatch good" aria-hidden="true" />What feels good</span>
-      </p>
-      <ProfileRadar :survey="survey" :answers="p.answers" />
+      <p class="sub">From your answers · saved on {{ saved }}</p>
+      <ProfileRadar :survey="survey" :answers="p.answers" @edit-words="edit('A16')" />
 
       <div class="group">
         <div class="group-head">
@@ -62,12 +58,7 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
       </div>
     </section>
 
-    <aside class="side panel" aria-label="Your words and your data">
-      <h3>In your words</h3>
-      <blockquote v-if="p.answers.A16" class="words" data-testid="answer-A16">“{{ p.answers.A16 }}”</blockquote>
-      <p v-else class="muted">Nothing written.</p>
-      <button type="button" class="edit inline" aria-label="Edit your own words" @click="edit('A16')">Edit</button>
-
+    <aside class="side panel" aria-label="Your profile text and your data">
       <h3>Strongest for you</h3>
       <ul v-if="top.length" class="top">
         <li v-for="t in top" :key="t.row.code">
@@ -116,11 +107,7 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
 .edit.inline { align-self: flex-start; padding-left: 0; }
 .value { font-size: var(--fs-md); }
-.legend { display: flex; gap: var(--space-5); flex-wrap: wrap; color: var(--text-2); }
-.legend span { display: inline-flex; align-items: center; gap: var(--space-2); }
-.swatch { width: var(--space-4); height: var(--space-4); border-radius: var(--space-1); border: var(--radar-line) solid; display: inline-block; }
-.swatch.bothers { border-color: var(--hard); }
-.swatch.good { border-color: var(--easy); }
+
 .rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
 .rows :deep(.sense-icon) { color: var(--text-muted); }
 .score { font-size: var(--fs-sm); color: var(--text-2); text-align: right; }
