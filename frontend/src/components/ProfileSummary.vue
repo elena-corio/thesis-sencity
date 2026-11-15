@@ -127,7 +127,7 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .overall-head strong { font-variant-numeric: tabular-nums; }
 .overall-q { font-size: var(--fs-sm); color: var(--text-2); }
 /* Only the bar is as wide as the radar, and centred with it (Elena, 2026-11-15). */
-.bar { width: min(100%, var(--radar-max)); margin: 0 auto; }
+.bar { width: min(100%, var(--radar-max)); margin: var(--space-5) auto 0; }
 .track {
   position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
   background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
