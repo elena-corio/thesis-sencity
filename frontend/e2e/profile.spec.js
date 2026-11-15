@@ -118,7 +118,7 @@ test.describe('your sensory profile', () => {
     await summary.getByText('Your answers, element by element').click()
     await expect(summary.getByTestId('answer-traffic_trams')).toContainText('1 · very unpleasant')
     // The radar (board 5; Elena, 2026-11-15): eight senses in the onboarding order, 1–5, from the stored answers only.
-    // Tapping a sense lists its elements with their answers; "Show as a list" says the same as text.
+    // Tapping a sense lists its elements with their answers.
     const radar = summary.getByTestId('profile-radar')
     expect(await radar.locator('button[data-sense]').evaluateAll((b) => b.map((x) => x.dataset.sense)))
       .toEqual(['sight', 'hearing', 'smell', 'touch', 'thermal', 'balance_movement', 'body_awareness', 'inner_sensations'])
@@ -132,8 +132,7 @@ test.describe('your sensory profile', () => {
     await expect(detail).toContainText('Traffic, trams1 · very unpleasant')
     await radar.locator('.radar').scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'e2e/screens/profile-radar-dark.png' })
-    await radar.getByText('Show as a list').click()
-    await expect(radar.locator('.as-list')).toContainText('Internal sensations: bothers you 3, feels good 5 (Seats 5 · very pleasant; Drinking fountains, toilets 4 · a little pleasant; Steps, slopes 3 · neither)')
+    await expect(radar.locator('button[data-sense="inner_sensations"]')).toHaveAttribute('aria-label', 'Internal sensations: bothers you 3, feels good 5')
     await page.screenshot({ path: 'e2e/screens/profile-summary-dark.png' })
   })
 

@@ -2,7 +2,7 @@
 // The radar of your profile (board 5, brief §4; Elena 2026-11-15: the first version, with tapping and a list): the
 // eight senses on circular rings, in the onboarding's order, icons instead of names; what bothers you (pink) and what
 // feels good (cyan), 1–5 (lib/profile.js senseScores); a sense with no answers is a gap. Tapping a sense (its icon or
-// its slice) lists its elements with their answers; "Show as a list" says it all as text. Computed from the stored
+// its slice) lists its elements with their answers; each icon names its sense and both values. Computed from the stored
 // answers only, so it changes as soon as an answer is edited; no model call.
 import { computed, ref } from 'vue'
 import config from '../config.js'
@@ -92,15 +92,6 @@ const pick = (sense) => { selected.value = selected.value === sense ? null : sen
       <p v-else class="muted">Tap a sense to see its elements.</p>
     </div>
 
-    <details class="as-list">
-      <summary>Show as a list</summary>
-      <ul>
-        <li v-for="s in scores" :key="`l${s.sense}`">
-          <strong>{{ name(s.sense) }}</strong>: {{ both(s) }}<template v-if="s.elements.length">
-            ({{ s.elements.map((e) => `${e[lang]} ${answerText(e)}`).join('; ') }})</template>
-        </li>
-      </ul>
-    </details>
   </figure>
 </template>
 
@@ -141,6 +132,4 @@ ul { padding: 0; list-style: none; }
 .val.g { color: var(--easy); }
 .val.b { color: var(--hard-text); }
 
-.as-list summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; color: var(--text-2); font-size: var(--fs-sm); }
-.as-list ul { list-style: disc; padding-left: var(--space-5); display: grid; gap: var(--space-1); font-size: var(--fs-sm); }
 </style>
