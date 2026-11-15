@@ -9,7 +9,8 @@
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
 - POST /api/mapillary/along   one Mapillary photo per stretch of a walk (free; the token stays here)
 - POST /api/senses/rate   the model's predictions for a list of Mapillary photos, streamed; cached ones cost nothing.
-                          With "profile" (your answers, from the browser) they are personal (V2), else general (V0)
+                          With "profile" (your answers, from the browser) they are personal (V2), else general (V0);
+                          personal ones are relayed, never kept here: the browser keeps them
 - GET  /api/profile/survey   the onboarding questions and the profile template, from model/app_v9/ (nothing personal)
 
 No Street View call is left in the app (Elena, 2026-11-11): its photos are Mapillary's, and those are the ones rated.
@@ -343,9 +344,17 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
 # (their keys never match a Mapillary photo anyway; the mark is for the record).
 _stale_marked = False
 
+class RatingStamp(BaseModel):
+    """What the browser's own personal rating of a photo was made from: nothing personal."""
+    listed: list[str] = Field(..., max_length=20)
+    model: str = Field(..., max_length=200)
+    commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
+
+
 class SensesPhoto(BaseModel):
     id: str = Field(..., pattern=r"^[0-9]{1,20}$")  # a Mapillary image ID
     heading: float = Field(..., ge=0, lt=360)
+    cached: RatingStamp | None = None  # with a profile: the browser has a rating of this photo; "keep" if still valid
 
 
 class ProfileAnswers(BaseModel):
@@ -382,16 +391,17 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
     global _stale_marked
     if not _stale_marked:
         senses_mod.mark_stale(senses_mod.REPO_ROOT / cfg["senses"]["cache_file"])
+        senses_mod.drop_personal(senses_mod.REPO_ROOT / cfg["senses"]["cache_file"])  # personal results: browser only
         _stale_marked = True
     photos = [(p.id, round(p.heading, 1)) for p in body.photos]
     try:
-        text = version = None
+        text, stamps = None, {}
         if body.profile is not None:
             pe = profile_mod.load()
             answers = profile_mod.check(body.profile.model_dump(exclude={"language"}), body.profile.language, pe)
             text = profile_mod.build(answers, body.profile.language, pe)
-            version = profile_mod.version(text)
-        plan = senses_mod.plan_rating(photos, cfg["senses"], text, version)
+            stamps = {(p.id, round(p.heading, 1)): p.cached.model_dump() for p in body.photos if p.cached}
+        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps)
     except profile_mod.ProfileError as e:
         raise HTTPException(422, f"Your sensory profile could not be used: {e}") from None
     except senses_mod.ExportError as e:

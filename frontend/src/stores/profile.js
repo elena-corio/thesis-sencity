@@ -2,9 +2,11 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
 import { loadSurvey } from '../lib/api.js'
+import * as personalRatings from '../lib/personalRatings.js'
 import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile } from '../lib/profile.js'
 
-// On this device only (phase 1, brief §12): no server, no sign-in. "Delete my profile" removes both keys.
+// On this device only (phase 1, brief §12): no server, no sign-in. "Delete my profile" removes both keys and the
+// personal ratings (lib/personalRatings.js).
 export const SAVED_KEY = 'sencity-profile'
 export const DRAFT_KEY = 'sencity-profile-draft'
 /** The onboarding, one question group per screen: the eight-senses intro, A11, A12, A13, A16 (part_a.json). */
@@ -71,6 +73,7 @@ export const useProfileStore = defineStore('profile', () => {
     const text = buildProfile(s, a, language)
     profile.value = { language, answers: a, text, version: await profileVersion(text), saved: new Date().toISOString() }
     write(SAVED_KEY, profile.value)
+    personalRatings.keepOnly(profile.value.version) // ratings made with an earlier version are not used again
     return true
   }
 
@@ -117,12 +120,13 @@ export const useProfileStore = defineStore('profile', () => {
     write(DRAFT_KEY, null)
   }
 
-  /** "Delete my profile": answers, text, draft; the app goes back to "not personalised yet". */
+  /** "Delete my profile": answers, text, draft and the personal ratings; the app goes back to "not personalised yet". */
   function deleteAll() {
     profile.value = null
     draft.value = null
     write(SAVED_KEY, null)
     write(DRAFT_KEY, null)
+    personalRatings.clearAll()
   }
 
   const fileData = () => (profile.value ? exportFile(profile.value) : null)

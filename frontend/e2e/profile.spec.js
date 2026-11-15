@@ -30,10 +30,15 @@ function mockRating(page) {
   return page.route('**/api/senses/rate', async (route) => {
     const body = route.request().postDataJSON()
     bodies.push(body)
-    const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: body.photos.length, remaining: 0, personal: !!body.profile },
-      ...body.photos.map((p) => ({ type: 'photo', ...p, status: 'ok', cached: false, cost_usd: 0.0005,
-        result: { comfort: body.profile ? 2 : 4, anchors: ['not at all', 'very much'], bothers: [], feels_good: [], listed: [],
-          reason: 'r', model: 'test', latency_ms: 1, cost_usd: 0.0005, cached: false, personal: !!body.profile } })),
+    const personal = !!body.profile
+    const stamp = { listed: ['shade'], model: 'test', commit: 'ed963d2' }
+    const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: body.photos.length, remaining: 0, personal },
+      ...body.photos.map((p) => (personal && p.cached
+        ? { type: 'photo', id: p.id, heading: p.heading, status: 'keep', cached: true } // the browser's own rating holds
+        : { type: 'photo', id: p.id, heading: p.heading, status: 'ok', cached: false, cost_usd: 0.0005,
+            ...(personal ? { stamp } : {}),
+            result: { comfort: personal ? 2 : 4, anchors: ['not at all', 'very much'], bothers: [], feels_good: [], listed: ['shade'],
+              reason: 'r', model: 'test', latency_ms: 1, cost_usd: 0.0005, cached: false, personal } })),
       { type: 'done', seconds: 1, failed: 0, remaining: 0, estimate_usd: 0 }]
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   }).then(() => bodies)
@@ -251,12 +256,23 @@ test.describe('your sensory profile', () => {
     await expect(foot).toContainText('Personal prediction: from your sensory profile')
     await expect(foot.getByTestId('not-personalised')).toHaveCount(0)
 
+    // Personal ratings are kept in this browser only (Elena, 2026-11-15); the next request sends just their stamp
+    // (element list, model, export: nothing personal) and the API answers "keep".
+    const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-ratings')))
+    expect(Object.keys(kept).length).toBe(bodies[1].photos.length)
+    expect(Object.keys(kept)[0]).toMatch(/\|386e888b8867$/)
+    await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('senses').retry('area'))
+    await expect.poll(() => bodies.length).toBe(3)
+    expect(bodies[2].photos.every((p) => p.cached && p.cached.listed[0] === 'shade' && !('result' in p.cached))).toBe(true)
+    await expect(foot).toContainText('Personal prediction: from your sensory profile')
+
     // Delete it: general again, rated again without it.
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     await page.getByRole('button', { name: 'Delete my profile' }).click()
     await page.getByRole('button', { name: 'Delete everything' }).click()
-    await expect.poll(() => bodies.length).toBe(3)
-    expect(bodies[2].profile).toBeUndefined()
+    await expect.poll(() => bodies.length).toBe(4)
+    expect(bodies[3].profile).toBeUndefined()
+    expect(await page.evaluate(() => localStorage.getItem('sencity-ratings'))).toBe(null) // gone with the profile
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Area' }).click()
     await expect(foot).toContainText('General prediction: not personalised yet')
 

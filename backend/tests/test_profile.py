@@ -13,6 +13,8 @@ from app import senses as senses_mod
 from app.senses import load_export
 from tool.config import REPO_ROOT
 
+from pathlib import Path
+
 from tests.test_senses import GOOD, HEADING, PANO, FakeProvider, calls, cfg, copy_export, edit_text, photo_events, reply  # noqa: F401
 
 CASES = json.loads((REPO_ROOT / "frontend" / "src" / "dev" / "test-profiles.json").read_text(encoding="utf-8"))
@@ -93,17 +95,23 @@ def test_a_template_without_one_of_its_slots_is_refused(tmp_path):
         profile_mod.load(folder)
 
 
-# Use in ratings: V0 without a profile, V2 with it, cached per profile version
+# Use in ratings: V0 without a profile, V2 with it. Personal results are relayed, never kept on the server
+# (Elena, 2026-11-15): the browser keeps them and sends a stamp; the server answers "keep" while it still holds.
 
-def run_with(photos, cfg, text=None):
-    plan = senses_mod.plan_rating(photos, cfg, text, profile_mod.version(text) if text else None)
+def run_with(photos, cfg, text=None, stamps=None):
+    plan = senses_mod.plan_rating(photos, cfg, text, stamps)
     provider = FakeProvider()
     return list(senses_mod.rate_events(plan, cfg, provider if plan.to_rate else None)), plan
 
 
+def server_files(cfg):
+    """Everything the server keeps about ratings: the rating cache and the presence cache, as text."""
+    return "".join(Path(f).read_text(encoding="utf-8") for f in (cfg["cache_file"], cfg["presence_cache_file"]) if Path(f).exists())
+
+
 def test_with_a_profile_the_system_message_is_the_instruction_a_blank_line_and_the_profile(calls, cfg):
     calls.ratings.append(reply(GOOD))
-    events, plan = run_with([(PANO, HEADING)], cfg, DEV["expected"])
+    events, _ = run_with([(PANO, HEADING)], cfg, DEV["expected"])
     presence, rating = calls.made
     export = load_export()
     # The presence call never sees the profile; the rating call is the study's V2.
@@ -111,32 +119,58 @@ def test_with_a_profile_the_system_message_is_the_instruction_a_blank_line_and_t
     assert rating["messages"][0] == {"role": "system", "content": export.system.rstrip() + "\n\n" + DEV["expected"]}
     assert rating["provider"] == export.model["provider"]
     assert rating["provider"]["zdr"] is True and rating["provider"]["allow_fallbacks"] is False
-    assert events[0]["personal"] is True and photo_events(events, "ok")[0]["result"]["personal"] is True
-    assert plan.profile_part == f"profile {profile_mod.version(DEV['expected'])}"
+    ok = photo_events(events, "ok")[0]
+    assert events[0]["personal"] is True and ok["result"]["personal"] is True
+    assert ok["stamp"] == {"listed": ok["result"]["listed"], "model": export.model["model"], "commit": export.commit}
 
 
 def test_without_a_profile_it_is_the_instruction_alone_and_marked_general(calls, cfg):
     calls.ratings.append(reply(GOOD))
-    events, plan = run_with([(PANO, HEADING)], cfg)
+    events, _ = run_with([(PANO, HEADING)], cfg)
     assert calls.made[1]["messages"][0] == {"role": "system", "content": load_export().system}
-    assert photo_events(events, "ok")[0]["result"]["personal"] is False
-    assert plan.profile_part == senses_mod.GENERAL
+    ok = photo_events(events, "ok")[0]
+    assert ok["result"]["personal"] is False and "stamp" not in ok
 
 
-def test_ratings_are_cached_per_profile_version_and_a_new_profile_is_rated_again(calls, cfg, pe):
-    calls.ratings += [reply(GOOD), reply(dict(GOOD, B1_comfort=2)), reply(dict(GOOD, B1_comfort=5))]
-    run_with([(PANO, HEADING)], cfg)                       # general
-    run_with([(PANO, HEADING)], cfg, DEV["expected"])      # personal: a new rating, the presence list from the cache
-    assert calls.kinds() == ["presence", "rating", "rating"]
-    again, _ = run_with([(PANO, HEADING)], cfg, DEV["expected"])
-    assert photo_events(again)[0]["cached"] is True and photo_events(again)[0]["result"]["comfort"] == 2
-    general, _ = run_with([(PANO, HEADING)], cfg)
-    assert photo_events(general)[0]["result"]["comfort"] == 4 and photo_events(general)[0]["result"]["personal"] is False
-    edited = profile_mod.build(dict(DEV["answers"], A11=4), "en", pe)
-    changed, _ = run_with([(PANO, HEADING)], cfg, edited)  # the old personal rating is not used
-    assert photo_events(changed)[0]["cached"] is False and photo_events(changed)[0]["result"]["comfort"] == 5
-    stored = json.loads(open(cfg["cache_file"], encoding="utf-8").read())
-    assert DEV["answers"]["A16"] not in json.dumps(stored)  # the cache holds the hash, never the profile
+def test_after_a_personal_rating_the_server_holds_nothing_keyed_to_the_profile(calls, cfg, pe):
+    calls.ratings += [reply(dict(GOOD, B1_comfort=2, reasoning="Too loud for me, the traffic wears me out."))]
+    events, _ = run_with([(PANO, HEADING)], cfg, DEV["expected"])
+    assert photo_events(events, "ok")[0]["result"]["comfort"] == 2
+    kept = server_files(cfg)
+    version = profile_mod.version(DEV["expected"])
+    assert version not in kept and "profile" not in kept
+    assert "Too loud for me" not in kept  # the personal result
+    assert "Traffic noise" not in kept and "How you experience public spaces" not in kept  # the answers, the text
+    rating_cache = json.loads(Path(cfg["cache_file"]).read_text(encoding="utf-8")) if Path(cfg["cache_file"]).exists() else {}
+    assert rating_cache == {}  # only the presence list (not personal) was kept
+    assert json.loads(Path(cfg["presence_cache_file"]).read_text(encoding="utf-8"))  # it was
+
+
+def test_a_stamp_that_still_holds_is_kept_without_a_call_and_one_that_does_not_is_rated_again(calls, cfg, pe):
+    calls.ratings += [reply(dict(GOOD, B1_comfort=2)), reply(dict(GOOD, B1_comfort=3))]
+    events, _ = run_with([(PANO, HEADING)], cfg, DEV["expected"])
+    stamp = photo_events(events, "ok")[0]["stamp"]
+    made = len(calls.made)
+    again, plan = run_with([(PANO, HEADING)], cfg, DEV["expected"], {(PANO, HEADING): stamp})
+    assert photo_events(again) == [{"type": "photo", "id": PANO, "heading": HEADING, "status": "keep", "cached": True}]
+    assert len(calls.made) == made and plan.to_rate == []
+    # Another element list, model or export: rated again (the presence list stays cached).
+    for wrong in ({**stamp, "listed": stamp["listed"][:-1]}, {**stamp, "model": "other/model"}, {**stamp, "commit": "abc1234"}):
+        plan = senses_mod.plan_rating([(PANO, HEADING)], cfg, DEV["expected"], {(PANO, HEADING): wrong})
+        assert plan.kept == () and plan.to_rate == [(PANO, HEADING)]
+    # A stamp means nothing without a profile: general ratings come from the server cache.
+    plan = senses_mod.plan_rating([(PANO, HEADING)], cfg, None, {(PANO, HEADING): stamp})
+    assert plan.kept == () and plan.to_rate == [(PANO, HEADING)]
+
+
+def test_personal_entries_from_before_are_removed_from_the_cache(tmp_path):
+    path = tmp_path / "c.json"
+    general = "mly:1|90.0|m|c|general"
+    path.write_text(json.dumps({general: {"output": {}}, "mly:1|90.0|m|c|profile 386e888b8867": {"output": {}},
+                                "mly:2|90.0|m|c|profile 021e74c47d3a": {"output": {}}}), encoding="utf-8")
+    assert senses_mod.drop_personal(path) == 2
+    assert list(json.loads(path.read_text(encoding="utf-8"))) == [general]
+    assert senses_mod.drop_personal(path) == 0
 
 
 def endpoint(monkeypatch, tmp_path):
@@ -144,8 +178,8 @@ def endpoint(monkeypatch, tmp_path):
     monkeypatch.setitem(main_mod.cfg["senses"], "presence_cache_file", str(tmp_path / "p.json"))
     seen = {}
 
-    def plan(photos, cfg, text=None, version=None):
-        seen.update(text=text, version=version)
+    def plan(photos, cfg, text=None, stamps=None):
+        seen.update(text=text, stamps=stamps)
         raise senses_mod.PredictionError(418, "stop here")
     monkeypatch.setattr(senses_mod, "plan_rating", plan)
     return TestClient(main_mod.app), seen
@@ -156,10 +190,13 @@ def test_the_endpoint_builds_the_profile_from_the_answers_and_never_logs_it(monk
     body = {"photos": [{"id": PANO, "heading": HEADING}], "profile": {**DEV["answers"], "language": "en"}}
     with caplog.at_level(logging.DEBUG):
         assert client.post("/api/senses/rate", json=body).status_code == 418
-    assert seen["text"] == DEV["expected"] and seen["version"] == profile_mod.version(DEV["expected"])
+    assert seen["text"] == DEV["expected"] and seen["stamps"] == {}
     assert "Traffic noise" not in caplog.text and "greenery" not in caplog.text
     client.post("/api/senses/rate", json={"photos": body["photos"]})
-    assert seen == {"text": None, "version": None}
+    assert seen == {"text": None, "stamps": {}}
+    stamp = {"listed": ["shade"], "model": "google/m", "commit": "ed963d2"}
+    client.post("/api/senses/rate", json={**body, "photos": [{"id": PANO, "heading": HEADING, "cached": stamp}]})
+    assert seen["stamps"] == {(PANO, HEADING): stamp}
 
 
 def test_the_endpoint_refuses_answers_that_do_not_fit(monkeypatch, tmp_path):
