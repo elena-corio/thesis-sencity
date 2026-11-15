@@ -44,7 +44,7 @@ const mapMode = ref(route.params.mode === 'routes' ? 'routes' : 'area')
 watch(() => route.params.mode, (m) => { if (m === 'area' || m === 'routes') mapMode.value = m })
 const routesMode = computed(() => mapMode.value === 'routes')
 // The onboarding is full screen; the profile itself keeps the tabs.
-const onboarding = computed(() => profileMode.value && !!profile.draft && !!profile.survey)
+const onboarding = computed(() => profileMode.value && !!profile.survey && (!!profile.draft || profile.askingConsent))
 // Going to the other view (Area or Routes) closes the walk or the enlarged photo.
 watch(routesMode, () => { if (walk.active) walk.exit() })
 const phone = useMedia('(max-width: 767px)')

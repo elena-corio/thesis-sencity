@@ -9,6 +9,7 @@ import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion
 // personal ratings (lib/personalRatings.js).
 export const SAVED_KEY = 'sencity-profile'
 export const DRAFT_KEY = 'sencity-profile-draft'
+export const CONSENT_KEY = 'sencity-consent'
 /** The onboarding, one question group per screen: the eight-senses intro, A11, A12, A13, A16 (part_a.json). */
 export const STEPS = ['intro', 'A11', 'A12', 'A13', 'A16']
 
@@ -40,6 +41,25 @@ export const useProfileStore = defineStore('profile', () => {
   const surveyError = ref('')
   const profile = ref(read(SAVED_KEY))
   const draft = ref(read(DRAFT_KEY))
+  // "Before you start" (ConsentScreen): agreed once on this device, before a new profile or an import.
+  const consent = ref(read(CONSENT_KEY))
+  const consented = computed(() => !!consent.value?.agreed)
+  /** An import waiting for the consent screen. */
+  const consentFor = ref(null)
+  /** The consent screen shows: an import is waiting for it, or a new profile is about to start without it. */
+  const askingConsent = computed(() => !consented.value && (!!consentFor.value || (!!draft.value && !draft.value.editing)))
+  function agree() {
+    consent.value = { agreed: new Date().toISOString() }
+    write(CONSENT_KEY, consent.value)
+    const next = consentFor.value
+    consentFor.value = null
+    return next
+  }
+  /** Not now: nothing is kept (a new profile's empty start goes too). */
+  function decline() {
+    consentFor.value = null
+    if (draft.value && !draft.value.editing) discardDraft()
+  }
   if (profile.value && !(profile.value.answers && ['en', 'it'].includes(profile.value.language))) profile.value = null
 
   const personal = computed(() => !!profile.value)
@@ -120,12 +140,14 @@ export const useProfileStore = defineStore('profile', () => {
     write(DRAFT_KEY, null)
   }
 
-  /** "Delete my profile": answers, text, draft and the personal ratings; the app goes back to "not personalised yet". */
+  /** "Delete my profile": answers, text, draft, consent and the personal ratings; "not personalised yet" again. */
   function deleteAll() {
     profile.value = null
     draft.value = null
+    consent.value = null
     write(SAVED_KEY, null)
     write(DRAFT_KEY, null)
+    write(CONSENT_KEY, null)
     personalRatings.clearAll()
   }
 
@@ -146,10 +168,12 @@ export const useProfileStore = defineStore('profile', () => {
   async function loadTestProfile() {
     if (!import.meta.env.DEV) return
     const { default: cases } = await import('../dev/test-profiles.json')
+    if (!consented.value) agree()
     await save(cases[0].answers, cases[0].language)
     discardDraft()
   }
 
-  return { survey, surveyStatus, surveyError, profile, draft, personal, version, ensureSurvey, begin, setStep, answer,
+  return { survey, surveyStatus, surveyError, profile, draft, personal, version, consented, consentFor, askingConsent, agree,
+    decline, ensureSurvey, begin, setStep, answer,
     finish, discardDraft, deleteAll, fileData, importData, loadTestProfile }
 })

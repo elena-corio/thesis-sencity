@@ -46,6 +46,8 @@ const PATHS = {
   download: ['M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'],
   upload: ['M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'],
+  lock: ['M6 11h12v10H6z', 'M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11'],
+  send: ['M21 3L10 14', 'M21 3l-7 18-4-7-7-4z'],
 }
 
 defineProps({ name: { type: String, required: true } })

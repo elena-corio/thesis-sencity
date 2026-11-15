@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – "Before you start": the consent screen (accepted)
+**Context.** Brief §3: one consent screen before Part A (board 3), with an unticked checkbox and "Agree and start" enabled only when ticked. The board's text was out of date ("16 things", a database); Elena wrote the new one.
+**Decision (Elena).** Title "Before you start", four points (what is asked: 20 visible elements, about 5 minutes, no health questions; answers stay in this browser, no account, nothing saved on a server; for a personal rating the answers go with the photo to an AI model in the EU, used only for that rating and not kept by the provider; change, download or delete at any time under Profile), the box "I have read this and agree that my answers are used to build my profile and personalise ratings." (unticked), Not now and Agree and start. Icons from board 3.
+**Proposed.**
+- *When:* before a new profile's first question (from Profile or the "Create your profile" shortcut) and before an import; not when editing. Full screen, like the onboarding. An onboarding left halfway from before this screen existed asks first too.
+- *Kept:* the date of the agreement on this device (`sencity-consent`); "Delete my profile" removes it, so a new profile asks again. Not now keeps nothing and goes back to the map.
+- *Not applied:* brief §3 "No consent → map with Thermal only". General (V0) ratings send nothing about the person, so the map stays as it is without consent ("not personalised yet"). Asked.
+
 ## 2026-11-15 – Personal ratings live in the browser; the server only relays (accepted)
 **Context.** The server's rating cache kept each personal rating under the profile version (a hash), and they stayed after "Delete my profile", while the dialog says everything is in this browser. With A16 empty a hash of the profile could in principle be matched by trying the answer combinations. Elena chose option 3.
 **Decision (Elena).**
@@ -44,7 +52,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Profile screen (board 5), first version:* every answer with Edit, your words, "Strongest for you" (the elements answered 1–2 and 4–5, strongest first, in turn, at most four), and "Your sensory profile, as the model reads it" (the exact text, folded). "Save and go to map" reads "Go to map" (the profile is already saved). The personal thermal limits and "Places that may suit you" come later (the radar: entry above).
 - *Delete (board 5c):* the dialog says what is true in phase 1 (everything is in this browser); "Delete my profile" as Elena named it.
 - *Labels:* "Personal prediction: from your sensory profile"; without a profile "General prediction: not personalised yet" (was "not yet personal") and the "Not personalised yet" box of board 2c with Create your profile, at the end of the Senses card.
-- *Not built:* the consent screen (board 3, brief §3) is not part of this step; its text also needs updating (it says "16 things"). Asked.
+- *Consent screen:* not part of this step at first; built the same day with Elena's text (entry "Before you start").
 
 ## 2026-11-15 – Your sensory profile: built on the server for each rating call, checked against the study (proposed)
 **Context.** Elena: Part A as the in-app onboarding, saved on the device and used for ratings; the profile text built from `model/app_v9/` word for word as in the study; ratings cached per photo and per profile version; the profile leaves the device only inside the model call. Brief §12: phase 1 has no profile endpoints, the browser sends the profile in the body of each request.

@@ -10,7 +10,7 @@ How the tool is built **now**:
 
 - **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements; the exact text the model reads), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
 
-Overall stays inactive. Not built yet: the consent screen, personal thermal limits, "Places that may suit you", group mode, accounts.
+Overall stays inactive. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
 
 ## Data flow
 
@@ -130,6 +130,7 @@ flowchart LR
 | `src/lib/profile.js` | Pure: required answers, cleaning, the profile text as the study builds it (`profile_template.txt` and `profile_rules.json`, from the survey), its version (sha256, as on the server), what a rating request carries (answers and language, never the text), the export file and reading it back, the strongest elements, the radar's senses in onboarding order and their two values (what bothers you, what feels good, 1–5) |
 | `src/dev/test-profiles.json` | Four made-up profiles with the texts the study's own code makes for them: the tests (frontend and backend) and the dev-only test profile. No participant data |
 | `src/components/ProfilePage.vue` | The Profile view over the map: onboarding, profile or empty state; download, import, delete |
+| `src/components/ConsentScreen.vue` | Board 3, "Before you start": four points, an unticked box, Not now and Agree and start (only once ticked) |
 | `src/components/ProfileOnboarding.vue` | Boards 4, P4: one question group per screen, progress, Back and Next (never disabled: with an answer missing it says so and goes there), Skip for now (answers kept) or, when editing, Cancel and Save changes |
 | `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
 | `src/components/ProfileSummary.vue` | Board 5: the radar, the answers (folded) with Edit; in the right card overall sensory comfort (A11) as a gradient bar, your words, the strongest elements, the profile text, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
@@ -209,7 +210,7 @@ flowchart LR
 
 **Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
 
-**Your sensory profile** (frontend, `stores/profile.js`, `localStorage` of this browser only): `sencity-profile` = `{ language: "en" | "it", answers: { A11, A12: {code: 1–5}, A13: {code: 1–5}, A16 }, text, version, saved }` (text and version as the server builds them); `sencity-profile-draft` = `{ answers, step, editing }` while the onboarding is open; `sencity-ratings` = `{ "<photo id>|<heading>|<profile version>": { stamp: { listed, model, commit }, result, saved } }`, the personal ratings (at most 3000, the oldest go first). Delete my profile removes all three. The export file: `{ kind: "SenCity sensory profile", format: 1, saved, language, answers, profile, version }`; on import only the answers and language are used and the text is built again.
+**Your sensory profile** (frontend, `stores/profile.js`, `localStorage` of this browser only): `sencity-profile` = `{ language: "en" | "it", answers: { A11, A12: {code: 1–5}, A13: {code: 1–5}, A16 }, text, version, saved }` (text and version as the server builds them); `sencity-profile-draft` = `{ answers, step, editing }` while the onboarding is open; `sencity-ratings` = `{ "<photo id>|<heading>|<profile version>": { stamp: { listed, model, commit }, result, saved } }`, the personal ratings (at most 3000, the oldest go first). `sencity-consent` = `{ agreed }` (the date of "Agree and start"). Delete my profile removes all four. The export file: `{ kind: "SenCity sensory profile", format: 1, saved, language, answers, profile, version }`; on import only the answers and language are used and the text is built again.
 
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 

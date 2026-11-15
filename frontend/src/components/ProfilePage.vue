@@ -4,6 +4,7 @@
 import { nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProfileStore } from '../stores/profile.js'
+import ConsentScreen from './ConsentScreen.vue'
 import DeleteProfileDialog from './DeleteProfileDialog.vue'
 import ProfileEmpty from './ProfileEmpty.vue'
 import ProfileOnboarding from './ProfileOnboarding.vue'
@@ -42,7 +43,20 @@ function download() {
 
 function pickFile() {
   error.value = ''
+  if (!store.consented) {
+    store.consentFor = 'import' // "Before you start" first
+    return
+  }
   fileInput.value?.click()
+}
+function onAgree() {
+  if (store.agree() === 'import') fileInput.value?.click()
+}
+function onDecline() {
+  const fromCreate = !store.consentFor
+  store.decline()
+  if (fromCreate) router.push('/area')
+  else focusHeading()
 }
 async function onFile(e) {
   const file = e.target.files?.[0]
@@ -80,7 +94,8 @@ async function loadTest() {
 
 <template>
   <div ref="page" class="profile-page" data-panel="profile" data-scrollable>
-    <ProfileOnboarding v-if="store.draft && store.survey" :phone="phone" />
+    <ConsentScreen v-if="store.askingConsent && store.survey" :phone="phone" @agree="onAgree" @decline="onDecline" />
+    <ProfileOnboarding v-else-if="store.draft && store.survey" :phone="phone" />
     <template v-else>
       <div v-if="store.surveyStatus === 'error'" class="state" role="alert">
         <p>{{ store.surveyError }}</p>

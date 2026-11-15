@@ -56,6 +56,27 @@ test.describe('your sensory profile', () => {
     await page.screenshot({ path: 'e2e/screens/profile-empty-dark.png' })
     await empty.getByRole('button', { name: 'Create your profile' }).click()
 
+    // "Before you start" (board 3, Elena's text): the box unticked, Agree and start only once it is ticked.
+    const consent = page.locator('[data-panel="consent"]')
+    await expect(consent.getByRole('heading', { name: 'Before you start' })).toBeFocused()
+    await expect(consent).toContainText('20 visible elements, about 5 minutes. No health questions.')
+    await expect(consent).toContainText('nothing is saved on a server')
+    await expect(consent).toContainText('an AI model in the EU, used only for that rating, and not kept by the provider')
+    await expect(consent.getByTestId('consent-box')).not.toBeChecked()
+    await expect(consent.getByRole('button', { name: 'Agree and start' })).toBeDisabled()
+    await expect(page.getByRole('navigation', { name: 'Views' })).toHaveCount(0) // full screen
+    await page.screenshot({ path: 'e2e/screens/profile-consent-dark.png' })
+    // Not now: back to the map, nothing kept; the next start asks again.
+    await consent.getByRole('button', { name: 'Not now' }).click()
+    await expect(page).toHaveURL(/\/area$/)
+    expect(await draft(page)).toBe(null)
+    expect(await page.evaluate(() => localStorage.getItem('sencity-consent'))).toBe(null)
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
+    await empty.getByRole('button', { name: 'Create your profile' }).click()
+    await consent.getByText('I have read this and agree').click()
+    await consent.getByRole('button', { name: 'Agree and start' }).click()
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-consent')))).agreed).toBeTruthy()
+
     const ob = page.locator('[data-panel="onboarding"]')
     await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
     await expect(ob).toContainText('Think of all eight senses') // part_a.json intro, word for word
@@ -215,7 +236,13 @@ test.describe('your sensory profile', () => {
     await summary.getByRole('button', { name: 'Delete my profile' }).click()
     await dialog.getByRole('button', { name: 'Delete everything' }).click()
     await expect(page.locator('[data-panel="profile-empty"]')).toBeVisible()
-    expect(await page.evaluate(() => [localStorage.getItem('sencity-profile'), localStorage.getItem('sencity-profile-draft')])).toEqual([null, null])
+    expect(await page.evaluate(() => ['sencity-profile', 'sencity-profile-draft', 'sencity-consent'].map((k) => localStorage.getItem(k)))).toEqual([null, null, null])
+    // Importing without consent asks first.
+    await page.locator('[data-panel="profile-empty"]').getByRole('button', { name: 'Import a profile file' }).click()
+    await expect(page.locator('[data-panel="consent"]')).toBeVisible()
+    await page.getByText('I have read this and agree').click()
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Agree and start' }).click()])
+    expect(chooser).toBeTruthy()
 
     // Import the file again: the profile is back, its text built again from the answers.
     await page.locator('input[type="file"]').setInputFiles(file)
@@ -279,6 +306,9 @@ test.describe('your sensory profile', () => {
     // The shortcut opens the onboarding.
     await foot.getByRole('button', { name: 'Create your profile' }).click()
     await expect(page).toHaveURL(/\/profile$/)
+    // Delete my profile took the consent too: "Before you start" again, then the first step.
+    await page.getByText('I have read this and agree').click()
+    await page.getByRole('button', { name: 'Agree and start' }).click()
     await expect(page.locator('[data-panel="onboarding"]').getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
   })
 })
@@ -291,6 +321,10 @@ test.describe('your sensory profile on a phone', () => {
     await openMap(page, 'dark', { layer: null })
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     await page.getByRole('button', { name: 'Create your profile' }).click()
+    await expect(page.locator('[data-panel="consent"]')).toBeVisible()
+    expect(await layoutProblems(page)).toEqual([])
+    await page.getByText('I have read this and agree').click()
+    await page.getByRole('button', { name: 'Agree and start' }).click()
     await page.getByRole('button', { name: 'Next' }).click()
     await choose(page, 'A11', 3)
     await page.getByRole('button', { name: 'Next' }).click()
