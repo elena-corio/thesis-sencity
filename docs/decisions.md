@@ -2,6 +2,12 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – Overall sensory comfort as a bar; the answers fold (accepted)
+**Context.** Elena: "make the list collapsable and maybe use a bar with gradient for the overall sensory comfort, maybe above the senses diagram".
+**Decision.**
+- *Overall sensory comfort (Elena):* A11 as the comfort bar of the place card (board 2c: pink, orange, cyan; a diamond at the answer; 1–5), above the radar, with "2 of 5", the question and its end labels from `part_a.json` ("Not at all", "Very much"), and Edit. It replaces the A11 line of the answers.
+- *The answers fold (Elena):* "Your answers, element by element" (A12 and A13 with Edit), closed at first. *Proposed:* "the list" read as this one; "Show as a list" under the radar and the profile text in the right card already fold.
+
 ## 2026-11-15 – The radar of the profile (accepted)
 **Context.** Elena: "the spider web diagram is missing". A first version followed board 5 and brief §4; Elena then specified another (0–2: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x); A11 in the centre, A16 below; pleasant solid, unpleasant dashed), saw it, and preferred the first: "i preferred how it was before". Kept from the second: tapping a sense lists its elements, the visible list, gaps.
 **Decision (Elena).**

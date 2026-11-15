@@ -111,6 +111,11 @@ test.describe('your sensory profile', () => {
     expect(stored.answers).toEqual(DEV.answers)
     expect(await draft(page)).toBe(null)
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
+    // Overall sensory comfort (A11) as the comfort bar, above the radar; the answers fold, closed at first.
+    await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
+    expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="profile-radar"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
+    await expect(summary.getByTestId('answer-traffic_trams')).toBeHidden()
+    await summary.getByText('Your answers, element by element').click()
     await expect(summary.getByTestId('answer-traffic_trams')).toContainText('1 · very unpleasant')
     // The radar (board 5; Elena, 2026-11-15): eight senses in the onboarding order, 1–5, from the stored answers only.
     // Tapping a sense lists its elements with their answers; "Show as a list" says the same as text.
@@ -136,7 +141,7 @@ test.describe('your sensory profile', () => {
     await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: DEV_VERSION, saved: '2026-11-15T10:00:00Z' })
     await openProfile(page)
     const summary = page.locator('[data-panel="profile-summary"]')
-    await expect(summary.getByTestId('answer-A11')).toContainText('2')
+    await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
 
     // Edit one answer: the onboarding opens at that question, with Cancel and Save changes.
     await summary.getByRole('button', { name: /^Edit: In general/ }).click()
@@ -145,16 +150,18 @@ test.describe('your sensory profile', () => {
     await expect(page.locator('[data-row="A11"] input[value="2"]')).toBeChecked()
     await choose(page, 'A11', 4)
     await ob.getByRole('button', { name: 'Save changes' }).click()
-    await expect(summary.getByTestId('answer-A11')).toContainText('4')
+    await expect(summary.getByTestId('overall-comfort')).toContainText('4 of 5')
     const edited = await saved(page)
     expect(edited.text).toBe(DEV.expected.replace('(1 = not at all … 5 = very much): 2.', '(1 = not at all … 5 = very much): 4.'))
     expect(edited.version).not.toBe(DEV_VERSION)
 
     // The radar follows an edit at once: traffic from 1 to 3, hearing now bothers 3.
+    await summary.getByText('Your answers, element by element').click()
     await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
     await choose(page, 'A12-traffic_trams', 3)
     await ob.getByRole('button', { name: 'Save changes' }).click()
     await expect(summary.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: bothers you 3, feels good 5')
+    await summary.getByText('Your answers, element by element').click()
     await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
     await choose(page, 'A12-traffic_trams', 1)
     await ob.getByRole('button', { name: 'Save changes' }).click()
@@ -185,7 +192,7 @@ test.describe('your sensory profile', () => {
 
     // Import the file again: the profile is back, its text built again from the answers.
     await page.locator('input[type="file"]').setInputFiles(file)
-    await expect(summary.getByTestId('answer-A11')).toContainText('4')
+    await expect(summary.getByTestId('overall-comfort')).toContainText('4 of 5')
     expect((await saved(page)).text).toBe(edited.text)
 
     // A file that is not a profile is refused.

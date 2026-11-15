@@ -30,32 +30,39 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
       <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
-      <ProfileRadar :survey="survey" :answers="p.answers" />
-
-      <div class="group">
-        <div class="group-head">
-          <h3>{{ a11.title[lang] }}</h3>
+      <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), above the senses. -->
+      <div class="overall" data-testid="overall-comfort">
+        <div class="overall-head">
+          <h3 id="overall-title">Overall sensory comfort</h3>
+          <strong>{{ p.answers.A11 }} of 5</strong>
           <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
         </div>
-        <p class="value" data-testid="answer-A11"><strong>{{ p.answers.A11 }}</strong>
-          <span v-if="p.answers.A11 === 1"> · {{ a11.labels['1'][lang].toLowerCase() }}</span>
-          <span v-else-if="p.answers.A11 === 5"> · {{ a11.labels['5'][lang].toLowerCase() }}</span>
-        </p>
+        <p class="overall-q">{{ a11.title[lang] }}</p>
+        <div class="track" role="img" :aria-label="`Overall sensory comfort: ${p.answers.A11} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`">
+          <span class="diamond" :style="{ left: `${((p.answers.A11 - 1) / 4) * 100}%` }" />
+        </div>
+        <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
+        <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
       </div>
 
-      <div v-for="(g, gi) in GRIDS" :key="g" class="group">
-        <div class="group-head">
-          <h3>{{ gi === 0 ? question(g).title[lang] : 'More elements' }}</h3>
-          <button type="button" class="edit" :aria-label="`Edit the elements, part ${gi + 1} of 2`" @click="edit(g)">Edit</button>
+      <ProfileRadar :survey="survey" :answers="p.answers" />
+
+      <details class="answers" data-testid="answers">
+        <summary>Your answers, element by element</summary>
+        <div v-for="(g, gi) in GRIDS" :key="g" class="group">
+          <div class="group-head">
+            <h3>{{ gi === 0 ? question(g).title[lang] : 'More elements' }}</h3>
+            <button type="button" class="edit" :aria-label="`Edit the elements, part ${gi + 1} of 2`" @click="edit(g)">Edit</button>
+          </div>
+          <ul class="rows">
+            <li v-for="r in gridRows(survey, g)" :key="r.code" :data-testid="`answer-${r.code}`">
+              <SenseIcon :sense="r.icon_key" :label="senseName(r.icon_key)" />
+              <span class="name">{{ r[lang] }}</span>
+              <span class="score" :class="kind(p.answers[g][r.code])">{{ p.answers[g][r.code] }} · {{ words(g)[p.answers[g][r.code] - 1] }}</span>
+            </li>
+          </ul>
         </div>
-        <ul class="rows">
-          <li v-for="r in gridRows(survey, g)" :key="r.code" :data-testid="`answer-${r.code}`">
-            <SenseIcon :sense="r.icon_key" :label="senseName(r.icon_key)" />
-            <span class="name">{{ r[lang] }}</span>
-            <span class="score" :class="kind(p.answers[g][r.code])">{{ p.answers[g][r.code] }} · {{ words(g)[p.answers[g][r.code] - 1] }}</span>
-          </li>
-        </ul>
-      </div>
+      </details>
     </section>
 
     <aside class="side panel" aria-label="Your words and your data">
@@ -111,7 +118,25 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .group-head { display: flex; align-items: baseline; gap: var(--space-3); justify-content: space-between; }
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
 .edit.inline { align-self: flex-start; padding-left: 0; }
-.value { font-size: var(--fs-md); }
+.overall { padding: var(--space-3) var(--space-4); border: var(--hairline) solid var(--line); border-radius: var(--radius-btn); }
+.overall-head { display: flex; align-items: center; gap: var(--space-3); }
+.overall-head h3 { flex: 1; color: var(--text); }
+.overall-head strong { font-variant-numeric: tabular-nums; }
+.overall-q { font-size: var(--fs-sm); color: var(--text-2); }
+.track {
+  position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
+  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
+}
+.diamond {
+  position: absolute; top: 50%; width: var(--handle-size); height: var(--handle-size);
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--ring); border: var(--hairline) solid var(--ring-edge);
+}
+.ticks, .ends { display: flex; justify-content: space-between; margin: var(--space-2) var(--space-1) 0; font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ends { margin-top: 0; }
+.answers { border-top: var(--hairline) solid var(--line); }
+.answers summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
+.answers .group + .group { margin-top: var(--space-3); }
 
 .rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
 .rows :deep(.sense-icon) { color: var(--text-muted); }
