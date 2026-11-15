@@ -31,7 +31,9 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
       <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
-      <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), above the senses. -->
+      <ProfileRadar :survey="survey" :answers="p.answers" />
+
+      <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), under the radar and its sense list (Elena). -->
       <div class="overall" data-testid="overall-comfort">
         <div class="overall-head">
           <h3 id="overall-title">Overall sensory comfort</h3>
@@ -47,8 +49,6 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
         <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
         </div>
       </div>
-
-      <ProfileRadar :survey="survey" :answers="p.answers" />
 
       <details class="answers" data-testid="answers">
         <summary><span>Your answers, element by element</span><AppIcon name="chevronDown" class="chev" /></summary>

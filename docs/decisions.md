@@ -9,7 +9,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 ## 2026-11-15 – Overall sensory comfort as a bar; the answers fold (accepted)
 **Context.** Elena: "make the list collapsable and maybe use a bar with gradient for the overall sensory comfort, maybe above the senses diagram".
 **Decision.**
-- *Overall sensory comfort (Elena):* A11 as the comfort bar of the place card (board 2c: pink, orange, cyan; a diamond at the answer; 1–5), above the radar, with "2 of 5", the question and its end labels from `part_a.json` ("Not at all", "Very much"), and Edit. It replaces the A11 line of the answers.
+- *Overall sensory comfort (Elena):* A11 as the comfort bar of the place card (board 2c: pink, orange, cyan; a diamond at the answer; 1–5), under the radar and its "Tap a sense to see its elements" (first above it; Elena moved it), with "2 of 5", the question and its end labels from `part_a.json` ("Not at all", "Very much"), and Edit. It replaces the A11 line of the answers.
 - *The bar (Elena):* the card and the question are full width; only the bar, its numbers and end labels are as wide as the radar and centred with it.
 - *The answers fold (Elena):* "Your answers, element by element" (A12 and A13 with Edit), closed at first, with a chevron that turns up when open. *Proposed:* "the list" read as this one; "Show as a list" under the radar and the profile text in the right card already fold.
 
