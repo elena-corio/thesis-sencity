@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – Your sensory profile: built on the server for each rating call, checked against the study (proposed)
+**Context.** Elena: Part A as the in-app onboarding, saved on the device and used for ratings; the profile text built from `model/app_v9/` word for word as in the study; ratings cached per photo and per profile version; the profile leaves the device only inside the model call. Brief §12: phase 1 has no profile endpoints, the browser sends the profile in the body of each request.
+**Decision.**
+- *Where the text is built (proposed):* the browser sends your answers (not the text) with each rating request; the server checks them against `part_a.json` and fills `profile_template.txt` for that call only. It is never stored or logged; the rating cache keeps only its version (the first 12 hex digits of its sha256) in place of `general`. A changed profile has a new version, so its old personal ratings are never used. The browser builds the same text from the same files (`GET /api/profile/survey`) to show and keep it.
+- *The test:* the expected texts were made by the study's own code (`thesis-personas`, `personas.persona_texts_v9`, "V2", commit 60c9222) for four made-up people, including the cases where lines are left out (`frontend/src/dev/test-profiles.json`, no participant data). The export has no example of its own.
+- *Two small rules the export leaves open (proposed):* the filled text has no trailing newline (the study's text has none); the open answer (A16) is trimmed before use, so a blank answer leaves its line out, as in the study.
+- *Checks:* A11 and every grid row must be answered 1–5 (required in the survey); A16 is optional, at most 2000 characters. A 422 names the question, never the answer.
+
 ## 2026-11-14 – The enlarged photo is the walk's view (accepted)
 **Context.** Elena: "make enlarge picture look the same. When clicking walk this route play is default, when enlarging the photo stop is default", and "in the case of area it should not have the play button".
 **Decision (Elena).**

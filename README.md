@@ -151,6 +151,7 @@ Results are cached in `runs/senses/predictions.json` (not committed) per Mapilla
 cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 .venv/Scripts/python -m pytest backend/tests/test_senses.py --rootdir backend   # only the Senses request and replies
+.venv/Scripts/python -m pytest backend/tests/test_profile.py --rootdir backend  # only your sensory profile (text, checks, V0/V2)
 ```
 
 These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the hash check of `model/app_v9/`, the presence and rating requests built from it, the empty list, validated replies, the retry, both caches, the stale marks, the cap, at most 4 at a time). They make no API calls.

@@ -8,7 +8,8 @@ the request stops with ExportError: there are no defaults.
 Each new photo takes two calls (Elena, 2026-11-14). The presence call (presence_prompt.txt, presence_schema.json) says
 which of the 20 elements are clearly visible; it is cached per photo. The rating call then sends the study's task and
 schema with that list. If nothing is listed, B2 takes no items and B2_none must be true. Without a profile the system
-message is system_instruction.txt alone: the study's V0. Unlike the study, no person confirms the lists.
+message is system_instruction.txt alone: the study's V0. With your sensory profile (app/profile.py) it is the system
+instruction, a blank line and the profile: the study's V2. Unlike the study, no person confirms the lists.
 
 The model rates the photo the person sees (Elena, 2026-11-11): the Mapillary photo of the street, place or walk stretch
 (tool/photos/mapillary.py), a panorama rendered as the 90 degree view the app shows. The backend fetches each picture
@@ -41,8 +42,8 @@ from tool.photos.mapillary import NotThisPhoto
 EXPORT_DIR = REPO_ROOT / "model" / "app_v9"
 log = logging.getLogger("sencity.api")
 
-# The files the app reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked, the
-# profile files too, though they are not read yet.
+# The files the rating reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked; the
+# profile files are read by app/profile.py.
 FILES = ("system_instruction.txt", "task_template.txt", "schema_template.json", "elements.json", "model.json",
          "presence_prompt.txt", "presence_schema.json")
 SENSES = ("sight", "hearing", "smell", "touch", "thermal", "balance_movement", "body_awareness", "inner_sensations")
@@ -96,6 +97,7 @@ SLOT = "{ELEMENTS}"
 BOTHERS = ("unpleasant", "both")
 FEELS_GOOD = ("pleasant", "both")
 GENERAL = "general"  # the profile part of a rating key while there is no profile (the study's V0)
+PROFILE_PART = "profile "  # then the profile version (app/profile.py): the hash of the filled profile text
 CALLS_PER_PHOTO = 2  # presence + rating, for the cost estimate of photos left out by the cap
 FATAL_STATUSES = (401, 402, 403, 404)  # key, credit or endpoint: no use trying the next photo
 
@@ -468,7 +470,7 @@ def element_view(export: Export, code: str) -> dict:
     return {"code": code, "n": e["n"], "en": e["en"], "it": e["it"], "icon_key": e["icon_key"], "also": e.get("also", [])}
 
 
-def _view(export: Export, entry: dict, cached: bool) -> dict:
+def _view(export: Export, entry: dict, cached: bool, personal: bool = False) -> dict:
     output = entry["output"]
     answers = {}
     for mark in output["B2_marked"]:
@@ -488,6 +490,7 @@ def _view(export: Export, entry: dict, cached: bool) -> dict:
         "latency_ms": entry["latency_ms"],
         "cost_usd": entry["cost_usd"],
         "cached": cached,
+        "personal": personal,  # rated with your sensory profile (V2), not the general prediction (V0)
     }
 
 
@@ -507,18 +510,22 @@ class Plan:
     remaining: int  # new photos left out by the cap
     presence: dict  # (photo_id, heading) → the cached listed elements, for photos to rate whose presence is known
     api_key: str | None
+    profile: str | None = None  # the filled profile text (V2), or None (V0); never logged or stored
+    profile_part: str = GENERAL  # the end of every rating key: "general" or "profile <version>"
 
 
-def plan_rating(photos: list, cfg: dict) -> Plan:
-    """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError."""
+def plan_rating(photos: list, cfg: dict, profile: str | None = None, profile_version: str | None = None) -> Plan:
+    """Split the photos into cached and new, for this profile (None: the general prediction). Nothing is paid for here.
+    Raises ExportError or PredictionError."""
     export = load_export()
+    part = f"{PROFILE_PART}{profile_version}" if profile else GENERAL
     model = export.model["model"]
     with _cache_lock:
         cache = _read_cache(REPO_ROOT / cfg["cache_file"])
         presence_cache = _read_cache(REPO_ROOT / cfg["presence_cache_file"])
     cached, new, seen = [], [], set()
     for photo_id, heading in photos:
-        key = cache_key(photo_id, heading, model, export.commit)
+        key = cache_key(photo_id, heading, model, export.commit, part)
         if key in seen:
             continue
         seen.add(key)
@@ -535,7 +542,7 @@ def plan_rating(photos: list, cfg: dict) -> Plan:
         hit = presence_cache.get(presence_key(photo_id, heading, model, export.presence_version))
         if isinstance(hit, dict) and isinstance(hit.get("present"), list) and set(hit["present"]) <= set(export.elements):
             known[(photo_id, heading)] = [c for c in export.elements if c in hit["present"]]
-    return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None)
+    return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None, profile or None, part)
 
 
 def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
@@ -583,7 +590,7 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
                      "cost_usd": sum(costs) if costs else None})
 
     try:
-        output = _ask(build_request(export, data_url, listed), plan.api_key, cfg,
+        output = _ask(build_request(export, data_url, listed, plan.profile), plan.api_key, cfg,
                       lambda t: parse_reply(export, listed, t), costs, "rating")
     except PredictionError as e:
         e.cost = sum(costs)
@@ -598,10 +605,10 @@ def rate_events(plan: Plan, cfg: dict, provider):
     export = plan.export
     path = REPO_ROOT / cfg["cache_file"]
     yield {"type": "start", "model": export.model["model"], "cached": len(plan.cached), "to_rate": len(plan.to_rate),
-           "remaining": plan.remaining}
+           "remaining": plan.remaining, "personal": plan.profile is not None}
     for photo_id, heading, entry in plan.cached:
         yield {"type": "photo", "id": photo_id, "heading": heading, "status": "ok", "cached": True,
-               "result": _view(export, entry, cached=True)}
+               "result": _view(export, entry, cached=True, personal=plan.profile is not None)}
 
     started = time.perf_counter()
     stop = threading.Event()
@@ -630,8 +637,9 @@ def rate_events(plan: Plan, cfg: dict, provider):
                 continue
             if entry is None:
                 continue
-            _save_cache(path, cache_key(photo_id, heading, export.model["model"], export.commit), entry)
-            yield {**base, "status": "ok", "result": _view(export, entry, cached=False), "cost_usd": entry["cost_usd"]}
+            _save_cache(path, cache_key(photo_id, heading, export.model["model"], export.commit, plan.profile_part), entry)
+            yield {**base, "status": "ok", "result": _view(export, entry, cached=False, personal=plan.profile is not None),
+                   "cost_usd": entry["cost_usd"]}
     finally:
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)
