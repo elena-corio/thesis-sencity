@@ -180,6 +180,10 @@
   --dialog-w: 480px;               /* the delete dialog (5c) */
   --btn-danger-bg: var(--hard);    /* "Delete everything" */
   --btn-danger-text: #ffffff;
+  --radar-max: 460px;              /* the radar of the profile (board 5) */
+  --radar-fill-opacity: 0.22;
+  --radar-line: 2.5px;
+  --radar-ring: 1px;
 }
 
 :root[data-theme="dark"] {

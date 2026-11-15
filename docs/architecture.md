@@ -8,9 +8,9 @@ How the tool is built **now**:
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v9/`: a presence call lists the elements clearly visible in the photo (cached per photo), then the rating call uses the study's task and schema on that list, with the system instruction alone (the study's V0). Places appear on the map as ratings arrive, with recommendations beside them.
 
-- **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (every answer, editable; your words; the strongest elements; the exact text the model reads), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
+- **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements; the exact text the model reads), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
 
-Overall stays inactive. Not built yet: the consent screen, the radar, personal thermal limits, "Places that may suit you", group mode, accounts.
+Overall stays inactive. Not built yet: the consent screen, personal thermal limits, "Places that may suit you", group mode, accounts.
 
 ## Data flow
 
@@ -126,12 +126,13 @@ flowchart LR
 | `src/lib/geo.js` | Radius maths: haversine, limits (snap to 50 m, cap at 500 m, round to 10 m), 64-point circle, mask, photo estimate, coordinate label |
 | `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}`; loading the area (progress, cancel, errors), its segments, the Places filter (`placeFilter`, `visibleSegments`); the markers (`suggestions` on the Thermal layer, `chatMarkers` hook with `showChatResults` / `clearChatResults`, `markersCollapsed` (hidden after selecting an unmarked place), `seenIds`); the selected segment (and `cameFrom`, the street a nearby link was followed from; `goNearby`, `goBack`); thermal comfort (state, window, station) and the layer on the map |
 | `src/stores/profile.js` | Pinia: your sensory profile on this device: the survey (loaded once), the saved profile (`sencity-profile`), the onboarding in progress (`sencity-profile-draft`, kept when you leave halfway), save (builds the text and its version), edit, import, Delete my profile; the made-up test profile in dev mode only |
-| `src/lib/profile.js` | Pure: required answers, cleaning, the profile text as the study builds it (`profile_template.txt` and `profile_rules.json`, from the survey), its version (sha256, as on the server), what a rating request carries (answers and language, never the text), the export file and reading it back, the strongest elements |
+| `src/lib/profile.js` | Pure: required answers, cleaning, the profile text as the study builds it (`profile_template.txt` and `profile_rules.json`, from the survey), its version (sha256, as on the server), what a rating request carries (answers and language, never the text), the export file and reading it back, the strongest elements, the radar's two values per sense |
 | `src/dev/test-profiles.json` | Four made-up profiles with the texts the study's own code makes for them: the tests (frontend and backend) and the dev-only test profile. No participant data |
 | `src/components/ProfilePage.vue` | The Profile view over the map: onboarding, profile or empty state; download, import, delete |
 | `src/components/ProfileOnboarding.vue` | Boards 4, P4: one question group per screen, progress, Back and Next (never disabled: with an answer missing it says so and goes there), Skip for now (answers kept) or, when editing, Cancel and Save changes |
 | `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
 | `src/components/ProfileSummary.vue` | Board 5: every answer with Edit, your words, the strongest elements, the profile text, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
+| `src/components/ProfileRadar.vue` | Board 5: the radar of the eight senses (rings, icons), what bothers you and what feels good; name, both values and the elements on hover or focus; a hidden table for screen readers |
 | `src/components/ProfileEmpty.vue` | Board 5b: no profile yet, Create your profile, import, the dev-only test profile |
 | `src/components/DeleteProfileDialog.vue` | Board 5c: alert dialog, focus on Cancel, Download a copy first, Delete everything |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |

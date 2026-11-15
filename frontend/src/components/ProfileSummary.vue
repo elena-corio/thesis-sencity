@@ -1,12 +1,13 @@
 <script setup>
 // Your sensory profile (board 5): every answer, each group with Edit (editing builds the profile again); on the right,
 // your own words, the strongest elements, the exact text the model reads, and the device-only actions: download,
-// import, delete. The radar, thermal limits and "Places that may suit you" of the board come later.
+// import, delete. The radar (ProfileRadar) under the title; thermal limits and "Places that may suit you" come later.
 import { computed } from 'vue'
 import config from '../config.js'
 import { GRIDS, gridRows, strongest } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
+import ProfileRadar from './ProfileRadar.vue'
 import SenseIcon from './SenseIcon.vue'
 
 defineProps({ error: { type: String, default: '' }, dev: Boolean })
@@ -29,6 +30,11 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
       <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
+      <p class="legend">
+        <span><i class="swatch bothers" aria-hidden="true" />What bothers you</span>
+        <span><i class="swatch good" aria-hidden="true" />What feels good</span>
+      </p>
+      <ProfileRadar :survey="survey" :answers="p.answers" />
 
       <div class="group">
         <div class="group-head">
@@ -110,6 +116,11 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
 .edit.inline { align-self: flex-start; padding-left: 0; }
 .value { font-size: var(--fs-md); }
+.legend { display: flex; gap: var(--space-5); flex-wrap: wrap; color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.swatch { width: var(--space-4); height: var(--space-4); border-radius: var(--space-1); border: var(--radar-line) solid; display: inline-block; }
+.swatch.bothers { border-color: var(--hard); }
+.swatch.good { border-color: var(--easy); }
 .rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
 .rows :deep(.sense-icon) { color: var(--text-muted); }
 .score { font-size: var(--fs-sm); color: var(--text-2); text-align: right; }

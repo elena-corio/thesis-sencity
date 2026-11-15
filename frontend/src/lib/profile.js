@@ -120,3 +120,19 @@ export function strongest(survey, answers, count = 4) {
   }
   return pick
 }
+
+/**
+ * The radar of the profile (board 5, brief §4): for each of the eight senses, in the survey's order, its elements (the
+ * main sense, icon_key) and two values 1–5 from your answers to them: what bothers you = 6 − the lowest answer (the
+ * most unpleasant element), what feels good = the highest answer (the most pleasant one). All at 3 ("neither") is 3
+ * and 3. (Elena asked for the radar; the rule is proposed, docs/decisions.md 2026-11-15.)
+ */
+export function senseScores(survey, answers, senses) {
+  const rows = GRIDS.flatMap((g) => gridRows(survey, g).map((r) => ({ ...r, value: answers[g]?.[r.code] })))
+  return senses.map((sense) => {
+    const mine = rows.filter((r) => r.icon_key === sense && Number.isInteger(r.value))
+    if (!mine.length) return { sense, elements: [], bothers: null, good: null }
+    const values = mine.map((r) => r.value)
+    return { sense, elements: mine, bothers: 6 - Math.min(...values), good: Math.max(...values) }
+  })
+}

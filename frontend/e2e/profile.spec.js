@@ -112,6 +112,16 @@ test.describe('your sensory profile', () => {
     expect(await draft(page)).toBe(null)
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     await expect(summary.getByTestId('answer-traffic_trams')).toContainText('1 · very unpleasant')
+    // The radar: eight senses; pointing at one, or focusing its icon, shows its name and both values.
+    const radar = summary.getByTestId('profile-radar')
+    await expect(radar.locator('[data-sense]')).toHaveCount(8)
+    await radar.locator('[data-sense="hearing"]').hover()
+    await expect(radar.getByTestId('radar-tip')).toContainText('Hearing')
+    await expect(radar.getByTestId('radar-tip')).toContainText('bothers you 5')
+    await expect(radar.getByTestId('radar-tip')).toContainText('Fountains, water; Traffic, trams')
+    await radar.locator('[data-sense="balance_movement"]').focus()
+    await expect(radar.getByTestId('radar-tip')).toContainText('feels good 4')
+    await expect(radar.locator('[data-sense="inner_sensations"]')).toHaveAttribute('aria-label', 'Internal sensations: bothers you 3, feels good 5')
     await page.screenshot({ path: 'e2e/screens/profile-summary-dark.png' })
   })
 

@@ -37,7 +37,7 @@ export const SENSE_NAMES = {
   body_awareness: { en: 'body awareness', it: 'consapevolezza del corpo' },
   inner_sensations: { en: 'internal sensations', it: 'sensazioni interne' },
 }
-const SENSE_ORDER = Object.keys(SENSE_NAMES)
+export const SENSE_ORDER = Object.keys(SENSE_NAMES)
 
 export const senseName = (key) => SENSE_NAMES[key]?.[config.language] ?? ''
 

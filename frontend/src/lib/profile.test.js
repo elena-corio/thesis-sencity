@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import cases from '../dev/test-profiles.json'
 import {
-  answered, buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile, requestProfile, strongest,
+  answered, buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile, requestProfile, senseScores,
+  strongest,
 } from './profile.js'
 
 // The survey as GET /api/profile/survey sends it (backend/app/profile.py survey), read from model/app_v9/.
@@ -19,6 +20,9 @@ const survey = {
   },
 }
 const DEV = cases[0]
+const ICONS = Object.fromEntries(JSON.parse(readFileSync(new URL('elements.json', dir), 'utf-8')).map((e) => [e.code, e.icon_key]))
+for (const q of survey.questions) for (const r of q.rows ?? []) r.icon_key = ICONS[r.code]
+const SENSES = ['sight', 'hearing', 'smell', 'touch', 'thermal', 'balance_movement', 'body_awareness', 'inner_sensations']
 // The versions the server gives the same texts (backend/app/profile.py version).
 const PYTHON_VERSIONS = ['386e888b8867', '021e74c47d3a', 'a5d4b902e8e6', '3238c5509b77']
 
@@ -84,5 +88,28 @@ describe('the export file', () => {
     expect(readFile(survey, { kind: 'something else' }).error).toMatch(/not a SenCity profile/)
     expect(readFile(survey, { ...exportFile(profile), language: 'de' }).error).toMatch(/language/)
     expect(readFile(survey, { ...exportFile(profile), answers: { A11: 3 } }).error).toMatch(/every question/)
+  })
+})
+
+describe('the radar', () => {
+  it('gives each sense what bothers (6 − lowest) and what feels good (highest), from its elements', () => {
+    const s = senseScores(survey, DEV.answers, SENSES)
+    expect(s.map((x) => [x.sense, x.bothers, x.good])).toEqual([
+      ['sight', 4, 5], // greenery 5, buildings 4, signs 2
+      ['hearing', 5, 5], // fountains 5, traffic 1
+      ['smell', 4, 5], // plants 5, bins 2, food 3
+      ['touch', 4, 4], // grass 4, asphalt 2
+      ['thermal', 5, 5], // shade 5, direct sun 1
+      ['balance_movement', 3, 4], // open space 4, heights 3
+      ['body_awareness', 5, 5], // car-free 5, crowds 1, narrow 2
+      ['inner_sensations', 3, 5], // seats 5, toilets 4, steps 3
+    ])
+    expect(s[1].elements.map((e) => e.code)).toEqual(['fountains_water', 'traffic_trams'])
+  })
+
+  it('puts a sense of only neutral answers at 3 and 3, and one with no answers at none', () => {
+    const neutral = Object.fromEntries(['A12', 'A13'].map((g) => [g, Object.fromEntries(survey.questions.find((q) => q.code === g).rows.map((r) => [r.code, 3]))]))
+    expect(senseScores(survey, neutral, SENSES).every((x) => x.bothers === 3 && x.good === 3)).toBe(true)
+    expect(senseScores(survey, { A12: {}, A13: {} }, ['sight'])[0]).toEqual({ sense: 'sight', elements: [], bothers: null, good: null })
   })
 })
