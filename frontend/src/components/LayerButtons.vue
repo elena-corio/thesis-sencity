@@ -1,15 +1,14 @@
 <script setup>
-// Layer for Area, as in Routes. Senses gives one prediction per street clicked; Overall needs every street
-// rated, so it waits. Used in the left panel, and in the area card when the left panel gives way.
+// Layer for Area, as in Routes. Overall is the worse of Senses and Thermal per street (lib/overall.js). Used in the left
+// panel, and in the area card when the left panel gives way.
 import { useAreaStore } from '../stores/area.js'
 import ChoiceButtons from './ChoiceButtons.vue'
 
 const area = useAreaStore()
-const SOON = 'Follows when your photos are rated'
 const LAYERS = [
   { id: 'senses', label: 'Senses' },
   { id: 'thermal', label: 'Thermal' },
-  { id: 'overall', label: 'Overall', disabled: true, title: SOON },
+  { id: 'overall', label: 'Overall' },
 ]
 </script>
 

@@ -57,14 +57,14 @@ test.describe('desktop', () => {
     await page.screenshot({ path: 'e2e/screens/panel-dark-left.png' })
   })
 
-  test('Area opens on Senses, Overall is inactive, and Senses skips the thermal step', async ({ page }) => {
+  test('Area opens on Senses (no profile), Overall can be chosen, and Senses skips the thermal step', async ({ page }) => {
     await mockArea(page, { hold: true })
     await openMap(page, 'dark', { layer: null })
     const panel = page.locator('[data-panel="layers"]')
     const radio = (name) => panel.getByRole('radio', { name, exact: true })
     await expect(radio('Senses')).toHaveAttribute('aria-checked', 'true')
     await expect(radio('Thermal')).toBeEnabled()
-    await expect(radio('Overall')).toBeDisabled()
+    await expect(radio('Overall')).toBeEnabled() // Overall is built (Elena, 2026-11-15)
     await expect(panel.locator('[aria-label="Legend"]')).toHaveCount(0)
 
     const asked = page.waitForRequest('**/api/area')

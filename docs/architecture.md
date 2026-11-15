@@ -5,12 +5,12 @@ How the tool is built **now**:
 - **Frontend:** the map start screen, address search and the two-click area selection.
 - **API:** `POST /api/search` and `POST /api/reverse` (Photon), `POST /api/area` (street segments and their photos, metadata only, then thermal comfort per segment from Infrared.city), `POST /api/routes` (two walking routes between two points), `POST /api/buildings` (footprints and heights along a walked route, for the walk view), `POST /api/mapillary/along` (one Mapillary photo per stretch of a walk), `POST /api/senses/rate` (the model's predictions for the Mapillary photos the app shows, general or with your sensory profile), `GET /api/profile/survey` (the onboarding questions and the profile template, from `model/app_v9/`). No Street View in the app.
 - **Thermal layer:** feels-like °C per street, rated easy, mixed or hard in the app with the standard limits.
-- **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
+- **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch; on Overall the same two ways coloured by the worse of Senses and Thermal, with each route's share of easy, mixed and hard.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v9/`: a presence call lists the elements clearly visible in the photo (cached per photo), then the rating call uses the study's task and schema on that list, with the system instruction alone (the study's V0). Places appear on the map as ratings arrive, with recommendations beside them.
 
 - **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
 
-Overall stays inactive. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
+Overall shows, per street, the worse of Senses and Thermal (one layer only: "partial", the same colour at half opacity); with a profile it is the default layer. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
 
 ## Data flow
 
@@ -135,6 +135,8 @@ flowchart LR
 | `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
 | `src/components/ProfileSummary.vue` | Board 5: the radar, the answers (folded) with Edit; in the right card overall sensory comfort (A11) as a gradient bar, your words, the strongest elements, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
 | `src/components/ProfileRadar.vue` | Board 5: the radar of the eight senses (onboarding order, icons, rings 1–5): what bothers you (pink) and what feels good (cyan), a gap where a sense has no answers; tapping a sense lists its elements in a card next to it; legend |
+| `src/lib/overall.js` | Overall: the worse of a street's Senses and Thermal levels (partial with one, none with neither), the deciding layer in plain words, a route's shares |
+| `src/components/OverallSummary.vue` | The place card on Overall: level, reason, the Senses and Thermal rows, what might bother or feel good |
 | `src/lib/weather.js` | The Weather step: its words (EN, IT), cleaning the answers, wind sensitivity |
 | `src/components/ThermalComfortBar.vue` | "Temperature that feels comfortable to you": −20 to 40 °C, blended comfort colours, the person's four limits and the standard ones faint, two draggable handles (keyboard 0.5 °C), Reset, the summary line |
 | `src/components/ProfileEmpty.vue` | Board 5b: no profile yet, Create your profile, import, the dev-only test profile |

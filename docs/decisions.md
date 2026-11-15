@@ -34,6 +34,24 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
 - *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
 
+## 2026-11-15 – Overall: the worse of Senses and Thermal, per street (accepted)
+**Context.** Elena: Overall mode, the worse of Senses and Thermal per street, following boards 1 and 2b and the canvas's legend wording; worked out in the browser from cached values, no new model call and nothing new sent to the server; the default layer when a profile exists.
+**Decision (Elena).**
+- *Rule (`lib/overall.js`):* the Senses level of a street is its existing one (the median of its photos, 4–5 easy, 3 mixed, 1–2 hard); the Thermal level is its feels-like value at the chosen season and time with the limits in use (standard: easy 9–26, mixed 26–32 and 0–9, hard above 32 and below 0; personal from the hot and cold answers and the comfort bar's handles). Overall is the worse (hard > mixed > easy).
+- *Edge cases:* both equal: that level, both named as the reason; one missing (no photo, or no thermal value): the other, drawn "partial" and noted "based on thermal only" or "based on senses only"; both missing: "No data", drawn as "No photo" is now; senses still general (no profile): the card says "not personalised yet" for the senses part.
+- *The card:* the overall level, then what decides in plain words ("Hard because of heat: feels like 34 °C", "Mixed because of your senses: traffic, trams; signs, ads"), then both parts as small rows (Senses ·, Thermal ·), then what might bother or feel good.
+- *Partial, one look everywhere (Elena):* the same comfort colour at half opacity (`--partial-opacity` 0.5), for streets, route stretches, parks and squares, and in the route bars; dashes stay reserved for route B. Both keys, the map's and the routes', have "Partial (one layer only)" with a faded swatch; cards keep "based on … only".
+- *Map and legend:* the streets in their overall colour; the key "Overall comfort" with Easy, Mixed, Hard, "Partial (one layer only)" and "No data"; the note says the photo rating is from when the photo was taken and that season and time change only the thermal part (they recolour only that part; nothing is rated again).
+- *Rating:* Overall rates the photos as Senses does (the same runs and caches). *Default:* with a saved profile on this device Area and Routes open on Overall.
+- *Routes (Elena):* on Overall the stretches take the overall level, and each route shows its share of easy, mixed and hard by length ("easy 40% · mixed 35% · hard 25%"), with a line on which has less hard walking overall.
+
+**Decided (proposed, then approved by Elena).**
+- The board's place card shows both parts as full bars; Elena's text asks for small rows, which this follows. "Hard overall, because of heat" (board) reads "Hard overall" then "Hard because of heat: feels like 31 °C".
+- No "Likely easiest for you" markers on Overall yet (they are Thermal's).
+- *Routes' two ways on Overall:* the ones Thermal finds (A shortest, B with the least hard thermal walking); their streets are then rated for the senses part. Choosing B by its overall level would need rated candidate ways first, as Senses does; left for later.
+- *Checked: partial against "No photo" (light and dark):* colour difference (CIE76 ΔE) of each faded colour against the "No photo" grey, both blended on the map's ground: mixed and hard 19–31, easy 10–11 (a faded cyan is close in hue to the teal-grey of "No photo"); partial lines also stay full width with their glow while "No photo" is thin. A stronger fade does not help easy and blurs partial into full. *Then (Elena):* "No photo" (and Overall's "No data") is a neutral grey on Senses and Overall (`--map-seg-no-photo`, `--no-photo-grey`), on the map, the route stretches and bars, the keys and the area bar; Thermal keeps its own grey for "No value" (it colours by temperature, so a missing photo means nothing there). With it, faded easy is ΔE 14–15 from "No photo", mixed and hard 16–27.
+
+
 ## 2026-11-15 – Cold is hard below 0 °C; the temperature bars run from −10 to 45 °C (accepted)
 **Context.** Elena: the thermal bar's scale "from −10 to 45 °C feels like (centred on 17.5)", then −15 to 45, then back to −10 to 45 (the standard easy range 9–26 in the middle); values beyond the ends clamped with an arrow marker; cold "hard" below 0 °C (moderate cold stress), "mixed" 0–9 °C, heat unchanged; the reason in the brief.
 **Decision (Elena).**

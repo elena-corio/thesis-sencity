@@ -38,10 +38,21 @@ describe('stretches', () => {
   it('runs join consecutive stretches with the same state, for the dashes', () => {
     const s = stretchesOf({ id: 'B', parts: [part('a', 0, 1), part('b', 1, 2), part('c', 2, 3), part('d', 3, 4)] }, byId, 'thermal')
     expect(runsOf(s)).toEqual([
-      { state: 'easy', coordinates: [[0, 48], [1, 48], [2, 48]] },
-      { state: 'hard', coordinates: [[2, 48], [3, 48]] },
-      { state: 'easy', coordinates: [[3, 48], [4, 48]] },
+      { state: 'easy', partial: false, coordinates: [[0, 48], [1, 48], [2, 48]] },
+      { state: 'hard', partial: false, coordinates: [[2, 48], [3, 48]] },
+      { state: 'easy', partial: false, coordinates: [[3, 48], [4, 48]] },
     ])
+  })
+
+  it('on Overall a stretch with one layer only is partial, and a run breaks where partial changes', () => {
+    const m = new Map([
+      ['a', { properties: { id: 'a', overall_state: 'easy', overall_partial: true } }],
+      ['b', { properties: { id: 'b', overall_state: 'easy', overall_partial: false } }],
+    ])
+    const s = stretchesOf({ id: 'B', parts: [part('a', 0, 1), part('b', 1, 2)] }, m, 'overall')
+    expect(s.map((x) => [x.state, x.partial])).toEqual([['easy', true], ['easy', false]])
+    expect(runsOf(s).map((r) => r.partial)).toEqual([true, false])
+    expect(stretchesOf({ id: 'A', parts: [part('a', 0, 1)] }, m, 'thermal')[0].partial).toBe(false) // only on Overall
   })
 })
 

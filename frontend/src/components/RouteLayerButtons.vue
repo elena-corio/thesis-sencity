@@ -1,15 +1,14 @@
 <script setup>
 // Layer of the routes, as in Area. The two ways are found on Thermal; Senses colours them by their ratings as these
-// arrive. Overall needs both for every street, so it waits.
+// arrive; Overall by the worse of the two (lib/overall.js).
 import { useRoutesStore } from '../stores/routes.js'
 import ChoiceButtons from './ChoiceButtons.vue'
 
 const routes = useRoutesStore()
-const SOON = 'Follows when your photos are rated'
 const LAYERS = [
   { id: 'senses', label: 'Senses' },
   { id: 'thermal', label: 'Thermal' },
-  { id: 'overall', label: 'Overall', disabled: true, title: SOON },
+  { id: 'overall', label: 'Overall' },
 ]
 </script>
 

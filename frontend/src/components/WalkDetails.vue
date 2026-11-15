@@ -30,7 +30,7 @@ const columns = computed(() => [
   { title: 'Might bother you', kind: 'bother', rows: rated.value ? bySense(place.value.bothers) : [] },
   { title: 'Might feel good', kind: 'good', rows: rated.value ? bySense(place.value.feelsGood) : [] },
 ])
-const swatch = computed(() => `var(--${comfort.value.state === 'none' ? 'no-photo' : comfort.value.state})`)
+const swatch = computed(() => `var(--${comfort.value.state === 'none' ? (walk.layer === 'thermal' ? 'no-photo' : 'no-photo-grey') : comfort.value.state})`)
 </script>
 
 <template>

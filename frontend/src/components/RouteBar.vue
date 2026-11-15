@@ -55,7 +55,7 @@ function onKey(e) {
             @mouseenter="walking || (routes.hoverKey = s.key)" @mouseleave="walking || (routes.hoverKey = null)"
             @focus="walking || (routes.hoverKey = s.key)" @blur="walking || (routes.hoverKey = null)"
             @click="onClick(s, i, $event)">
-      <span :class="['fill', s.state]" />
+      <span :class="['fill', s.state, { partial: s.partial, 'no-photo': s.state === 'none' && !s.thermal }]" />
     </button>
   </div>
 </template>
@@ -78,6 +78,9 @@ function onKey(e) {
 .fill.mixed { background: var(--mixed); }
 .fill.hard { background: var(--hard); opacity: 1; }
 .fill.none { background: var(--no-photo); }
+.fill.none.no-photo { background: var(--no-photo-grey); } /* Senses and Overall: no photo, a neutral grey */
+/* Overall with one layer only: the same colour, faded (Elena, 2026-11-15). */
+.fill.partial, .fill.hard.partial { opacity: var(--partial-opacity); }
 .section:hover .fill, .section.hover .fill { opacity: 1; box-shadow: inset 0 0 0 var(--hairline) var(--ring); }
 .section.selected .fill { opacity: 1; box-shadow: inset 0 0 0 var(--focus-width) var(--ring); }
 </style>
