@@ -5,6 +5,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
 import { SHOW_COST, predictionLabel, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
+import { overallShares, overallVerdict, sharesText } from '../lib/overall.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -64,12 +65,15 @@ const loading = computed(() => routes.load === 'loading' || routes.load === 'err
 
 const bName = (r) => (r.kind === 'easiest' ? 'easiest' : 'alternative')
 /** Each layer's own numbers: Thermal's come with the routes, Senses' from the ratings as they are on the stretches. */
-const routeHard = (r) => (routes.layer === 'senses' ? hardShare(r.stretches) : r.hard_share)
+const routeHard = (r) => (routes.layer === 'thermal' ? r.hard_share : hardShare(r.stretches))
+/** Overall: each route's share of easy, mixed and hard, by length (Elena, 2026-11-15). */
+const routeShares = (r) => sharesText(overallShares(r.stretches))
 const hardColour = (r) => (routeHard(r) === 0 ? 'clear' : '')
 /** The legend straight under the bars: the key (Senses, Overall), or on Thermal the full legend (Elena, 2026-11-11). */
 const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
 const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
-const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown) : routes.verdict))
+const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown)
+  : routes.layer === 'overall' ? overallVerdict(routes.shown) : routes.verdict))
 const coverage = computed(() => {
   const [a, b] = routes.shown
   const each = (key) => {
@@ -171,16 +175,17 @@ const profileStore = useProfileStore()
         <div class="bar-row">
           <RouteBar :route="r" />
         </div>
+        <p v-if="routes.layer === 'overall'" class="shares muted" :data-testid="`shares-${r.id}`">{{ routeShares(r) }}</p>
       </div>
       <!-- The legend straight after the bars (Elena, 2026-11-11). -->
       <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
-      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" rule />
+      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" :partial="false" rule />
       <div v-else-if="!phone" class="thermal-block" role="group" aria-label="Legend">
         <ThermalLegend :values="thermalValues" :window="routes.info" :extra="NO_VALUE" />
       </div>
       <p class="verdict">{{ verdictText }}</p>
       <SensesPanel v-if="routes.layer === 'senses'" scope="routes" />
-      <SensesFoot v-if="routes.layer === 'senses'" scope="routes" />
+      <SensesFoot v-if="routes.layer === 'senses' || routes.layer === 'overall'" scope="routes" />
       <p v-if="routes.windowError" class="window-error" role="status">{{ routes.windowError }}</p>
       <div v-if="!phone" class="walk">
         <button type="button" class="btn btn-primary" :data-walk="walk.main" @click="walkStore.start(walk.main, $event.detail === 0)">Walk route {{ walk.main }}</button>
@@ -199,6 +204,7 @@ const profileStore = useProfileStore()
 </template>
 
 <style scoped>
+.shares { margin: var(--space-1) 0 0; font-size: var(--fs-xs); }
 .card { padding: var(--space-5); overflow-y: auto; }
 .title { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }

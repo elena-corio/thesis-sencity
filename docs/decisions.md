@@ -41,12 +41,15 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Edge cases:* both equal: that level, both named as the reason; one missing (no photo, or no thermal value): the other, drawn dashed ("partial") and noted "based on thermal only" or "based on senses only"; both missing: "No data", drawn as "No photo" is now; senses still general (no profile): the card says "not personalised yet" for the senses part.
 - *The card:* the overall level, then what decides in plain words ("Hard because of heat: feels like 34 °C", "Mixed because of your senses: traffic, trams; signs, ads"), then both parts as small rows (Senses ·, Thermal ·), then what might bother or feel good.
 - *Map and legend:* the streets in their overall colour, one-layer streets dashed; the key "Overall comfort" with Easy, Mixed, Hard, "Partial: one layer only" and "No data"; the note says the photo rating is from when the photo was taken and that season and time change only the thermal part (they recolour only that part; nothing is rated again).
-- *Rating:* Overall rates the photos as Senses does (the same runs and caches). *Default:* with a saved profile on this device the Area opens on Overall.
+- *Rating:* Overall rates the photos as Senses does (the same runs and caches). *Default:* with a saved profile on this device Area and Routes open on Overall.
+- *Routes (Elena):* on Overall the stretches take the overall level, and each route shows its share of easy, mixed and hard by length ("easy 40% · mixed 35% · hard 25%"), with a line on which has less hard walking overall.
 
 **Proposed.**
 - The board's place card shows both parts as full bars; Elena's text asks for small rows, which this follows. "Hard overall, because of heat" (board) reads "Hard overall" then "Hard because of heat: feels like 31 °C".
 - A partial park or square is filled as usual (a hatched fill needs an image pattern); its card and key still say partial.
 - No "Likely easiest for you" markers on Overall yet (they are Thermal's).
+- *Routes' two ways on Overall:* the ones Thermal finds (A shortest, B with the least hard thermal walking); their streets are then rated for the senses part. Choosing B by its overall level would need rated candidate ways first, as Senses does; left for later.
+- *Routes' key has no "Partial" row:* on the routes dashes mean route B, so a one-layer stretch is not dashed there; its card still says "based on … only".
 
 ## 2026-11-15 – Cold is hard below 0 °C; the temperature bars run from −10 to 45 °C (accepted)
 **Context.** Elena: the thermal bar's scale "from −10 to 45 °C feels like (centred on 17.5)", then −15 to 45, then back to −10 to 45 (the standard easy range 9–26 in the middle); values beyond the ends clamped with an arrow marker; cold "hard" below 0 °C (moderate cold stress), "mixed" 0–9 °C, heat unchanged; the reason in the brief.

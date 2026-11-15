@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { overallOf, overallReason, overallShares, withOverall } from './overall.js'
+import { overallOf, overallReason, overallShares, overallVerdict, sharesText, withOverall } from './overall.js'
 import { personalLimits, setPersonalLimits, thermalState } from './thermal.js'
 
 const L = ['easy', 'mixed', 'hard']
@@ -87,8 +87,15 @@ describe('personal limits shift the thermal part', () => {
 
 describe('a route on Overall', () => {
   it('shares easy, mixed and hard by length', () => {
-    const s = overallShares([{ state: 'easy', length: 300 }, { state: 'hard', length: 100 }, { state: null, length: 100 }])
+    const s = overallShares([{ state: 'easy', length_m: 300 }, { state: 'hard', length_m: 100 }, { state: 'none', length_m: 100 }])
     expect(s).toEqual({ easy: 0.6, mixed: 0, hard: 0.2, none: 0.2 })
+    expect(sharesText(s)).toBe('easy 60% · mixed 0% · hard 20%')
+  })
+  it('says which way has less hard walking overall', () => {
+    const way = (id, minutes, hard) => ({ id, minutes, stretches: [{ state: 'hard', length_m: hard }, { state: 'easy', length_m: 100 - hard }] })
+    expect(overallVerdict([way('A', 10, 40), way('B', 12, 10)])).toBe('B is 2 minutes longer and has less hard walking overall (10% against 40%).')
+    expect(overallVerdict([way('A', 10, 10), way('B', 11, 30)])).toBe('A has less hard walking overall (10% against 30%).')
+    expect(overallVerdict([way('A', 10, 20)])).toBe('There is only one sensible way here.')
   })
 })
 

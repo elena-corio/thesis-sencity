@@ -68,8 +68,25 @@ export function overallReason(o, { utci = null, hot = true, place = null, comfor
 
 /** A route's share of easy, mixed and hard on Overall, by length: { easy, mixed, hard, none } (0–1). */
 export function overallShares(stretches) {
+  // (length_m on a route's stretches; length for a plain list)
   const len = { easy: 0, mixed: 0, hard: 0, none: 0 }
-  for (const s of stretches) len[s.state && RANK[s.state] != null ? s.state : 'none'] += s.length ?? 0
+  for (const s of stretches) len[s.state && RANK[s.state] != null ? s.state : 'none'] += s.length_m ?? s.length ?? 0
   const total = len.easy + len.mixed + len.hard + len.none
   return Object.fromEntries(Object.entries(len).map(([k, v]) => [k, total ? v / total : 0]))
+}
+
+const pctOf = (x) => `${Math.round(x * 100)}%`
+/** "easy 60% · mixed 20% · hard 20%" (what has no data is left out of the words, not of the shares). */
+export const sharesText = (s) => `easy ${pctOf(s.easy)} · mixed ${pctOf(s.mixed)} · hard ${pctOf(s.hard)}`
+
+/** The routes' line on Overall: which way has less hard walking, overall. */
+export function overallVerdict([a, b]) {
+  if (!b) return 'There is only one sensible way here.'
+  const ha = overallShares(a.stretches).hard
+  const hb = overallShares(b.stretches).hard
+  const extra = b.minutes - a.minutes
+  const took = extra > 0 ? `B is ${extra} minute${extra === 1 ? '' : 's'} longer` : 'B takes about the same time'
+  if (hb < ha) return `${took} and has less hard walking overall (${pctOf(hb)} against ${pctOf(ha)}).`
+  if (hb > ha) return `A has less hard walking overall (${pctOf(ha)} against ${pctOf(hb)}).`
+  return `Both have the same share of hard walking overall (${pctOf(ha)}).`
 }

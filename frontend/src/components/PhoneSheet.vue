@@ -172,7 +172,7 @@ defineExpose({ show })
     <div class="floating">
       <MapAttribution in-sheet />
       <div v-if="showLegend" class="strip panel" data-panel="legend" role="group" aria-label="Legend">
-        <ComfortKey :layer="legendLayer" :window="props.routesMode ? routes.info : area.thermalInfo" />
+        <ComfortKey :layer="legendLayer" :window="props.routesMode ? routes.info : area.thermalInfo" :partial="!props.routesMode" />
       </div>
     </div>
 

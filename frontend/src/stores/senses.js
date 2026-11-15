@@ -159,8 +159,18 @@ export const useSensesStore = defineStore('senses', () => {
       .map((f) => ({ id: f.properties.id, photos: f.properties.photos }))
     start('routes', ids.join('|'), places)
   })
+  // Overall: the two ways come from Thermal; their streets are rated for the senses part, as on Senses.
+  watch(() => (routes.layer === 'overall' ? routes.routes : null), (ways) => {
+    if (!ways?.length) return
+    const ids = [...new Set(ways.flatMap((w) => w.parts.map((p) => p.segment_id).filter(Boolean)))]
+    const key = `overall|${ids.join('|')}`
+    if (runs.routes.key === key) return
+    const places = ids.map((id) => routes.segments.get(id)).filter((f) => f?.properties.photos?.length)
+      .map((f) => ({ id: f.properties.id, photos: f.properties.photos }))
+    start('routes', key, places)
+  })
   watch(() => runs.routes.status, (status) => {
-    if (['idle', 'rating'].includes(status)) return
+    if (['idle', 'rating'].includes(status) || routes.layer !== 'senses') return
     routes.finishSenses((id) => {
       const place = placeFor(routes.segments.get(id)?.properties.photos)
       return place.status === 'rated' ? place.level : null

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { AREA, THERMAL, WITHOUT, analyseCentre, chooseLayer, markRatingMocked, mockArea, openMap, openSegment, withSavedProfile, TEST_PROFILES } from './helpers.js'
+import { AREA, THERMAL, WITHOUT, analyseCentre, chooseLayer, markRatingMocked, mockArea, mockRoutes, openMap, openRoutes, openSegment, routeClicks, withSavedProfile, TEST_PROFILES } from './helpers.js'
 
 // Overall (Elena, 2026-11-15; boards 1, 2b): the worse of Senses and Thermal per street, worked out in the browser. The
 // API is mocked: thermal 22 / 29 / 36 °C by street (easy / mixed / hard), photo ratings by order.
@@ -104,6 +104,44 @@ test.describe('Overall', () => {
     await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: 'x', saved: '2026-11-15T10:00:00Z', weather: {}, thermal: null })
     await openMap(page, 'dark', { layer: null })
     expect(await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').layer)).toBe('overall')
+  })
+})
+
+test.describe('Overall on the routes', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('the stretches take the overall level and each route shows its share of easy, mixed and hard', async ({ page }) => {
+    await mockRoutes(page)
+    const asked = await mockRatings(page)
+    await openRoutes(page, 'dark', { layer: 'overall' })
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await page.getByRole('button', { name: 'Analyse the routes' }).click()
+    const card = page.locator('[data-panel="route-card"]')
+    await expect(card.getByTestId('shares-A')).toBeVisible({ timeout: 20_000 })
+    await expect.poll(() => asked.length, { timeout: 20_000 }).toBeGreaterThan(0) // the two ways' streets are rated
+    // Each stretch: the worse of its senses and thermal levels.
+    const check = await page.evaluate(() => {
+      const r = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('routes')
+      return r.shown.flatMap((w) => w.stretches.map((s) => {
+        const f = r.segments.get(s.segmentId)?.properties ?? {}
+        return { state: s.state, senses: f.senses_state, thermal: f.thermal_state }
+      }))
+    })
+    const R = { easy: 0, mixed: 1, hard: 2 }
+    await expect.poll(async () => (await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('routes').shown[0].stretches.some((s) => s.state !== 'none')))).toBe(true)
+    for (const c of check) {
+      const s = R[c.senses] != null ? c.senses : null
+      const t = R[c.thermal] != null ? c.thermal : null
+      if (s && t) expect(c.state).toBe(R[s] >= R[t] ? s : t)
+      else if (s || t) expect(c.state).toBe(s ?? t)
+    }
+    await expect(card.getByTestId('shares-A')).toHaveText(/^easy \d+% · mixed \d+% · hard \d+%$/)
+    await expect(card).toContainText('overall')
+    await expect(card).toContainText('Overall comfort')
+    await expect(card).not.toContainText('Partial') // dashes mean route B here
+    await page.screenshot({ path: 'e2e/screens/overall-routes-dark.png' })
   })
 })
 

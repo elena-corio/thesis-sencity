@@ -6,12 +6,24 @@ import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
 import { pickWays, withSenses } from '../lib/senses.js'
 import { POINT_LABEL, haversine } from '../lib/geo.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
+import { withOverall } from '../lib/overall.js'
+import { SAVED_KEY } from './profile.js'
+
+/** A saved profile on this device (read once, at start): Overall is then the default layer. */
+function hasSavedProfile() {
+  try {
+    return !!localStorage.getItem(SAVED_KEY)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
  * there is a preview, and nothing is asked for until Analyse (as in Area: a misclick costs nothing). The
  * two ways appear on the map only when they are ready.
- * The two ways are found on Thermal. Their streets are then rated for Senses (stores/senses.js); Overall is not built.
+ * The two ways are found on Thermal. Their streets are then rated for Senses (stores/senses.js). Overall uses the ways
+ * Thermal finds and colours them by the worse of the two levels (lib/overall.js).
  */
 export const useRoutesStore = defineStore('routes', () => {
   /** named: the label is a place from search, not a point on the map.
@@ -34,7 +46,8 @@ export const useRoutesStore = defineStore('routes', () => {
   const thermalWindow = ref({ ...config.thermalDefault })
   /** The window and station of the routes shown. */
   const info = ref(null)
-  const layer = ref(config.layerDefault) // the same layer Area opens on
+  // The same layer Area opens on: Overall with a saved profile on this device (Elena, 2026-11-15).
+  const layer = ref(hasSavedProfile() ? 'overall' : config.layerDefault)
   const routes = shallowRef([])
   /** Senses: the ways to rate; the two routes are chosen from them when the rating ends (stores/senses.js). */
   const candidates = shallowRef([])
@@ -66,8 +79,10 @@ export const useRoutesStore = defineStore('routes', () => {
   /** Both points are set and nothing has been asked for yet. */
   const previewing = computed(() => step.value === 'set' && load.value === 'idle' && !hasResult.value)
   const aerialDistance = computed(() => (start.value && end.value ? haversine(start.value, end.value) : 0))
+  /** The route streets with their overall level too: the worse of senses_state and thermal_state. */
+  const rated = computed(() => new Map(withOverall({ features: [...segments.value.values()] }).features.map((f) => [f.properties.id, f])))
   /** Every route with its stretches on the chosen layer. */
-  const shown = computed(() => routes.value.map((r) => ({ ...r, stretches: stretchesOf(r, segments.value, layer.value) })))
+  const shown = computed(() => routes.value.map((r) => ({ ...r, stretches: stretchesOf(r, rated.value, layer.value) })))
   const allStretches = computed(() => shown.value.flatMap((r) => r.stretches))
   const selectedStretch = computed(() => allStretches.value.find((s) => s.key === selected.value?.key) ?? null)
   const selectedRoute = computed(() => shown.value.find((r) => r.id === selectedStretch.value?.routeId) ?? null)
