@@ -4,7 +4,8 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 
 ## 2026-11-15 – The right card of the profile: one title style (accepted)
 **Context.** Elena: "put Edit on the right of In your words, as for the sensory profile; unify the style of the titles in the card".
-**Decision (Elena).** Every title of the right card is one row in the same style (small, semibold, full text colour): the title on the left, its value or Edit on the right: Overall sensory comfort (2 of 5, Edit), In your words (Edit), Strongest for you, and "Your sensory profile, as the model reads it", which folds with a chevron like "Your answers, element by element".
+**Decision (Elena).** Every title of the right card is one row in the same style (small, semibold, full text colour): the title on the left, its value or Edit on the right: Overall sensory comfort (2 of 5, Edit), In your words (Edit), Strongest for you, and "Your sensory profile, as the model reads it", which folds with a chevron like "Your answers, element by element". "Strongest for you" uses the answers' words and colours ("1 · very unpleasant", "5 · very pleasant"), as everywhere else on the profile (Elena).
+- *Sense names on hover (Elena):* pointing at an icon of the radar shows the name of its sense beside it, as on board 5 ("Sight").
 
 ## 2026-11-15 – No "Show as a list" under the radar (accepted)
 **Context.** Elena: "remove show as a list".

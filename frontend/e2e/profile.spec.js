@@ -112,6 +112,7 @@ test.describe('your sensory profile', () => {
     expect(await draft(page)).toBe(null)
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
+    await expect(summary.locator('aside .top li').first()).toHaveText(/Traffic, trams\s*1 · very unpleasant/) // the answers' words
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
     // At the top of the right card, above "In your words" (Elena, 2026-11-15).
     const side = summary.locator('aside')
@@ -131,6 +132,11 @@ test.describe('your sensory profile', () => {
     await expect(summary.getByTestId('answer-A16')).toContainText(DEV.answers.A16)
     await expect(radar.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: bothers you 5, feels good 5')
     await expect(radar.locator('button[data-sense="balance_movement"]')).toHaveAttribute('aria-label', 'Balance and movement: bothers you 3, feels good 4')
+    // Pointing at an icon shows the name of its sense beside it (board 5).
+    await radar.locator('button[data-sense="sight"]').hover()
+    await expect(radar.getByTestId('radar-name')).toHaveText('Sight')
+    await radar.locator('button[data-sense="body_awareness"]').hover()
+    await expect(radar.getByTestId('radar-name')).toHaveText('Body awareness')
     await radar.locator('button[data-sense="hearing"]').click()
     await expect(radar.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-expanded', 'true')
     const detail = radar.getByTestId('radar-detail')

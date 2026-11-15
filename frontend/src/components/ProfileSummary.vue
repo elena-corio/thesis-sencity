@@ -81,7 +81,7 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
         <li v-for="t in top" :key="t.row.code">
           <span class="dot" :class="t.kind" aria-hidden="true" />
           <span class="name">{{ t.row[lang] }}</span>
-          <span class="muted">{{ t.kind === 'bothers' ? 'unpleasant' : 'pleasant' }} {{ t.score }}</span>
+          <span class="score" :class="kind(t.score)">{{ t.score }} · {{ words('A12')[t.score - 1] }}</span>
         </li>
       </ul>
       <p v-else class="muted">Nothing stands out: every element is in the middle.</p>

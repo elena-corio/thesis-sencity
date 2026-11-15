@@ -53,6 +53,12 @@ const both = (s) => (s.bothers == null ? 'no answers' : `bothers you ${s.bothers
 const answerText = (e) => `${e.value} · ${scale.value[e.value - 1]}`
 const pick = (sense) => { selected.value = selected.value === sense ? null : sense }
 
+const hovered = ref(null)
+const hoveredIndex = computed(() => scores.value.findIndex((s) => s.sense === hovered.value))
+// On the outer side of the icon: to the right on the right half, to the left on the left half, beside the top and bottom ones.
+const tagSide = computed(() => (hoveredIndex.value >= 0 && at(hoveredIndex.value, ICON_R)[0] < -1 ? 'left' : 'right'))
+const tagStyle = computed(() => (hoveredIndex.value < 0 ? {} : place(hoveredIndex.value)))
+
 // The card next to the tapped sense: under it for the upper half, above it for the lower half.
 const pickedIndex = computed(() => scores.value.findIndex((s) => s.sense === selected.value))
 const popBelow = computed(() => pickedIndex.value >= 0 && at(pickedIndex.value, ICON_R)[1] <= 1)
@@ -95,9 +101,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside, tru
       </svg>
       <button v-for="(s, i) in scores" :key="`i${s.sense}`" type="button" class="icon" :class="{ on: selected === s.sense, gap: s.bothers == null }"
               :style="place(i)" :data-sense="s.sense" :aria-label="`${name(s.sense)}: ${both(s)}`"
-              :aria-expanded="selected === s.sense" :aria-controls="selected === s.sense ? 'radar-detail' : undefined" @click="pick(s.sense)">
+              :aria-expanded="selected === s.sense" :aria-controls="selected === s.sense ? 'radar-detail' : undefined" @click="pick(s.sense)"
+              @mouseenter="hovered = s.sense" @mouseleave="hovered = null">
         <SenseIcon :sense="s.sense" />
       </button>
+      <!-- The name of the sense under the pointer, beside its icon (board 5, "Sight"); not while its card is open. -->
+      <span v-if="hovered && hovered !== selected" class="name-tag" :class="tagSide" :style="tagStyle" aria-hidden="true"
+            data-testid="radar-name">{{ name(hovered) }}</span>
       <!-- Next to the sense tapped, so it shows where you look (Elena: tapping seemed to do nothing when the list was
            under the chart, below the screen). -->
       <div v-if="picked" id="radar-detail" class="pop" :class="{ below: popBelow }" :style="popStyle" role="region"
@@ -157,6 +167,13 @@ ul { padding: 0; list-style: none; }
 .detail-both { font-size: var(--fs-sm); color: var(--text-2); margin-bottom: var(--space-2); }
 .pop li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-1) 0; }
 .hint { flex-basis: 100%; }
+.name-tag {
+  position: absolute; z-index: 1; pointer-events: none; white-space: nowrap;
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-chip);
+  background: var(--btn-selected-bg); color: var(--text); font-size: var(--fs-md);
+}
+.name-tag.right { transform: translate(calc(var(--touch) / 2 + var(--space-2)), -50%); }
+.name-tag.left { transform: translate(calc(-100% - var(--touch) / 2 - var(--space-2)), -50%); }
 .val { color: var(--text-2); font-size: var(--fs-sm); text-align: right; }
 .val.g { color: var(--easy); }
 .val.b { color: var(--hard-text); }
