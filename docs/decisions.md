@@ -34,6 +34,15 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
 - *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
 
+## 2026-11-15 – Cold is hard below 0 °C; the temperature bars run from −15 to 45 °C (accepted)
+**Context.** Elena: the thermal bar's scale "from −10 to 45 °C feels like (centred on 17.5)", then "write −15 not −10"; values beyond the ends clamped with an arrow marker; cold "hard" below 0 °C (moderate cold stress), "mixed" 0–9 °C, heat unchanged; the reason in the brief.
+**Decision (Elena).**
+- *Cold bands:* easy 9–26, mixed 0–9 and 26–32, hard below 0 and above 32 (`config.thermalLimits.cold` = [9, 0], was [9, −13]). Stricter than grouping the UTCI stress categories, chosen for sensory-sensitive users, and untested; noted in the brief. Personal shifts work as before (cold 1 → mixed 3–12 °C). The map, cards, legend, suggestions and routes all follow, since they read the same limits.
+- *Bar ends:* −15 to 45 °C feels like, for the place card's bar and the profile's comfortable temperature alike (`config.thermalBar`). A value beyond an end sits at it as an arrow pointing out (`beyondBar`), not the diamond.
+- *Handles:* the outer limits stay on the bar, so the start of hot goes up to 39 °C (45 − 6) and the start of cold down to −6 °C (−15 + 9).
+
+**Note.** With −15 at the left end the bar's middle is 15 °C, not the 17.5 of the first request (that needed −10 to 45, or −15 to 50).
+
 ## 2026-11-15 – Weather step and personal Thermal limits; the comfortable temperature on the profile (accepted)
 **Context.** Elena: a Weather step after A16 (hot, cold and windy weather outdoors, on the Part A scale, EN and IT), kept with the profile but never in the profile text or a model call; personal Thermal limits from it; on the profile, a bar "Temperature that feels comfortable to you" whose two inner limits are draggable; remove the old rule that used "Direct sun, little shade" for heat.
 **Decision (Elena).**
@@ -45,7 +54,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 
 **Proposed.**
 - *The Weather step is optional* (Next works with rows unanswered): an unanswered row keeps the standard band, and profiles saved before this step keep working.
-- *Moving a handle moves its side's two limits together* (the 6 °C mixed band kept), and the easy range stays at least 2 °C wide. Each start has a min and max so its side's outer limit never leaves the bar (Elena): the start of hot up to 34 °C (40 − 6), the start of cold down to 2 °C (−20 + 22). While a start is being moved (dragged, or a handle has the keyboard), the standard ticks are hidden (Elena: they confused); the summary line still names the standard range. New weather answers drop a handle moved by hand, so the bar follows the answers again.
+- *Moving a handle moves its side's two limits together* (the 6 °C mixed band kept), and the easy range stays at least 2 °C wide. Each start has a min and max so its side's outer limit never leaves the bar (Elena): the start of hot up to 39 °C (45 − 6), the start of cold down to −6 °C (−15 + 9), since the change of the same day. While a start is being moved (dragged, or a handle has the keyboard), the standard ticks are hidden (Elena: they confused); the summary line still names the standard range. New weather answers drop a handle moved by hand, so the bar follows the answers again.
 - *Not built: the windy-corner flag.* The app has no wind data (Infrared.city gives the feels-like temperature only), so there is no windy corner to flag yet; the wind answer is kept and `windSensitive` (wind 1–2) is ready for it. Asked.
 
 ## 2026-11-15 – Profile on a phone; no profile text on the page (accepted)

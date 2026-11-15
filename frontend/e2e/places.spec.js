@@ -174,7 +174,7 @@ test.describe('desktop', () => {
     await expect(place.getByTestId('thermal')).toContainText('Hard: above 32 °C')
     // A temperature bar on the heat side (every value here is 9 °C or warmer), no 1–5 score.
     await expect(place.getByRole('img', { name: 'Feels like 36 °C on the heat side of the scale' })).toBeVisible()
-    for (const t of ['9', '26', '32', '40']) await expect(place.getByTestId('thermal-bar')).toContainText(t)
+    for (const t of ['9', '26', '32', '45 °C']) await expect(place.getByTestId('thermal-bar')).toContainText(t)
     await expect(place.getByTestId('thermal')).not.toContainText('of 5')
     await expect(place.getByTestId('thermal')).toContainText('Cooler street nearby')
     await mapIdle(page)

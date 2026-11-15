@@ -46,7 +46,7 @@ export function startsFromAnswers(weather) {
 
 /**
  * How far a start can move (Elena, 2026-11-15): its side's outer limit stays on the bar, so the start of hot goes up to
- * 40 − 6 = 34 °C and the start of cold down to −20 + 22 = 2 °C; and the easy range stays at least minEasy wide.
+ * 45 − 6 = 39 °C and the start of cold down to −15 + 9 = −6 °C; and the easy range stays at least minEasy wide.
  * `other` is the other side's start. { min, max } in °C.
  */
 export function startRange(side, other) {
@@ -196,6 +196,11 @@ export function thermalBar(limits = thermalLimits(), side = 'heat', ends = confi
     stops: pts.filter(([v]) => v >= min && v <= max).map(([v, state]) => ({ at: at(v), state })),
     ticks: borders.map((value) => ({ at: at(value), value })),
   }
+}
+
+/** Beyond an end of the bar: 'low', 'high' or null (the marker is then an arrow pointing out). */
+export function beyondBar(utci, bar) {
+  return utci < bar.min ? 'low' : utci > bar.max ? 'high' : null
 }
 
 /** Where a value sits on the bar, 0–100, clamped at the ends. */
