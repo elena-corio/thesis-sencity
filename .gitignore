@@ -59,3 +59,6 @@ desktop.ini
 
 # Photo specs of the study places
 docs/specs/
+
+# Personal files kept next to the export (a profile, pipeline results): never committed
+model/local/
