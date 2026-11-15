@@ -50,12 +50,14 @@ test.describe('Overall', () => {
       else if (s || t) expect({ id: f.id, o: f.o, p: f.p }).toEqual({ id: f.id, o: s ?? t, p: true })
       else expect(f.o).toBeUndefined()
     }
-    expect(all.some((f) => f.p)).toBe(true) // a street without a photo: thermal only, drawn dashed
-    expect(await page.evaluate(() => window.__sencityMap.getLayer('sc-seg-core-partial').getPaintProperty('line-dasharray'))).toBeTruthy()
+    expect(all.some((f) => f.p)).toBe(true) // a street without a photo: thermal only, drawn faded
+    // Partial is the comfort colour at half opacity, no dashes (dashes are route B's).
+    expect(await page.evaluate(() => !!window.__sencityMap.getLayer('sc-seg-core-partial'))).toBe(false)
+    expect(JSON.stringify(await page.evaluate(() => window.__sencityMap.getPaintProperty('sc-seg-core', 'line-color')))).toContain(', 0.5)')
 
     // The legend: "Overall comfort", the partial style and "No data"; the note says senses is from the photo's moment.
     await expect(card).toContainText('Overall comfort')
-    await expect(card).toContainText('Partial: one layer only')
+    await expect(card).toContainText('Partial (one layer only)')
     await expect(card).toContainText('No data')
     await expect(page.locator('[data-panel="layers"]')).toContainText('season and time change only the thermal part')
     await page.screenshot({ path: 'e2e/screens/overall-area-dark.png' })
@@ -143,10 +145,25 @@ test.describe('Overall on the routes', () => {
     await expect(card.getByTestId('shares-A')).toHaveText(/^easy \d+% · mixed \d+% · hard \d+%$/)
     await expect(card).toContainText('overall')
     await expect(card).toContainText('Overall comfort')
-    await expect(card).not.toContainText('Partial') // dashes mean route B here
+    await expect(card).toContainText('Partial (one layer only)') // one look everywhere; dashes stay route B's
     await page.screenshot({ path: 'e2e/screens/overall-routes-dark.png' })
   })
 })
+
+for (const theme of ['dark', 'light']) {
+  test(`partial streets stay apart from No photo (${theme})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await mockArea(page, { thermal: true })
+    await mockRatings(page)
+    await openMap(page, theme, { layer: null })
+    await chooseLayer(page, 'overall')
+    await analyseCentre(page)
+    await expect.poll(async () => (await states(page)).filter((f) => f.s).length, { timeout: 20_000 }).toBeGreaterThan(5)
+    await page.evaluate(() => window.__sencityMap.zoomTo(17.6, { duration: 0 }))
+    await page.waitForTimeout(800)
+    await page.screenshot({ path: `e2e/screens/overall-partial-${theme}.png`, clip: { x: 380, y: 160, width: 680, height: 600 } })
+  })
+}
 
 test('thermal level helper matches the default bands', () => {
   expect([level(5), level(3), level(1)]).toEqual(['easy', 'mixed', 'hard'])

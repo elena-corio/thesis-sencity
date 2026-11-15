@@ -2,7 +2,7 @@
 // with a soft halo: grey until it has a value on the chosen layer, then in its state colour (easy / mixed / hard)
 // (Elena, 2026-11-10). A street with no photo is thin and dim. Hover and selection are feature-states on the segment
 // itself, never an extra line on top.
-import { cssVar } from '../composables.js'
+import { cssVar, fade } from '../composables.js'
 
 const EMPTY = { type: 'FeatureCollection', features: [] }
 const num = (name) => Number(cssVar(name))
@@ -19,17 +19,20 @@ const HAS_OVERALL = ['has', 'overall_state']
 const PARTIAL = ['==', ['get', 'overall_partial'], true]
 
 /** Which segments are drawn at full width, and in what colour: grey (--map-seg-pending) until the street has a value.
- *  Overall: a street with a photo or a feels-like value; one with a single layer is drawn dashed ("partial"). */
+ *  Overall: a street with a photo or a feels-like value; one with a single layer ("partial") has the same comfort colour
+ *  at --partial-opacity, streets, parks and squares alike (Elena, 2026-11-15; dashes are for route B only). */
 function lit(layer) {
   if (layer === 'overall') return ['any', HAS_OVERALL, HAS_PHOTOS]
   return layer === 'thermal' ? HAS_THERMAL : HAS_PHOTOS
 }
-const whole = (layer) => (layer === 'overall' ? ['all', lit(layer), ['!', PARTIAL]] : lit(layer))
-const partial = (layer) => (layer === 'overall' ? ['all', HAS_OVERALL, PARTIAL] : ['boolean', false])
 function litColor(layer) {
   if (!['thermal', 'senses', 'overall'].includes(layer)) return cssVar('--map-seg-pending')
-  return ['match', ['get', `${layer}_state`], 'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'),
-    cssVar('--map-seg-pending')]
+  const c = (name) => cssVar(name)
+  const byState = (shade) => ['match', ['get', `${layer}_state`], 'easy', shade(c('--easy')), 'mixed', shade(c('--mixed')),
+    'hard', shade(c('--hard')), c('--map-seg-pending')]
+  if (layer !== 'overall') return byState((x) => x)
+  const a = num('--partial-opacity')
+  return ['case', PARTIAL, byState((x) => fade(x, a)), byState((x) => x)]
 }
 
 export function addSegmentLayers(map, layer = null) {
@@ -69,23 +72,12 @@ export function addSegmentLayers(map, layer = null) {
     },
   })
   map.addLayer({
-    id: 'sc-seg-core', type: 'line', source: 'sc-seg', filter: whole(layer),
+    id: 'sc-seg-core', type: 'line', source: 'sc-seg', filter: lit(layer),
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': litColor(layer),
       'line-width': ['case', selected, num('--map-seg-selected-width'), num('--map-seg-width')],
       'line-opacity': ['case', selected, 1, hover, num('--map-seg-hover-opacity'), num('--map-seg-opacity')],
-    },
-  })
-  // Overall with one layer only (no photo, or no thermal value): the same colour, dashed (Elena: "partial").
-  map.addLayer({
-    id: 'sc-seg-core-partial', type: 'line', source: 'sc-seg', filter: partial(layer),
-    layout: { 'line-join': 'round' },
-    paint: {
-      'line-color': litColor(layer),
-      'line-width': ['case', selected, num('--map-seg-selected-width'), num('--map-seg-width')],
-      'line-opacity': ['case', selected, 1, hover, num('--map-seg-hover-opacity'), num('--map-seg-opacity')],
-      'line-dasharray': [num('--map-seg-partial-dash'), num('--map-seg-partial-gap')],
     },
   })
   // Invisible, wide: makes thin streets easy to hover and click (also fills parks and squares).
@@ -105,9 +97,8 @@ export function setSegmentLayer(map, layer) {
   map.setFilter('sc-seg-area', ['all', IS_AREA, lit(layer)])
   map.setFilter('sc-seg-halo', lit(layer))
   map.setFilter('sc-seg-none', ['!', lit(layer)])
-  map.setFilter('sc-seg-core', whole(layer))
-  map.setFilter('sc-seg-core-partial', partial(layer))
-  for (const id of ['sc-seg-halo', 'sc-seg-core', 'sc-seg-core-partial']) map.setPaintProperty(id, 'line-color', litColor(layer))
+  map.setFilter('sc-seg-core', lit(layer))
+  for (const id of ['sc-seg-halo', 'sc-seg-core']) map.setPaintProperty(id, 'line-color', litColor(layer))
   map.setPaintProperty('sc-seg-area', 'fill-color', litColor(layer))
 }
 

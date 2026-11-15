@@ -180,7 +180,7 @@ const profileStore = useProfileStore()
       </div>
       <!-- The legend straight after the bars (Elena, 2026-11-11). -->
       <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
-      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" :partial="false" rule />
+      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" rule />
       <div v-else-if="!phone" class="thermal-block" role="group" aria-label="Legend">
         <ThermalLegend :values="thermalValues" :window="routes.info" :extra="NO_VALUE" />
       </div>

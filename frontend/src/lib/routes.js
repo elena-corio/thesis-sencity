@@ -46,6 +46,8 @@ export function stretchesOf(route, byId, layer) {
       routeId: route.id,
       index: out.length,
       state: stateOn(byId.get(part.segment_id), layer),
+      // Overall with one layer only: drawn faded, as on the area map (Elena, 2026-11-15).
+      partial: layer === 'overall' && !!byId.get(part.segment_id)?.properties.overall_partial,
       segmentId: part.segment_id,
       length_m: part.length_m + (waiting?.length_m ?? 0),
       coordinates: waiting ? [...waiting.coordinates, ...part.coordinates.slice(1)] : [...part.coordinates],
@@ -60,8 +62,8 @@ export function runsOf(stretches) {
   const runs = []
   for (const s of stretches) {
     const last = runs[runs.length - 1]
-    if (last?.state === s.state) last.coordinates.push(...s.coordinates.slice(1))
-    else runs.push({ state: s.state, coordinates: [...s.coordinates] })
+    if (last?.state === s.state && !!last.partial === !!s.partial) last.coordinates.push(...s.coordinates.slice(1))
+    else runs.push({ state: s.state, partial: !!s.partial, coordinates: [...s.coordinates] })
   }
   return runs
 }

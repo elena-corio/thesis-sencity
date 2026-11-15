@@ -11,13 +11,11 @@ const props = defineProps({
   /** { season, time } of what is shown, or null. */
   window: { type: Object, default: null },
   rule: Boolean,
-  /** Overall's "Partial" row: not on the routes, where dashes mean route B. */
-  partial: { type: Boolean, default: true },
   /** The walk (board Routes 5, photos and play): one line, the layer in one word, the window under it on Thermal. */
   inline: Boolean,
 })
 const title = computed(() => keyTitle(props.layer, props.window))
-const rows = computed(() => keyRows(props.layer, { partial: props.partial }))
+const rows = computed(() => keyRows(props.layer))
 /** The inline key names the layer in one word (the walk, Elena 2026-11-14). */
 const SHORT = { senses: 'Senses', thermal: 'Thermal' }
 </script>

@@ -10,16 +10,15 @@ export function keyTitle(layer, window) {
 }
 
 /** Easy, Mixed, Hard, and the grey: Thermal lights every street with a value, photo or not, so its grey means no value.
- *  Overall also has "Partial" (one layer only, drawn dashed; not on the routes, where B is the dashed one) and calls
- *  its grey "No data". */
-export function keyRows(layer, { partial = true } = {}) {
+ *  Overall also has "Partial (one layer only)", the comfort colours faded, and calls its grey "No data". */
+export function keyRows(layer) {
   const rows = [
     { id: 'easy', label: 'Easy', color: 'var(--easy)' },
     { id: 'mixed', label: 'Mixed', color: 'var(--mixed)' },
     { id: 'hard', label: 'Hard', color: 'var(--hard)' },
   ]
-  if (layer === 'overall' && partial) {
-    rows.push({ id: 'partial', label: 'Partial: one layer only', color: 'var(--partial-swatch)', partial: true })
+  if (layer === 'overall') {
+    rows.push({ id: 'partial', label: 'Partial (one layer only)', color: 'var(--partial-swatch)', partial: true })
   }
   rows.push({ id: 'none', label: layer === 'thermal' ? 'No value' : layer === 'overall' ? 'No data' : 'No photo', color: 'var(--no-photo)' })
   return rows

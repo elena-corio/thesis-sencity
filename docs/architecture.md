@@ -10,7 +10,7 @@ How the tool is built **now**:
 
 - **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
 
-Overall shows, per street, the worse of Senses and Thermal (one layer only: dashed, "partial"); with a profile it is the default layer. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
+Overall shows, per street, the worse of Senses and Thermal (one layer only: "partial", the same colour at half opacity); with a profile it is the default layer. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
 
 ## Data flow
 

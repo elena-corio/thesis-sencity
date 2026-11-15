@@ -83,9 +83,10 @@
   /* Map: street segments (brief §4). Before rating, segments with photos use one neutral colour. */
   --map-seg-width: 3;
   --map-seg-opacity: 0.5;          /* translucent core line (brief: 50%) */
-  --map-seg-partial-dash: 1.4;     /* Overall with one layer only: dashes and gaps, in line widths */
-  --map-seg-partial-gap: 1.2;
-  --partial-swatch: repeating-linear-gradient(90deg, var(--text-2) 0 4px, transparent 4px 7px); /* its key swatch */
+  --partial-opacity: 0.5;          /* Overall with one layer only: the comfort colour at this opacity, everywhere (Elena) */
+  --partial-mix: 50%;              /* the same, for CSS colour mixing */
+  --partial-swatch: linear-gradient(90deg, color-mix(in srgb, var(--easy) var(--partial-mix), transparent) 0 34%,
+    color-mix(in srgb, var(--mixed) var(--partial-mix), transparent) 34% 67%, color-mix(in srgb, var(--hard) var(--partial-mix), transparent) 67%);
   --map-seg-hover-opacity: 0.85;
   --map-seg-halo-width: 9;         /* soft halo, ~3x the line */
   --map-seg-halo-blur: 4;

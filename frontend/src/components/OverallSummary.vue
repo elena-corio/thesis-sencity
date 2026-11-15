@@ -46,7 +46,7 @@ const lists = computed(() => (props.place?.status === 'rated' ? [
 <template>
   <div class="overall" data-testid="overall">
     <p class="level">
-      <span v-if="o.state" class="swatch" :class="{ partial: o.partial }" :style="{ background: o.partial ? 'var(--partial-swatch)' : `var(--${o.state})` }" />
+      <span v-if="o.state" class="swatch" :style="{ background: o.partial ? `color-mix(in srgb, var(--${o.state}) var(--partial-mix), transparent)` : `var(--${o.state})` }" />
       <strong v-if="o.state" :class="['state-label', o.state]">{{ WORD[o.state] }}</strong>
       <span>overall</span>
     </p>

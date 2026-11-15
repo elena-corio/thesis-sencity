@@ -3,7 +3,7 @@
 // keyed "A-2", so a single street can be hovered and selected. B's dashes are drawn over runs of the same
 // state, so the pattern does not restart at every short segment; a hovered or selected B stretch turns solid.
 // Selected: fully opaque, wider, with a light edge. Hover (from the map, a bar or a button) dims the rest.
-import { cssVar } from '../composables.js'
+import { cssVar, fade } from '../composables.js'
 import { runsOf } from '../lib/routes.js'
 
 const EMPTY = { type: 'FeatureCollection', features: [] }
@@ -12,8 +12,13 @@ const IS_B = ['==', ['get', 'route'], 'B']
 
 export const ROUTE_HIT_LAYER = 'sc-route-hit'
 
-const stateColor = () => ['match', ['get', 'state'],
-  'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'), cssVar('--map-seg-none')]
+/** A stretch's colour; a "partial" one (Overall, one layer only) the same colour at --partial-opacity. */
+const stateColor = () => {
+  const a = num('--partial-opacity')
+  const byState = (shade) => ['match', ['get', 'state'],
+    'easy', shade(cssVar('--easy')), 'mixed', shade(cssVar('--mixed')), 'hard', shade(cssVar('--hard')), cssVar('--map-seg-none')]
+  return ['case', ['==', ['get', 'partial'], true], byState((x) => fade(x, a)), byState((x) => x)]
+}
 
 /** Dash pattern of route B, read from style.css ("1.2 1.8"), in line widths. */
 const dash = () => cssVar('--map-route-dash').split(/\s+/).map(Number)
@@ -62,7 +67,7 @@ export function routesGeojson(routes) {
     features: routes.flatMap((r) => r.stretches.map((s) => ({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: s.coordinates },
-      properties: { key: s.key, route: r.id, state: s.state },
+      properties: { key: s.key, route: r.id, state: s.state, partial: !!s.partial },
     }))),
   }
 }
@@ -73,7 +78,7 @@ function dashGeojson(routes) {
     features: routes.filter((r) => r.id === 'B').flatMap((r) => runsOf(r.stretches).map((run) => ({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: run.coordinates },
-      properties: { route: r.id, state: run.state },
+      properties: { route: r.id, state: run.state, partial: !!run.partial },
     }))),
   }
 }
