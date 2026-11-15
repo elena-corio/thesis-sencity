@@ -467,7 +467,8 @@ def test_the_cache_keeps_only_the_output_costs_nothing_and_ignores_another_commi
     stored = json.loads((tmp_path / "senses" / "cache.json").read_text(encoding="utf-8"))
     [(key, entry)] = stored.items()
     assert key.endswith("|general")
-    assert set(entry) == {"output", "listed", "model", "latency_ms", "cost_usd"}
+    assert set(entry) == {"output", "listed", "model", "prompt", "latency_ms", "cost_usd"}
+    assert entry["prompt"] == senses_mod.PROMPT_VERSION
     assert "base64" not in json.dumps(stored) + (tmp_path / "senses" / "presence.json").read_text(encoding="utf-8")
 
     monkeypatch.setattr(senses_mod, "load_export", lambda: replace(load_export(), commit="abc1234"))
@@ -585,7 +586,7 @@ def test_street_view_and_v0_ratings_are_marked_stale_and_never_used(calls, cfg, 
     path.parent.mkdir(parents=True)
     old = {"output": {"B1_comfort": 4}, "model": "m", "latency_ms": 1, "cost_usd": 0.001}
     v9_key = senses_mod.cache_key("999", HEADING, export.model["model"], export.commit)
-    v9 = {"output": GOOD, "listed": SEEN, "model": "m", "latency_ms": 1, "cost_usd": 0.001}
+    v9 = {"output": GOOD, "listed": SEEN, "model": "m", "prompt": senses_mod.PROMPT_VERSION, "latency_ms": 1, "cost_usd": 0.001}
     path.write_text(json.dumps({"CAoSLEFGMVFpcE1|90.0|3cbbc25": old,                     # Street View
                                 f"mly:{PANO}|90.0|{export.model['model']}|3cbbc25": old,  # V0 export
                                 v9_key: v9}), encoding="utf-8")
@@ -596,3 +597,24 @@ def test_street_view_and_v0_ratings_are_marked_stale_and_never_used(calls, cfg, 
     assert "V0" in stored[f"mly:{PANO}|90.0|{export.model['model']}|3cbbc25"]["stale"]
     assert "stale" not in stored[v9_key]
     assert stored[f"mly:{PANO}|90.0|{export.model['model']}|3cbbc25"]["output"] == old["output"]  # kept for the record
+
+
+def test_general_ratings_from_before_the_prompt_fix_are_stale_and_rated_again_when_asked(calls, cfg, tmp_path):
+    """Elena, 2026-11-15: made with the trailing newlines; marked stale, kept for the record, rated again only when
+    their photo is asked for (never all at once)."""
+    export = load_export()
+    path = tmp_path / "senses" / "cache.json"
+    path.parent.mkdir(parents=True)
+    old = {"output": GOOD, "listed": SEEN, "model": "m", "latency_ms": 1, "cost_usd": 0.001}  # no "prompt"
+    asked = senses_mod.cache_key(PANO, HEADING, export.model["model"], export.commit)
+    other = senses_mod.cache_key("999", HEADING, export.model["model"], export.commit)
+    path.write_text(json.dumps({asked: old, other: old}), encoding="utf-8")
+    assert senses_mod.mark_stale(path) == 2
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert "prompt 2" in stored[asked]["stale"] and stored[asked]["output"] == GOOD
+    calls.ratings.append(reply(dict(GOOD, B1_comfort=3)))
+    events, _ = run([(PANO, HEADING)], cfg)  # only the photo asked for is rated again
+    assert photo_events(events, "ok")[0]["cached"] is False and photo_events(events, "ok")[0]["result"]["comfort"] == 3
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert stored[asked]["prompt"] == senses_mod.PROMPT_VERSION and "stale" not in stored[asked]
+    assert "stale" in stored[other]  # not rated: nobody asked for it
