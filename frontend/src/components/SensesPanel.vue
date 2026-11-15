@@ -4,7 +4,7 @@
 // and status line close either card (SensesFoot). Clicking a place opens its detail from the ratings already here: no new call.
 import { computed } from 'vue'
 import { typeLabel } from '../lib/place.js'
-import { comfortLabel, levelWord, moneyLine } from '../lib/senses.js'
+import { SHOW_COST, comfortLabel, levelWord, moneyLine } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
@@ -38,7 +38,7 @@ const rated = computed(() => run.value.status !== 'idle' && run.value.status !==
     <div v-if="run.status === 'rating'" class="progress" role="status">
       <p class="progress-line"><strong>Rating {{ progress.done }} of {{ progress.total }} places…</strong></p>
       <div class="bar" aria-hidden="true"><span :style="{ width: `${share}%` }" /></div>
-      <p class="muted small" data-testid="senses-cost">{{ moneyLine(run) }} so far</p>
+      <p v-if="SHOW_COST" class="muted small" data-testid="senses-cost">{{ moneyLine(run) }} so far</p>
     </div>
 
     <div v-else-if="run.status === 'paused'" class="ask" role="group" aria-label="More photos to rate" data-testid="senses-ask">

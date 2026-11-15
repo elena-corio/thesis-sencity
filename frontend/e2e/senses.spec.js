@@ -141,7 +141,10 @@ test.describe('Senses mode', () => {
     await expect(card).toContainText('The trees give shade')
     await expect(card).toContainText('Based on 3 photos')
     await expect(card).toContainText('General prediction: not personalised yet')
-    await expect(card).toContainText('A prediction, not a reason.')
+    // The model's words, as plain text under "A prediction, not a reason" (Elena, 2026-11-15).
+    const why = card.getByRole('heading', { name: 'A prediction, not a reason' })
+    await expect(why).toBeVisible()
+    await expect(why.locator('xpath=following-sibling::p[contains(@class, "reason")]')).toContainText('The trees give shade')
     expect(mock.requests).toHaveLength(1)
 
     await page.getByRole('button', { name: 'Enlarge photo' }).first().click()

@@ -7,6 +7,7 @@ import { predictionLabel, bySense, comfortLabel, levelWord } from '../lib/senses
 import AppIcon from './AppIcon.vue'
 import SenseItem from './SenseItem.vue'
 import { useProfileStore } from '../stores/profile.js'
+import { useSensesStore } from '../stores/senses.js'
 
 const props = defineProps({
   /** The place, combined from its photos (lib/senses.js). */
@@ -32,6 +33,8 @@ const basedOn = computed(() => {
 })
 const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.status === 'ok')
 const profileStore = useProfileStore()
+const senses = useSensesStore()
+const stale = computed(() => senses.runs.area.stale || senses.runs.routes.stale)
 </script>
 
 <template>
@@ -40,7 +43,7 @@ const profileStore = useProfileStore()
   </p>
 
   <div v-else-if="place.status === 'failed'" class="failed" role="alert" data-testid="senses-error">
-    <p class="failed-title"><AppIcon name="info" /> Could not rate</p>
+    <p class="failed-title"><AppIcon name="info" /> Couldn’t rate this photo</p>
     <p class="failed-text">{{ place.error }}</p>
     <p class="muted">The photo and the map still work.</p>
     <button type="button" class="btn btn-primary" @click="$emit('retry')">Retry</button>
@@ -49,15 +52,14 @@ const profileStore = useProfileStore()
   <div v-else data-testid="senses-result">
     <div class="scale">
       <div class="scale-head">
-        <span>Senses · comfort from photo, general</span>
+        <span>Senses · comfort from photo, {{ profileStore.personal ? 'personal' : 'general' }}</span>
         <strong><span :class="['state', place.level]">{{ levelWord(place.level) }}</span> · {{ comfortLabel(place) }}</strong>
       </div>
       <div class="track" role="img" :aria-label="`Comfort ${place.comfort} of 5`">
         <span class="diamond" :style="{ left: `${((place.comfort - 1) / 4) * 100}%` }" />
       </div>
       <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
-      <p class="general">{{ predictionLabel(profileStore.personal) }}</p>
-      <p class="muted">A prediction, not a reason.</p>
+      <p class="general">{{ predictionLabel(profileStore.personal, stale) }}</p>
     </div>
     <p class="based muted" data-testid="senses-based">{{ basedOn }}</p>
 
@@ -70,7 +72,8 @@ const profileStore = useProfileStore()
     </section>
 
     <section class="list">
-      <h3>Model's explanation</h3>
+      <!-- The model's words, as plain text under this line (Elena, 2026-11-15). -->
+      <h3>A prediction, not a reason</h3>
       <p v-if="showPhotoLine" class="muted">Photo {{ photoNumber }}: {{ comfortLabel(shown.result) }}</p>
       <p class="reason">{{ reason }}</p>
     </section>
