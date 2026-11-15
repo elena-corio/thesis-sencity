@@ -127,7 +127,8 @@ const profileStore = useProfileStore()
           <span class="detail">{{ routes.thermalWindow.season }}, {{ routes.thermalWindow.time }}</span>
           <span v-if="rowState('thermal') === 'active'" class="progress waiting" aria-hidden="true"><span /></span>
         </li>
-        <li v-if="routes.layer === 'senses'" :class="senses.routesRating ? 'active' : 'next'" data-testid="rating-step">
+        <!-- Senses and Overall rate the photos of the streets (Overall: of the two ways Thermal found). -->
+        <li v-if="routes.layer === 'senses' || routes.layer === 'overall'" :class="senses.routesRating ? 'active' : 'next'" data-testid="rating-step">
           <AppIcon name="pending" />
           <span class="label" role="status">{{ senses.routesRating ? `Rating ${rating.done} of ${rating.total} places…` : 'Rating the photos' }}</span>
           <span v-if="senses.routesRating" class="progress" aria-hidden="true"><span :style="{ width: `${ratingShare}%` }" /></span>
@@ -135,7 +136,7 @@ const profileStore = useProfileStore()
       </ul>
       <p v-if="routes.load === 'error'" class="note error" role="alert">{{ routes.error }}</p>
       <p v-else-if="senses.routesRating" class="note">
-        The two ways appear when the rating ends. <span v-if="SHOW_COST" data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
+        {{ routes.layer === 'overall' ? 'The two ways are shown in their overall colours when the rating ends.' : 'The two ways appear when the rating ends.' }} <span v-if="SHOW_COST" data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
         <strong class="general">{{ predictionLabel(profileStore.personal) }}</strong>
       </p>
       <p v-else-if="routes.hasResult && routes.info" class="note">

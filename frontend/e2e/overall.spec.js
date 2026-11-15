@@ -9,12 +9,13 @@ const thermalLevel = (t) => (t > 32 ? 'hard' : t > 26 ? 'mixed' : t < 0 ? 'hard'
 const el = (code, n, en, icon_key) => ({ code, n, en, it: en, icon_key, also: [] })
 const COMFORT = (i) => [5, 3, 2][i % 3]
 
-function mockRatings(page) {
+function mockRatings(page, { delay = 0 } = {}) {
   const asked = []
   markRatingMocked(page)
   return page.route('**/api/senses/rate', async (route) => {
     const body = route.request().postDataJSON()
     asked.push(body)
+    if (delay) await new Promise((r) => setTimeout(r, delay))
     const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: body.photos.length, remaining: 0 },
       ...body.photos.map((p, i) => ({ type: 'photo', ...p, status: 'ok', cached: false, cost_usd: 0,
         result: { comfort: COMFORT(i), anchors: ['not at all', 'very much'], bothers: [el('traffic_trams', 5, 'Traffic, trams', 'hearing')],
@@ -112,13 +113,15 @@ test.describe('Overall on the routes', () => {
 
   test('the stretches take the overall level and each route shows its share of easy, mixed and hard', async ({ page }) => {
     await mockRoutes(page)
-    const asked = await mockRatings(page)
+    const asked = await mockRatings(page, { delay: 1500 })
     await openRoutes(page, 'dark', { layer: 'overall' })
     const { a, b } = routeClicks(page.viewportSize())
     await page.mouse.click(a.x, a.y)
     await page.mouse.click(b.x, b.y)
     await page.getByRole('button', { name: 'Analyse the routes' }).click()
     const card = page.locator('[data-panel="route-card"]')
+    // While the two ways' photos are rated, the card says so (it showed nothing on Overall at first).
+    await expect(card.getByTestId('rating-step')).toBeVisible({ timeout: 20_000 })
     await expect(card.getByTestId('shares-A')).toBeVisible({ timeout: 20_000 })
     await expect.poll(() => asked.length, { timeout: 20_000 }).toBeGreaterThan(0) // the two ways' streets are rated
     // Each stretch: the worse of its senses and thermal levels.
