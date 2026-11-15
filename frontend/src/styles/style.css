@@ -180,7 +180,9 @@
   --dialog-w: 480px;               /* the delete dialog (5c) */
   --btn-danger-bg: var(--hard);    /* "Delete everything" */
   --btn-danger-text: #ffffff;
-  --radar-max: 460px;              /* the radar of the profile (board 5) */
+  --radar-max: 540px;              /* the radar of the profile (board 5); was 460 (Elena, 2026-11-15: slightly bigger) */
+  --radar-icon: 26px;              /* its sense icons */
+  --radar-icon-hit: 48px;          /* their tap areas */
   --radar-fill-opacity: 0.22;
   --radar-line: 2.5px;
   --radar-ring: 1px;

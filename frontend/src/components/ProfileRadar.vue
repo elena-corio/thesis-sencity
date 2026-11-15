@@ -151,19 +151,20 @@ ul { padding: 0; list-style: none; }
 .slice.on { fill: var(--btn-selected-bg); fill-opacity: var(--radar-fill-opacity); }
 .icon {
   position: absolute; transform: translate(-50%, -50%);
-  display: grid; place-items: center; width: var(--touch); height: var(--touch); padding: 0;
+  display: grid; place-items: center; width: var(--radar-icon-hit); height: var(--radar-icon-hit); padding: 0;
   border: 0; border-radius: 50%; background: transparent; color: var(--text-2);
 }
+.icon :deep(.sense-icon) { width: var(--radar-icon); height: var(--radar-icon); }
 .icon.on { color: var(--text); background: var(--btn-selected-bg); }
 .icon.gap { opacity: var(--inactive-opacity); }
 
 .pop {
-  position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - var(--touch) / 2 - var(--space-1)));
+  position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - var(--radar-icon-hit) / 2 - var(--space-1)));
   width: max-content; max-width: min(var(--panel-left-w), 90vw);
   padding: var(--space-3) var(--space-4); border-radius: var(--radius-btn);
   background: var(--panel); border: var(--hairline) solid var(--line); box-shadow: var(--shadow);
 }
-.pop.below { transform: translate(-50%, calc(var(--touch) / 2 + var(--space-1))); }
+.pop.below { transform: translate(-50%, calc(var(--radar-icon-hit) / 2 + var(--space-1))); }
 .detail-both { font-size: var(--fs-sm); color: var(--text-2); margin-bottom: var(--space-2); }
 .pop li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-1) 0; }
 .hint { flex-basis: 100%; }
@@ -172,8 +173,8 @@ ul { padding: 0; list-style: none; }
   padding: var(--space-1) var(--space-3); border-radius: var(--radius-chip);
   background: var(--btn-selected-bg); color: var(--text); font-size: var(--fs-md);
 }
-.name-tag.right { transform: translate(calc(var(--touch) / 2 + var(--space-2)), -50%); }
-.name-tag.left { transform: translate(calc(-100% - var(--touch) / 2 - var(--space-2)), -50%); }
+.name-tag.right { transform: translate(calc(var(--radar-icon-hit) / 2 + var(--space-2)), -50%); }
+.name-tag.left { transform: translate(calc(-100% - var(--radar-icon-hit) / 2 - var(--space-2)), -50%); }
 .val { color: var(--text-2); font-size: var(--fs-sm); text-align: right; }
 .val.g { color: var(--easy); }
 .val.b { color: var(--hard-text); }
