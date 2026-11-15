@@ -201,8 +201,12 @@ test.describe('your sensory profile', () => {
     await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' }) // while dragging: no standard ticks
     await page.mouse.up()
     await expect(cold).toHaveAttribute('aria-valuenow', '-1')
-    await expect(tc.locator('.bar-ticks span').first()).toHaveText('−10') // the end once, not "−10 −10"
-    expect(await tc.locator('.bar-ticks span', { hasText: /^−10$/ }).count()).toBe(1)
+    // The ends under the snowflake and the sun (Elena, 2026-11-15); a border on the end is not written again.
+    await expect(tc.locator('[data-end="cold"]')).toHaveText('−10')
+    await expect(tc.locator('[data-end="hot"]')).toHaveText('45 °C')
+    expect(await tc.locator('.bar-ticks span', { hasText: /^−10$/ }).count()).toBe(0)
+    const [flake, coldEnd] = await Promise.all([tc.locator('.end').first().boundingBox(), tc.locator('[data-end="cold"]').boundingBox()])
+    expect(Math.abs((flake.x + flake.width / 2) - (coldEnd.x + coldEnd.width / 2))).toBeLessThan(2)
     await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.

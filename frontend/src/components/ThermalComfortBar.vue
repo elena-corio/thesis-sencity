@@ -26,8 +26,9 @@ const stdTicks = [std.cold[1], std.cold[0], std.heat[0], std.heat[1]]
 // The same bar as the place card's temperature bar (lib/thermal.js thermalBar, both sides): its colours and its labels.
 const bar = computed(() => thermalBar(props.limits, 'both'))
 const fill = computed(() => `linear-gradient(to right, ${bar.value.stops.map((s) => `var(--${s.state}) ${s.at}%`).join(', ')})`)
-// A border on the scale's end (a limit moved all the way) shows once: the end's label.
-const labels = computed(() => bar.value.ticks.filter((tk, i, all) => all.findIndex((o) => o.value === tk.value) === i))
+// The band borders under the bar; the scale's ends are written under the snowflake and the sun instead (Elena,
+// 2026-11-15), so a border on an end (a limit moved all the way) is not written twice.
+const labels = computed(() => bar.value.ticks.filter((tk) => tk.value > min && tk.value < max))
 const summary = computed(() => comfortSummary(props.limits))
 const HANDLES = [
   { side: 'cold', label: 'Start of cold' },
@@ -86,11 +87,12 @@ function key(side, e) {
         </button>
       </div>
       <AppIcon name="sun" class="end" aria-hidden="true" />
-      <!-- The band borders in °C under their place, as on the place card. -->
+      <!-- The scale's ends under the snowflake and the sun; the band borders in °C under their place on the bar. -->
+      <span class="end-label" aria-hidden="true" data-end="cold">{{ limitText(min) }}</span>
       <div class="bar-ticks" aria-hidden="true">
-        <span v-for="(tk, i) in labels" :key="i" :class="{ first: i === 0, last: i === labels.length - 1 }"
-              :style="{ left: `${tk.at}%` }">{{ limitText(tk.value) }}<template v-if="i === labels.length - 1"> °C</template></span>
+        <span v-for="(tk, i) in labels" :key="i" :style="{ left: `${tk.at}%` }">{{ limitText(tk.value) }}</span>
       </div>
+      <span class="end-label" aria-hidden="true" data-end="hot">{{ limitText(max) }} °C</span>
     </div>
     <p id="thermal-comfort-summary" class="summary" aria-live="polite" data-testid="thermal-summary">{{ summary }}</p>
   </div>
@@ -103,7 +105,7 @@ p { margin: 0; }
 .card-head h3 { flex: 1; margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }
 .link { border: 0; background: none; padding: var(--space-2) 0; min-height: var(--touch); color: var(--text-2); text-decoration: underline; font-size: var(--fs-sm); }
 .row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: var(--space-3); padding-top: var(--space-2); }
-.end { color: var(--text-2); }
+.end { color: var(--text-2); justify-self: center; }
 /* The place card's bar: thin, rounded, the comfort colours blending (PlaceCard .track). */
 .track { position: relative; height: var(--swatch-h); border-radius: var(--radius-pill); touch-action: none; }
 .tick { position: absolute; top: 50%; width: var(--hairline); transform: translate(-50%, -50%); }
@@ -126,7 +128,6 @@ p { margin: 0; }
   font-size: var(--fs-xs); color: var(--text-muted);
 }
 .bar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.bar-ticks .first { transform: none; }
-.bar-ticks .last { transform: translateX(-100%); }
+.end-label { justify-self: center; margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .summary { font-size: var(--fs-sm); color: var(--text-2); margin-top: var(--space-2); }
 </style>
