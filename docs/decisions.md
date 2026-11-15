@@ -19,6 +19,13 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
 - *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
 
+## 2026-11-15 – Profile on a phone; no profile text on the page (accepted)
+**Context.** Elena: on a phone, past half of the ratings "the view is cropped"; more margin above the profile title; and "remove Your sensory profile, as the model reads it".
+**Decision.**
+- *Cropping (fix):* tapping a 1–5 box focuses its hidden radio, which sat outside the box; the browser scrolled the app's outer frame (overflow hidden, still scrollable by the browser) to show it, which moved the whole onboarding up by about 500 px and left the bottom empty. The radio now sits inside its box and the frame is `overflow: clip`, so only the onboarding scrolls. The phone test checks the frame stays put after answering every row.
+- *Phone title (Elena):* more space above "This is how you sense the city" on a phone.
+- *Profile text (Elena):* "Your sensory profile, as the model reads it" is removed from the right card. The text is still built, kept and checked word for word against the study; it is not shown.
+
 ## 2026-11-15 – The right card of the profile: one title style (accepted)
 **Context.** Elena: "put Edit on the right of In your words, as for the sensory profile; unify the style of the titles in the card".
 **Decision (Elena).** Every title of the right card is one row in the same style (small, semibold, full text colour): the title on the left, its value or Edit on the right: Overall sensory comfort (2 of 5, Edit), In your words (Edit), Strongest for you, and "Your sensory profile, as the model reads it", which folds with a chevron like "Your answers, element by element". "Strongest for you" uses the answers' words and colours ("1 · very unpleasant", "5 · very pleasant"), as everywhere else on the profile (Elena).
