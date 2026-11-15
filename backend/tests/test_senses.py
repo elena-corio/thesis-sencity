@@ -281,7 +281,7 @@ def test_the_presence_request_is_the_exported_prompt_alone_then_the_photo():
 def test_the_rating_request_without_a_profile_is_the_study_v0_with_this_photos_list():
     model = json.loads((EXPORT_DIR / "model.json").read_text(encoding="utf-8"))
     template = json.loads((EXPORT_DIR / "schema_template.json").read_text(encoding="utf-8"))
-    system = (EXPORT_DIR / "system_instruction.txt").read_text(encoding="utf-8")
+    system = (EXPORT_DIR / "system_instruction.txt").read_text(encoding="utf-8").strip()  # as the study sends it
     export = load_export()
 
     body = build_request(export, encode_image(picture(), export.model["image"]), SEEN)
@@ -311,7 +311,7 @@ def test_the_task_lists_each_listed_element_as_task_rules_says():
     lines = [line for line in text.split("\n") if line.startswith("- ")]
     assert lines == [f"- {c} ({export.elements[c]['en']}): {export.elements[c]['definition']}" for c in SEEN]
     assert text.startswith(export.task.split("{ELEMENTS}")[0])
-    assert text.endswith(export.task.split("{ELEMENTS}")[1])
+    assert text.endswith(export.task.split("{ELEMENTS}")[1].rstrip("\n"))  # no trailing newline, as the study
 
 
 def test_with_nothing_listed_b2_takes_no_items_and_b2_none_must_be_true():
