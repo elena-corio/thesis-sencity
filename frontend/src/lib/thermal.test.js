@@ -132,7 +132,7 @@ describe('temperature bar', () => {
 })
 
 // Personal limits from the Weather step (Elena, 2026-11-15)
-import { clampStart, comfortSummary, personalLimits, setPersonalLimits, startsFromAnswers, thermalLimits as inUse } from './thermal.js'
+import { clampStart, startRange, comfortSummary, personalLimits, setPersonalLimits, startsFromAnswers, thermalLimits as inUse } from './thermal.js'
 import { cleanWeather, windSensitive } from './weather.js'
 
 describe('personal thermal limits', () => {
@@ -154,8 +154,14 @@ describe('personal thermal limits', () => {
     expect(clampStart('heat', 23.3, 9)).toBe(23.5)
     expect(clampStart('heat', 10, 9)).toBe(11)
     expect(clampStart('cold', 30, 26)).toBe(24)
-    expect(clampStart('heat', 99, 9)).toBe(40)
-    expect(clampStart('cold', -99, 26)).toBe(-20)
+    // The outer limits stay on the bar (−20 to 40): hot starts at most at 34, cold at least at 2.
+    expect(clampStart('heat', 99, 9)).toBe(34)
+    expect(clampStart('cold', -99, 26)).toBe(2)
+  })
+
+  it('give each start a range that keeps its outer limit on the bar', () => {
+    expect(startRange('heat', 9)).toEqual({ min: 11, max: 34 })
+    expect(startRange('cold', 26)).toEqual({ min: 2, max: 24 })
   })
 
   it('say the comfortable range in words, next to the standard one', () => {

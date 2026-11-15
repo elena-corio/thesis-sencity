@@ -44,13 +44,26 @@ export function startsFromAnswers(weather) {
   return { heat: l.heat[0], cold: l.cold[0] }
 }
 
-/** A start moved by hand, kept on the bar's scale, in its steps, and the easy range at least minEasy wide. */
-export function clampStart(side, value, other) {
+/**
+ * How far a start can move (Elena, 2026-11-15): its side's outer limit stays on the bar, so the start of hot goes up to
+ * 40 − 6 = 34 °C and the start of cold down to −20 + 22 = 2 °C; and the easy range stays at least minEasy wide.
+ * `other` is the other side's start. { min, max } in °C.
+ */
+export function startRange(side, other) {
   const { min, max } = config.thermalBar
+  const heatBand = STANDARD.heat[1] - STANDARD.heat[0]
+  const coldBand = STANDARD.cold[0] - STANDARD.cold[1]
+  return side === 'heat'
+    ? { min: other + PERSONAL.minEasy, max: max - heatBand }
+    : { min: min + coldBand, max: other - PERSONAL.minEasy }
+}
+
+/** A start moved by hand, in its steps and within its range (startRange). */
+export function clampStart(side, value, other) {
   const step = PERSONAL.step
-  let v = Math.round(value / step) * step
-  v = Math.min(max, Math.max(min, v))
-  return side === 'heat' ? Math.max(v, other + PERSONAL.minEasy) : Math.min(v, other - PERSONAL.minEasy)
+  const { min, max } = startRange(side, other)
+  const v = Math.round(value / step) * step
+  return Math.min(max, Math.max(min, v))
 }
 
 /** "9", "24.5", "−1.5": a limit in the profile's words, with a real minus sign. */

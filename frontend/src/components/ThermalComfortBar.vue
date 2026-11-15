@@ -6,7 +6,7 @@
 // the arrow keys (0.5 °C). Reset goes back to the weather answers. Local only: never in the profile text or a model call.
 import { computed, ref } from 'vue'
 import config from '../config.js'
-import { comfortSummary, limitText, standardLimits, thermalBar } from '../lib/thermal.js'
+import { comfortSummary, limitText, standardLimits, startRange, thermalBar } from '../lib/thermal.js'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -26,12 +26,19 @@ const stdTicks = [std.cold[1], std.cold[0], std.heat[0], std.heat[1]]
 // The same bar as the place card's temperature bar (lib/thermal.js thermalBar, both sides): its colours and its labels.
 const bar = computed(() => thermalBar(props.limits, 'both'))
 const fill = computed(() => `linear-gradient(to right, ${bar.value.stops.map((s) => `var(--${s.state}) ${s.at}%`).join(', ')})`)
+// A border on the scale's end (a limit moved all the way) shows once: the end's label.
+const labels = computed(() => bar.value.ticks.filter((tk, i, all) => all.findIndex((o) => o.value === tk.value) === i))
 const summary = computed(() => comfortSummary(props.limits))
 const HANDLES = [
   { side: 'cold', label: 'Start of cold' },
   { side: 'heat', label: 'Start of hot' },
 ]
 const valueOf = (side) => (side === 'cold' ? props.limits.cold[0] : props.limits.heat[0])
+/** Each start's range: its outer limit stays on the bar (lib/thermal.js startRange). */
+const rangeOf = (side) => startRange(side, valueOf(side === 'heat' ? 'cold' : 'heat'))
+// While a start is being moved (dragged, or a handle has the keyboard), the standard ticks are hidden: they confused
+// (Elena, 2026-11-15). The summary line still names the standard range.
+const adjusting = ref(false)
 
 function fromPointer(e) {
   const r = track.value.getBoundingClientRect()
@@ -40,6 +47,7 @@ function fromPointer(e) {
 let dragging = null
 function down(side, e) {
   dragging = side
+  adjusting.value = true
   e.currentTarget.setPointerCapture?.(e.pointerId)
   e.currentTarget.focus()
 }
@@ -48,6 +56,7 @@ function move(e) {
 }
 function up() {
   dragging = null
+  if (!track.value?.contains(document.activeElement)) adjusting.value = false
 }
 function key(side, e) {
   const d = { ArrowLeft: -step, ArrowDown: -step, ArrowRight: step, ArrowUp: step }[e.key]
@@ -66,20 +75,21 @@ function key(side, e) {
     <div class="row">
       <AppIcon name="snowflake" class="end" aria-hidden="true" />
       <div ref="track" class="track" :style="{ background: fill }" @pointermove="move" @pointerup="up" @pointercancel="up">
-        <span v-for="t in stdTicks" :key="`s${t}`" class="tick standard" :style="{ left: pct(t) }" aria-hidden="true" />
+        <span v-for="t in stdTicks" v-show="!adjusting" :key="`s${t}`" class="tick standard" :style="{ left: pct(t) }" aria-hidden="true" />
         <span v-for="(t, i) in ticks" :key="`p${i}`" class="tick mine" :style="{ left: pct(t) }" aria-hidden="true" data-tick />
         <button v-for="h in HANDLES" :key="h.side" type="button" class="handle" :style="{ left: pct(valueOf(h.side)) }"
-                role="slider" :aria-label="h.label" :aria-valuemin="min" :aria-valuemax="max" :aria-valuenow="valueOf(h.side)"
+                role="slider" :aria-label="h.label" :aria-valuemin="rangeOf(h.side).min" :aria-valuemax="rangeOf(h.side).max" :aria-valuenow="valueOf(h.side)"
                 :aria-valuetext="`${h.label}: ${limitText(valueOf(h.side))} °C, feels like`" :data-handle="h.side"
-                aria-describedby="thermal-comfort-summary" @pointerdown="down(h.side, $event)" @keydown="key(h.side, $event)">
+                aria-describedby="thermal-comfort-summary" @pointerdown="down(h.side, $event)" @keydown="key(h.side, $event)"
+                @focus="adjusting = true" @blur="adjusting = false">
           <span class="diamond" aria-hidden="true" />
         </button>
       </div>
       <AppIcon name="sun" class="end" aria-hidden="true" />
       <!-- The band borders in °C under their place, as on the place card. -->
       <div class="bar-ticks" aria-hidden="true">
-        <span v-for="(tk, i) in bar.ticks" :key="i" :class="{ first: i === 0, last: i === bar.ticks.length - 1 }"
-              :style="{ left: `${tk.at}%` }">{{ limitText(tk.value) }}<template v-if="i === bar.ticks.length - 1"> °C</template></span>
+        <span v-for="(tk, i) in labels" :key="i" :class="{ first: i === 0, last: i === labels.length - 1 }"
+              :style="{ left: `${tk.at}%` }">{{ limitText(tk.value) }}<template v-if="i === labels.length - 1"> °C</template></span>
       </div>
     </div>
     <p id="thermal-comfort-summary" class="summary" aria-live="polite" data-testid="thermal-summary">{{ summary }}</p>

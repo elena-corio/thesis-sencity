@@ -45,7 +45,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 
 **Proposed.**
 - *The Weather step is optional* (Next works with rows unanswered): an unanswered row keeps the standard band, and profiles saved before this step keep working.
-- *Moving a handle moves its side's two limits together* (the 6 °C mixed band kept), and the easy range stays at least 2 °C wide. New weather answers drop a handle moved by hand, so the bar follows the answers again.
+- *Moving a handle moves its side's two limits together* (the 6 °C mixed band kept), and the easy range stays at least 2 °C wide. Each start has a min and max so its side's outer limit never leaves the bar (Elena): the start of hot up to 34 °C (40 − 6), the start of cold down to 2 °C (−20 + 22). While a start is being moved (dragged, or a handle has the keyboard), the standard ticks are hidden (Elena: they confused); the summary line still names the standard range. New weather answers drop a handle moved by hand, so the bar follows the answers again.
 - *Not built: the windy-corner flag.* The app has no wind data (Infrared.city gives the feels-like temperature only), so there is no windy corner to flag yet; the wind answer is kept and `windSensitive` (wind 1–2) is ready for it. Asked.
 
 ## 2026-11-15 – Profile on a phone; no profile text on the page (accepted)

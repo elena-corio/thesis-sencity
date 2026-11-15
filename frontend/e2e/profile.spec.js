@@ -168,8 +168,18 @@ test.describe('your sensory profile', () => {
     await page.keyboard.press('ArrowRight')
     await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 24 °C')
     expect((await saved(page)).thermal).toEqual({ heat: 24 })
+    // While a start is being moved, the standard ticks are hidden (Elena, 2026-11-15).
+    await expect(tc.locator('.tick.standard').first()).toBeHidden()
+    // The start of hot stops at 34 °C, so its hard limit (+6) stays on the bar's end, 40 °C.
+    await expect(hot).toHaveAttribute('aria-valuemax', '34')
+    for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowRight')
+    await expect(hot).toHaveAttribute('aria-valuenow', '34')
+    const [lastTick, trackBox] = await Promise.all([tc.locator('[data-tick]').last().boundingBox(), tc.locator('.track').boundingBox()])
+    expect(lastTick.x + lastTick.width / 2).toBeLessThanOrEqual(trackBox.x + trackBox.width + 1)
+    await page.keyboard.press('Tab') // leaving the handles: the standard ticks come back
+    await expect(tc.locator('.tick.standard').first()).toBeVisible()
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowLeft') // nothing focused: nothing moves
     expect((await saved(page)).text).toBe(DEV.expected) // never in the profile text
-    await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' })
     await tc.getByRole('button', { name: 'Reset' }).click()
     await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 23 °C')
     expect((await saved(page)).thermal).toBe(null)
@@ -182,6 +192,17 @@ test.describe('your sensory profile', () => {
     await page.mouse.move(track.x + track.width * (14 + 20) / 60, c.y + c.height / 2, { steps: 5 }) // 14 °C
     await page.mouse.up()
     await expect(cold).toHaveAttribute('aria-valuenow', '14')
+    await expect(cold).toHaveAttribute('aria-valuemin', '2') // its hard limit (−22) stays on the bar's end, −20 °C
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
+    const c2 = await cold.boundingBox()
+    await page.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(track.x - 40, c.y + c.height / 2, { steps: 5 }) // past the cold end
+    await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' }) // while dragging: no standard ticks
+    await page.mouse.up()
+    await expect(cold).toHaveAttribute('aria-valuenow', '2')
+    await expect(tc.locator('.bar-ticks span').first()).toHaveText('−20') // the end once, not "−20 −20"
+    expect(await tc.locator('.bar-ticks span', { hasText: /^−20$/ }).count()).toBe(1)
     await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
