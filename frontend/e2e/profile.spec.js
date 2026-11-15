@@ -113,10 +113,19 @@ test.describe('your sensory profile', () => {
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, above the radar; the answers fold, closed at first.
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
+    // The card is full width; only the bar is as wide as the radar, centred with it (Elena, 2026-11-15).
+    const [card, bar, chart] = await Promise.all([summary.getByTestId('overall-comfort').boundingBox(),
+      summary.getByTestId('overall-bar').boundingBox(), summary.locator('.radar').boundingBox()])
+    expect(card.width).toBeGreaterThan(chart.width + 50)
+    expect(Math.abs(bar.width - chart.width)).toBeLessThan(1)
+    expect(Math.abs((bar.x + bar.width / 2) - (chart.x + chart.width / 2))).toBeLessThan(1)
     expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="profile-radar"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
     await expect(summary.getByTestId('answer-traffic_trams')).toBeHidden()
+    const chev = summary.getByTestId('answers').locator('summary .chev')
+    await expect(chev).toBeVisible()
     await summary.getByText('Your answers, element by element').click()
     await expect(summary.getByTestId('answer-traffic_trams')).toContainText('1 · very unpleasant')
+    await expect(chev).toHaveCSS('transform', /matrix\(-1/) // the chevron turns up when open
     // The radar (board 5; Elena, 2026-11-15): eight senses in the onboarding order, 1–5, from the stored answers only.
     // Tapping a sense lists its elements with their answers.
     const radar = summary.getByTestId('profile-radar')

@@ -7,6 +7,7 @@ import config from '../config.js'
 import { GRIDS, gridRows, strongest } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
+import AppIcon from './AppIcon.vue'
 import ProfileRadar from './ProfileRadar.vue'
 import SenseIcon from './SenseIcon.vue'
 
@@ -38,17 +39,19 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
           <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
         </div>
         <p class="overall-q">{{ a11.title[lang] }}</p>
+        <div class="bar" data-testid="overall-bar">
         <div class="track" role="img" :aria-label="`Overall sensory comfort: ${p.answers.A11} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`">
           <span class="diamond" :style="{ left: `${((p.answers.A11 - 1) / 4) * 100}%` }" />
         </div>
         <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
         <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
+        </div>
       </div>
 
       <ProfileRadar :survey="survey" :answers="p.answers" />
 
       <details class="answers" data-testid="answers">
-        <summary>Your answers, element by element</summary>
+        <summary><span>Your answers, element by element</span><AppIcon name="chevronDown" class="chev" /></summary>
         <div v-for="(g, gi) in GRIDS" :key="g" class="group">
           <div class="group-head">
             <h3>{{ gi === 0 ? question(g).title[lang] : 'More elements' }}</h3>
@@ -123,6 +126,8 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .overall-head h3 { flex: 1; color: var(--text); }
 .overall-head strong { font-variant-numeric: tabular-nums; }
 .overall-q { font-size: var(--fs-sm); color: var(--text-2); }
+/* Only the bar is as wide as the radar, and centred with it (Elena, 2026-11-15). */
+.bar { width: min(100%, var(--radar-max)); margin: 0 auto; }
 .track {
   position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
   background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
@@ -135,7 +140,10 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .ticks, .ends { display: flex; justify-content: space-between; margin: var(--space-2) var(--space-1) 0; font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .ends { margin-top: 0; }
 .answers { border-top: var(--hairline) solid var(--line); }
-.answers summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
+.answers summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); list-style: none; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
+.answers summary::-webkit-details-marker { display: none; }
+.answers .chev { transition: transform var(--transition); }
+.answers[open] .chev { transform: rotate(180deg); }
 .answers .group + .group { margin-top: var(--space-3); }
 
 .rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
