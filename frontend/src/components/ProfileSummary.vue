@@ -33,23 +33,6 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
       <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
       <ProfileRadar :survey="survey" :answers="p.answers" />
 
-      <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), under the radar and its sense list (Elena). -->
-      <div class="overall" data-testid="overall-comfort">
-        <div class="overall-head">
-          <h3 id="overall-title">Overall sensory comfort</h3>
-          <strong>{{ p.answers.A11 }} of 5</strong>
-          <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
-        </div>
-        <p class="overall-q">{{ a11.title[lang] }}</p>
-        <div class="bar" data-testid="overall-bar">
-        <div class="track" role="img" :aria-label="`Overall sensory comfort: ${p.answers.A11} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`">
-          <span class="diamond" :style="{ left: `${((p.answers.A11 - 1) / 4) * 100}%` }" />
-        </div>
-        <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
-        <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
-        </div>
-      </div>
-
       <details class="answers" data-testid="answers">
         <summary><span>Your answers, element by element</span><AppIcon name="chevronDown" class="chev" /></summary>
         <div v-for="(g, gi) in GRIDS" :key="g" class="group">
@@ -69,6 +52,23 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
     </section>
 
     <aside class="side panel" aria-label="Your words and your data">
+      <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), at the top of the right card (Elena). -->
+      <div class="overall" data-testid="overall-comfort">
+        <div class="overall-head">
+          <h3 id="overall-title">Overall sensory comfort</h3>
+          <strong>{{ p.answers.A11 }} of 5</strong>
+          <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
+        </div>
+        <p class="overall-q">{{ a11.title[lang] }}</p>
+        <div class="bar" data-testid="overall-bar">
+        <div class="track" role="img" :aria-label="`Overall sensory comfort: ${p.answers.A11} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`">
+          <span class="diamond" :style="{ left: `${((p.answers.A11 - 1) / 4) * 100}%` }" />
+        </div>
+        <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
+        <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
+        </div>
+      </div>
+
       <h3>In your words</h3>
       <blockquote v-if="p.answers.A16" class="words" data-testid="answer-A16">“{{ p.answers.A16 }}”</blockquote>
       <p v-else class="muted">Nothing written.</p>
@@ -121,13 +121,12 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .group-head { display: flex; align-items: baseline; gap: var(--space-3); justify-content: space-between; }
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
 .edit.inline { align-self: flex-start; padding-left: 0; }
-.overall { padding: var(--space-3) var(--space-4); border: var(--hairline) solid var(--line); border-radius: var(--radius-btn); }
+.overall { padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
 .overall-head { display: flex; align-items: center; gap: var(--space-3); }
 .overall-head h3 { flex: 1; color: var(--text); }
 .overall-head strong { font-variant-numeric: tabular-nums; }
 .overall-q { font-size: var(--fs-sm); color: var(--text-2); }
-/* Only the bar is as wide as the radar, and centred with it (Elena, 2026-11-15). */
-.bar { width: min(100%, var(--radar-max)); margin: var(--space-5) auto 0; }
+.bar { margin-top: var(--space-5); }
 .track {
   position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
   background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));

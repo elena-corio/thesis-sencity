@@ -111,16 +111,12 @@ test.describe('your sensory profile', () => {
     expect(stored.answers).toEqual(DEV.answers)
     expect(await draft(page)).toBe(null)
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
-    // Overall sensory comfort (A11) as the comfort bar, under the radar; the answers fold, closed at first.
+    // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
-    // The card is full width; only the bar is as wide as the radar, centred with it (Elena, 2026-11-15).
-    const [card, bar, chart] = await Promise.all([summary.getByTestId('overall-comfort').boundingBox(),
-      summary.getByTestId('overall-bar').boundingBox(), summary.locator('.radar').boundingBox()])
-    expect(card.width).toBeGreaterThan(chart.width + 50)
-    expect(Math.abs(bar.width - chart.width)).toBeLessThan(1)
-    expect(Math.abs((bar.x + bar.width / 2) - (chart.x + chart.width / 2))).toBeLessThan(1)
-    // Under the radar's "Tap a sense to see its elements" (Elena, 2026-11-15).
-    expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="radar-detail"]')) & Node.DOCUMENT_POSITION_PRECEDING)).toBeTruthy()
+    // At the top of the right card, above "In your words" (Elena, 2026-11-15).
+    const side = summary.locator('aside')
+    await expect(side.getByTestId('overall-comfort')).toBeVisible()
+    expect(await side.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="answer-A16"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
     await expect(summary.getByTestId('answer-traffic_trams')).toBeHidden()
     const chev = summary.getByTestId('answers').locator('summary .chev')
     await expect(chev).toBeVisible()
