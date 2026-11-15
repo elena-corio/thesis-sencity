@@ -32,8 +32,14 @@ const answerShift = (answer) => PERSONAL.shift[answer] ?? 0
  * nothing is personal.
  */
 export function personalLimits(weather, manual = null) {
-  const heatShift = manual?.heat != null ? manual.heat - STANDARD.heat[0] : -answerShift(weather?.hot)
-  const coldShift = manual?.cold != null ? manual.cold - STANDARD.cold[0] : answerShift(weather?.cold)
+  let heat = manual?.heat != null ? manual.heat : STANDARD.heat[0] - answerShift(weather?.hot)
+  let cold = manual?.cold != null ? manual.cold : STANDARD.cold[0] + answerShift(weather?.cold)
+  // A start kept from before (an earlier scale or rule) is brought back into its range, so both outer limits are
+  // always on the bar: the start of cold has a minimum as the start of hot has a maximum (Elena, 2026-11-15).
+  if (manual?.cold != null) cold = clampStart('cold', cold, heat)
+  if (manual?.heat != null) heat = clampStart('heat', heat, cold)
+  const heatShift = heat - STANDARD.heat[0]
+  const coldShift = cold - STANDARD.cold[0]
   if (!heatShift && !coldShift) return null
   return { heat: STANDARD.heat.map((t) => t + heatShift), cold: STANDARD.cold.map((t) => t + coldShift) }
 }
@@ -46,7 +52,7 @@ export function startsFromAnswers(weather) {
 
 /**
  * How far a start can move (Elena, 2026-11-15): its side's outer limit stays on the bar, so the start of hot goes up to
- * 45 − 6 = 39 °C and the start of cold down to −15 + 9 = −6 °C; and the easy range stays at least minEasy wide.
+ * 45 − 6 = 39 °C and the start of cold down to −10 + 9 = −1 °C; and the easy range stays at least minEasy wide.
  * `other` is the other side's start. { min, max } in °C.
  */
 export function startRange(side, other) {

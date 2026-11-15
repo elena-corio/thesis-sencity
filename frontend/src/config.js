@@ -55,10 +55,10 @@ export default {
   // On the profile's bar the start of hot and of cold can be dragged in steps of `step` °C, keeping the easy range at
   // least `minEasy` °C wide.
   thermalPersonal: { shift: { 1: 3, 2: 1.5 }, step: 0.5, minEasy: 2 },
-  // The temperature bars (the place card's, and the profile's comfortable temperature): their ends (°C), −15 to 45
-  // (Elena, 2026-11-15). Heat side from cold[0] to max, cold side from min to heat[0], both sides from min to max; a value
-  // beyond an end sits at that end, as an arrow pointing out.
-  thermalBar: { min: -15, max: 45 },
+  // The temperature bars (the place card's, and the profile's comfortable temperature): their ends (°C), −10 to 45, so the
+  // standard easy range 9–26 sits in the middle (Elena, 2026-11-15). Heat side from cold[0] to max, cold side from min to
+  // heat[0], both sides from min to max; a value beyond an end sits at that end, as an arrow pointing out.
+  thermalBar: { min: -10, max: 45 },
   // Walking speed for "2 min away" on the place card (about 4.8 km/h).
   walkMetresPerMinute: 80,
   // "Cooler street nearby" on the place card (lib/nearby.js): only streets within maxM (straight line

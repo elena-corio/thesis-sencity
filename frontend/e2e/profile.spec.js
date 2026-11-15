@@ -189,10 +189,10 @@ test.describe('your sensory profile', () => {
     const c = await cold.boundingBox()
     await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
     await page.mouse.down()
-    await page.mouse.move(track.x + track.width * (14 + 15) / 60, c.y + c.height / 2, { steps: 5 }) // 14 °C
+    await page.mouse.move(track.x + track.width * (14 + 10) / 55, c.y + c.height / 2, { steps: 5 }) // 14 °C
     await page.mouse.up()
     await expect(cold).toHaveAttribute('aria-valuenow', '14')
-    await expect(cold).toHaveAttribute('aria-valuemin', '-6') // its hard limit (−9) stays on the bar's end, −15 °C
+    await expect(cold).toHaveAttribute('aria-valuemin', '-1') // its hard limit (−9) stays on the bar's end, −10 °C
     await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
     const c2 = await cold.boundingBox()
     await page.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2)
@@ -200,9 +200,9 @@ test.describe('your sensory profile', () => {
     await page.mouse.move(track.x - 40, c.y + c.height / 2, { steps: 5 }) // past the cold end
     await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' }) // while dragging: no standard ticks
     await page.mouse.up()
-    await expect(cold).toHaveAttribute('aria-valuenow', '-6')
-    await expect(tc.locator('.bar-ticks span').first()).toHaveText('−15') // the end once, not "−15 −15"
-    expect(await tc.locator('.bar-ticks span', { hasText: /^−15$/ }).count()).toBe(1)
+    await expect(cold).toHaveAttribute('aria-valuenow', '-1')
+    await expect(tc.locator('.bar-ticks span').first()).toHaveText('−10') // the end once, not "−10 −10"
+    expect(await tc.locator('.bar-ticks span', { hasText: /^−10$/ }).count()).toBe(1)
     await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
@@ -426,5 +426,20 @@ test.describe('your sensory profile on a phone', () => {
     await expect(page.getByRole('button', { name: 'Next' })).toBeInViewport()
     expect(await page.locator('[data-panel="onboarding"]').evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0)
     await page.screenshot({ path: 'e2e/screens/profile-onboarding-phone-dark.png' })
+  })
+})
+
+test.describe('your sensory profile, a start kept from before', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a start of cold saved beyond the bar is shown at its minimum, its hard limit on the bar\'s end', async ({ page }) => {
+    await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: DEV_VERSION, saved: '2026-11-15T10:00:00Z',
+      weather: {}, thermal: { cold: -6 } }) // allowed by an earlier scale (−15 to 45)
+    await openProfile(page)
+    const tc = page.getByTestId('thermal-comfort')
+    await expect(tc.locator('[data-handle="cold"]')).toHaveAttribute('aria-valuenow', '-1')
+    const [first, track] = await Promise.all([tc.locator('[data-tick]').first().boundingBox(), tc.locator('.track').boundingBox()])
+    expect(first.x + first.width / 2).toBeGreaterThanOrEqual(track.x - 1)
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about −1 to 26 °C')
   })
 })

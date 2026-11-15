@@ -99,17 +99,18 @@ describe('temperature bar', () => {
     expect(ticks('heat')).toEqual([9, 26, 32, 45])
     expect(bar.ticks.map((t) => Math.round(t.at))).toEqual([0, 47, 64, 100])
   })
-  it('cold side: −15 to 26 °C, hard on the left', () => {
+  it('cold side: −10 to 26 °C, hard on the left', () => {
     const bar = thermalBar(undefined, 'cold')
-    expect([bar.min, bar.max]).toEqual([-15, 26])
-    expect(ticks('cold')).toEqual([-15, 0, 9, 26])
+    expect([bar.min, bar.max]).toEqual([-10, 26])
+    expect(ticks('cold')).toEqual([-10, 0, 9, 26])
     expect(bar.stops[0].state).toBe('hard')
     expect(bar.stops.at(-1).state).toBe('easy')
   })
-  it('both sides: −15 to 45 °C, hard at both ends', () => {
+  it('both sides: −10 to 45 °C, the easy range 9–26 in the middle, hard at both ends', () => {
     const bar = thermalBar(undefined, 'both')
-    expect([bar.min, bar.max]).toEqual([-15, 45])
-    expect(ticks('both')).toEqual([-15, 0, 9, 26, 32, 45])
+    expect([bar.min, bar.max]).toEqual([-10, 45])
+    expect((bar.min + bar.max) / 2).toBe((9 + 26) / 2)
+    expect(ticks('both')).toEqual([-10, 0, 9, 26, 32, 45])
     expect([bar.stops[0].state, bar.stops.at(-1).state]).toEqual(['hard', 'hard'])
   })
   it('the gradient is cyan through easy, amber mid-way through mixed, red from the hard border', () => {
@@ -148,20 +149,24 @@ describe('personal thermal limits', () => {
     expect(personalLimits({ hot: 1 }, { heat: 28 })).toEqual({ heat: [28, 34], cold: [9, 0] })
     expect(personalLimits({}, { cold: 5 })).toEqual({ heat: [26, 32], cold: [5, -4] })
     expect(startsFromAnswers({ hot: 1, cold: 2 })).toEqual({ heat: 23, cold: 10.5 })
+    // A start kept from an earlier scale, beyond its range now, is brought back: cold no lower than −1, hot no higher
+    // than 39, so the outer limits stay on the bar.
+    expect(personalLimits({}, { cold: -6 })).toEqual({ heat: [26, 32], cold: [-1, -10] })
+    expect(personalLimits({}, { heat: 44 })).toEqual({ heat: [39, 45], cold: [9, 0] })
   })
 
   it('keep a moved start on the scale, in 0.5 °C steps, and the easy range at least 2 °C wide', () => {
     expect(clampStart('heat', 23.3, 9)).toBe(23.5)
     expect(clampStart('heat', 10, 9)).toBe(11)
     expect(clampStart('cold', 30, 26)).toBe(24)
-    // The outer limits stay on the bar (−15 to 45): hot starts at most at 39, cold at least at −6.
+    // The outer limits stay on the bar (−10 to 45): hot starts at most at 39, cold at least at −1.
     expect(clampStart('heat', 99, 9)).toBe(39)
-    expect(clampStart('cold', -99, 26)).toBe(-6)
+    expect(clampStart('cold', -99, 26)).toBe(-1)
   })
 
   it('give each start a range that keeps its outer limit on the bar', () => {
     expect(startRange('heat', 9)).toEqual({ min: 11, max: 39 })
-    expect(startRange('cold', 26)).toEqual({ min: -6, max: 24 })
+    expect(startRange('cold', 26)).toEqual({ min: -1, max: 24 })
   })
 
   it('say the comfortable range in words, next to the standard one', () => {
@@ -188,11 +193,11 @@ describe('personal thermal limits', () => {
 describe("the bar's ends", () => {
   it('a value beyond an end is marked as beyond it, low or high, and sits at that end', () => {
     const bar = thermalBar(thermalLimits(), 'both')
-    expect(beyondBar(-17, bar)).toBe('low')
-    expect(beyondBar(-12, bar)).toBe(null)
+    expect(beyondBar(-12, bar)).toBe('low')
+    expect(beyondBar(-8, bar)).toBe(null)
     expect(beyondBar(47, bar)).toBe('high')
     expect(beyondBar(20, bar)).toBe(null)
-    expect(barPosition(-17, bar)).toBe(0)
+    expect(barPosition(-12, bar)).toBe(0)
     expect(barPosition(47, bar)).toBe(100)
   })
 })
