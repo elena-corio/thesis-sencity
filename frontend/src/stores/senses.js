@@ -10,7 +10,7 @@ import { useProfileStore } from './profile.js'
 import { useRoutesStore } from './routes.js'
 
 function emptyRun() {
-  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', personal: false, costUsd: 0, newCount: 0,
+  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', personal: false, stale: false, costUsd: 0, newCount: 0,
     cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0 }
 }
 
@@ -166,14 +166,23 @@ export const useSensesStore = defineStore('senses', () => {
     })
   })
 
-  // A new profile, an edited one or none: the ratings of the old one are not used; what is open is rated again.
-  watch(() => profile.version, () => {
-    ratings.clear()
+  function again(scope) {
+    for (const p of runs[scope].places) for (const ph of p.photos) ratings.delete(photoKey(ph))
+    counted[scope] = new Set()
+    Object.assign(runs[scope], { stale: false, costUsd: 0, newCount: 0, cachedCount: 0, seconds: 0 })
+    return rate(scope)
+  }
+  /** "Rate again with your profile": after an edit, on demand (Elena, 2026-11-15). */
+  const rateAgain = (scope) => (runs[scope].key ? again(scope) : null)
+
+  // An edited profile: what is open keeps its ratings, marked as from the earlier profile, and is rated again only when
+  // asked (Elena: on demand, not all at once). A new profile (from none) or none (deleted): rated again at once; going
+  // back to general ratings mostly costs nothing (the API caches them), and the old personal ones must not stay.
+  watch(() => profile.version, (version, before) => {
     for (const scope of ['area', 'routes']) {
       if (!runs[scope].key) continue
-      counted[scope] = new Set()
-      Object.assign(runs[scope], { costUsd: 0, newCount: 0, cachedCount: 0, seconds: 0 })
-      rate(scope)
+      if (version && before) runs[scope].stale = true
+      else again(scope)
     }
   })
 
@@ -188,5 +197,6 @@ export const useSensesStore = defineStore('senses', () => {
   watch(() => new Map((area.segments?.features ?? []).map((f) => [f.properties.id, stateOf(f, true)])), (states) => area.applySenses(states))
   watch(() => new Map([...routes.segments.values()].map((f) => [f.properties.id, stateOf(f, false)])), (states) => routes.applySenses(states))
 
-  return { ratings, runs, ratingOf, placeFor, areaProgress, areaRating, routesProgress, routesRating, retry: rate, continueRating: rate, stopHere }
+  return { ratings, runs, ratingOf, placeFor, areaProgress, areaRating, routesProgress, routesRating, retry: rate, continueRating: rate, stopHere,
+    rateAgain }
 })

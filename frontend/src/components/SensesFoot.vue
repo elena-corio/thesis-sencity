@@ -24,7 +24,11 @@ function create() {
 
 <template>
   <div class="senses-foot" data-testid="senses-foot">
-    <p class="general">{{ predictionLabel(profile.personal) }}</p>
+    <p class="general">{{ predictionLabel(profile.personal, run.stale) }}</p>
+    <div v-if="run.stale && profile.personal" class="stale" data-testid="senses-stale">
+      <p>Your profile changed. These ratings are from before; they are rated again only when you ask.</p>
+      <button type="button" class="btn btn-primary" @click="senses.rateAgain(scope)">Rate again with your profile</button>
+    </div>
     <p v-if="showStatus" class="status" data-testid="senses-status">{{ runStatusLine(run, rated) }}</p>
     <div v-if="!profile.personal" class="not-yet" data-testid="not-personalised">
       <p class="not-yet-title"><AppIcon name="user" /> Not personalised yet</p>
@@ -39,6 +43,11 @@ p { margin: 0; }
 .senses-foot { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .general { font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
 .status { margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stale {
+  margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-btn); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  font-size: var(--fs-sm); color: var(--text-2);
+}
 .not-yet {
   margin-top: var(--space-3); padding: var(--space-3) var(--space-4);
   border: var(--hairline) solid var(--line); border-radius: var(--radius-btn); background: var(--btn-selected-bg);
