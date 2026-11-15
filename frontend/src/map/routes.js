@@ -16,7 +16,8 @@ export const ROUTE_HIT_LAYER = 'sc-route-hit'
 const stateColor = () => {
   const a = num('--partial-opacity')
   const byState = (shade) => ['match', ['get', 'state'],
-    'easy', shade(cssVar('--easy')), 'mixed', shade(cssVar('--mixed')), 'hard', shade(cssVar('--hard')), cssVar('--map-seg-none')]
+    'easy', shade(cssVar('--easy')), 'mixed', shade(cssVar('--mixed')), 'hard', shade(cssVar('--hard')),
+    ['case', ['==', ['get', 'thermal'], true], cssVar('--map-seg-none'), cssVar('--map-seg-no-photo')]]
   return ['case', ['==', ['get', 'partial'], true], byState((x) => fade(x, a)), byState((x) => x)]
 }
 
@@ -67,7 +68,7 @@ export function routesGeojson(routes) {
     features: routes.flatMap((r) => r.stretches.map((s) => ({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: s.coordinates },
-      properties: { key: s.key, route: r.id, state: s.state, partial: !!s.partial },
+      properties: { key: s.key, route: r.id, state: s.state, partial: !!s.partial, thermal: !!s.thermal },
     }))),
   }
 }
@@ -78,7 +79,7 @@ function dashGeojson(routes) {
     features: routes.filter((r) => r.id === 'B').flatMap((r) => runsOf(r.stretches).map((run) => ({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: run.coordinates },
-      properties: { route: r.id, state: run.state, partial: !!run.partial },
+      properties: { route: r.id, state: run.state, partial: !!run.partial, thermal: !!r.stretches[0]?.thermal },
     }))),
   }
 }

@@ -44,7 +44,8 @@ function data() {
     })),
   }
 }
-const stateColor = () => ['match', ['get', 'state'], 'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'), cssVar('--map-seg-none')]
+const stateColor = () => ['match', ['get', 'state'], 'easy', cssVar('--easy'), 'mixed', cssVar('--mixed'), 'hard', cssVar('--hard'),
+  cssVar(walk.layer === 'thermal' ? '--map-seg-none' : '--map-seg-no-photo')]
 const isCurrent = () => ['==', ['get', 'i'], walk.index]
 
 function addLayers(m) {

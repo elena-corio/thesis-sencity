@@ -25,6 +25,10 @@ function lit(layer) {
   if (layer === 'overall') return ['any', HAS_OVERALL, HAS_PHOTOS]
   return layer === 'thermal' ? HAS_THERMAL : HAS_PHOTOS
 }
+/** The thin line of a street with nothing to show: Thermal's grey (no value); a neutral grey for "No photo" on Senses
+ *  and Overall (Elena, 2026-11-15), so a faded cyan ("partial") stays apart from it. */
+const noneColor = (layer) => cssVar(layer === 'thermal' ? '--map-seg-none' : '--map-seg-no-photo')
+
 function litColor(layer) {
   if (!['thermal', 'senses', 'overall'].includes(layer)) return cssVar('--map-seg-pending')
   const c = (name) => cssVar(name)
@@ -56,7 +60,7 @@ export function addSegmentLayers(map, layer = null) {
     id: 'sc-seg-none', type: 'line', source: 'sc-seg', filter: ['!', lit(layer)],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': cssVar('--map-seg-none'),
+      'line-color': noneColor(layer),
       'line-width': ['case', selected, num('--map-seg-width'), num('--map-seg-none-width')],
       'line-opacity': ['case', selected, 1, hover, num('--map-seg-hover-opacity'), num('--map-seg-none-opacity')],
     },
@@ -98,6 +102,7 @@ export function setSegmentLayer(map, layer) {
   map.setFilter('sc-seg-halo', lit(layer))
   map.setFilter('sc-seg-none', ['!', lit(layer)])
   map.setFilter('sc-seg-core', lit(layer))
+  map.setPaintProperty('sc-seg-none', 'line-color', noneColor(layer))
   for (const id of ['sc-seg-halo', 'sc-seg-core']) map.setPaintProperty(id, 'line-color', litColor(layer))
   map.setPaintProperty('sc-seg-area', 'fill-color', litColor(layer))
 }

@@ -48,6 +48,8 @@ export function stretchesOf(route, byId, layer) {
       state: stateOn(byId.get(part.segment_id), layer),
       // Overall with one layer only: drawn faded, as on the area map (Elena, 2026-11-15).
       partial: layer === 'overall' && !!byId.get(part.segment_id)?.properties.overall_partial,
+      // Thermal's grey for a stretch without a value; the neutral "No photo" grey on Senses and Overall.
+      thermal: layer === 'thermal',
       segmentId: part.segment_id,
       length_m: part.length_m + (waiting?.length_m ?? 0),
       coordinates: waiting ? [...waiting.coordinates, ...part.coordinates.slice(1)] : [...part.coordinates],

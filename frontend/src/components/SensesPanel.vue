@@ -97,7 +97,7 @@ p { margin: 0; }
 .senses { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .muted { color: var(--text-2); }
 .small { font-size: var(--fs-sm); }
-.bar { height: var(--bar-h); margin: var(--space-2) 0; border-radius: var(--bar-radius); background: var(--no-photo); overflow: hidden; }
+.bar { height: var(--bar-h); margin: var(--space-2) 0; border-radius: var(--bar-radius); background: var(--no-photo-grey); overflow: hidden; }
 .bar span { display: block; height: 100%; background: var(--text-2); transition: width var(--transition); }
 .ask, .failed { margin-top: var(--space-1); padding: var(--space-3) var(--space-4); border: var(--hairline) solid var(--warning); border-radius: var(--radius-btn); }
 .fail-text { overflow-wrap: anywhere; }

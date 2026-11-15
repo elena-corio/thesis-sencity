@@ -20,7 +20,8 @@ export function keyRows(layer) {
   if (layer === 'overall') {
     rows.push({ id: 'partial', label: 'Partial (one layer only)', color: 'var(--partial-swatch)', partial: true })
   }
-  rows.push({ id: 'none', label: layer === 'thermal' ? 'No value' : layer === 'overall' ? 'No data' : 'No photo', color: 'var(--no-photo)' })
+  rows.push({ id: 'none', label: layer === 'thermal' ? 'No value' : layer === 'overall' ? 'No data' : 'No photo',
+    color: layer === 'thermal' ? 'var(--no-photo)' : 'var(--no-photo-grey)' })
   return rows
 }
 

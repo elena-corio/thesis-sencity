@@ -54,6 +54,13 @@ test.describe('Overall', () => {
     // Partial is the comfort colour at half opacity, no dashes (dashes are route B's).
     expect(await page.evaluate(() => !!window.__sencityMap.getLayer('sc-seg-core-partial'))).toBe(false)
     expect(JSON.stringify(await page.evaluate(() => window.__sencityMap.getPaintProperty('sc-seg-core', 'line-color')))).toContain(', 0.5)')
+    // "No photo" on Overall (and Senses) is a neutral grey; Thermal keeps its own grey for "No value".
+    const noneLine = () => page.evaluate(() => window.__sencityMap.getPaintProperty('sc-seg-none', 'line-color'))
+    const css = (n) => page.evaluate((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim(), n)
+    expect(await noneLine()).toBe(await css('--map-seg-no-photo'))
+    await chooseLayer(page, 'thermal')
+    await expect.poll(noneLine).toBe(await css('--map-seg-none'))
+    await chooseLayer(page, 'overall')
 
     // The legend: "Overall comfort", the partial style and "No data"; the note says senses is from the photo's moment.
     await expect(card).toContainText('Overall comfort')

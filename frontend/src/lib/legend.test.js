@@ -31,3 +31,14 @@ describe('lengthShares', () => {
     expect(r.counts).toEqual({ easy: 1, mixed: 0, hard: 2, none: 1 })
   })
 })
+
+describe('the grey of nothing to show', () => {
+  it('is Thermal\'s own on Thermal, and a neutral "No photo" grey on Senses and Overall', () => {
+    const none = (l) => keyRows(l).find((r) => r.id === 'none')
+    expect(none('thermal')).toMatchObject({ label: 'No value', color: 'var(--no-photo)' })
+    expect(none('senses')).toMatchObject({ label: 'No photo', color: 'var(--no-photo-grey)' })
+    expect(none('overall')).toMatchObject({ label: 'No data', color: 'var(--no-photo-grey)' })
+    expect(keyRows('overall').find((r) => r.id === 'partial').label).toBe('Partial (one layer only)')
+    expect(keyRows('thermal').some((r) => r.id === 'partial')).toBe(false)
+  })
+})

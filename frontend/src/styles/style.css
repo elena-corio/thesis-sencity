@@ -207,7 +207,8 @@
   --focus: #eef3f4;
   --logo: #ffffff;
   --hard-text: #f6a3b9;
-  --no-photo: #2b4a52;
+  --no-photo: #2b4a52;           /* Thermal's "No value" swatch */
+  --no-photo-grey: #44484b;      /* "No photo" / "No data" swatch on Senses and Overall: neutral, apart from a faded cyan */
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   --backdrop: rgba(9, 18, 22, 0.55);
 
@@ -236,7 +237,8 @@
   --map-lit-opacity: 0.3;       /* brief: 18%; raised so the inside reads as lit on the dark base */
   --map-circle: #eef3f4;
   --map-seg: #8ad9e6;              /* light teal: the invisible hit lines only (a street without a value is grey) */
-  --map-seg-none: #6d8d94;
+  --map-seg-none: #6d8d94;         /* Thermal: a street without a value */
+  --map-seg-no-photo: #83878a;     /* Senses and Overall: a street without a photo (Elena, 2026-11-15: neutral grey) */
   --map-seg-pending: #8b9fa4;      /* a street with photos and no value yet: grey, at full width with its halo */
   --photo-btn-bg: rgba(19, 35, 42, 0.88);  /* buttons and labels on a photo: near solid, so they read on any photo */
   --photo-btn-fg: #ffffff;
@@ -267,6 +269,7 @@
   --logo: #15474a;
   --hard-text: #c2306a;
   --no-photo: #d6e3e6;
+  --no-photo-grey: #dcdedf;
   --shadow: 0 12px 32px rgba(19, 35, 42, 0.12);
   --backdrop: rgba(19, 35, 42, 0.25);
 
@@ -279,6 +282,7 @@
   --map-circle: #15474a;
   --map-seg: #2a97a8;
   --map-seg-none: #9fb4b9;
+  --map-seg-no-photo: #a3a6a8;
   --map-seg-pending: #8fa3a8;
   --photo-btn-bg: #ffffff;
   --photo-btn-fg: #15474a;
