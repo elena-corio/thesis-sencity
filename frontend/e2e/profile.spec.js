@@ -293,29 +293,12 @@ test.describe('your sensory profile', () => {
     expect(bodies[2].photos.every((p) => p.cached && p.cached.listed[0] === 'shade' && !('result' in p.cached))).toBe(true)
     await expect(foot).toContainText('Personal prediction: from your sensory profile')
 
-    // Edit an answer: nothing is sent; the ratings are marked as from the earlier profile until "Rate again".
-    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
-    await page.getByRole('button', { name: /^Edit: In general/ }).click()
-    await choose(page, 'A11', 4)
-    await page.getByRole('button', { name: 'Save changes' }).click()
-    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Area' }).click()
-    await expect(foot.getByTestId('senses-stale')).toContainText('Your profile changed')
-    await expect(foot).toContainText('Personal prediction: from your earlier profile')
-    await page.waitForTimeout(500)
-    expect(bodies.length).toBe(3)
-    await foot.getByRole('button', { name: 'Rate again with your profile' }).click()
-    await expect.poll(() => bodies.length).toBe(4)
-    expect(bodies[3].profile.A11).toBe(4)
-    expect(bodies[3].photos.some((ph) => ph.cached)).toBe(false) // the earlier profile's ratings were dropped
-    await expect(foot.getByTestId('senses-stale')).toHaveCount(0)
-    await expect(foot).toContainText('Personal prediction: from your sensory profile')
-
     // Delete it: general again, rated again without it.
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     await page.getByRole('button', { name: 'Delete my profile' }).click()
     await page.getByRole('button', { name: 'Delete everything' }).click()
-    await expect.poll(() => bodies.length).toBe(5)
-    expect(bodies[4].profile).toBeUndefined()
+    await expect.poll(() => bodies.length).toBe(4)
+    expect(bodies[3].profile).toBeUndefined()
     expect(await page.evaluate(() => localStorage.getItem('sencity-ratings'))).toBe(null) // gone with the profile
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Area' }).click()
     await expect(foot).toContainText('General prediction: not personalised yet')

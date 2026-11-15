@@ -349,7 +349,6 @@ class RatingStamp(BaseModel):
     listed: list[str] = Field(..., max_length=20)
     model: str = Field(..., max_length=200)
     commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
-    prompt: str = Field("", max_length=20)  # how the app put the request together (senses.PROMPT_VERSION)
 
 
 class SensesPhoto(BaseModel):

@@ -5,9 +5,8 @@ import { pickSuggestions } from './suggest.js'
 
 export const GENERAL_LABEL = 'General prediction: not personalised yet'
 export const PERSONAL_LABEL = 'Personal prediction: from your sensory profile'
-export const STALE_LABEL = 'Personal prediction: from your earlier profile'
-/** What kind of rating the card shows: with your sensory profile (V2), from before an edit (stale), or general (V0). */
-export const predictionLabel = (personal, stale = false) => (!personal ? GENERAL_LABEL : stale ? STALE_LABEL : PERSONAL_LABEL)
+/** What kind of rating the card shows: with your sensory profile (V2) or the general one (V0). */
+export const predictionLabel = (personal) => (personal ? PERSONAL_LABEL : GENERAL_LABEL)
 
 /** The key of one photo in the ratings of this session: its Mapillary image and the way it looks. */
 export const photoKey = (photo) => `${photo.id}|${photo.heading}`
@@ -161,9 +160,6 @@ export function sensesVerdict([a, b]) {
 }
 
 /** "$0.0512 model" (the Mapillary photos are free) */
-/** The cost counter is for development only (Elena, 2026-11-15): `npm run dev`, never a built site. */
-export const SHOW_COST = !!import.meta.env?.DEV
-
 export function moneyLine(run) {
   return `$${run.costUsd.toFixed(4)} model`
 }
@@ -171,6 +167,6 @@ export function moneyLine(run) {
 /** "google/gemini-3.1-flash-lite · 40 places rated · 12 cached, 96 new · $0.05 model … · 38 s" */
 export function runStatusLine(run, rated) {
   const parts = [run.model, `${rated} ${rated === 1 ? 'place' : 'places'} rated`, `${run.cachedCount} cached, ${run.newCount} new`,
-    SHOW_COST ? moneyLine(run) : null, `${run.seconds.toFixed(0)} s`]
-  return parts.filter(Boolean).join(' · ')
+    moneyLine(run), `${run.seconds.toFixed(0)} s`]
+  return parts.join(' · ')
 }

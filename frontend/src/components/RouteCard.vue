@@ -4,7 +4,7 @@
 // panel (Settings on a phone), and the map hint says what to do.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
-import { SHOW_COST, predictionLabel, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
+import { predictionLabel, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -131,7 +131,7 @@ const profileStore = useProfileStore()
       </ul>
       <p v-if="routes.load === 'error'" class="note error" role="alert">{{ routes.error }}</p>
       <p v-else-if="senses.routesRating" class="note">
-        The two ways appear when the rating ends. <span v-if="SHOW_COST" data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
+        The two ways appear when the rating ends. <span data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
         <strong class="general">{{ predictionLabel(profileStore.personal) }}</strong>
       </p>
       <p v-else-if="routes.hasResult && routes.info" class="note">

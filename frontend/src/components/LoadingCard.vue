@@ -3,7 +3,7 @@
 // rating of the photos. Streets are grey on the map until they have a value, then take its colour. Recommendations
 // wait for the end of the rating. Cancel while rating only stops the rating: the area stays.
 import { computed, onMounted, ref } from 'vue'
-import { SHOW_COST, predictionLabel, moneyLine } from '../lib/senses.js'
+import { predictionLabel, moneyLine } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
@@ -88,7 +88,7 @@ const profileStore = useProfileStore()
 
     <p v-if="area.load === 'error'" class="note error">{{ area.loadError }}</p>
     <p v-else-if="senses.areaRating" class="note">
-      Streets light up as they are rated; you can keep exploring. <span v-if="SHOW_COST" data-testid="senses-cost">{{ moneyLine(senses.runs.area) }} so far.</span>
+      Streets light up as they are rated; you can keep exploring. <span data-testid="senses-cost">{{ moneyLine(senses.runs.area) }} so far.</span>
       <strong class="general">{{ predictionLabel(profileStore.personal) }}</strong>
     </p>
     <p v-else-if="area.thermal === 'loading'" class="note">

@@ -75,7 +75,7 @@ export function comfortLine(layer, properties, place) {
   if (!place) return none('No photo', 'So no Senses rating here.')
   if (place.status === 'unloaded') return none('No photo', 'The photo could not be loaded, so no rating.')
   if (place.status === 'pending') return none('Not rated yet', 'Waiting for its rating.')
-  if (place.status === 'failed') return none('Couldn’t rate this photo', 'The photo and the map still work.')
+  if (place.status === 'failed') return none('Could not rate', 'The photo and the map still work.')
   const bothers = place.bothers.slice(0, 2).map((e) => elementLabel(e).text.toLowerCase())
   const detail = place.level !== 'easy' && bothers.length ? `The model points to: ${bothers.join('; ')}.` : `${comfortLabel(place)}.`
   return { state: place.level, label: levelWord(place.level), context: 'for your senses', detail }

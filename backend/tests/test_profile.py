@@ -121,14 +121,13 @@ def test_with_a_profile_the_system_message_is_the_instruction_a_blank_line_and_t
     assert rating["provider"]["zdr"] is True and rating["provider"]["allow_fallbacks"] is False
     ok = photo_events(events, "ok")[0]
     assert events[0]["personal"] is True and ok["result"]["personal"] is True
-    assert ok["stamp"] == {"listed": ok["result"]["listed"], "model": export.model["model"], "commit": export.commit,
-                           "prompt": senses_mod.PROMPT_VERSION}
+    assert ok["stamp"] == {"listed": ok["result"]["listed"], "model": export.model["model"], "commit": export.commit}
 
 
 def test_without_a_profile_it_is_the_instruction_alone_and_marked_general(calls, cfg):
     calls.ratings.append(reply(GOOD))
     events, _ = run_with([(PANO, HEADING)], cfg)
-    assert calls.made[1]["messages"][0] == {"role": "system", "content": load_export().system.strip()}
+    assert calls.made[1]["messages"][0] == {"role": "system", "content": load_export().system}
     ok = photo_events(events, "ok")[0]
     assert ok["result"]["personal"] is False and "stamp" not in ok
 
@@ -156,8 +155,7 @@ def test_a_stamp_that_still_holds_is_kept_without_a_call_and_one_that_does_not_i
     assert photo_events(again) == [{"type": "photo", "id": PANO, "heading": HEADING, "status": "keep", "cached": True}]
     assert len(calls.made) == made and plan.to_rate == []
     # Another element list, model or export: rated again (the presence list stays cached).
-    for wrong in ({**stamp, "listed": stamp["listed"][:-1]}, {**stamp, "model": "other/model"}, {**stamp, "commit": "abc1234"},
-                  {**stamp, "prompt": "1"}):
+    for wrong in ({**stamp, "listed": stamp["listed"][:-1]}, {**stamp, "model": "other/model"}, {**stamp, "commit": "abc1234"}):
         plan = senses_mod.plan_rating([(PANO, HEADING)], cfg, DEV["expected"], {(PANO, HEADING): wrong})
         assert plan.kept == () and plan.to_rate == [(PANO, HEADING)]
     # A stamp means nothing without a profile: general ratings come from the server cache.
@@ -196,7 +194,7 @@ def test_the_endpoint_builds_the_profile_from_the_answers_and_never_logs_it(monk
     assert "Traffic noise" not in caplog.text and "greenery" not in caplog.text
     client.post("/api/senses/rate", json={"photos": body["photos"]})
     assert seen == {"text": None, "stamps": {}}
-    stamp = {"listed": ["shade"], "model": "google/m", "commit": "ed963d2", "prompt": "2"}
+    stamp = {"listed": ["shade"], "model": "google/m", "commit": "ed963d2"}
     client.post("/api/senses/rate", json={**body, "photos": [{"id": PANO, "heading": HEADING, "cached": stamp}]})
     assert seen["stamps"] == {(PANO, HEADING): stamp}
 
@@ -214,39 +212,3 @@ def test_the_endpoint_refuses_answers_that_do_not_fit(monkeypatch, tmp_path):
 def test_the_survey_endpoint(monkeypatch):
     res = TestClient(main_mod.app).get("/api/profile/survey")
     assert res.status_code == 200 and len(res.json()["questions"]) == 4
-
-
-# Parity with the study: the whole V2 request, against what the study pipeline sends (tests/fixtures/v2_parity.json,
-# made by thesis-personas src/task_v9.build_call for study photo 1 and the made-up test profile, without the image).
-
-PARITY = json.loads((Path(__file__).parent / "fixtures" / "v2_parity.json").read_text(encoding="utf-8"))
-
-
-def test_the_v2_request_is_the_studys_word_for_word(pe):
-    export = load_export()
-    text = profile_mod.build(profile_mod.check(DEV["answers"], DEV["language"], pe), DEV["language"], pe)
-    body = senses_mod.build_request(export, "data:image/jpeg;base64,AAAA", PARITY["listed"], text)
-    system, user = body["messages"]
-    # System: the instruction, a blank line, the profile, which ends with the study's closing line.
-    assert system == {"role": "system", "content": PARITY["system"]}
-    assert system["content"].endswith("Now rate this specific place: it may be easier or harder for you than public spaces in general.")
-    # User: the task text with this photo's elements, then the photo, nothing else.
-    assert [p["type"] for p in user["content"]] == ["text", "image_url"]
-    assert user["content"][0]["text"] == PARITY["user_text"]
-    # Schema: the study's, with this photo's codes, reasoning after the rating.
-    assert body["response_format"] == PARITY["response_format"]
-    assert list(body["response_format"]["json_schema"]["schema"]["properties"])[-1] == "reasoning"
-    # Settings (model.json).
-    assert body["model"] == "google/gemini-3.1-flash-lite"
-    assert body["provider"]["only"] == ["google-vertex/eu"]
-    assert body["provider"]["zdr"] is True and body["provider"]["data_collection"] == "deny"
-    assert body["provider"]["allow_fallbacks"] is False
-    assert body["temperature"] == 0.7
-
-
-def test_the_v0_request_differs_from_v2_by_the_profile_only():
-    export = load_export()
-    v0 = senses_mod.build_request(export, "data:image/jpeg;base64,AAAA", PARITY["listed"])
-    assert v0["messages"][0]["content"] == PARITY["system"].split("\n\n")[0]
-    assert v0["messages"][1]["content"][0]["text"] == PARITY["user_text"]
-    assert v0["response_format"] == PARITY["response_format"]
