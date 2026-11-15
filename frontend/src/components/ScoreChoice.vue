@@ -48,6 +48,7 @@ legend :deep(.sense-icon) { color: var(--text-muted); }
 .boxes { display: grid; grid-template-columns: repeat(5, var(--score-w)); gap: var(--space-2); }
 .bare .boxes { grid-template-columns: repeat(5, minmax(var(--score-w), 1fr)); }
 .box {
+  position: relative; /* keeps its hidden radio inside it, so focusing it scrolls only the onboarding */
   display: grid; place-items: center; height: var(--score-h);
   border: var(--hairline) solid var(--line); border-radius: var(--radius-btn);
   font-weight: var(--fw-semibold); cursor: pointer;

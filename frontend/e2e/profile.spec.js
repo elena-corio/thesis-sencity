@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import {
-  TEST_PROFILES, analyseCentre, layoutProblems, markRatingMocked, mockArea, mockSurvey, openMap, withSavedProfile,
+  SURVEY, TEST_PROFILES, analyseCentre, layoutProblems, markRatingMocked, mockArea, mockSurvey, openMap, withSavedProfile,
 } from './helpers.js'
 
 // Your sensory profile: the onboarding (boards 4, P4), the profile (5, 5b, 5c), storage on this device, and the switch
@@ -129,8 +129,7 @@ test.describe('your sensory profile', () => {
     // 5: the profile. Its text is the study's, word for word; the version is the server's.
     const summary = page.locator('[data-panel="profile-summary"]')
     await expect(summary.getByRole('heading', { name: 'This is how you sense the city' })).toBeFocused()
-    await summary.getByText('Your sensory profile, as the model reads it').click()
-    expect(await summary.getByTestId('profile-text').textContent()).toBe(DEV.expected)
+    await expect(summary.getByText('Your sensory profile, as the model reads it')).toHaveCount(0) // not shown (Elena, 2026-11-15)
     const stored = await saved(page)
     expect(stored.text).toBe(DEV.expected)
     expect(stored.version).toBe(DEV_VERSION)
@@ -349,6 +348,14 @@ test.describe('your sensory profile on a phone', () => {
     expect(await layoutProblems(page)).toEqual([])
     const boxes = await page.locator('[data-row="A12-greenery_trees"] label').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top))
     expect(new Set(boxes.map(Math.round)).size).toBe(1)
+    // Answering down the list never moves the whole screen: the onboarding scrolls, the frame stays put (it was pushed
+    // up by about 500 px past the middle of the list, leaving the bottom empty; Elena, 2026-11-15).
+    for (const r of SURVEY.questions.find((q) => q.code === 'A12').rows) await choose(page, `A12-${r.code}`, 3)
+    expect(await page.locator('[data-panel="onboarding"]').evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0)
+    expect(await page.evaluate(() => document.querySelector('.app').scrollTop)).toBe(0)
+    await page.getByRole('button', { name: 'Next' }).scrollIntoViewIfNeeded()
+    await expect(page.getByRole('button', { name: 'Next' })).toBeInViewport()
+    expect(await page.locator('[data-panel="onboarding"]').evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0)
     await page.screenshot({ path: 'e2e/screens/profile-onboarding-phone-dark.png' })
   })
 })

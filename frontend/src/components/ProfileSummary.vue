@@ -1,6 +1,6 @@
 <script setup>
 // Your sensory profile (board 5): every answer, each group with Edit (editing builds the profile again); on the right,
-// your own words, the strongest elements, the exact text the model reads, and the device-only actions: download,
+// your own words, the strongest elements, and the device-only actions: download,
 // import, delete. The radar (ProfileRadar) under the title; thermal limits and "Places that may suit you" come later.
 import { computed } from 'vue'
 import config from '../config.js'
@@ -86,12 +86,6 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
       </ul>
       <p v-else class="muted">Nothing stands out: every element is in the middle.</p>
 
-      <details class="text">
-        <summary class="card-head"><h3>Your sensory profile, as the model reads it</h3><AppIcon name="chevronDown" class="chev" /></summary>
-        <pre data-testid="profile-text">{{ p.text }}</pre>
-        <p class="muted">Sent with each rating, to a model that keeps nothing. In English, with your own words as written.</p>
-      </details>
-
       <div class="buttons">
         <button type="button" class="btn" @click="store.begin(1)">Edit answers</button>
         <button type="button" class="btn btn-primary" @click="emit('map')">Go to map</button>
@@ -161,11 +155,7 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .dot { width: var(--space-3); height: var(--space-3); border-radius: 50%; }
 .dot.bothers { background: var(--hard); }
 .dot.good { background: var(--easy); }
-.text summary { cursor: pointer; list-style: none; }
-.text summary::-webkit-details-marker { display: none; }
-.text .chev { transition: transform var(--transition); color: var(--text-2); }
 .text[open] .chev { transform: rotate(180deg); }
-.text pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: var(--fs-xs); color: var(--text-2); background: var(--ground); padding: var(--space-3); border-radius: var(--radius-btn); margin: 0 0 var(--space-2); }
 .buttons { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); margin-top: var(--space-2); }
 .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2) var(--space-4); }
 .link { border: 0; background: none; padding: var(--space-1) 0; min-height: var(--touch); color: var(--text-2); text-decoration: underline; font-size: var(--fs-sm); }
@@ -173,5 +163,9 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 
 @media (max-width: 1023px) {
   .summary { grid-template-columns: minmax(0, var(--profile-main-w)); }
+}
+/* A phone: the title clear of the top edge (Elena, 2026-11-15). */
+@media (max-width: 767px) {
+  .summary { padding-top: calc(var(--margin) + var(--space-4)); }
 }
 </style>

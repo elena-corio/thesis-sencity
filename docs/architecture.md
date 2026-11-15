@@ -8,7 +8,7 @@ How the tool is built **now**:
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v9/`: a presence call lists the elements clearly visible in the photo (cached per photo), then the rating call uses the study's task and schema on that list, with the system instruction alone (the study's V0). Places appear on the map as ratings arrive, with recommendations beside them.
 
-- **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements; the exact text the model reads), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
+- **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (the radar of the eight senses; every answer, editable; your words; the strongest elements), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
 
 Overall stays inactive. "Before you start" (consent) comes before a new profile and an import. Not built yet: personal thermal limits, "Places that may suit you", group mode, accounts.
 
@@ -133,7 +133,7 @@ flowchart LR
 | `src/components/ConsentScreen.vue` | Board 3, "Before you start": four points, an unticked box, Not now and Agree and start (only once ticked) |
 | `src/components/ProfileOnboarding.vue` | Boards 4, P4: one question group per screen, progress, Back and Next (never disabled: with an answer missing it says so and goes there), Skip for now (answers kept) or, when editing, Cancel and Save changes |
 | `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
-| `src/components/ProfileSummary.vue` | Board 5: the radar, the answers (folded) with Edit; in the right card overall sensory comfort (A11) as a gradient bar, your words, the strongest elements, the profile text, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
+| `src/components/ProfileSummary.vue` | Board 5: the radar, the answers (folded) with Edit; in the right card overall sensory comfort (A11) as a gradient bar, your words, the strongest elements, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
 | `src/components/ProfileRadar.vue` | Board 5: the radar of the eight senses (onboarding order, icons, rings 1–5): what bothers you (pink) and what feels good (cyan), a gap where a sense has no answers; tapping a sense lists its elements in a card next to it; legend |
 | `src/components/ProfileEmpty.vue` | Board 5b: no profile yet, Create your profile, import, the dev-only test profile |
 | `src/components/DeleteProfileDialog.vue` | Board 5c: alert dialog, focus on Cancel, Download a copy first, Delete everything |

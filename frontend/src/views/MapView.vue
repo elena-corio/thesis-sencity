@@ -133,6 +133,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   height: 100dvh;
   width: 100vw;
   overflow: hidden;
+  /* Never scrolled, not even by the browser bringing a focused field into view: that moved the whole onboarding up
+     on a phone and left the bottom of the screen empty (Elena, 2026-11-15). */
+  overflow: clip;
   /* Rows of the floating layout */
   --row-top: var(--margin);
   --row-main: calc(var(--margin) + var(--topbar-h) + var(--gap));
