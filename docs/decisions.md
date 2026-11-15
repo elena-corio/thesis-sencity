@@ -2,6 +2,21 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – Personal ratings after an edit, on demand; the card's words (accepted)
+**Context.** Elena: editing the profile makes personalised results stale, re-rated on demand, not all at once; the reasoning as plain words under "A prediction, not a reason"; "Couldn't rate this photo" after one retry; a cost counter in dev mode.
+**Decision.**
+- *After an edit (Elena; how proposed):* the open area or routes keep their ratings, labelled "Personal prediction: from your earlier profile", with "Your profile changed… rated again only when you ask" and **Rate again with your profile**; nothing is sent until then. A new profile (from none) is rated at once, and so is going back to general ratings when the profile is deleted (they are mostly cached and free, and the old personal ones must not stay). The browser's ratings of the earlier version are dropped on saving.
+- *The card (Elena):* the model's reasoning sits as plain text under the heading "A prediction, not a reason" (was "Model's explanation"); the bar's title says "personal" or "general"; a photo whose answer is still invalid after one retry reads "Couldn't rate this photo", with no value. Unchanged: B1 → easy 4–5, mixed 3, hard 1–2; "Might feel good" and "Might bother you" with "both" in both lists; the street's rating is the median of its photos, and the card says how many photos it rests on (one per street since 2026-11-11).
+- *Cost counter (Elena):* the money in the status lines shows only in `npm run dev` (`SHOW_COST`); the estimate before rating more than the cap still shows, since it asks the person first.
+
+## 2026-11-15 – The V2 request is checked against the study pipeline (accepted)
+**Context.** Elena: the personalised request must match the study's V2 exactly; a parity test against what the study pipeline sends, failing on any difference.
+**Decision.**
+- *Fixture:* `backend/tests/fixtures/v2_parity.json`, made by the study's own code (thesis-personas `src/task_v9.build_call`, V2, commit 60c9222) for study photo 1 and the made-up test profile, without the image: system text, user text, response format and the photo's element list.
+- *Test:* the app's request for that photo and profile has the same system text (instruction, blank line, profile ending with the study's closing line), the same user text (task, then the photo only), the same response format, and the settings of `model.json` (gemini-3.1-flash-lite, google-vertex/eu only, zero retention, data collection denied, no fallbacks, temperature 0.7, reasoning after).
+- *What it found:* the app sent the task text and the V0 system instruction with the trailing newline of their files; the study strips them. Fixed: both now end as in the study. `PROMPT_VERSION` ("2") names how the app puts the request together; personal ratings carry it in their stamp, so a change makes them stale.
+- *Earlier general ratings (Elena):* the general (V0) ratings cached before the fix are marked stale (349; the cache's other entries were already stale from Street View or the V0 export). Each new rating records `prompt`; one without the current prompt version is never used and is rated again only when its photo is asked for, when its area or route is opened, within the usual cap: never all at once.
+
 ## 2026-11-15 – "Before you start": the consent screen (accepted)
 **Context.** Brief §3: one consent screen before Part A (board 3), with an unticked checkbox and "Agree and start" enabled only when ticked. The board's text was out of date ("16 things", a database); Elena wrote the new one.
 **Decision (Elena).** Title "Before you start", four points (what is asked: 20 visible elements, about 5 minutes, no health questions; answers stay in this browser, no account, nothing saved on a server; for a personal rating the answers go with the photo to an AI model in the EU, used only for that rating and not kept by the provider; change, download or delete at any time under Profile), the box "I have read this and agree that my answers are used to build my profile and personalise ratings." (unticked), Not now and Agree and start. Icons from board 3.

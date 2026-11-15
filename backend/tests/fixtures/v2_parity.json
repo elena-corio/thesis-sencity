@@ -1,0 +1,80 @@
+{
+  "made_by": "thesis-personas src/task_v9.build_call (V2), without the image; profile: frontend/src/dev/test-profiles.json[0]",
+  "study_commit": "60c922292a3cab7ed13017aadb8d1bc9bf6f3fb8",
+  "photo": 1,
+  "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+  ],
+  "system": "You are taking part in a survey about public spaces in Vienna. Answer as yourself. If something is not stated, do not invent it. Answer only with JSON that follows the schema.\n\nHow you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 2.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 5, very pleasant\n  - Nice buildings: 4, a little pleasant\n  - Signs, ads: 2, a little unpleasant\n  - Fountains, water: 5, very pleasant\n  - Traffic, trams: 1, very unpleasant\n  - Plants, flowers: 5, very pleasant\n  - Waste containers: 2, a little unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 4, a little pleasant\n  - Asphalt, stone, concrete: 2, a little unpleasant\n  - Shade from trees or buildings: 5, very pleasant\n  - Direct sun, little shade: 1, very unpleasant\n  - Open space: 4, a little pleasant\n  - Heights, bridges: 3, neither\n  - Car-free zones: 5, very pleasant\n  - Crowds: 1, very unpleasant\n  - Narrow or shared paths: 2, a little unpleasant\n  - Seats: 5, very pleasant\n  - Drinking fountains, toilets: 4, a little pleasant\n  - Steps, slopes: 3, neither\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in English): \"Traffic noise and direct sun wear me out quickly. I like parks with shade and somewhere to sit, and I avoid places where people stand \"close\".\"\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general.",
+  "user_text": "Look at the photo. Imagine walking through this place as it is in the photo, at that time of day and in the weather you see.\nThink of all eight senses, as far as what you can see lets you judge them: sight, hearing, smell, touch, temperature, balance and movement, how close things are to your body, and inner signals such as needing to rest, drink or find a toilet.\nJudge only from what is visible in the photo, and do not assume sounds, smells or conditions the photo does not show.\nAnswer these questions about this place:\nB1. How sensory-comfortable would you be walking through here? Think of what you can see in the photo. (1 = Not at all, too much for my senses … 5 = Very much)\nB2. Which of these visible elements are pleasant or unpleasant to your senses? For each listed element, answer 'pleasant', 'unpleasant' or both only if it really matters to you in this place; leave out the others. If none matter, set B2_none to true.\n- greenery_trees (Greenery, trees): Trees, hedges, climbing plants and other large green vegetation, in the place or along its edges.\n- signs_ads (Signs, ads): Shop signs, billboards, posters, screens and other displays with text or advertising.\n- asphalt_stone_concrete (Asphalt, stone, concrete): Hard ground and surfaces of asphalt, paving, cobbles or concrete.\n- direct_sun (Direct sun, little shade): Walkable areas in full sunlight, with little or no shade nearby.\n- steps_slopes (Steps, slopes): Stairs, steps, ramps or noticeably sloping ground on the way.\nThen, in \"reasoning\", explain in 2–4 sentences why, from your perspective.",
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "part_b_answer_v9",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "B1_comfort": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "B2_marked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "element": {
+                  "type": "string",
+                  "enum": [
+                    "greenery_trees",
+                    "signs_ads",
+                    "asphalt_stone_concrete",
+                    "direct_sun",
+                    "steps_slopes"
+                  ]
+                },
+                "answer": {
+                  "type": "string",
+                  "enum": [
+                    "pleasant",
+                    "unpleasant",
+                    "both"
+                  ]
+                }
+              },
+              "required": [
+                "element",
+                "answer"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "B2_none": {
+            "type": "boolean"
+          },
+          "reasoning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "B1_comfort",
+          "B2_marked",
+          "B2_none",
+          "reasoning"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

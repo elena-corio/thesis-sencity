@@ -105,6 +105,9 @@ BOTHERS = ("unpleasant", "both")
 FEELS_GOOD = ("pleasant", "both")
 GENERAL = "general"  # the end of every rating key: only general (V0) ratings are cached here
 PROFILE_PART = "|profile "  # personal ratings were once cached under this; they are removed (drop_personal)
+# How this app puts the request together from the export. A change here makes earlier personal ratings stale (their
+# stamp carries it). 2: no trailing newline after the instruction and the task text, as the study (2026-11-15).
+PROMPT_VERSION = "2"
 CALLS_PER_PHOTO = 2  # presence + rating, for the cost estimate of photos left out by the cap
 FATAL_STATUSES = (401, 402, 403, 404)  # key, credit or endpoint: no use trying the next photo
 
@@ -325,17 +328,20 @@ def answer_schemas(export: Export, listed: list) -> tuple[dict, dict]:
 
 def task_text(export: Export, listed: list) -> str:
     """task_template.txt with one line per listed element, as task_rules.json says: '- <code> (<en name>):
-    <definition>', in elements.json order. With none listed, the slot's line is left out."""
+    <definition>', in elements.json order. With none listed, the slot's line is left out. No trailing newline, as the
+    study sends it (task_v9.task_text; the parity test checks it)."""
+    task = export.task.rstrip("\n")
     lines = "\n".join(f"- {c} ({export.elements[c]['en']}): {export.elements[c]['definition']}" for c in listed)
     if lines:
-        return export.task.replace(SLOT, lines)
-    return export.task.replace(f"{SLOT}\n", "").replace(SLOT, "")
+        return task.replace(SLOT, lines)
+    return task.replace(f"{SLOT}\n", "").replace(SLOT, "")
 
 
 def system_text(export: Export, profile: str | None = None) -> str:
     """The system message: system_instruction.txt alone without a profile (the study's V0); with one, a blank line
     and the filled profile after it (profile_rules.json, placement)."""
-    return export.system if not profile else f"{export.system.rstrip()}\n\n{profile}"
+    instruction = export.system.strip()  # as the study sends it (task_v9.system_instruction)
+    return instruction if not profile else f"{instruction}\n\n{profile}"
 
 
 def build_request(export: Export, data_url: str, listed: list, profile: str | None = None) -> dict:
@@ -420,11 +426,15 @@ def presence_key(photo_id: str, heading: float, model: str, version: str) -> str
     return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|presence {version}"
 
 
-def _stale_reason(key: str) -> str | None:
+def _stale_reason(key: str, entry=None) -> str | None:
     if not key.startswith(f"{SOURCE}:"):
         return "streetview photo: the app now rates the Mapillary photo it shows"
     if key.count("|") == 3:  # photo|heading|model|commit: no profile part, so made from the V0 export
         return "V0 export: the app now rates with the v9 export"
+    if isinstance(entry, dict) and entry.get("prompt") != PROMPT_VERSION:
+        # Elena, 2026-11-15: made before the request matched the study word for word; rated again when its area is
+        # asked for, never all at once.
+        return f"request assembly before prompt {PROMPT_VERSION} (trailing newlines): rated again when its area is opened"
     return None
 
 
@@ -435,7 +445,7 @@ def mark_stale(path: Path) -> int:
         data = _read_cache(path)
         n = 0
         for key, entry in data.items():
-            reason = _stale_reason(key)
+            reason = _stale_reason(key, entry)
             if reason and isinstance(entry, dict) and not entry.get("stale"):
                 entry["stale"] = reason
                 n += 1
@@ -568,13 +578,13 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
             stamp = (stamps or {}).get((photo_id, heading))
             listed = present(photo_id, heading)
             if (stamp and listed is not None and stamp.get("model") == model and stamp.get("commit") == export.commit
-                    and list(stamp.get("listed") or []) == listed):
+                    and stamp.get("prompt") == PROMPT_VERSION and list(stamp.get("listed") or []) == listed):
                 kept.append((photo_id, heading, listed))
             else:
                 new.append((photo_id, heading))
             continue
         hit = cache.get(key)
-        if (isinstance(hit, dict) and not hit.get("stale") and isinstance(hit.get("listed"), list)
+        if (isinstance(hit, dict) and not hit.get("stale") and hit.get("prompt") == PROMPT_VERSION and isinstance(hit.get("listed"), list)
                 and set(hit["listed"]) <= set(export.elements) and problem_with(export, hit["listed"], hit.get("output")) is None):
             cached.append((photo_id, heading, hit))
         else:
@@ -640,7 +650,7 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
     except PredictionError as e:
         e.cost = sum(costs)
         raise
-    return {"output": output, "listed": listed, "model": model,
+    return {"output": output, "listed": listed, "model": model, "prompt": PROMPT_VERSION,
             "latency_ms": round((time.perf_counter() - started) * 1000), "cost_usd": sum(costs) if costs else None}
 
 
@@ -689,7 +699,8 @@ def rate_events(plan: Plan, cfg: dict, provider):
             result = _view(export, entry, cached=False, personal=personal)
             if personal:  # relayed, never kept: the stamp lets the browser keep it and ask for "keep" next time
                 yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"],
-                       "stamp": {"listed": list(entry["listed"]), "model": model, "commit": export.commit}}
+                       "stamp": {"listed": list(entry["listed"]), "model": model, "commit": export.commit,
+                                 "prompt": PROMPT_VERSION}}
                 continue
             _save_cache(path, cache_key(photo_id, heading, model, export.commit), entry)
             yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"]}
