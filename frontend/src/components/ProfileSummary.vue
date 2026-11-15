@@ -3,7 +3,7 @@
 // your own words, the strongest elements, and the device-only actions: download,
 // import, delete. The radar (ProfileRadar) under the title; under the overall comfort, the temperature that feels
 // comfortable (ThermalComfortBar, from the Weather step). "Places that may suit you" comes later.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import config from '../config.js'
 import { GRIDS, gridRows, strongest } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
@@ -30,6 +30,36 @@ const saved = computed(() => new Date(p.value.saved).toLocaleDateString('en-GB',
 const edit = (code) => store.begin(STEPS.indexOf(code))
 const limits = computed(() => store.limits ?? standardLimits())
 const moved = computed(() => !!p.value.thermal)
+
+// The overall comfort bar can be dragged too (Elena, 2026-11-15): it snaps to 1–5 and saves A11 when let go (or on
+// each arrow key); the profile is built again, so ratings made with it before become "from your earlier profile".
+const a11Track = ref(null)
+const a11Drag = ref(null) // the value shown while dragging
+const a11Value = computed(() => a11Drag.value ?? p.value.answers.A11)
+function a11From(e) {
+  const r = a11Track.value.getBoundingClientRect()
+  return Math.min(5, Math.max(1, Math.round(1 + ((e.clientX - r.left) / r.width) * 4)))
+}
+function a11Down(e) {
+  e.currentTarget.setPointerCapture?.(e.pointerId)
+  e.currentTarget.focus()
+  a11Drag.value = a11From(e)
+}
+function a11Move(e) {
+  if (a11Drag.value != null) a11Drag.value = a11From(e)
+}
+async function a11Up() {
+  if (a11Drag.value == null) return
+  const v = a11Drag.value
+  await store.setAnswer('A11', v)
+  a11Drag.value = null
+}
+function a11Key(e) {
+  const d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key]
+  if (d == null) return
+  e.preventDefault()
+  store.setAnswer('A11', Math.min(5, Math.max(1, p.value.answers.A11 + d)))
+}
 </script>
 
 <template>
@@ -76,13 +106,18 @@ const moved = computed(() => !!p.value.thermal)
       <div class="overall" data-testid="overall-comfort">
         <div class="card-head">
           <h3 id="overall-title">Overall sensory comfort</h3>
-          <strong>{{ p.answers.A11 }} of 5</strong>
+          <strong>{{ a11Value }} of 5</strong>
           <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
         </div>
         <p class="overall-q">{{ a11.title[lang] }}</p>
         <div class="bar" data-testid="overall-bar">
-        <div class="track" role="img" :aria-label="`Overall sensory comfort: ${p.answers.A11} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`">
-          <span class="diamond" :style="{ left: `${((p.answers.A11 - 1) / 4) * 100}%` }" />
+        <div ref="a11Track" class="track" @pointerdown="a11Down" @pointermove="a11Move" @pointerup="a11Up" @pointercancel="a11Up">
+          <button type="button" class="a11-handle" :style="{ left: `${((a11Value - 1) / 4) * 100}%` }" role="slider"
+                  aria-labelledby="overall-title" :aria-valuemin="1" :aria-valuemax="5" :aria-valuenow="a11Value"
+                  :aria-valuetext="`${a11Value} of 5, from 1, ${a11.labels['1'][lang].toLowerCase()}, to 5, ${a11.labels['5'][lang].toLowerCase()}`"
+                  data-handle="A11" @keydown="a11Key">
+            <span class="diamond" aria-hidden="true" />
+          </button>
         </div>
         <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
         <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
@@ -152,11 +187,18 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .bar { margin-top: var(--space-5); }
 .track {
   position: relative; height: var(--swatch-h); margin: var(--space-3) var(--space-1) 0; border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy));
+  background: linear-gradient(to right, var(--hard), var(--mixed), var(--easy)); cursor: pointer; touch-action: none;
 }
+/* The diamond is a handle: a 44 px target, dragged or moved with the arrow keys. */
+.a11-handle {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: var(--touch-phone); height: var(--touch-phone); padding: 0; border: 0; background: transparent;
+  display: grid; place-items: center; cursor: grab; touch-action: none;
+}
+.a11-handle:active { cursor: grabbing; }
+.a11-handle:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: calc(-1 * var(--space-2)); border-radius: var(--radius-chip); }
 .diamond {
-  position: absolute; top: 50%; width: var(--handle-size); height: var(--handle-size);
-  transform: translate(-50%, -50%) rotate(45deg);
+  width: var(--handle-size); height: var(--handle-size); transform: rotate(45deg);
   background: var(--ring); border: var(--hairline) solid var(--ring-edge);
 }
 .ticks, .ends { display: flex; justify-content: space-between; margin: var(--space-2) var(--space-1) 0; font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }

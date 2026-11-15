@@ -126,6 +126,12 @@ export const useProfileStore = defineStore('profile', () => {
     profile.value = { ...p }
     write(SAVED_KEY, profile.value)
   }
+  /** One answer changed on the profile page (the overall comfort bar): the profile is built again, as after an edit. */
+  async function setAnswer(code, value) {
+    const p = profile.value
+    if (!p || p.answers[code] === value) return false
+    return save({ ...p.answers, [code]: value }, p.language)
+  }
   /** Reset: the starts from the weather answers again. */
   function resetStarts() {
     if (!profile.value) return
@@ -216,6 +222,6 @@ export const useProfileStore = defineStore('profile', () => {
   }
 
   return { survey, surveyStatus, surveyError, profile, draft, personal, version, consented, consentFor, askingConsent, agree,
-    decline, ensureSurvey, begin, setStep, answer, limits, setStart, resetStarts,
+    decline, ensureSurvey, begin, setStep, answer, limits, setStart, resetStarts, setAnswer,
     finish, discardDraft, deleteAll, fileData, importData, loadTestProfile }
 })

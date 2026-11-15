@@ -73,6 +73,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Decision (Elena).** The radar has no list version on the page. Tapping a sense still lists its elements, and each sense's icon tells a screen reader its name and both values ("Hearing: bothers you 5, feels good 5"); the answers themselves are in "Your answers, element by element".
 
 ## 2026-11-15 – Overall sensory comfort as a bar; the answers fold (accepted)
+- *Draggable (Elena, later the same day):* the overall comfort's diamond is a handle (44 px, `role="slider"`): dragged it snaps to 1–5 and saves A11 when let go, the arrow keys move it one step; the profile is built again, as after an edit, so open ratings become "from your earlier profile" with Rate again.
 **Context.** Elena: "make the list collapsable and maybe use a bar with gradient for the overall sensory comfort, maybe above the senses diagram".
 **Decision.**
 - *Overall sensory comfort (Elena):* A11 as the comfort bar of the place card (board 2c: pink, orange, cyan; a diamond at the answer; 1–5), at the top of the right card, above "In your words" (first above the radar, then under it; Elena moved it), with "2 of 5", the question and its end labels from `part_a.json` ("Not at all", "Very much"), and Edit. It replaces the A11 line of the answers.

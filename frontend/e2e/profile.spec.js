@@ -279,6 +279,24 @@ test.describe('your sensory profile', () => {
     expect(edited.text).toBe(DEV.expected.replace('(1 = not at all … 5 = very much): 2.', '(1 = not at all … 5 = very much): 4.'))
     expect(edited.version).not.toBe(DEV_VERSION)
 
+    // The overall comfort bar can be dragged too: it snaps to 1–5, saves A11 and builds the profile again.
+    const a11 = summary.locator('[data-handle="A11"]')
+    await expect(a11).toHaveAttribute('aria-valuenow', '4')
+    const a11Track = await summary.getByTestId('overall-bar').locator('.track').boundingBox()
+    const h = await a11.boundingBox()
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(a11Track.x + a11Track.width * 0.48, h.y + h.height / 2, { steps: 5 }) // nearest is 3
+    await page.mouse.up()
+    await expect(a11).toHaveAttribute('aria-valuenow', '3')
+    await expect(summary.getByTestId('overall-comfort')).toContainText('3 of 5')
+    expect((await saved(page)).answers.A11).toBe(3)
+    expect((await saved(page)).text).toContain('(1 = not at all … 5 = very much): 3.')
+    await a11.focus()
+    await page.keyboard.press('ArrowRight') // and with the keys, one step
+    await expect(summary.getByTestId('overall-comfort')).toContainText('4 of 5')
+    expect((await saved(page)).answers.A11).toBe(4)
+
     // The radar follows an edit at once: traffic from 1 to 3, hearing now bothers 3.
     await summary.getByText('Your answers, element by element').click()
     await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
