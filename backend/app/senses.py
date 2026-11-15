@@ -426,11 +426,15 @@ def presence_key(photo_id: str, heading: float, model: str, version: str) -> str
     return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|presence {version}"
 
 
-def _stale_reason(key: str) -> str | None:
+def _stale_reason(key: str, entry=None) -> str | None:
     if not key.startswith(f"{SOURCE}:"):
         return "streetview photo: the app now rates the Mapillary photo it shows"
     if key.count("|") == 3:  # photo|heading|model|commit: no profile part, so made from the V0 export
         return "V0 export: the app now rates with the v9 export"
+    if isinstance(entry, dict) and entry.get("prompt") != PROMPT_VERSION:
+        # Elena, 2026-11-15: made before the request matched the study word for word; rated again when its area is
+        # asked for, never all at once.
+        return f"request assembly before prompt {PROMPT_VERSION} (trailing newlines): rated again when its area is opened"
     return None
 
 
@@ -441,7 +445,7 @@ def mark_stale(path: Path) -> int:
         data = _read_cache(path)
         n = 0
         for key, entry in data.items():
-            reason = _stale_reason(key)
+            reason = _stale_reason(key, entry)
             if reason and isinstance(entry, dict) and not entry.get("stale"):
                 entry["stale"] = reason
                 n += 1
@@ -580,7 +584,7 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
                 new.append((photo_id, heading))
             continue
         hit = cache.get(key)
-        if (isinstance(hit, dict) and not hit.get("stale") and isinstance(hit.get("listed"), list)
+        if (isinstance(hit, dict) and not hit.get("stale") and hit.get("prompt") == PROMPT_VERSION and isinstance(hit.get("listed"), list)
                 and set(hit["listed"]) <= set(export.elements) and problem_with(export, hit["listed"], hit.get("output")) is None):
             cached.append((photo_id, heading, hit))
         else:
@@ -646,7 +650,7 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
     except PredictionError as e:
         e.cost = sum(costs)
         raise
-    return {"output": output, "listed": listed, "model": model,
+    return {"output": output, "listed": listed, "model": model, "prompt": PROMPT_VERSION,
             "latency_ms": round((time.perf_counter() - started) * 1000), "cost_usd": sum(costs) if costs else None}
 
 
