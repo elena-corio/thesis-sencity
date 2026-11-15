@@ -75,12 +75,14 @@ export function clampStart(side, value, other) {
 /** "9", "24.5", "−1.5": a limit in the profile's words, with a real minus sign. */
 export const limitText = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1)).replace('-', '−')
 
-/** "Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C." */
-export function comfortSummary(limits) {
+/** ["Comfortable for you: about 9 to 23 °C (feels like).", "Standard: 9 to 26 °C."]: shown on two lines. */
+export function comfortLines(limits) {
   const [lo, hi] = easyRange(limits)
   const [slo, shi] = easyRange(STANDARD)
-  return `Comfortable for you: about ${limitText(lo)} to ${limitText(hi)} °C (feels like). Standard: ${limitText(slo)} to ${limitText(shi)} °C.`
+  return [`Comfortable for you: about ${limitText(lo)} to ${limitText(hi)} °C (feels like).`, `Standard: ${limitText(slo)} to ${limitText(shi)} °C.`]
 }
+/** "Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C." */
+export const comfortSummary = (limits) => comfortLines(limits).join(' ')
 
 /** The easy range [lower, upper] and its middle, the comfort target. */
 export function easyRange(limits = thermalLimits()) {

@@ -156,6 +156,9 @@ test.describe('your sensory profile', () => {
     const tc = summary.getByTestId('thermal-comfort')
     expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="thermal-comfort"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
     await expect(tc.getByTestId('thermal-summary')).toHaveText('Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C.')
+    // "Standard: 9 to 26 °C." on its own line, under the person's range.
+    const [mineLine, stdLine] = await Promise.all([tc.getByTestId('thermal-summary').locator('span').first().boundingBox(), tc.getByTestId('thermal-summary').locator('.standard').boundingBox()])
+    expect(stdLine.y).toBeGreaterThan(mineLine.y + mineLine.height - 1)
     await expect(tc.locator('[data-tick]')).toHaveCount(4)
     const hot = tc.locator('[data-handle="heat"]')
     await expect(hot).toHaveAttribute('aria-valuenow', '23')
@@ -170,16 +173,15 @@ test.describe('your sensory profile', () => {
     await page.keyboard.press('ArrowRight')
     await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 24 °C')
     expect((await saved(page)).thermal).toEqual({ heat: 24 })
-    // While a start is being moved, the standard ticks are hidden (Elena, 2026-11-15).
-    await expect(tc.locator('.tick.standard').first()).toBeHidden()
+    // No standard ticks on the bar (Elena, 2026-11-15): only the person's four limits.
+    await expect(tc.locator('.tick.standard')).toHaveCount(0)
     // The start of hot stops at 39 °C, so its hard limit (+6) stays on the bar's end, 45 °C.
     await expect(hot).toHaveAttribute('aria-valuemax', '39')
     for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowRight')
     await expect(hot).toHaveAttribute('aria-valuenow', '39')
     const [lastTick, trackBox] = await Promise.all([tc.locator('[data-tick]').last().boundingBox(), tc.locator('.track').boundingBox()])
     expect(lastTick.x + lastTick.width / 2).toBeLessThanOrEqual(trackBox.x + trackBox.width + 1)
-    await page.keyboard.press('Tab') // leaving the handles: the standard ticks come back
-    await expect(tc.locator('.tick.standard').first()).toBeVisible()
+    await page.keyboard.press('Tab')
     for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowLeft') // nothing focused: nothing moves
     expect((await saved(page)).text).toBe(DEV.expected) // never in the profile text
     await tc.getByRole('button', { name: 'Reset' }).click()
