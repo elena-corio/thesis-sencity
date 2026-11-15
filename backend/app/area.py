@@ -1,8 +1,9 @@
-"""Street segments and their photos for one circle: the step-1 pipeline (tool/), served to the app.
+"""Street segments and their photos for one circle, served to the app.
 
-Metadata calls only (free); no image is fetched here. The result is neutral data (segments, pano IDs,
-locations, dates, headings) and is cached on disk per area (brief §6: allowed). Progress is reported as
-events, so the app can light streets up while the area loads (brief §4).
+One Mapillary photo per street or place (tool/photos/mapillary.py, Elena 2026-11-11): metadata lookups only (free);
+no image is fetched here. The result is neutral data (segments, Mapillary image IDs, locations, dates, headings) and is
+cached on disk per area (brief §6: allowed). Progress is reported as events, so the app can light streets up while the
+area loads (brief §4).
 
 Thermal comfort comes after the photos: one Infrared.city run per area and window (billed), cached as
 the grid and the UTCI per segment, so the same area, season and time is never paid for twice.
@@ -16,15 +17,13 @@ from pathlib import Path
 
 import numpy as np
 from shapely.geometry import mapping
-from shapely.prepared import prep
 
-from tool.candidates import candidates_for, make_lookup, photos_for_segment
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection, circle
 from tool.infrared import ThermalError, run_utci
 from tool import osm_local
 from tool.osm import build_segments, fetch_overpass, parse, parse_buildings
-from tool.selection import select
+from tool.photos import mapillary
 from tool.thermal import segment_values
 
 from . import steps
@@ -32,6 +31,8 @@ from . import steps
 log = logging.getLogger("sencity.api")
 
 PLACE_TYPES = {"park": "park", "square": "square", "pedestrian": "pedestrian"}
+# The Mapillary settings that change which photo a street gets (and so the cached area).
+PHOTO_SETTINGS = ("radius_m", "max_turn_deg", "max_age_years", "search_limit")
 
 
 def cache_dir(cfg: dict) -> Path:
@@ -40,7 +41,8 @@ def cache_dir(cfg: dict) -> Path:
 
 def area_key(lat: float, lon: float, radius: int, cfg: dict) -> str:
     """Same circle and same pipeline settings → same key (and the same cached result)."""
-    settings = {k: cfg[k] for k in ("osm", "segments", "candidates", "selection", "streetview")}
+    settings = {"photos": "mapillary", **{k: cfg[k] for k in ("osm", "segments")},
+                "mapillary": {k: cfg["mapillary"][k] for k in PHOTO_SETTINGS}}
     raw = json.dumps({"lat": round(lat, 5), "lon": round(lon, 5), "radius": radius, "settings": settings},
                      sort_keys=True, default=str)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
@@ -76,27 +78,28 @@ def feature(seg, proj: LocalProjection, photos: list | None) -> dict:
     }
 
 
-def photo_props(c) -> dict:
-    return {"pano_id": c.photo_id, "lat": round(c.lat, 7), "lon": round(c.lon, 7), "heading": c.heading,
-            "date": c.date, "contributor": not c.official}
-
-
-def lookup_photos(segments: list, proj: LocalProjection, indoor, cfg: dict, provider):
-    """Yield (done, segment, its chosen photos) as the metadata lookups finish, several at a time.
-    Stops as soon as the caller stops reading."""
-    lookup = make_lookup(provider, proj)
-    stats: dict = {}  # counts only; an occasional lost increment between threads does not matter
-    today = date.today()
+def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None):
+    """Yield (done, segment, [its photo] or []) as the Mapillary lookups finish, several at a time. A street counts
+    either way along it, a park or square in any direction. `directions` (routes): {segment id: True if walked along its
+    own drawing, False if against it}; such a street prefers a photo facing the way it is walked. Stops as soon as the
+    caller stops reading."""
+    s = mapillary.session()
+    directions = directions or {}
 
     def one(seg):
-        metas = photos_for_segment(seg, lookup, cfg, stats)
-        chosen = select(candidates_for(seg, metas, proj, indoor), cfg, today,
-                        contributor_fallback=seg.kind == "area")
-        return seg, [photo_props(c) for c in chosen if c.status == "kept"]
+        geom = proj.geom_to_lonlat(seg.geom)
+        if seg.kind == "area":
+            photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", cfg)
+        elif seg.id in directions:
+            coords = [list(c) for c in geom.coords]
+            photo = mapillary.photo_facing(s, coords if directions[seg.id] else coords[::-1], cfg)
+        else:
+            photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", cfg)
+        return seg, [photo] if photo else []
 
-    pool = ThreadPoolExecutor(max_workers=cfg["api"]["area"]["workers"])
+    pool = ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"])
     try:
-        futures = [pool.submit(one, s) for s in segments]
+        futures = [pool.submit(one, seg) for seg in segments]
         for done, fut in enumerate(as_completed(futures), start=1):
             seg, photos = fut.result()
             yield done, seg, photos
@@ -104,7 +107,7 @@ def lookup_photos(segments: list, proj: LocalProjection, indoor, cfg: dict, prov
         pool.shutdown(wait=False, cancel_futures=True)
 
 
-def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str | None = None):
+def run_area(lat: float, lon: float, radius: int, cfg: dict, key: str | None = None):
     """Yield events: {"type": "segments"} (all segments; photos None while pending, with `done` already
     found), one {"type": "segment"} per segment once its photos are chosen, then {"type": "done", "area":
     FeatureCollection}. With a key, the finished steps of an earlier try are read back (app/steps.py):
@@ -122,7 +125,6 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str 
     footprints = parse_buildings(data, proj, 0)
     ways, node_xy, areas, _dropped = parse(data, proj, cfg)
     segments = build_segments(ways, node_xy, areas, area_poly, cfg, footprints, {})
-    indoor = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"])) if footprints is not None else None
 
     found: dict = (steps.load(where, key, "photos") if key else None) or {}
     features = {s.id: feature(s, proj, found.get(s.id)) for s in segments}
@@ -132,7 +134,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str 
 
     finished = False
     try:
-        for done, seg, photos in lookup_photos(todo, proj, indoor, cfg, provider):
+        for done, seg, photos in lookup_photos(todo, proj, cfg):
             found[seg.id] = photos
             features[seg.id] = feature(seg, proj, photos)
             yield {"type": "segment", "feature": features[seg.id], "done": total - len(todo) + done, "total": total}
@@ -142,7 +144,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, provider, key: str 
             steps.save(where, key, "photos", found)
 
     fc = {"type": "FeatureCollection", "features": [features[s.id] for s in segments]}
-    yield {"type": "done", "area": fc, "metadata_calls": provider.metadata_calls}
+    yield {"type": "done", "area": fc}
 
 
 def load_cached(key: str, cfg: dict) -> dict | None:
@@ -159,26 +161,6 @@ def save_cached(key: str, lat: float, lon: float, radius: int, fc: dict, cfg: di
     tmp.write_text(json.dumps({"lat": lat, "lon": lon, "radius": radius, "created": date.today().isoformat(),
                                "area": fc}, ensure_ascii=False), encoding="utf-8")
     tmp.replace(d / f"{key}.json")
-
-
-def known_photos(fc: dict) -> set[tuple[str, float]]:
-    """(pano ID, heading) pairs an area uses: the only images /photo will fetch."""
-    return {(p["pano_id"], float(p["heading"]))
-            for f in fc["features"] for p in (f["properties"]["photos"] or [])}
-
-
-def load_all_known(cfg: dict) -> set[tuple[str, float]]:
-    """Photos of every cached area and every cached route corridor (same file format)."""
-    known: set = set()
-    for d in (cache_dir(cfg), REPO_ROOT / cfg["routes"]["cache_dir"]):
-        if not d.exists():
-            continue
-        for path in d.glob("*.json"):
-            try:
-                known |= known_photos(json.loads(path.read_text(encoding="utf-8"))["area"])
-            except (ValueError, KeyError):
-                continue
-    return known
 
 
 # Thermal comfort

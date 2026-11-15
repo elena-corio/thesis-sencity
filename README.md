@@ -16,9 +16,10 @@ cp .env.example .env                         # then fill in the key
 
 | Name | What |
 |---|---|
-| `GOOGLE_MAPS_API_KEY` | Google Maps Platform key with **Street View Static API** enabled. Backend only: never name it `VITE_*`, because Vite would put it in the browser bundle. |
+| `GOOGLE_MAPS_API_KEY` | Google Maps Platform key with **Street View Static API** enabled, for the step-1 tool and its review page only (`tool.fetch_photos`, `tool.review_server`): the app uses no Street View. Backend only: never name it `VITE_*`, because Vite would put it in the browser bundle. |
+| `MAPILLARY_ACCESS_TOKEN` | Mapillary token for the app's street photos (free). Backend only: the browser gets only the public thumbnail URLs. |
 | `INFRARED_API_KEY` | Infrared.city key for thermal comfort. Each new area or route and season/time is billed: 10 tokens per 512 m tile (a circle up to ~250 m is usually 1 tile, 500 m up to 4; a route about 4–6, at most 8). Backend only. |
-| `OPENROUTER_API_KEY` | OpenRouter key for the Senses predictions. Each new photo is one paid call, sent to the zero-retention endpoint pinned in `model/app_v0/model.json`. Backend only: never name it `VITE_*`. |
+| `OPENROUTER_API_KEY` | OpenRouter key for the Senses predictions. Each new photo takes two paid calls (presence, then rating), sent to the zero-retention endpoint pinned in `model/app_v9/model.json`. Backend only: never name it `VITE_*`. |
 
 All thresholds are in `config/tool.yaml`.
 
@@ -101,8 +102,9 @@ The API reads a tile as soon as it exists; no restart is needed. Outside Vienna,
 
 Open http://127.0.0.1:8765/ and stop the server with Ctrl+C.
 
-- **Left:** a map with the circle (dashed), the segments (cyan with a kept photo, grey without), parks and squares, and the photo points (dark = kept). Click a segment to jump to its photos.
-- **Right:** one card per segment with its kept photos, and the date, heading, rank and distances under each. Rejected photos are in a collapsed "Rejected" section, grouped by reason. They load only when you click "Load photo".
+Two tabs, never side by side (Google's EEA terms forbid Street View Static images next to a map). The server rebuilds the page from the current template when it starts, so older runs get the tabs too.
+- **Photos:** one card per segment with its kept photos, and the date, heading, rank and distances under each. Rejected photos are in a collapsed "Rejected" section, grouped by reason. They load only when you click "Load photo".
+- **Map:** the circle (dashed), the segments (cyan with a kept photo, grey without), parks and squares, and the photo points (dark = kept). Click a segment to go to its photos in the Photos tab.
 - **Keep / Reject** on any photo saves your verdict, and the optional note, to `review_notes.csv` in the run folder. Click again to clear it. Use these notes to tune the filter thresholds.
 - **Costs:** every photo shown is one paid Street View image call. The page shows the total for the kept photos, and the server prints and logs each call. Images are never saved or cached, so reloading the page fetches them again.
 
@@ -113,10 +115,11 @@ The backend the app talks to. `npm run dev` starts it for you (see Frontend); yo
 | Endpoint | What it does |
 |---|---|
 | `POST /api/search` | Address and place search through Photon (komoot, OpenStreetMap data, no key). The text travels in the request body and is never logged. |
-| `POST /api/area` | Street segments and their chosen photos for one circle `{lat, lon, radius}`: the `tool.fetch_photos` pipeline, metadata calls only (free). It streams its progress, and the result is cached in `runs/areas/<key>.json` (segments and photo metadata only, no images). A cached area answers at once. If the photo lookups fail, the steps already done are kept next to it (`<key>.osm.json`, `<key>.photos.json`), so Try again goes on from there; they are removed once the area completes. |
-| `POST /api/routes` | Two walking routes between two points `{start, end, limits, season, time}`: the shortest, and the easiest at most 25% longer. It streams progress: streets, photos along the way (free), thermal comfort along a narrow corridor (billed, cached), then the two ways. Start and end travel in the body and are never logged or stored. |
-| `GET /api/photo/{pano_id}?heading=…` | One Street View image (640 × 640, fov 90, pitch 0, as in the study), streamed through and never written to disk. Only photos chosen for a loaded area or route can be fetched. Each is one paid image call (about $0.007); the browser keeps it for an hour (`Cache-Control: private`). |
-| `POST /api/senses/rate` | The model's general predictions for the photos of an area or route, streamed as they finish. Cached photos answer at once and cost nothing; the others are fetched from Street View in memory and rated, 4 at a time, up to 250 per run. Only photos of a loaded area or route are accepted. See "Senses mode" below. |
+| `POST /api/area` | Street segments and their Mapillary photo for one circle `{lat, lon, radius}`: the OpenStreetMap streets, parks and squares, then one Mapillary lookup per street (free; the rules of `/api/mapillary/along`, a street either way along it, a park or square in any direction). It streams its progress, and the result is cached in `runs/areas/<key>.json` (segments and photo metadata only, no images). A cached area answers at once. If the photo lookups fail, the steps already done are kept next to it (`<key>.osm.json`, `<key>.photos.json`), so Try again goes on from there; they are removed once the area completes. |
+| `POST /api/routes` | Two walking routes between two points `{start, end, limits, season, time}`: the shortest, and the easiest at most 25% longer. It streams progress: streets, photos along the way (free; a street the ways walk gets a photo facing the way it is walked, else one either way), thermal comfort along a narrow corridor (billed, cached), then the two ways. Start and end travel in the body and are never logged or stored. |
+| `POST /api/buildings` | Not called by the app since the walk became a slideshow of photos (2026-11-14). Footprints and heights of the buildings along a walked route `{line: [[lon, lat], …]}`, with their source: in Vienna the city's building model (Stadt Wien – data.wien.gv.at), elsewhere Overture Maps. Read with the Infrared.city SDK from its public data: free, no billed call. About 6 s for a new 1 km walk; cached in `runs/buildings/<key>.json` under a hashed name (the line is not stored). |
+| `POST /api/mapillary/along` | Not called by the app since 2026-11-14 (the walk shows the routes' own photos). One Mapillary photo per stretch of a walk `{stretches: [{key, coordinates, kind: walk | street | area}]}` (the areas and routes find their streets' photos the same way, on the server): a panorama within 30 m if there is one (shown at the walk's bearing), else the flat photo whose camera is closest to the walk's direction (within 45°, then the nearest, then the newest), never older than 10 years. Returns the image ID, position, direction, year, photographer, public thumbnail URL and image link. Free; `MAPILLARY_ACCESS_TOKEN` stays on the server and the browser loads only the thumbnail. Settings in the `mapillary` section of `config/tool.yaml`. |
+| `POST /api/senses/rate` | The model's general predictions for a list of Mapillary photos `{photos: [{id, heading}]}`: the photos the app shows, streamed as they finish. Cached photos answer at once and cost nothing; the others are fetched from Mapillary in memory (a panorama rendered as the 640 × 640, 90° view at its heading) and rated, 4 at a time, up to 250 per run: first the presence call (which of the 20 elements are clearly visible, cached per photo), then the rating on that list. A flat photo is rated only at its own heading. See "Senses mode" below. |
 
 Access logs are off, and request bodies are never logged.
 
@@ -126,21 +129,21 @@ cd backend
 ../.venv/Scripts/python -m app --reload   # restarts when the code changes
 ```
 
-Settings are in the `api` section of `config/tool.yaml`: allowed browser origins; for search, the Photon URL, text length, number of results and rate limit; for areas, the cache folder, parallel lookups and the limit of new areas per IP per hour; for photos, the limit per IP per minute and how long the browser may keep them. The key `GOOGLE_MAPS_API_KEY` is read from `.env` on the server only.
+Settings are in the `api` section of `config/tool.yaml`: allowed browser origins; for search, the Photon URL, text length, number of results and rate limit; for areas, the cache folder and the limit of new areas per IP per hour. The Mapillary rules, lookups at a time and the panorama view for the model are in the `mapillary` section. The token `MAPILLARY_ACCESS_TOKEN` is read from `.env` on the server only.
 
 After the photos, `/api/area` runs **thermal comfort** for the circle (Infrared.city, season and time from the request, default summer 15:00) and sends the feels-like °C per street. It is billed per run and cached in `runs/thermal/` per area and window, so the same area, season and time is never paid for twice. A run that would bill more than `thermal.max_jobs` jobs is refused before anything is sent. Settings are in the `thermal` section of `config/tool.yaml`; the key `INFRARED_API_KEY` is read from `.env` on the server only. Without the key the photos still load and the app says thermal comfort is not set up.
 
 A new area takes about a minute: most of it is the public Overpass server (OpenStreetMap), which is often busy. The photo lookups run in parallel and take a few seconds.
 
-A new **route** costs one thermal run on a corridor around its possible ways: about 4–6 tiles (40–60 tokens), at most `routes.max_jobs` (8, so 80 tokens), checked with the free preview before anything is billed. A new season or time for that route is another run; the same route and window, in either direction, is never paid for twice. It takes about 2.5 minutes before thermal (Overpass, then about 2,000 metadata calls), plus the simulation. Corridors are cached in `runs/routes/`, with no start or end in them. Settings are in the `routes` section of `config/tool.yaml`.
+A new **route** costs one thermal run on a corridor around its possible ways: about 4–6 tiles (40–60 tokens), at most `routes.max_jobs` (8, so 80 tokens), checked with the free preview before anything is billed. A new season or time for that route is another run; the same route and window, in either direction, is never paid for twice. It takes about a minute before thermal (Overpass, then one Mapillary lookup per corridor street), plus the simulation. Corridors are cached in `runs/routes/`, with no start or end in them. Settings are in the `routes` section of `config/tool.yaml`.
 
 **Senses mode (general prediction, no profile).** To try it: add `OPENROUTER_API_KEY` to `.env`, run `npm run dev` in `frontend/`, and analyse an area (Senses is the layer the app opens on). Every photo is rated in the background, nearest first, and streets take their colours as ratings arrive. When it ends, the most comfortable places appear as numbered pins and in a list. A route is rated too, once its two ways are ready. Clicking a place opens its detail with no new call.
 
-**Costs.** Each new photo is one paid model call (about $0.001 or less) and one paid Street View image (about $0.007, the first 10,000 a month free). A default 200 m area has about 236 photos: about $0.25 for the model and about $1.65 for Street View at list price. A run rates at most 250 new photos; above that the app asks first, with the estimated cost of the rest. A photo already rated costs nothing.
+**Costs.** Each new photo takes two paid model calls: the presence call and the rating call (with V0 one call cost about $0.00076, the mean of 1,630 calls; the v9 calls are not measured yet). A photo whose presence is cached takes only the rating call. The Mapillary photos are free. A default 200 m area around Stephansplatz has 126 places, 115 with a Mapillary photo: 226 calls, about $0.17 at the V0 price. A walk rates its stretches' own photos where they differ from their streets' (at most two calls per stretch). A run rates at most 250 new photos; above that the app asks first, with the estimated cost of the rest. A photo already rated costs nothing.
 
-Everything about the model comes from `model/app_v0/` (exported from the thesis repo), read on every request. To change the setting, replace that folder: no code change or restart. The reasoning order and any model, endpoint or image setting are picked up. If a file is missing or does not parse, or the export breaks a privacy rule (`zdr`, `data_collection`, `allow_fallbacks`, a free endpoint), the app shows which file is wrong and sends nothing. An `input` other than `photo` is refused too: the export has no describer model or prompt to build it from.
+Everything about the model comes from `model/app_v9/` (exported from the thesis repo), read on every request. Every file is checked against its sha256 in the folder's `MANIFEST.md` first; if one differs, nothing is sent. To change the setting, replace that folder: no code change or restart. `.gitattributes` keeps Git from changing line endings in `model/`, which would break the hash check. The previous export is kept in `model/archive/app_v0/` and is not read. The reasoning order and any model, endpoint or image setting are picked up. If a file is missing or does not parse, or the export breaks a privacy rule (`zdr`, `data_collection`, `allow_fallbacks`, a free endpoint), the app shows which file is wrong and sends nothing. An `input` other than `photo` is refused too: the export has no describer model or prompt to build it from.
 
-Results are cached in `runs/senses/predictions.json` (not committed) per pano ID, heading and the MANIFEST's commit, so a new export starts fresh. It holds only the JSON output, the model ID, latency and cost: never an image. Other settings (OpenRouter URL, timeout, how many at a time, the cap, the limit per IP) are in `api.senses` in `config/tool.yaml`.
+Results are cached in `runs/senses/predictions.json` (not committed) per Mapillary image ID, heading, model and the MANIFEST's commit, so a new model or export starts fresh. It holds only the JSON output, the model ID, latency and cost: never an image. Ratings made earlier from Street View photos stay in the file marked `stale` and are never used. Other settings (OpenRouter URL, timeout, how many at a time, the cap, the limit per IP) are in `api.senses` in `config/tool.yaml`.
 
 ### Tests
 
@@ -150,7 +153,7 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests/test_senses.py --rootdir backend   # only the Senses request and replies
 ```
 
-These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the request built from `model/app_v0/`, validated replies, the retry, the cache, the cap, at most 4 at a time). They make no API calls.
+These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the hash check of `model/app_v9/`, the presence and rating requests built from it, the empty list, validated replies, the retry, both caches, the stale marks, the cap, at most 4 at a time). They make no API calls.
 
 ## Frontend
 
@@ -171,7 +174,8 @@ npm run dev                     # starts the API too, and opens http://localhost
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
 | `npm test` | Unit tests for the radius maths, thermal score and route stretches (Vitest), no browser needed |
-| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos; Routes, with its own fit check. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, made-up routes, a placeholder image), so no Street View, Overpass, Infrared.city or OpenRouter calls are made. Starts the dev server itself if it is not running. |
+| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos; Routes, with its own fit check. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, made-up routes, a placeholder image), so no Mapillary, Street View, Overpass, Infrared.city or OpenRouter calls are made. Starts the dev server itself if it is not running. |
+| `REAL_PHOTOS=1 REAL_API=http://127.0.0.1:8001 npx playwright test e2e/walk-real.spec.js` | The walk with real Mapillary photos, for screenshots in `e2e/screens/walk-real/` (only the routes are mocked; free). Needs `MAPILLARY_ACCESS_TOKEN` and an API with the current code: start one with `../.venv/Scripts/python -m app --port 8001` in `backend/`. Without `REAL_API` it uses the API on port 8000. |
 
 **Using the map:**
 - Search: type at least 3 letters of a street, address or place, then pick a suggestion with the mouse, or with the arrow keys and Enter. The map moves there. Esc closes the list, a second Esc clears the text.
@@ -179,7 +183,7 @@ npm run dev                     # starts the API too, and opens http://localhost
 - Drag the edge to adjust. Esc or a right-click starts again.
 - **Analyse this area** loads the streets, then their photos (about a minute for a new area). The loading card shows the progress; streets light up as their photos are found. Cancel goes back to the circle.
 - Streets with photos are light teal with a soft glow; streets without a photo are thin and dim. Click a street to open its card: up to 3 photos with arrows, date and direction ("Looking north-east, July 2024"). Click the photo to enlarge it; arrow keys switch photos, Esc goes back. A street without a photo offers "Go to the nearest street with photos".
-- Photos load only when you open a street (each is one paid Street View call); nothing is fetched for the whole area.
+- Photos (Mapillary thumbnails, free) load when you open a street, or rest the pointer on it; the area itself loads no image.
 - Keyboard: after the area has loaded, Tab from the map goes through its streets in reading order (a dashed ring shows which); Enter opens the card, Esc closes it.
 - Keyboard: Tab to the map, then Enter places the centre at the map centre, the arrow keys change the radius in 10 m steps, and Enter fixes it.
 - Phone: tap the centre, then drag (the circle follows your finger; lift to fix it) or tap a second point. Press and drag also works with a mouse.
@@ -205,7 +209,7 @@ npm run dev                     # starts the API too, and opens http://localhost
 |---|---|
 | `Missing GOOGLE_MAPS_API_KEY` | Add the key to `.env` at the repo root. An old `VITE_GOOGLE_MAPS_KEY` is not read. |
 | The Senses card says "add OPENROUTER_API_KEY to .env" | Add the key to `.env` at the repo root, then press Retry. No restart is needed. |
-| The Senses card says "The model settings cannot be used" | It names the file in `model/app_v0/` that is missing or wrong. Export the folder again from the thesis repo. |
+| The Senses card says "The model settings cannot be used" | It names the file in `model/app_v9/` that is missing, wrong or does not match its sha256 in `MANIFEST.md`. Export the folder again from the thesis repo. |
 | "Thermal comfort is not set up on the server." | Add `INFRARED_API_KEY` to `.env` and restart the API. |
 | "No weather station near this area…" | No public station within `thermal.station_radius_km`; the area has no thermal comfort. |
 | `Street View metadata error: REQUEST_DENIED` | The key is wrong, or Street View Static API is not enabled for it in the Google Cloud console |

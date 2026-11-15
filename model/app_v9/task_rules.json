@@ -1,0 +1,8 @@
+{
+  "placeholders": {
+    "{ELEMENTS}": "one line per element listed for the photo, in elements.json order (n): '- <code> (<en name>): <definition>', joined by newlines"
+  },
+  "listed_elements": "the elements visible in the photo (the study's confirmed presence table); the same codes fill B2_marked.items.properties.element.enum in schema_template.json",
+  "user_message": "the filled task text, then the photo (model.json image)",
+  "language": "English for every person, as in the study"
+}

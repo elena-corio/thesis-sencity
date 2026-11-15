@@ -1,0 +1,79 @@
+{
+  "name": "part_b_answer_v9",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "B1_comfort": {
+        "type": "integer",
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "B2_marked": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "element": {
+              "type": "string",
+              "enum": [
+                "greenery_trees",
+                "nice_buildings",
+                "signs_ads",
+                "fountains_water",
+                "traffic_trams",
+                "plants_flowers",
+                "trash_bins",
+                "food_stalls_cafes",
+                "grass_soil",
+                "asphalt_stone_concrete",
+                "shade",
+                "direct_sun",
+                "open_space",
+                "heights_bridges",
+                "car_free",
+                "crowds",
+                "narrow_shared",
+                "seats",
+                "drinking_fountains_toilets",
+                "steps_slopes"
+              ]
+            },
+            "answer": {
+              "type": "string",
+              "enum": [
+                "pleasant",
+                "unpleasant",
+                "both"
+              ]
+            }
+          },
+          "required": [
+            "element",
+            "answer"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "B2_none": {
+        "type": "boolean"
+      },
+      "reasoning": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "B1_comfort",
+      "B2_marked",
+      "B2_none",
+      "reasoning"
+    ],
+    "additionalProperties": false
+  },
+  "per_photo": "replace B2_marked.items.properties.element.enum with the codes of the photo's listed elements"
+}

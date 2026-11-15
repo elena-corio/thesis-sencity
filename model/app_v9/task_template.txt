@@ -1,0 +1,8 @@
+Look at the photo. Imagine walking through this place as it is in the photo, at that time of day and in the weather you see.
+Think of all eight senses, as far as what you can see lets you judge them: sight, hearing, smell, touch, temperature, balance and movement, how close things are to your body, and inner signals such as needing to rest, drink or find a toilet.
+Judge only from what is visible in the photo, and do not assume sounds, smells or conditions the photo does not show.
+Answer these questions about this place:
+B1. How sensory-comfortable would you be walking through here? Think of what you can see in the photo. (1 = Not at all, too much for my senses … 5 = Very much)
+B2. Which of these visible elements are pleasant or unpleasant to your senses? For each listed element, answer 'pleasant', 'unpleasant' or both only if it really matters to you in this place; leave out the others. If none matter, set B2_none to true.
+{ELEMENTS}
+Then, in "reasoning", explain in 2–4 sentences why, from your perspective.

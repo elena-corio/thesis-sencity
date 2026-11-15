@@ -1,10 +1,11 @@
 <script setup>
 // The map, the two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c) and the
 // street segments of the analysed area: hover, click to select, selection ring (brief §4).
+// The walk along a route is its own view over the map (WalkView.vue): the map stays flat and as it was.
 import { Map as MapLibreMap } from 'maplibre-gl'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
-import { useMedia } from '../composables.js'
+import { cssVar, useMedia } from '../composables.js'
 import { bearing, bounds, circlePolygon, destination, midpoint } from '../lib/geo.js'
 import { darkenBaseMap } from '../map/base.js'
 import { addAreaLayers, updateAreaLayers } from '../map/layers.js'
@@ -17,6 +18,8 @@ import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useThemeStore } from '../stores/theme.js'
+import { useCardPhotosStore } from '../stores/cardPhotos.js'
+import MarkerArc from './MarkerArc.vue'
 import MarkerPin from './MarkerPin.vue'
 
 const props = defineProps({ routesMode: Boolean })
@@ -24,6 +27,7 @@ useSensesStore() // its watchers start the rating
 const area = useAreaStore()
 const routes = useRoutesStore()
 const theme = useThemeStore()
+const cardPhotos = useCardPhotosStore()
 const finePointer = useMedia('(pointer: fine)')
 const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
 
@@ -190,12 +194,13 @@ function routePoints() {
 function revealRoutes() {
   const pts = routePoints()
   if (pts.length && map.value) {
-    map.value.fitBounds(boundsOf(pts), { padding: freePadding(), maxZoom: map.value.getZoom(), animate: !reducedMotion.value })
+    map.value.fitBounds(boundsOf(pts), { padding: centredPadding(), maxZoom: map.value.getZoom(), animate: !reducedMotion.value })
   }
 }
 watch(() => routes.routes, (r) => {
   if (props.routesMode && r.length) nextTick(() => requestAnimationFrame(revealRoutes))
 })
+
 watch(() => routes.step, (s) => {
   if (props.routesMode && s === 'set') nextTick(() => requestAnimationFrame(revealRoutes))
 })
@@ -216,6 +221,12 @@ watch(() => props.routesMode, (on) => {
 })
 
 const hoverId = ref(null)
+// The pointer rests on a street: start loading its photo.
+watch(hoverId, (id) => { if (id) cardPhotos.preload(area.segments?.features.find((f) => f.properties.id === id)) })
+watch(() => routes.hoverKey, (key) => {
+  const s = key && routes.allStretches.find((x) => x.key === key)
+  if (s) cardPhotos.preload(routes.segments.get(s.segmentId))
+})
 watch(hoverId, (id, old) => {
   if (!map.value) return
   setSegmentState(map.value, old, { hover: false })
@@ -297,6 +308,12 @@ const ringPx = computed(() => {
   if (props.routesMode) return routes.selected ? project(routes.selected.point) : null
   return area.selectedId ? project(area.selectedPoint) : null
 })
+
+/** The photo's direction on the selected point, in degrees (the map points north), or null: the photo on the open
+ *  card (boards Flow 4, 4b). No photo, no direction: the dot alone. */
+const ringAngle = computed(() => cardPhotos.shownHeading ?? null)
+/** A suggestion pin's direction: its street's photo (Mapillary once fetched), or null. */
+const pinAngle = (m) => cardPhotos.headingOf(m.f)
 
 const pulsing = ref(false)
 let pulseTimer
@@ -537,6 +554,26 @@ function freePadding() {
   return pad
 }
 
+/** Padding that centres what is shown on the full map (Elena, 2026-11-11): equal on the left and right, and on top and
+ *  bottom, each the larger of the two, so a side panel makes the map zoom out instead of pushing the content aside. On a
+ *  phone the bottom sheet covers the lower part, so the content is centred in the visible map above it. */
+function centredPadding() {
+  const p = freePadding()
+  const W = window.innerWidth
+  const H = window.innerHeight
+  const side = Math.max(p.left, p.right)
+  const pad = { left: side, right: side, top: p.top, bottom: p.bottom }
+  if (W >= 768) pad.top = pad.bottom = Math.max(p.top, p.bottom)
+  // Leave at least a small window on very small screens.
+  if (pad.left + pad.right > W - MIN_FREE_PX) pad.left = pad.right = Math.max(0, (W - MIN_FREE_PX) / 2)
+  if (pad.top + pad.bottom > H - MIN_FREE_PX) {
+    const v = Math.max(0, (H - MIN_FREE_PX) / 2)
+    pad.top = Math.min(pad.top, v)
+    pad.bottom = Math.min(pad.bottom, H - MIN_FREE_PX - pad.top)
+  }
+  return pad
+}
+
 function circleBounds() {
   const ring = circlePolygon(area.centre, area.radius, config.circlePoints).coordinates[0]
   const lons = ring.map((p) => p[0])
@@ -546,7 +583,9 @@ function circleBounds() {
 
 function revealCircle() {
   if (!map.value || !area.centre) return
-  revealBounds(circleBounds())
+  const m = map.value
+  // Centred on the full map, zooming out (never in) when the panels would cover part of it.
+  m.fitBounds(circleBounds(), { padding: centredPadding(), maxZoom: m.getZoom(), animate: !reducedMotion.value })
 }
 
 /** Pan (and zoom out if needed) so these bounds sit in the space the panels leave free. */
@@ -642,12 +681,12 @@ function recentre() {
   if (props.routesMode) {
     const pts = routePoints()
     if (pts.length) {
-      m.fitBounds(boundsOf(pts), { padding: freePadding(), animate: !reducedMotion.value })
+      m.fitBounds(boundsOf(pts), { padding: centredPadding(), animate: !reducedMotion.value })
       return
     }
   }
   if (!props.routesMode && area.centre && area.step !== 'centre') {
-    m.fitBounds(circleBounds(), { padding: freePadding(), animate: !reducedMotion.value })
+    m.fitBounds(circleBounds(), { padding: centredPadding(), animate: !reducedMotion.value })
   } else {
     m.easeTo({ center: [config.start.lon, config.start.lat], zoom: config.start.zoom, animate: !reducedMotion.value })
   }
@@ -738,12 +777,16 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
             :data-marker="p.m.n" :aria-label="`${markerWord} ${p.m.n}: ${p.m.f.properties.name}`"
             :aria-pressed="area.selectedId === p.m.f.properties.id"
             :style="{ left: `${p.px.x}px`, top: `${p.px.y}px` }" @click="area.selectMarker(p.m, $event.detail === 0)">
-      <MarkerPin :n="p.m.n" :level="p.m.level" />
+      <span class="pin-body">
+        <MarkerPin :n="p.m.n" :level="p.m.level" size="var(--marker-map-size)" map />
+        <MarkerArc v-if="pinAngle(p.m) != null" :angle="pinAngle(p.m)" radius="calc(var(--marker-map-size) / 2)" pulse kind="pin" />
+      </span>
     </button>
 
     <!-- Selection ring: what the place card shows (brief §4). -->
-    <div v-if="ringPx" class="ring" :class="{ pulsing }" aria-hidden="true"
-         :style="{ left: `${ringPx.x}px`, top: `${ringPx.y}px` }">
+    <!-- The selected point (boards Flow 4, 4b): the dot, and the photo's direction as an arc with a pulse. -->
+    <div v-if="ringPx" class="point" aria-hidden="true" :style="{ left: `${ringPx.x}px`, top: `${ringPx.y}px` }">
+      <MarkerArc v-if="ringAngle != null" :angle="ringAngle" radius="var(--point-arc-r)" :pulse="pulsing" />
       <span class="dot" />
     </div>
     <!-- Keyboard focus on a street (from the hidden list): a ring without pulse. -->
@@ -780,21 +823,14 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.ring .dot {
-  position: absolute; left: 50%; top: 50%;
-  width: var(--ring-dot); height: var(--ring-dot);
+.point { position: absolute; width: var(--ring-size); height: var(--ring-size); transform: translate(-50%, -50%); pointer-events: none; }
+.point .dot {
+  position: absolute; left: 50%; top: 50%; box-shadow: var(--arc-glow);
+  width: var(--point-dot); height: var(--point-dot);
   border-radius: 50%;
   background: var(--ring);
   border: var(--focus-width) solid var(--ring-edge);
   transform: translate(-50%, -50%);
-}
-/* Soft pulse: a second ring grows to about 2x and fades, every ~2.4 s, ease-out. */
-.ring.pulsing::after {
-  content: "";
-  position: absolute; inset: calc(-1 * var(--focus-width));
-  border-radius: 50%;
-  border: var(--focus-width) solid var(--ring);
-  animation: pulse var(--ring-pulse-s) ease-out infinite;
 }
 @keyframes pulse {
   from { transform: scale(1); opacity: 0.5; }
@@ -802,9 +838,10 @@ defineExpose({ zoomIn, zoomOut, recentre, focusMap, getCentre, flyToPlace, revea
 }
 .ring.focus { box-shadow: none; border-style: dashed; }
 
+.pin-body { position: relative; display: grid; place-items: center; }
 .marker-btn {
   position: absolute; display: grid; place-items: center;
-  width: var(--touch-phone); height: var(--touch-phone); padding: 0;
+  width: var(--marker-map-size); height: var(--marker-map-size); min-width: var(--touch-phone); min-height: var(--touch-phone); padding: 0;
   border: 0; border-radius: 50%; background: transparent;
   transform: translate(-50%, -50%); /* centred on the middle of the stretch */
 }

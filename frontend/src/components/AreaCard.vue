@@ -1,20 +1,24 @@
 <script setup>
-// "This area" (board Flow 4), once the area is analysed: the street stretches of the selected layer as one
-// stacked bar with counts and %, places by type and Print area report (not built yet). Only Thermal exists
-// so far, so "Why hard" waits for Senses. On a phone it is in the Results tab of the sheet. When the left
+// "This area" (board Flow 4), once the area is analysed: "<n> street stretches … hard x%" as on a route row, the
+// stretches of the selected layer as one bar by street length, the legend straight under it: the key (Senses, Overall) or
+// the full thermal legend (Thermal), places by type and Print area report (not built yet). Designed, not built yet: the
+// title "This area, for you", "Why hard" and the "Area ready" banner (docs/decisions.md). On a phone it is in the Results tab of the sheet. When the left
 // panel gives way (below 1200 px), the card carries the area inputs (one row with Change), the layer
 // choice and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
 import { computed, onMounted, ref } from 'vue'
+import { keyRows, lengthShares } from '../lib/legend.js'
 import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
 import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import AppIcon from './AppIcon.vue'
 import AreaInputs from './AreaInputs.vue'
+import ComfortKey from './ComfortKey.vue'
 import LayerButtons from './LayerButtons.vue'
 import MarkerPin from './MarkerPin.vue'
 import SeasonTime from './SeasonTime.vue'
 import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
+import ThermalLegend from './ThermalLegend.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -28,27 +32,25 @@ const emit = defineEmits(['pick', 'recentre'])
 const area = useAreaStore()
 const titleEl = ref(null)
 
-const ROWS = [
-  { id: 'easy', label: 'Easy', color: 'var(--easy)' },
-  { id: 'mixed', label: 'Mixed', color: 'var(--mixed)' },
-  { id: 'hard', label: 'Hard', color: 'var(--hard)' },
-  { id: 'none', label: 'No value', color: 'var(--no-photo)' },
-]
 const features = computed(() => area.segments?.features ?? [])
 /** The Senses view of the card: the same bar and places as Thermal, from the ratings so far. */
 const sensesView = computed(() => area.layer === 'senses' && area.load === 'ready')
 const stateKey = computed(() => (area.layer === 'senses' ? 'senses_state' : 'thermal_state'))
 const layerName = computed(() => (area.layer === 'senses' ? 'Senses' : 'Thermal'))
 const known = (f) => ['easy', 'mixed', 'hard'].includes(f.properties[stateKey.value])
-/** Street stretches per state ("none": no value there, e.g. under a building, or no rating). */
-const stack = computed(() => {
-  const n = { easy: 0, mixed: 0, hard: 0, none: 0 }
-  for (const f of features.value) n[known(f) ? f.properties[stateKey.value] : 'none']++
-  const total = features.value.length || 1
-  return ROWS.filter((r) => r.id !== 'none' || n.none)
-    .map((r) => ({ ...r, label: r.id === 'none' && area.layer === 'senses' ? 'No rating' : r.label, n: n[r.id], pct: Math.round((100 * n[r.id]) / total) }))
+/** By street length, as a route's bar (Elena, 2026-11-11); "none": no value there (e.g. under a building) or no rating. */
+const shares = computed(() => lengthShares(features.value, (f) => (known(f) ? f.properties[stateKey.value] : null)))
+const keyLayer = computed(() => (area.layer === 'senses' ? 'senses' : 'thermal'))
+const stack = computed(() => keyRows(keyLayer.value).map((r) => ({ ...r, m: shares.value.metres[r.id] })).filter((r) => r.m > 0))
+const hardPct = computed(() => Math.round(shares.value.hard * 100))
+/** The counts the rows used to show, for a screen reader: "21 easy, 18 mixed, 13 hard, 6 without a photo". */
+const stackLabel = computed(() => {
+  const c = shares.value.counts
+  const none = area.layer === 'senses' ? 'without a rating' : 'without a value'
+  return `${layerName.value}: ${c.easy} easy, ${c.mixed} mixed, ${c.hard} hard, ${c.none} ${none}. Hard ${hardPct.value}% of the street length.`
 })
-const stackLabel = computed(() => stack.value.map((r) => `${r.label} ${r.n}`).join(', '))
+/** Thermal: the full thermal legend at the bottom of the card, from the area's feels-like values. */
+const thermalValues = computed(() => features.value.map((f) => f.properties.utci).filter((v) => v != null))
 /** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one). */
 const PLACE_GROUPS = PLACE_FILTERS.filter((g) => g.id === 'parks' || g.id === 'squares')
 const placesHere = computed(() => PLACE_GROUPS.map((g) => {
@@ -91,19 +93,18 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 
       <template v-if="sensesView || (area.mapLayer === 'thermal' && area.thermal === 'ready')">
         <div class="stack-head">
-          <span>{{ layerName }} · {{ area.counts.all }} street stretches</span>
-          <span v-if="!sensesView" class="muted">{{ area.thermalInfo.season }}, {{ area.thermalInfo.time }}</span>
+          <span>{{ area.counts.all }} street stretches</span>
+          <span class="hard" :class="{ clear: hardPct === 0 }" title="Share of the street length that is hard">hard {{ hardPct }}%</span>
         </div>
-        <div class="stack" role="img" :aria-label="`${layerName}: ${stackLabel}`">
-          <span v-for="r in stack" :key="r.id" :style="{ flexGrow: r.n, background: r.color }" />
+        <div class="stack" role="img" :aria-label="stackLabel" data-testid="area-bar">
+          <span v-for="r in stack" :key="r.id" :style="{ flexGrow: r.m, background: r.color }" />
         </div>
-        <ul class="rows">
-          <li v-for="r in stack" :key="r.id">
-            <span class="swatch" :style="{ background: r.color }" />
-            <span class="row-label">{{ r.label }}</span>
-            <span class="num"><strong>{{ r.n }}</strong> · {{ r.pct }}%</span>
-          </li>
-        </ul>
+        <!-- The legend straight after the bar (Elena, 2026-11-11): the key, or on Thermal the full legend (bands in °C, info tip). -->
+        <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
+        <ComfortKey v-if="sensesView && !phone" layer="senses" rule />
+        <div v-else-if="!phone" class="thermal-block" aria-label="Legend" role="group">
+          <ThermalLegend :values="thermalValues" :window="area.thermalInfo" :extra="[{ label: 'No value', color: 'var(--no-photo)' }]" />
+        </div>
         <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
         <p v-if="area.thermalError" class="thermal-error" role="status">{{ area.thermalError }}</p>
         <SensesPanel v-if="sensesView" scope="area" />
@@ -169,17 +170,15 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 .summary { margin: var(--space-4) 0 0; }
 /* The inputs, then a divider before the layer and the rest. */
 .inputs { margin-top: var(--space-3); padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
-.stack-head { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); font-size: var(--fs-sm); }
+.stack-head { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); } /* as a route row */
+.hard { color: var(--text-2); }
+.hard.clear { color: var(--easy); }
+.thermal-block { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .stack {
-  display: flex; gap: var(--hairline); height: var(--space-2); margin-top: var(--space-2);
+  display: flex; gap: var(--hairline); height: var(--bar-h); margin-top: var(--space-2);
   border-radius: var(--radius-pill); overflow: hidden;
 }
 .stack span { flex-basis: 0; min-width: var(--hairline); }
-.rows { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
-.rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); }
-.num { font-variant-numeric: tabular-nums; color: var(--text-2); }
-.num strong { color: var(--text); }
-.swatch { width: var(--space-5); height: var(--swatch-h); border-radius: var(--radius-pill); }
 .muted { color: var(--text-2); }
 .small { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 .sub { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }

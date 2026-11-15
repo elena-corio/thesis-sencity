@@ -42,13 +42,13 @@ test.describe('desktop', () => {
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/routes/1b-preview.png' })
     expect(mock.requests).toHaveLength(0)
-    // No legend before the routes are ready; then it is the last block of the panel.
-    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
+    // The legend is never in the left panel (Elena, 2026-11-11): on Thermal it is the last block of the route card.
     await analyse(page)
 
     await expect(card(page)).toContainText('Which way feels better?')
     await expect(card(page)).toContainText('hard 40%')
-    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toContainText('Thermal comfort °C')
+    await expect(page.locator('[data-panel="layers"] [aria-label="Legend"]')).toHaveCount(0)
+    await expect(card(page).getByRole('group', { name: 'Legend' })).toContainText('Thermal comfort °C · summer, 15:00')
     await expect(card(page)).toContainText('hard 0%')
     await expect(card(page)).toContainText('avoids the hot stretch on Heissgasse')
     await expect(card(page)).toContainText('Predictions, not reasons')
@@ -101,7 +101,38 @@ test.describe('desktop', () => {
     })
     await page.mouse.click(px.x, px.y)
     await expect(stretch(page)).toContainText('stretch 3 of 5')
-    await expect(page.locator('.ring')).toBeVisible()
+    await expect(page.locator('.point')).toBeVisible()
+  })
+
+  test('the enlarged photo of a stretch is the walk, paused there; Back returns to the stretch you stopped on', async ({ page }) => {
+    await mockRoutes(page)
+    await openRoutes(page, 'dark')
+    const { a, b } = routeClicks(page.viewportSize())
+    await page.mouse.click(a.x, a.y)
+    await page.mouse.click(b.x, b.y)
+    await analyse(page)
+    await page.locator('[data-stretch="A-1"]').click()
+    const photo = await stretch(page).locator('.photo img').getAttribute('src')
+    await stretch(page).getByRole('button', { name: 'Enlarge photo', exact: true }).click()
+    // Elena, 2026-11-14: the same view as the walk, opened paused at this stretch, with Play.
+    const view = page.locator('[data-panel="walk-view"]')
+    await expect(view.getByTestId('walk-count')).toHaveText('Stretch 2 of 5')
+    await expect(view.getByRole('button', { name: 'Play' })).toBeVisible()
+    await expect(view.getByRole('button', { name: 'Back to preview' })).toBeVisible()
+    await expect(view.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', photo)
+    // The mouse and the keys step the stretches.
+    await view.getByRole('button', { name: 'Next stretch' }).click()
+    await expect(view.getByTestId('walk-count')).toHaveText('Stretch 3 of 5')
+    await view.getByTestId('walk-photo').locator('img').click()
+    await page.keyboard.press('ArrowRight')
+    await expect(view.getByTestId('walk-count')).toHaveText('Stretch 4 of 5')
+    await page.keyboard.press('ArrowLeft')
+    await expect(view.getByTestId('walk-count')).toHaveText('Stretch 3 of 5')
+    // Esc (or Back) returns to the stretch card, at the stretch you stopped on.
+    await page.keyboard.press('Escape')
+    await expect(view).toHaveCount(0)
+    await expect(stretch(page)).toContainText('stretch 3 of 5')
+    await expect(stretch(page).getByRole('button', { name: 'Enlarge photo', exact: true })).toBeFocused()
   })
 
   test('every street of a route can be selected, also next to one in the same state', async ({ page }) => {

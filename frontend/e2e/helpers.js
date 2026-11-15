@@ -6,14 +6,14 @@ export const markRatingMocked = (page) => ratingMocked.add(page)
 
 /** No place names unless a test sets its own: a clicked point reads "Point on map". And no test ever reaches the
  *  real rating endpoint: an API already running on this machine would make paid calls with the placeholder image. */
-const noPlaceNames = async (page, photos = 'streetview') => {
-  // The app ships with no photos shown (lib/photos.js); these checks are about the photo views, unless they ask for 'none'.
+const noPlaceNames = async (page, photos = 'mapillary') => {
+  // The app shows its Mapillary photos (lib/photos.js); a check can ask for 'none'.
   await page.addInitScript((p) => { window.__sencityPhotos = p }, photos)
   await page.route('**/api/reverse', (route) => route.fulfill({ json: { name: null } }))
   await page.route('**/api/senses/**', (route) => {
     if (ratingMocked.has(page)) return route.fallback()
     const lines = [{ type: 'start', model: 'test', cached: 0, to_rate: 0, remaining: 0 },
-      { type: 'done', seconds: 0, failed: 0, remaining: 0, estimate_usd: 0, estimate_streetview_usd: 0 }]
+      { type: 'done', seconds: 0, failed: 0, remaining: 0, estimate_usd: 0 }]
     return route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   })
 }
@@ -85,11 +85,10 @@ export async function layoutProblems(page) {
     if (de.scrollHeight > innerHeight + 1 || de.scrollWidth > innerWidth + 1) {
       problems.push(`page scrolls: ${de.scrollWidth}×${de.scrollHeight} in ${innerWidth}×${innerHeight}`)
     }
-    // Cards inside the phone sheet scroll inside it; the sheet itself is checked.
-    const sheet = document.querySelector('[data-panel="sheet"]')
+    // Cards inside a panel that scrolls (the phone sheet, the walk on a phone) scroll inside it; that panel is checked.
     const panels = [...document.querySelectorAll('[data-panel]')]
       .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden')
-      .filter((el) => el === sheet || el.dataset.panel === 'legend' || !sheet?.contains(el))
+      .filter((el) => el.dataset.panel === 'legend' || !el.parentElement?.closest('[data-scrollable]'))
     const rects = panels.map((el) => ({ name: el.dataset.panel, r: el.getBoundingClientRect(), el }))
     for (const { name, r, el } of rects) {
       if (r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) {
@@ -119,7 +118,18 @@ export async function layoutProblems(page) {
 import { readFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 
-export const AREA = JSON.parse(readFileSync(new URL('./fixtures/area-stephansplatz-100m.json', import.meta.url), 'utf8'))
+/** A photo in the shape the API sends (a Mapillary image, Elena 2026-11-11), made up from a fixture photo: the fixture
+ *  keeps its places, headings and dates, with made-up image IDs. Its thumbnail is mocked as /mly-thumb/<id>.png. */
+let nextPhoto = 7000001
+export const mlyPhoto = (ph) => {
+  const id = String(nextPhoto++)
+  return { id, lat: ph.lat, lon: ph.lon, heading: ph.heading, pano: false, pano_heading: null, turn: 0,
+    year: Number(String(ph.date ?? '2024').slice(0, 4)), date: ph.date, creator: 'carla', thumb_url: `/mly-thumb/${id}.png`,
+    link: `https://www.mapillary.com/app/?pKey=${id}` }
+}
+const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/area-stephansplatz-100m.json', import.meta.url), 'utf8'))
+// The app shows one photo per street; a few fixture streets keep up to 3, so the card's arrows and thumbnails stay checked.
+export const AREA = { ...FIXTURE, features: FIXTURE.features.map((f) => ({ ...f, properties: { ...f.properties, photos: f.properties.photos.map(mlyPhoto) } })) }
 export const WITH_3 = AREA.features.find((f) => f.properties.photos.length === 3)
 export const WITHOUT = AREA.features.find((f) => f.properties.photos.length === 0)
 
@@ -144,18 +154,18 @@ function png(size, [r, g, b]) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
     chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
 }
-const PHOTO = png(64, [120, 150, 160])
+export const PHOTO = png(64, [120, 150, 160])
 
 /**
- * Mock POST /api/area (streamed like the API: segments, then each segment, then done) and
- * GET /api/photo. Returns the list of photo URLs requested. hold: never answer (to test Cancel).
+ * Mock POST /api/area (streamed like the API: segments, then each segment, then done) and the Mapillary
+ * thumbnails. Returns the list of photo URLs requested. hold: never answer (to test Cancel).
  */
 /** Feels-like °C per segment for the mocked thermal step: 22, 29, 36, 22, … (easy, mixed, hard). */
 /** The bodies of the mocked /api/area requests, to see which seasons and times were asked for. */
 export const areaRequests = []
 export const THERMAL = Object.fromEntries(AREA.features.map((f, i) => [f.properties.id, [22, 29, 36][i % 3]]))
 
-/** Mock /api/area (and /api/photo). thermal: also send the thermal stage ('error' sends a thermal_error). */
+/** Mock /api/area (and the photos). thermal: also send the thermal stage ('error' sends a thermal_error). */
 export async function mockArea(page, { hold = false, thermal = false } = {}) {
   const photoRequests = []
   await page.route('**/api/area', async (route) => {
@@ -183,7 +193,7 @@ export async function mockArea(page, { hold = false, thermal = false } = {}) {
     }
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   })
-  await page.route('**/api/photo/**', async (route) => {
+  await page.route('**/mly-thumb/**', async (route) => {
     photoRequests.push(route.request().url())
     await route.fulfill({ contentType: 'image/png', body: PHOTO, headers: { 'Cache-Control': 'private, max-age=3600' } })
   })
@@ -228,7 +238,7 @@ export function routeClicks(viewport, phone = false) {
   return { a: { x: Math.round(viewport.width * left), y }, b: { x: Math.round(viewport.width * right), y } }
 }
 
-function routeResponse(req, sameState = false, longName = null, second = false) {
+function routeResponse(req, sameState = false, longName = null, second = false, bare = []) {
   const { start, end } = req
   const lerp = (t, lift) => [start.lon + t * (end.lon - start.lon), start.lat + t * (end.lat - start.lat) + lift]
   const features = []
@@ -236,7 +246,7 @@ function routeResponse(req, sameState = false, longName = null, second = false) 
   const part = (id, name, a, b, utci, length) => {
     features.push({
       type: 'Feature', id, geometry: { type: 'LineString', coordinates: [a, b] },
-      properties: { id, name, named: true, place_type: 'street', way_type: 'residential', length_m: length, photos: WITH_3.properties.photos },
+      properties: { id, name, named: true, place_type: 'street', way_type: 'residential', length_m: length, photos: bare.includes(id) ? [] : WITH_3.properties.photos },
     })
     values[id] = utci
     return { segment_id: id, length_m: length, coordinates: [a, b] }
@@ -273,8 +283,9 @@ function routeResponse(req, sameState = false, longName = null, second = false) 
   }
 }
 
-/** Mock the routes API and the photos. hold: never answer. thermal: 'error' sends a thermal_error (can be changed later). */
-export async function mockRoutes(page, { hold = false, thermal = true, sameState = false, longName = null, second = false } = {}) {
+/** Mock the routes API and the photos. hold: never answer. thermal: 'error' sends a thermal_error (can be changed later).
+ *  bare: segment ids whose street has no photo. */
+export async function mockRoutes(page, { hold = false, thermal = true, sameState = false, longName = null, second = false, bare = [] } = {}) {
   const mock = { requests: [], urls: [], thermal }
   await page.route('**/api/routes', async (route) => {
     mock.urls.push(route.request().url())
@@ -283,7 +294,7 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     mock.requests.push(asked)
     const lines = [{ type: 'stage', stage: 'streets' }, { type: 'segments', total: 8 }, { type: 'segment', done: 8, total: 8 }]
     if (asked.layer === 'senses') {
-      const found = routeResponse(asked, sameState, longName)
+      const found = routeResponse(asked, sameState, longName, false, bare)
       lines.push({ type: 'stage', stage: 'routes' }, { ...found, season: null, time: null, station: null, values: {}, verdict: '', routes: [],
         candidates: found.routes.map((r, i) => ({ ...r, id: i ? 'C1' : 'A', kind: i ? 'candidate' : 'shortest' })) })
       await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
@@ -292,9 +303,9 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
     lines.push({ type: 'stage', stage: 'thermal' })
     if (mock.thermal === 'route-error') lines.push({ type: 'stage', stage: 'routes' }, { type: 'error', message: 'No walking way was found between these two points.' })
     else if (mock.thermal === 'error') lines.push({ type: 'thermal_error', message: 'No weather station near this area, so thermal comfort is not available here.' })
-    else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second))
+    else lines.push({ type: 'stage', stage: 'routes' }, routeResponse(asked, sameState, longName, second, bare))
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   })
-  await page.route('**/api/photo/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
+  await page.route('**/mly-thumb/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
   return mock
 }

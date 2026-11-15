@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
+import { bySense, combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
 
 const anchors = ['not at all, too much for my senses', 'very much']
-const el = (code) => ({ code, en: code, it: code, sense: 'sight' })
+const el = (code) => ({ code, n: 1, en: code, it: code, icon_key: 'sight', also: [] })
 const ok = (comfort, bothers = ['a'], good = ['b'], reason = `r${comfort}`) =>
   ({ status: 'ok', result: { comfort, anchors, bothers: bothers.map(el), feels_good: good.map(el), reason } })
-const photos = (n) => Array.from({ length: n }, (_, i) => ({ pano_id: `p${i}`, heading: 0, date: `2024-0${i + 1}` }))
+const photos = (n) => Array.from({ length: n }, (_, i) => ({ id: `${i}`, heading: 0, date: `2024-0${i + 1}` }))
 const place =(...states) => {
   const list = photos(states.length)
   return combinePlace(list, (p) => states[list.indexOf(p)])
@@ -22,9 +22,20 @@ describe('Senses words', () => {
     expect([1, 2, 3, 4, 5].map(comfortLevel)).toEqual(['hard', 'hard', 'mixed', 'easy', 'easy'])
   })
 
-  it('splits the sense from the label, and leaves "Nothing" alone', () => {
-    expect(elementLabel({ en: 'Signs, ads (sight)' })).toEqual({ text: 'Signs, ads', sense: 'sight' })
-    expect(elementLabel({ en: 'Nothing' })).toEqual({ text: 'Nothing', sense: '' })
+  it('gives the label in the app language and the name of its main sense', () => {
+    expect(elementLabel({ en: 'Signs, ads', it: 'Insegne, pubblicità', icon_key: 'sight' })).toEqual({ text: 'Signs, ads', sense: 'sight' })
+    expect(elementLabel({ en: 'Crowds', icon_key: 'body_awareness' }).sense).toBe('body awareness')
+  })
+
+  it('groups elements into one row per main sense, in the survey order and then the codebook order', () => {
+    const e = (code, n, icon_key, also = []) => ({ code, n, en: code, it: code, icon_key, also })
+    const rows = bySense([e('steps_slopes', 20, 'inner_sensations', ['balance_movement']), e('signs_ads', 3, 'sight'),
+      e('crowds', 16, 'body_awareness'), e('greenery_trees', 1, 'sight', ['hearing']), e('seats', 18, 'inner_sensations')])
+    expect(rows.map((r) => r.sense)).toEqual(['sight', 'body_awareness', 'inner_sensations'])
+    expect(rows.map((r) => r.elements.map((x) => x.code))).toEqual([['greenery_trees', 'signs_ads'], ['crowds'], ['seats', 'steps_slopes']])
+    expect(rows[2].name).toBe('internal sensations')
+    expect(rows[0].elements[0].also).toEqual(['hearing']) // the other senses stay as data
+    expect(bySense([])).toEqual([])
   })
 })
 
@@ -136,6 +147,6 @@ it('puts the state on the segments, and changes nothing when it is already there
 })
 
 it('writes the status line', () => {
-  const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, streetviewUsd: 0.672, seconds: 38.2 }
-  expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model, about $0.67 Street View · 38 s')
+  const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, seconds: 38.2 }
+  expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model · 38 s')
 })

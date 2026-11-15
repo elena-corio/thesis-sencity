@@ -1,0 +1,95 @@
+{
+  "name": "element_presence",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "greenery_trees": {
+        "type": "boolean"
+      },
+      "nice_buildings": {
+        "type": "boolean"
+      },
+      "signs_ads": {
+        "type": "boolean"
+      },
+      "fountains_water": {
+        "type": "boolean"
+      },
+      "traffic_trams": {
+        "type": "boolean"
+      },
+      "plants_flowers": {
+        "type": "boolean"
+      },
+      "trash_bins": {
+        "type": "boolean"
+      },
+      "food_stalls_cafes": {
+        "type": "boolean"
+      },
+      "grass_soil": {
+        "type": "boolean"
+      },
+      "asphalt_stone_concrete": {
+        "type": "boolean"
+      },
+      "shade": {
+        "type": "boolean"
+      },
+      "direct_sun": {
+        "type": "boolean"
+      },
+      "open_space": {
+        "type": "boolean"
+      },
+      "heights_bridges": {
+        "type": "boolean"
+      },
+      "car_free": {
+        "type": "boolean"
+      },
+      "crowds": {
+        "type": "boolean"
+      },
+      "narrow_shared": {
+        "type": "boolean"
+      },
+      "seats": {
+        "type": "boolean"
+      },
+      "drinking_fountains_toilets": {
+        "type": "boolean"
+      },
+      "steps_slopes": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "greenery_trees",
+      "nice_buildings",
+      "signs_ads",
+      "fountains_water",
+      "traffic_trams",
+      "plants_flowers",
+      "trash_bins",
+      "food_stalls_cafes",
+      "grass_soil",
+      "asphalt_stone_concrete",
+      "shade",
+      "direct_sun",
+      "open_space",
+      "heights_bridges",
+      "car_free",
+      "crowds",
+      "narrow_shared",
+      "seats",
+      "drinking_fountains_toilets",
+      "steps_slopes"
+    ],
+    "additionalProperties": false
+  },
+  "temperature": 0,
+  "call": "user message only: presence_prompt.txt, then the photo (model.json image); same model and provider settings as model.json",
+  "result": "the elements answered true are the photo's listed elements for task_template.txt and schema_template.json"
+}

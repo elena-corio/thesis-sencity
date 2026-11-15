@@ -92,7 +92,7 @@ test.describe('phone', () => {
     await openMap(page, 'dark')
     await expect(legend(page)).toHaveCount(0) // nothing to read before the analysis
     await analyseCentre(page)
-    await expect(legend(page)).toContainText('Thermal comfort °C')
+    await expect(legend(page)).toContainText('Thermal · summer, 15:00')
     for (const label of ['Easy', 'Mixed', 'Hard', 'No value']) await expect(legend(page)).toContainText(label)
     const gap = async () => {
       const [l, s] = await Promise.all([legend(page).boundingBox(), sheet(page).boundingBox()])
@@ -213,7 +213,7 @@ test.describe('phone', () => {
     await expect(tab(page, 'Results')).toHaveAttribute('aria-selected', 'true')
     await expect(sheet(page).getByRole('button', { name: 'Walk route B' })).toBeVisible()
     await expect(sheet(page).getByRole('button', { name: 'Walk A' })).toBeVisible()
-    await expect(legend(page)).toContainText('Thermal comfort °C')
+    await expect(legend(page)).toContainText('Thermal · summer, 15:00')
     await settled(page)
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/sheet-dark-routes.png' })

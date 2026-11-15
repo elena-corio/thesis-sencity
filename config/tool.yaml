@@ -151,6 +151,39 @@ routes:
   cache_dir: runs/routes     # one JSON per start and end: the corridor's segments and photo metadata
   rate_per_hour: 10          # new (not cached) routes per IP
 
+# Buildings for the walk view (board Routes 5, 3D): footprints and heights along the walked route, from the
+# Infrared.city SDK's public building data (in Vienna the city's building model). Free: no billed call.
+buildings:
+  buffer_m: 120              # bodies this close to the walked line are drawn on both sides of it
+  min_height_m: 2            # lower bodies (walls, kiosks) are left out
+  simplify_m: 0.3            # footprint outlines are simplified to this
+  max_points: 4000           # points of the walked line accepted
+  max_length_m: 3000         # a longer line is refused (routes go up to about 1.9 km: 1.5 km x 1.25)
+  max_features: 12000        # at most this many bodies in one answer
+  timeout_s: 90
+  rate_per_hour: 30          # new (not cached) reads per IP
+  cache_dir: runs/buildings  # one JSON per walked line: the buildings and their source, never the line
+  # Credits: the source of a body by the prefix of its id; any other is Overture Maps.
+  sources:
+    FMZKBKMOGD: "Stadt Wien – data.wien.gv.at"
+  default_source: "Overture Maps"
+
+# Mapillary photos for the walk's photo window (Elena, 2026-11-11). The token is MAPILLARY_ACCESS_TOKEN in .env, on the
+# server only; the browser loads only the public thumbnail. Free (Graph API search: 10,000 per minute per app).
+mapillary:
+  radius_m: 30               # a photo this close to the stretch
+  max_turn_deg: 45           # its camera within this of the walk's direction
+  max_age_years: 10          # older photos are left out; of the rest, the newest is shown
+  search_limit: 500          # images read per stretch
+  max_stretches: 120         # stretches per request (a 1.9 km walk has about 50; a card asks for one)
+  render:                    # a panorama, as the model gets it: the 90 degree view at the bearing (Elena, 2026-11-11)
+    fov_deg: 90              # as the study's Street View crops
+    pitch_deg: 0             # horizon in the middle, as the walk shows it (the study's crops: 7.5)
+    size_px: 640             # as the study's crops
+  workers: 10                # searches at a time (about 0.4 s per street with 6: 23 streets in 8.6 s)
+  timeout_s: 20
+  rate_per_hour: 600         # requests per IP: an area's streets come in batches of 50 in the background
+
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:
   cors_origins: ["http://localhost:5173"]   # the Vite dev server; add the Render site URL when deployed
@@ -170,18 +203,15 @@ api:
     reverse_rate_per_minute: 30  # per IP
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
-    workers: 8                   # segments looked up in parallel (metadata calls are free)
-    rate_per_hour: 20            # new (not cached) areas per IP
-  photo:
-    rate_per_minute: 60          # images per IP; each is a paid Street View call
-    browser_cache_s: 3600        # Cache-Control: private, so only the browser keeps it, briefly
-  senses:                        # model settings are NOT here: they come only from model/app_v0/
+    rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)
+  senses:                        # model settings are NOT here: they come only from model/app_v9/
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60
     cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
+    presence_cache_file: runs/senses/presence.json  # the elements listed per photo by the presence call (no images)
     concurrency: 4               # photos rated at the same time
     route_candidates: 4          # ways rated for a Senses route, the shortest included; B is the easiest of them
     cap_photos: 250              # new photos per run; above this the app asks first, with the estimated cost
-    estimate_call_usd: 0.001     # one model call, only for that estimate
+    estimate_call_usd: 0.001     # one model call, only for that estimate (a new photo takes two: presence + rating)
     max_photos_per_request: 3000 # a longer list is refused
     runs_per_hour: 30            # runs with new photos, per IP

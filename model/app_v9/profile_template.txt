@@ -1,0 +1,7 @@
+How you experience public spaces, in your own answers:
+- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = {A11_LOW} … 5 = {A11_HIGH}): {A11}.
+- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = {SCALE_1} … 5 = {SCALE_5}):
+{ELEMENTS}
+- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in {LANGUAGE}): "{A16}"
+
+Your general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general.

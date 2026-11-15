@@ -10,26 +10,26 @@ from app import area as area_mod
 from app import main
 from app import routes as routes_mod
 from app import steps
-from tests.test_routes_api import END, REQ as ROUTE_REQ, START, FakeMeta, events, fake_utci, overpass_answer
+from tests.test_routes_api import END, REQ as ROUTE_REQ, START, events, fake_photo, fake_mapillary, fake_utci, overpass_answer
 
 AREA_REQ = {"lat": 48.20815, "lon": 16.3720, "radius": 150, "season": "summer", "time": "15:00"}
 NORTH = 48.20825  # Kuehlgasse lies north of this; the other streets south of it
 
 
-class FlakyProvider:
-    """Fails for every point north of NORTH while `broken`; counts the points it was asked for."""
-    metadata_calls = 0
+class FlakyPhotos:
+    """Mapillary lookups that fail for every street north of NORTH while `broken`; counts the streets asked for."""
 
     def __init__(self):
         self.broken = True
         self.asked = []
 
-    def search(self, lat, lon, radius=None):
+    def __call__(self, s, coords, kind, cfg):
+        lat = max(c[1] for c in coords)
         self.asked.append(lat)
         if self.broken and lat > NORTH:
             time.sleep(0.3)  # the other streets finish first, as when one lookup fails along the way
             raise requests.ConnectionError("lost")
-        return FakeMeta(lat, lon)
+        return fake_photo(coords)
 
 
 @pytest.fixture
@@ -40,17 +40,15 @@ def setup(tmp_path, monkeypatch):
         calls["overpass"] += 1
         return overpass_answer()
 
-    prov = FlakyProvider()
+    prov = FlakyPhotos()
     monkeypatch.setattr(area_mod, "cache_dir", lambda cfg: tmp_path / "areas")
     monkeypatch.setattr(area_mod, "fetch_overpass", overpass)
     monkeypatch.setattr(routes_mod, "cache_dir", lambda cfg: tmp_path / "routes")
     monkeypatch.setattr(routes_mod, "fetch_ways_in", overpass)
-    monkeypatch.setattr(routes_mod, "fetch_buildings_in", lambda ring, cfg: {"elements": []})
     monkeypatch.setattr(routes_mod, "count_jobs", lambda polygon, cfg: 3)
     monkeypatch.setattr(area_mod, "run_utci", fake_utci([]))
-    monkeypatch.setattr(main, "provider", lambda: prov)
+    fake_mapillary(monkeypatch, prov)
     main._hits.clear()
-    main._known_photos.clear()
     return TestClient(main.app), prov, calls, tmp_path
 
 
@@ -113,7 +111,7 @@ def test_a_retry_is_not_counted_as_a_new_area(setup, monkeypatch):
 def test_route_try_again_goes_on_from_the_failed_photos(setup):
     client, prov, calls, tmp = setup
     assert events(client.post("/api/routes", json=ROUTE_REQ))[-1]["type"] == "error"
-    key = routes_mod.route_key(START, END, main.full_cfg)
+    key = routes_mod.corridor_key(START, END, main.full_cfg)  # the corridor's steps: streets and photos
     where = tmp / "routes"
     assert steps.load(where, key, "ways") is not None
     kept = steps.load(where, key, "photos") or {}

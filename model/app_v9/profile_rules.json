@@ -1,0 +1,25 @@
+{
+  "sources": {
+    "answers": "part_a.json only: A11, A12, A13 (grid rows with their en names), A16; none from A1-A5 or A15",
+    "language": "{LANGUAGE} is the language the person answered in (the app's language), not a question"
+  },
+  "placeholders": {
+    "{A11_LOW}": "not at all",
+    "{A11_HIGH}": "very much",
+    "{SCALE_1}": "very unpleasant",
+    "{SCALE_5}": "very pleasant",
+    "{A11}": "the person's A11 answer (1-5); the line is left out if A11 is missing",
+    "{ELEMENTS}": "one line per answered element, A12 rows then A13 rows (part_a.json order = elements.json order): '  - <en name>: <answer>, <scale word>'; the element lines and the line above them are left out if none is answered",
+    "{A16}": "the person's A16 text, verbatim, never translated; the line is left out if A16 is empty",
+    "{LANGUAGE}": "the language the person answered in: English or Italian"
+  },
+  "scale_words_en": [
+    "very unpleasant",
+    "a little unpleasant",
+    "neither",
+    "a little pleasant",
+    "very pleasant"
+  ],
+  "labels": "the profile is in English (element labels, scale words); only A16 stays in the person's language",
+  "placement": "system message: system_instruction.txt, a blank line, then the filled profile"
+}

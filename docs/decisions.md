@@ -2,16 +2,154 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-14 – The enlarged photo is the walk's view (accepted)
+**Context.** Elena: "make enlarge picture look the same. When clicking walk this route play is default, when enlarging the photo stop is default", and "in the case of area it should not have the play button".
+**Decision (Elena).**
+- *From a stretch card:* Enlarge opens the walk of that route at that stretch, paused, with Play; ← →, the arrows and the bar step the stretches. Back (or Esc) returns to the stretch card at the stretch you stopped on.
+- *From "Walk route":* as before, it plays from the first stretch (paused with reduced motion).
+- *From a place of an area:* the same view with nothing to walk: no chip, count, arrows, Play or bar; the photo, the key under it, "Where you are" and the place's card (what it is and its size instead of a walking time). Back (or Esc) returns to the place card. The place card is not left under the view, so Tab cannot reach it.
+- *Gone:* the photo viewer (`PhotoViewer.vue`) and its own arrows and hint.
+- *Proposed:* the Back button reads "Exit walk, back to comparison", "Back to the stretch" or "Back to place"; going to the other view (Area or Routes) closes it.
+
+**Consequences.** The walk card does not repeat "General prediction: not yet personal" (the board has no line for it); the place and stretch cards still say it.
+
+## 2026-11-14 – The walk follows board Routes 5 "photos, play" (accepted)
+**Context.** Elena: a new board for the walk (Routes 5, photos and play), and: Play and the bar as wide as the photo and centred with it, the chip centred with the photo, the bother icons the same pink as Hard, "shortest" without "for what", and a card line that read "senses, because of asphalt, stone, concrete and direct sun, little shade".
+**Decision.**
+- *Under the photo (board):* the route bar, as wide as the photo, with a light mark where you are; then Play, "0.35 of 1.6 km · 16 min left" and the key on one line (on Thermal the window first: "summer, 15:00", as the chip no longer says it). The right column is "Where you are" and the stretch card only: the key and "To change the layer, season or time, exit the walk." are gone from it.
+- *Header (Elena):* Exit on the left, the chip centred over the photo, the count on the right. The chip: "easiest for your senses" (board), "easiest for thermal comfort" on Thermal (proposed), "shortest" and "alternative" with nothing after.
+- *Card (board):* "**Mixed** for your senses" (or "for thermal comfort") on one line, then "The model points to: asphalt, stone, concrete; direct sun, little shade." (on Thermal "Feels like 22 °C."). Element names have commas of their own, so a semicolon parts them (proposed).
+- *Icons (Elena):* what might bother is drawn in the Hard pink (`--hard`), not the lighter text pink, in both themes.
+- *Key (Elena):* "Senses" or "Thermal" in bold before the colours, and on Thermal "summer, 15:00" under it; "… min left" stays. On Thermal the key takes its own line under Play (it is wider than the photo on one line).
+- *Thermal card (Elena):* no "Might bother you" / "Might feel good" and no "Rate this place": both are about the photo's senses rating.
+- *Back (Elena):* from the enlarged photo of a stretch it reads "Back to preview". The stretch card's buttons read "Previous" and "Next" (their screen-reader names keep "stretch").
+- *Phone (Elena):* "Where you are" comes first, under the header, and the photo under it; the mini map is a strip there (5:2, proposed) so the photo still starts on the screen.
+
+**Consequences.** On Thermal the key under the photo can take a second line; the space under the photo is kept for it, so the photo is a little smaller than the board's on a short screen.
+
+## 2026-11-14 – The walk shows the routes' own photos and ratings; route photos face the walk (accepted)
+**Context.** Elena: "the walking mode changes ratings every time, it should be stable and coherent with the preview", "it should also show the same photos", and "photos in the direction of the route should be privileged". The walk looked up a photo of its own per stretch (facing the walk) and rated those in a run of its own: stretches started unlit and changed colour as ratings came, and wherever the walk's photo was not the street's, the colour and the rating differed from the Routes view and the stretch card.
+**Decision (Elena).**
+- *The walk:* each stretch shows its street's photo and rating, exactly as the Routes view and the stretch card (the same function, the photo the card opens on). No photo lookup and no rating run of its own: nothing changes colour, and nothing costs anything more. A photo that does not load still counts as no photo, no rating. Replaces "a walk rates each stretch's own photo" (2026-11-11) and the walk's rated-photo rule of the entry "a rating always with its photo".
+- *Route photos face the walk:* when the routes are loaded, a street that the ways found walk gets a photo facing the way it is walked (a panorama shown that way), else one either way along it, as before. One Mapillary search per street, as before. The ways found before the photo step decide the direction; a street walked both ways keeps the direction of the first (the shortest) (proposed). Streets of the corridor that no way walks, and every street of an area, keep "either way".
+- *Caches:* the corridor (streets and photos) has its own key that keeps the direction (`corridor_key`), so the way back has its own photos; thermal comfort keeps the key either way round and is still paid for once. Routes cached before this are not reused: their streets and photos are looked up again (free), and photos that change are rated once (paid, a few cents for a route).
+
+**Consequences.** The preview, the stretch card and the walk always show the same photo and rating. A walk's photo can face either way where no photo faces the walk. A way chosen after the photo step that walks a street against the direction recorded shows that street's photo facing the other way. `/api/mapillary/along` is no longer called by the app.
+
+## 2026-11-14 – The walk is a slideshow of photos: no 3D street, no turning camera (accepted)
+**Context.** Elena: the walk "is giving me a bit of headache, always turning". The camera stood at eye level where each photo was taken and turned to its direction at every stretch. The people SenCity is for are often sensitive to motion. This changes the walk at eye level with buildings of boards Routes 5 and P6 and the walk entries of 2026-11-11.
+**Decision (Elena).**
+- *No 3D:* the map no longer tilts, turns or shows buildings in the walk; the buildings are not asked for (`/api/buildings` stays in the API, unused, until it is removed).
+- *Layout:* the walk is its own panel over the map, under the top bar (on a phone one scrolling column above the tab bar). Left: Exit, which way is walked, "Stretch n of N", the photo the stretch is rated from, as large as the space allows, with previous / next stretch beside it, then Play and the route bar, which is also the progress bar (a click jumps to a stretch). Right: "Where you are" (a flat mini map, north up, that follows the photo's spot and shows its direction), the key and "To change the layer, season or time, exit the walk.", then the stretch's card.
+- *Moving:* the photo changes on Play (paused with reduced motion, as before); ← →, the arrows and the bar step stretches; space plays or pauses; Esc exits.
+- *Next (agreed, a second commit):* the enlarged photo of a stretch or place opens this same view; from a stretch it starts paused there, with Play; from an area place there is nothing to walk, so no Play or arrows.
+- *Proposed:* the mini map glides to the next spot in 0.6 s (jumps with reduced motion); with no photo, the square says why ("No photo for this stretch, so no rating.", "Photos are not shown.").
+
+**Consequences.** Boards Routes 5 and P6 no longer match the app; the screenshots in `frontend/e2e/screens/walk/` show the new view. The walk's chip, key, card and controls are the same components as before, in the new places.
+
+## 2026-11-14 – One photo per place: ← → always mean "stretch", never "photo" (accepted)
+**Context.** Elena: the same keys changed photos or stretches depending on the case (entry below). Each street and place has had one photo since 11 Nov, so photo stepping only showed in the e2e test data.
+**Decision (Elena).**
+- The enlarged photo and the place card no longer step through photos: no "Previous / Next photo" arrows, no "1 / 3" or "Photo 2 of 3" counter, no thumbnails, no dots. With more than one photo, the card shows the one closest to the place's rating, as it already opened on.
+- ← → and the arrows mean "stretch" wherever there are stretches (the stretch card, the walk, the enlarged photo of a stretch), and nothing elsewhere. An area place's enlarged photo has no arrows, and its arrow keys do nothing.
+- If places ever have more than one photo again, they get their own control (for example thumbnails), never the arrow keys.
+
+**Consequences.** Replaces the "place with more than one photo" point of the entry below. The e2e tests check one photo and no photo arrows.
+
+## 2026-11-14 – The enlarged photo says what its arrows step through, and the mouse can do it too (accepted)
+**Context.** Elena: in the enlarged photo of a route stretch, ← → moved on but there were no arrows to click, and it was not clear whether they went to the next photo or the next stretch. Each street now has one photo, so the viewer drew no arrows; the stretch card's keys reached through it (after a click on the photo the focus left the dialog) and stepped the stretches behind it.
+**Decision.**
+- *Opened from a stretch (Elena: clear, and both ways):* the arrows step through the route's stretches. They are named "Previous stretch" / "Next stretch", the counter reads "Stretch 3 of 8", and the hint says "The arrows, or the ← → keys: previous or next stretch." (phone: "Swipe or tap the arrows …"). The keys, the arrow buttons and a swipe do the same, the card behind follows, and they stop at the first and the last stretch (the arrow there is shown faded, `aria-disabled`) (proposed: stop rather than go round, as the card's own buttons do).
+- *A place with more than one photo:* as before, the arrows step through its photos ("Photo 2 of 3"), going round. Replaced the same day: no photo stepping (entry above).
+- *A place with one photo:* no arrows, no counter, and the arrow keys do nothing; the hint says "Esc to go back."
+- *Keys:* the viewer takes them while it is open, wherever the focus is; the dialog keeps the focus when its photo is clicked.
+
+**Consequences.** On a stretch with several photos (not the case with one Mapillary photo per street), the arrows step stretches and the thumbnails choose the photo.
+
+## 2026-11-14 – The walk: a rating always with its photo (accepted)
+**Context.** Elena: on a stretch without a photo the walk said "No photo for this stretch, rated from the map", while the card said "No photo, so no Senses rating here" and the line kept the street's colour. The caption was left from the first walk (11 Nov), when stretches kept their street's rating. Since the walk rates each stretch's own photo, the line, bar and mini map were coloured from the street's photo while the card rated the stretch's own: two photos for one stretch.
+**Decision.**
+- *Rule (Elena):* the photo shown and its rating go together: both, or neither.
+- *Rated photo per stretch:* its own photo, facing along the walk; else its street's photo, the one the map is coloured from (proposed, as the simplest that keeps the walk and the Routes view the same colour); else none. The window shows it, the card rates it, and on Senses the stretch's colour on the line, bar and mini map comes from its rating alone. While the walk's photos are being found, stretches keep their street's colour.
+- *The street's photo:* the card says "The street's photo: none along this stretch faces this way." The camera stands where that photo was taken, as for any photo.
+- *No photo:* the 3D street, "No photo for this stretch, so no rating.", the card "No photo", the stretch unlit.
+- *A photo that does not load:* counts as no photo from then on: "The photo could not be loaded, so no rating.", the card "No photo", the stretch unlit.
+
+**Consequences.** On a stretch whose own photo differs from the street's, the walk's colour can now differ from the Routes view's, since each shows the rating of its own photo. With photos switched off (`photos.provider: 'none'`, lib/photos.js) ratings are still shown without photos, as decided on 11 Nov; the rule above does not cover that switch yet. The place card can also show a rating when its photo fails to load: not changed here.
+
+## 2026-11-14 – Senses rates with the v9 export: an automatic presence step, then the study's task (accepted)
+**Context.** Elena: switch the app to v9 now, before the profile builder. The v9 task and schema list only the elements present in each photo; in the study a person confirmed those lists, and the app has nobody to do that.
+**Decision.**
+- *Hash check (Elena):* every file in `model/app_v9/` is checked against its sha256 in the MANIFEST on every request; if one differs, nothing is sent. `.gitattributes` marks `model/**` as `-text` so a checkout never changes the bytes (proposed).
+- *Presence step (Elena):* one call per photo with `presence_prompt.txt` and `presence_schema.json` as exported (user message only, temperature 0, strict), on the same model, pinned EU endpoint, zero retention and no fallbacks as `model.json`. The elements answered true are the photo's list. Cached per photo (Mapillary image + heading + model + a version from the presence files' hashes), apart from the ratings, so a new export commit or a profile asks only the rating again.
+- *Rating (Elena):* `task_template.txt` with one line per listed element, `schema_template.json` with the element enum set to that list, both as `task_rules.json` and its `per_photo` say. No shuffling: v9 lists elements in `elements.json` order.
+- *Nothing detected (Elena):* B2 takes no items (`maxItems: 0`) and a reply must have `B2_none: true`, else it is retried once. The task's element line is left out rather than left empty (proposed).
+- *No profile (Elena):* the system message is `system_instruction.txt` alone, the study's V0 (no profile, no examples). The UI wording stays: "General prediction: not yet personal". The rating key ends in `|general`, ready for a profile hash.
+- *Results (proposed):* "unpleasant" and "both" go to Might bother, "pleasant" and "both" to Might feel good, in `elements.json` order. The B1 words of 1 and 5 keep the app's lower-case style ("1 · not at all, too much for my senses").
+- *Icons and rows (Elena):* the icon is the element's `icon_key` (main sense); the cards show one row per main sense, in the survey's sense order, with its elements in codebook order joined by " · " (proposed); `also` is sent and kept for later. The sense names (the icon's tooltip and screen-reader name) are the words of the V0 labels, since v9 gives only the key (proposed).
+- *Cache (Elena):* V0 ratings (keys with no profile part) are marked stale, as the Street View ones were; a cached rating with codes not in v9 is rated again. The 14 V0 codes are gone from the frontend and the tests.
+
+**Consequences.** **A difference from the study:** the element lists are the model's, not confirmed by a person. The thesis repo's check (D150, the 20 study photos, untuned) found 91.7% agreement with the confirmed lists, 96% of confirmed elements found and 82% of the model's elements confirmed: the app's lists run about 18% long (mostly Direct sun, Shade, Nice buildings), and Crowds was missed on 3 of 20 photos. A rating can only name a listed element, so a missed element is never shown. Each new photo now takes two paid calls instead of one. Whether the endpoint accepts `maxItems: 0` in strict mode is not yet tried with a real call. Future work: people review the automatic lists.
+
+## 2026-11-14 – The v9 export is added; the V0 export is archived and still in use (accepted)
+**Context.** Elena: import the survey v9 export from the thesis repo. Its files are not a drop-in replacement for V0 (other file names, 20 elements instead of 17 with new codes, a per-photo element list, a profile template), so the switch needs code and is done in steps.
+**Decision.**
+- *Check (Elena):* every file in `model/app_v9/` matched its sha256 in the MANIFEST before it was added.
+- *Archive (Elena):* `model/app_v0/` moved to `model/archive/app_v0/`, unchanged. The app read it from there until the switch (entry above).
+- *Presence files (Elena):* re-exported the same day (source commit ed963d2) with `presence_prompt.txt` and `presence_schema.json`, the study's presence rule for the automatic element list in step 2. All 11 hashes matched the new MANIFEST; the other 9 files are unchanged. The presence prompt's element lines and the schema's codes match `elements.json` in order and wording.
+- *Order (Elena):* step 1 this import; then the switch of the Senses rating to v9 (moved ahead the same day); then the profile builder, as the in-app onboarding.
+**Consequences.** No change in what the app sends or shows. `model/app_v9/` is in the repo but not read yet.
+
+## 2026-11-11 – The legend is in the right card, straight after the bar (accepted)
+**Context.** Elena: new boards Flow 4 and Routes 3 (legend and summary changes), then on the result: one text size, the legend always straight after the bar, "Sensory comfort", and route bars without the layer word.
+**Decision.**
+- *Left panel (Elena):* settings only, on every view (Area, Routes; no left panel at all in the walk). Its last line says what the colours mean: Overall "Each street stretch shows the worse of thermal comfort (summer, 15:00) and the rating of its photo."; Senses "Each street stretch is rated from its photo."; Thermal "Each street stretch shows its simulated feels-like temperature (summer, 15:00)."
+- *The key (Elena):* one shared component (`ComfortKey`), straight after the bar(s), with a thin line above: "Sensory comfort" on Senses (no season and time: the photo rating does not change with them), "<Layer> · <season>, <time>" otherwise, then Easy / Mixed / Hard / No photo on one line (No value on Thermal). Where a card has no bar, at its top: the walk's right card (under "Exit walk, back to comparison", then "To change the layer, season or time, exit the walk.") and the loading card.
+- *Thermal (Elena):* the full thermal legend (bands in °C and the info tip) takes the key's place, straight after the bar, titled "Thermal comfort °C · summer, 15:00" so the card still names its window. The personal heat limits and "Change limits" wait for profiles (no placeholder).
+- *Area summary (Elena):* "<n> street stretches … hard x%", as a route row, then the bar, then the legend. The bar and "hard x%" are by street length, as a route's ("hard 22%" = 22% of the street length; parks and squares have no length and are left out of the bar); a tooltip and the aria-label say so. The four rows of counts are gone; the counts are in the bar's aria-label ("21 easy, 18 mixed, 13 hard, 6 without a value").
+- *Route bars (Elena):* full width, as the area's: no "Thermal" / "Senses" word before them (the legend below names the layer). The route row and the area row are the same text size, "hard x%" included; the legend's text is all one size.
+- *Detail cards (Elena):* place, photo, enlarged photo, stretch and no-photo cards have their own label and bars, so no key. No card today has neither.
+- *Phone (Elena):* the key floats on the map above the sheet (the phone's right card); not with a place or stretch open, and not repeated inside the sheet.
+- *Designed, not built yet (Elena):* on the Flow 4 board, the title "This area, for you", the "Why hard" section and the "Area ready · 52 of 58 streets rated" banner.
+**Consequences.** The legend moves with the card's content, so on a long card it may be below the fold on a small screen; the left panel is shorter.
+
+## 2026-11-11 – The model rates the Mapillary photo the app shows; no Street View left in the app (accepted)
+**Context.** Elena: in the app the model must rate the same photo the person sees. The cards and the walk showed Mapillary photos while the ratings came from Street View photos that were never shown.
+**Decision.**
+- *Photo step (Elena):* areas and routes now find one Mapillary photo per street or place on the server while they load, with the agreed rules (within 30 m and 10 years; a panorama first, else the flat photo closest to the street's direction, either way along it; a park or square in any direction). It replaces the Street View metadata lookup and its selection rules (brief §4, §6: up to 3 photos per segment, official imagery, indoor test). The photo is kept with the street (metadata only) and is the one shown on its card, its route stretches' cards and the enlarged photo. Cached areas and routes load their photos again once (their cache key now names the photo source and the Mapillary rules).
+- *What is rated (Elena):* that photo. A flat photo goes to the model as Mapillary serves it (the 1024 px thumbnail; the export's image rule sends it unchanged). A panorama is rendered first as a 640 × 640 perspective view, 90° across, at its heading (the walk's bearing, or for a street the way it faces more), with the horizon in the middle as the walk shows it (Elena: 0° tilt; the study's crops: 7.5°). A walk rates each stretch's own photo, facing along the walk, so the stretch card says what the photo in its window shows; where it is the street's photo the rating comes from the cache. The map colours and the choice of route B stay on the streets' ratings.
+- *Model settings:* unchanged, all from `model/app_v0/`: the same task text, element definitions and output schema as the study, the same model and settings (zero data retention, the pinned `google-vertex/eu` endpoint, no fallbacks).
+- *Cache (Elena):* per Mapillary image ID, heading, model and the export's commit (`mly:<id>|<heading>|<model>|<commit>`). Images are fetched in memory only and never stored. The 1,630 ratings made from Street View photos are marked `stale` (kept for the record, never used) and are recomputed from Mapillary as areas are opened again.
+- *Street View:* the app no longer fetches any Street View image or metadata: `GET /api/photo` and the `streetview` photo provider are removed. `GOOGLE_MAPS_API_KEY` is only for the step-1 tool and its review page.
+- *Not validated (Elena):* the app's ratings on Mapillary photos are not validated by the study. The study rated Street View photos, a 90° view at 7.5° tilt; Mapillary photos come from other cameras and lenses, other years and other positions, and a flat photo is not cropped to 90°.
+**Consequences.** Cost per new photo: one model call (about $0.00076); Mapillary is free, so a default 200 m area costs about $0.09 instead of about $1.85 (236 Street View images plus their calls). A street with no Mapillary photo has no Senses rating, also where Street View had one (in the 200 m area at Stephansplatz: 115 of 126 places have a photo, Street View had 107). One photo per place means its rating is that photo's, with no median over three.
+
+## 2026-11-11 – Markers show the photo's direction; Play by default; centred routes and areas (accepted)
+**Context.** Elena: six changes, boards Flow 4, Flow 4b, P2 and Routes 5 (walk).
+**Decision.**
+- *Walk (Elena):* it opens playing; with reduced motion it opens paused and Next / Previous jump. This replaces "opens paused".
+- *Selected point (Elena):* the dot, and instead of the ring a 90° arc at the ring's radius, centred on the photo's camera direction, with a copy that grows outward and fades (the old pulse: 2.4 s, ease-out, for 6 s after a selection). Map, stretch, place and the walk's "Where you are". Colours as the ring's (white with a glow in dark mode, dark teal in light). Reduced motion: the arc alone. No photo or no known direction: the dot alone.
+- *Direction sources:* the photo shown on the open card (Mapillary: `computed_compass_angle`, or `compass_angle`; for a panorama the street direction it is turned to; Street View: the shown photo's heading); in the walk, the walk's photo. The Area and Routes maps point north, so the arc's angle is the compass angle; in the walk it turns with the 3D view.
+- *Suggestions (Elena):* the numbered circle on the map is 36 px (the list keeps its smaller badge), with a white 90° arc on its edge in the direction of its street's photo, and the same pulse (continuous on a suggestion, proposed). The direction comes once the street's Mapillary photo has arrived in the background; until then, and with no photo, there is no arc.
+- *Selecting a suggestion (Elena):* the other suggestions hide until "Back to area" (board Flow 4b still shows them); the selected one shows the selected-point marker.
+- *Centring (Elena):* a route after start and end, and an analysed area, are fitted with equal padding left and right (and top and bottom on desktop), each the larger of the two, so a side panel zooms the map out instead of pushing the content aside. On a phone the content is centred in the map above the bottom sheet.
+- *Pulse and sizes (Elena):* the copy grows from the point itself, so it moves straight out, perpendicular to the arc's middle, and gets bigger as it goes. The selected point's dot is 16 px and its arc has a 20 px radius.
+- *Light mode (Elena):* the suggestion circle has a white outline and a dark teal number and arc, and the highlighted suggestion street has a dark teal outline (white in dark mode).
+**Consequences.** With photos off (`none`) no marker has a direction. A suggestion's arc can appear a few seconds after its pin.
+
+## 2026-11-11 – Mapillary photos on the place and stretch cards (accepted)
+**Context.** Elena: the cards said "Photo not shown"; show Mapillary photos there too, as in the walk.
+**Decision.**
+- *When (Elena):* once an area or a route has loaded, every street's photo is asked for in the background, 50 streets per request, 10 searches at a time on the server (a batch of 23 took 8.6 s with 6), and kept for the session in memory only. A card opened before its street's turn asks for it at once (about 1 s). Resting the pointer on a street starts loading its image, so it is usually there when the card opens.
+- *Which photo (Elena, as in the walk):* within 30 m and 10 years, a panorama first, else the flat photo whose camera is closest to the street's direction. A street on a card has no walking direction, so either way along it counts; a park or square has none at all (the nearest photo, then the newest), and its distance is to its outline. One photo per card.
+- *Credit (Elena):* "{username} · {year} · CC BY-SA 4.0", linked to the image page, inside the photo on the card and in the enlarged photo; it wraps, small, rather than being cut. The map credits say "photo: Mapillary".
+- *Rating:* the card's Senses rating is still that of the street's Street View photos, rated on the server and never shown, so the card shows a photo that is not the one rated (it may be from another year). The enlarged photo has no rating line for it.
+**Consequences.** A street with no fitting Mapillary photo says "No photo", while it may still have a Senses rating from its Street View photos.
+
 ## 2026-11-11 – Street View metadata: a point that keeps failing has no photo (proposed)
 **Context.** Areas stopped at "8 of 10" with "Could not load street photos for this area": the metadata lookup answered UNKNOWN_ERROR, and any error status stopped the whole area. Around Stephansplatz 3 of 280 points answered UNKNOWN_ERROR every time: asked again, after 5 s, without `source=outdoor`, and with a 50 m radius.
 **Decision.** UNKNOWN_ERROR and OVER_QUERY_LIMIT are asked again up to three times (after 1, 2 and 4 s). A point that still answers UNKNOWN_ERROR counts as having no photo there, as ZERO_RESULTS does; a lasting OVER_QUERY_LIMIT, REQUEST_DENIED or any other status still stops the run. The API log now names the status (it holds no key or place); a network error is still logged by its type only, since its text can hold the request URL with the key.
 **Consequences.** A few sample points have no photo where Google could not answer; the segment can still get one from its other points.
-## 2026-11-11 – Street photos: none shown until the source is chosen (accepted)
-**Context.** Google's EEA Service Specific Terms (22.1, last modified 28 October 2026): "Customer may not use any Google Maps Content from the Street View Static API With any Map", where "With any Map" is "on, next to, or in a manner that is visually associated with any map". It applies to projects linked to an EEA billing address and created, or changed, after 8 July 2025. Elena: assume the project is affected; ship no view with a Street View Static image next to a map; compare the Maps JavaScript API panorama and Mapillary before choosing.
-**Decision.**
-- *One switch (Elena):* `config.photos.provider` in `src/lib/photos.js`: `none` (default), `streetview`, `mapillary` (not built). With `none` no image is fetched or shown anywhere (place card, stretch card, enlarged photo); the place card says "Photo not shown" where a street has photos (proposed wording). The photos still rate the streets on the server: only showing them is off.
-- *Tests:* the end-to-end checks choose the provider before the page loads (`window.__sencityPhotos`), so the photo views stay tested.
-**Consequences.** Until now the place and stretch cards showed Street View Static photos next to the map. The review page (`python -m tool.review_server`) still does; it is a local tool, not the app.
 
 ## 2026-11-10 – A street without a value is grey (accepted)
 **Context.** Elena: streets whose photos are found but not rated yet were drawn light teal; they should be grey.
@@ -111,6 +249,49 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Not built:* the "Not personalised yet" card with "Create your profile" (board 2c), as onboarding does not exist; street colours by state, which need every street rated.
 **Consequences.** The request has no task text, unlike the study (`task_part_b.txt`: the question, the option labels, "only what is visible"): the model sees only the system instruction, the photo and the schema's codes. Predictions may therefore differ from the benchmark's V0. The study also rejects "nothing" alongside other elements; `schema_validate.json` does not express this, so the app accepts it.
 
+## 2026-11-11 – Walk photos from Mapillary (accepted)
+**Context.** Street View Static cannot be shown next to a map in the EEA (entry below). Coverage check on Stephansplatz → Karlsplatz (about 950 m): 96% of stretches have a flat Mapillary photo within 30 m facing along the walk; the closest photos are from 2016 to 2026, median 2020. The Google JavaScript panorama is not built.
+**Decision.**
+- *Provider (Elena):* `mapillary`, the default, in the walk (and on the cards since the entry above).
+- *Token on the server (Elena):* `POST /api/mapillary/along` searches Mapillary and returns, per stretch, the image ID, position, direction, year, photographer, the public thumbnail URL and the image link. The browser loads only the thumbnail. The answer is not cached: the thumbnail URLs are signed and expire.
+- *Choice per stretch (Elena):* of the images within 30 m and no older than 10 years: (1) a panorama if there is one (the nearest, then the newest), shown at exactly the walk's bearing: a 90° square cut from the equirectangular thumbnail around the horizon; (2) otherwise the flat photo with the smallest angle between its camera (`computed_compass_angle` if present) and the walk, ties to the nearest, then the newest. The 45° limit of the first version stays (proposed), so a photo facing away is never shown. On the test walk the average angle went from 15.7° (newest facing photo) to 2.3° on route A (7 of 24 photos panoramas) and from 12.7° to 2.3° on the other way (4 of 23).
+- *Camera:* stands where the photo was taken and looks the shown direction (the walk's bearing for a panorama), so the photo is a window onto the 3D street.
+- *Credit (Elena):* inside the photo frame, "{username} · {year} · CC BY-SA 4.0", linked to the image page on mapillary.com; on a phone it wraps rather than being cut. The map credits add "photo: Mapillary".
+- *Rating (Elena):* the walk does not send Mapillary photos to the rating model: the stretch's comfort is still the Senses rating of its Street View photos (rated on the server, never shown), with the study's settings (zero data retention, pinned endpoint, no fallbacks). If Mapillary photos are ever rated, they are not validated by the study: the study's photos are Street View, 640 × 640, 90° view, 7.5° tilt, while Mapillary photos come from many cameras, angles and years.
+**Consequences.** The photo and its rating can show different moments of a street. A stretch with no fitting photo shows the 3D street and "No photo for this stretch, rated from the map." The browser's thumbnail request goes to Mapillary's CDN with the user's IP (architecture, external services).
+
+## 2026-11-11 – Street photos: none shown until the source is chosen (accepted)
+**Context.** Google's EEA Service Specific Terms (22.1, last modified 28 October 2026): "Customer may not use any Google Maps Content from the Street View Static API With any Map", where "With any Map" is "on, next to, or in a manner that is visually associated with any map". It applies to projects linked to an EEA billing address and created, or changed, after 8 July 2025. Elena: assume the project is affected; ship no view with a Street View Static image next to a map; compare the Maps JavaScript API panorama and Mapillary before choosing.
+**Decision.**
+- *One switch (Elena):* `config.photos.provider` in `src/lib/photos.js`: `none`, `streetview`, `mapillary` (the default since the walk photos entry above). With `none` no image is fetched or shown anywhere (place card, stretch card, enlarged photo, walk); the place card says "Photo not shown" where a street has photos (proposed wording). The photos still rate the streets on the server: only showing them is off.
+- *Tests:* the end-to-end checks choose the provider before the page loads (`window.__sencityPhotos`), so the photo views stay tested.
+**Consequences.** `main` before this showed Street View Static photos next to the map on the place and stretch cards. The review page (`python -m tool.review_server`), a local tool, now shows the photos and the map in separate tabs (Elena), rebuilt from the template at each start.
+
+## 2026-11-11 – Walk along a route, at eye level (accepted; details marked proposed)
+**Context.** Elena: a walk from the route card (boards Routes 3, Routes 5, phone P6, redrawn on 2026-11-11 at eye level). The brief fixes "MapLibre with grey styles and no 3D" and a flat map (pitch 0).
+**Decision.**
+- *3D only in the walk (Elena):* MapLibre only. The walk puts the one map at eye level with the buildings extruded at their real heights; Area, Routes and the route card stay flat, and leaving the walk goes back to pitch 0. This changes the brief's "no 3D" for the walk only.
+- *Camera (Elena):* the eyes 1.7 m above the ground, with `calculateCameraOptionsFromCameraLngLatAltRotation` (MapLibre 6.16 has no free camera), pitch 84 (6° down, so the route on the road ahead shows), zoom up to 24. It stands where the stretch's photo was taken and looks its way, so the photo reads as a window onto the street; without a photo, at the start of the stretch, looking along it. The view is aimed at the middle of the photo's square. It glides between stretches, jumps with reduced motion, and cannot be zoomed or panned during the walk. A sky and a haze at the horizon in the theme's colours. No terrain: there is no free elevation source with the base map, and the buildings stand on a flat ground at 0 m, so the eye height stays 1.7 m above it.
+- *Photo (Elena):* one square photo per stretch, centred, as wide as the card under it (440 px, 220 px on a phone): the one whose heading is closest to the walk's direction. No enlarge, arrows or labels; only the credit. A stretch with no photo shows the 3D street and "No photo for this stretch, rated from the map." With photos not shown (`none`), the square is the 3D street alone.
+- *Card under the photo (Elena):* name, length and time; the comfort label and its reason; "Might bother you" and "Might feel good" in two columns of sense rows (`SenseItem`); "Rate this place" and "How this works" drawn and disabled ("Coming soon"). Always shown, no toggle.
+- *Sense rows (Elena):* `SenseItem`, the main-sense icon from the codebook and the label, no border, in the walk, the place card and the stretch card.
+- *Desktop (Elena):* left, the legend of the walk's layer, read only, and "Summer, 15:00. To change the layer, season or time, exit the walk."; right, "Exit walk, back to comparison", "Where you are" (a flat map that follows you, your place always the circle in its middle, a stretch clickable and, for the keyboard, a button), the progress line and previous / play / next. No segment bar. The top bar, search, Area / Routes / Profile and the tools stay; Area or Profile leaves the walk.
+- *Settings fixed (Elena):* the layer, season and time are those of the comparison when the walk starts. Overall is not built for routes, so the walk is on the routes' own layer (Senses or Thermal). The chip: "Walking route B · easiest thermal, summer 15:00".
+- *Phone (Elena, board P6):* the top bar and the tab bar stay; the chip full width under the top bar; the photo centred; the sheet from under the photo to the tab bar: exit, the stretch, the two columns, the rating, then the progress with previous / play / next. No mini map, no layer button. The credits are at the end of the sheet (over the photo they would hide it).
+- *Playback (Elena):* opens playing since the markers entry above (paused with reduced motion); Play goes on every 8 s (`config.walk.stretchMs`); Previous / Next jump; arrow keys step, space plays or pauses (not while a field, a choice, the tabs or another button has the focus); Esc leaves the walk and focus goes back to its button.
+- *Differences from the boards (proposed):* "A prediction, not a reason." under the state (CLAUDE.md); small helper text uses `--text-2`, since the board's muted grey on white is 4.32:1, under 4.5:1; the board's 15 px text uses the app's 14 and 16 px sizes; the credits keep OpenFreeMap for the base map; the photo's credit is the "© Google" label of the other cards (Street View Static images carry Google's logo themselves); a route found on Senses has no season or time, so its chip reads "easiest senses".
+**Consequences.** If Overall is built for routes, the walk can open on it. The rating row becomes live with the rating flow. The photo comes back with the source Elena chooses.
+
+## 2026-11-11 – Buildings for the walk view from the Infrared.city SDK (accepted)
+**Context.** The walk view (board Routes 5) draws buildings on both sides of the route. Elena: take them from Infrared.city, which comes with heights, and credit the source the SDK reports.
+**Decision.**
+- *Call (Elena):* `client.buildings.get_area`, the call the thermal run already makes. It reads public data from geo.infrared.city and sends no billed request. A probe on Stephansplatz: 1,929 bodies in 3 s, the tallest 136.3 m (the cathedral's south tower), placed within about 10 m.
+- *Source in Vienna:* the city's own building model. Every body's id starts with `FMZKBKMOGD` (Baukörpermodell of the Flächen-Mehrzweckkarte, Stadt Wien open data), so the credits say "buildings: Stadt Wien – data.wien.gv.at via Infrared.city". Another id prefix counts as Overture Maps (`buildings.sources` in config).
+- *Footprints (proposed):* the SDK gives meshes, not outlines. Each footprint is the union of its mesh's bottom triangles, turned from the SDK's metre frame (south-west corner, 111 320 m per degree) back into lon/lat, and simplified to 0.3 m. Bodies under 2 m are left out.
+- *Area (proposed):* bodies within 120 m of the walked line. A 1 km walk through the centre: 734 bodies, 278 KB, 6 s.
+- *Cache (proposed):* per walked line, under a hashed name, holding only the buildings and their source, like the route cache.
+**Consequences.** If the read fails (503 with a message), the walk goes on flat. The cached files are public data, but they show where someone walked, so they stay in the git-ignored `runs/`.
+
 ## 2026-11-08 – Phone: one bottom sheet with Settings and Results (proposed)
 **Context.** Elena: on a phone, replace the side panels with one bottom sheet and tidy the top bar (boards P1, P1b, P1c, P2, P3). Desktop stays as it is.
 **Decision (Elena; details marked proposed).**
@@ -121,7 +302,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Legend:* a strip with the title and swatches, riding just above the sheet. It appears only after analysis, as on desktop (2026-11-08). On Thermal its grey reads "No value", since Thermal lights every street with a value, photo or not.
 - *Map credits (proposed):* they must stay visible, so they ride on the sheet too, above the legend.
 - *Map:* the sheet and the legend count as covered space when the map fits the circle, route or selected street, and it fits again after each change of height.
-- *Not built yet:* Ask and the Walk buttons show as on the boards, marked "Coming soon", as the chat and the walk do not exist.
+- *Not built yet:* Ask shows as on the boards, marked "Coming soon", as the chat does not exist. (The Walk buttons work since 2026-11-11, see the walk entry.)
 - *Touch:* every control in the sheet is at least 44 px high at phone width, including the thin buttons (the 30 px of the desktop entry applies to larger screens).
 
 ## 2026-11-08 – A clicked point is named by reverse geocoding (proposed)

@@ -44,8 +44,7 @@ const rated = computed(() => run.value.status !== 'idle' && run.value.status !==
     <div v-else-if="run.status === 'paused'" class="ask" role="group" aria-label="More photos to rate" data-testid="senses-ask">
       <p><strong>{{ run.remaining }} more {{ run.remaining === 1 ? 'photo' : 'photos' }} to rate.</strong></p>
       <p class="muted small">
-        About ${{ run.estimateUsd.toFixed(2) }} for the model, and about ${{ run.estimateStreetviewUsd.toFixed(2) }} for the
-        Street View images at list price. The nearest places are rated already.
+        About ${{ run.estimateUsd.toFixed(2) }} for the model; the photos are free. The nearest places are rated already.
       </p>
       <div class="buttons">
         <button type="button" class="btn btn-primary" @click="senses.continueRating(scope)">Continue</button>

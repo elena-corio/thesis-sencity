@@ -126,17 +126,12 @@ async function streamEvents(path, body, onEvent, signal) {
   if (buffer.trim()) onEvent(JSON.parse(buffer))
 }
 
-/** URL of one Street View image, streamed through the API (the key stays on the server). */
-export function photoUrl(photo) {
-  return `${config.apiBase}/api/photo/${encodeURIComponent(photo.pano_id)}?heading=${photo.heading}`
-}
-
 /**
- * The model's general predictions for a list of photos, nearest first (POST /api/senses/rate). Events:
- * {type: "start", model, cached, to_rate, remaining} · {type: "photo", pano_id, heading, status: "ok"|"failed", cached,
- * result|error, cost_usd, streetview_usd} · {type: "done", seconds, failed, remaining, estimate_usd,
- * estimate_streetview_usd} or {type: "error", message}. Abort the signal to stop.
- * @param {{pano_id:string, heading:number}[]} photos
+ * The model's general predictions for a list of Mapillary photos, nearest first (POST /api/senses/rate): the photos the
+ * app shows. Events: {type: "start", model, cached, to_rate, remaining} · {type: "photo", id, heading,
+ * status: "ok"|"failed", cached, result|error, cost_usd} · {type: "done", seconds, failed, remaining, estimate_usd} or
+ * {type: "error", message}. Abort the signal to stop.
+ * @param {{id:string, heading:number}[]} photos
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
  */

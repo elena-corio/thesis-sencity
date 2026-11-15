@@ -10,10 +10,15 @@
   :root { --ground:#eef3f4; --panel:#fff; --line:#d6e3e6; --text:#13232a; --muted:#5f7f86; --accent:#15474a;
           --easy:#40c5e8; --hard:#c2306a; }
   * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.4 Inter, system-ui, sans-serif; background:var(--ground); color:var(--text);
-         display:grid; grid-template-columns: minmax(320px, 40%) 1fr; height:100dvh; }
-  #map { height:100dvh; position:sticky; top:0; }
-  main { overflow-y:auto; padding:16px 20px 60px; }
+  /* Photos and map in separate tabs, never side by side: Google's EEA terms forbid Street View Static images
+     next to any map (docs/decisions.md, 2026-11-11). */
+  body { margin:0; font:14px/1.4 Inter, system-ui, sans-serif; background:var(--ground); color:var(--text); }
+  .tabs { position:sticky; top:0; z-index:2; display:flex; gap:4px; padding:8px 20px; background:var(--panel); border-bottom:1px solid var(--line); }
+  .tabs button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 14px; cursor:pointer; font:inherit; }
+  .tabs button[aria-selected="true"] { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  #map { height:calc(100dvh - 50px); }
+  main { padding:16px 20px 60px; max-width:1200px; }
+  [hidden] { display:none !important; }
   h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:14px; margin:0; }
   .muted { color:var(--muted); font-size:12px; }
   .flag { display:inline-block; font-size:11px; font-weight:600; padding:1px 6px; border-radius:6px; background:#fff4e0; border:1px solid #f0d29a; margin-bottom:3px; }
@@ -34,12 +39,15 @@
   details { margin-top:8px; } summary { cursor:pointer; color:var(--muted); }
   .load { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; font:inherit; }
   button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-  @media (max-width: 800px) { body { grid-template-columns:1fr; height:auto; } #map { height:45vh; position:relative; } }
 </style>
 </head>
 <body>
-<div id="map" aria-label="Map of the circle with segments and photo points"></div>
-<main>
+<div class="tabs" role="tablist" aria-label="Review">
+  <button type="button" role="tab" id="tab-photos" aria-controls="panel-photos" aria-selected="true">Photos</button>
+  <button type="button" role="tab" id="tab-map" aria-controls="map" aria-selected="false" tabindex="-1">Map</button>
+</div>
+<div id="map" role="tabpanel" aria-labelledby="tab-map" aria-label="Map of the circle with segments and photo points" hidden></div>
+<main id="panel-photos" role="tabpanel" aria-labelledby="tab-photos">
   <h1>Photo review</h1>
   <div id="summary" class="muted"></div>
   <div class="warn" id="cost"></div>
@@ -154,6 +162,26 @@ for (let i = 0; i <= 64; i++) {
   const a = 2 * Math.PI * i / 64, dLat = S.radius_m * Math.cos(a) / 111320, dLon = S.radius_m * Math.sin(a) / (111320 * Math.cos(S.lat * Math.PI / 180));
   ring.push([S.lon + dLon, S.lat + dLat]);
 }
+// Tabs: Photos or Map, one at a time. The arrow keys move between them.
+const tabs = { photos: document.getElementById('tab-photos'), map: document.getElementById('tab-map') };
+function showTab(name) {
+  for (const [n, t] of Object.entries(tabs)) {
+    const on = n === name;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+  }
+  if (name === 'map') map.resize();
+}
+tabs.photos.onclick = () => showTab('photos');
+tabs.map.onclick = () => showTab('map');
+document.querySelector('.tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const next = document.activeElement === tabs.photos ? 'map' : 'photos';
+  showTab(next);
+  tabs[next].focus();
+});
+
 const map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', center: [S.lon, S.lat], zoom: 16.5, pitch: 0 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 map.on('load', () => {
@@ -171,6 +199,7 @@ map.on('load', () => {
       const sid = e.features[0].properties.segment_id || e.features[0].properties.seg;
       const sec = document.getElementById('seg-' + sid);
       if (!sec) return;
+      showTab('photos'); // the photos of this segment, in their own tab
       document.querySelectorAll('.seg.active').forEach(s => s.classList.remove('active'));
       sec.classList.add('active');
       sec.scrollIntoView({ behavior: 'smooth', block: 'start' });

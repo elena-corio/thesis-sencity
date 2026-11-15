@@ -1,10 +1,10 @@
 <script setup>
-// Routes left panel (boards Routes 1–4; desktop and tablet; on a phone the sheet has the same). The walk
-// inputs and Analyse, then Layer, season and time, and the legend last, after a divider. Only Thermal
-// exists until rating is built.
-import { computed, ref } from 'vue'
+// Routes left panel (boards Routes 1–4; desktop and tablet; on a phone the sheet has the same), settings only: the walk
+// inputs and Analyse, then Layer, season and time, then one line on what the layer's colours mean. The legend is in the
+// route card (Elena, 2026-11-11).
+import { ref } from 'vue'
 import { useRoutesStore } from '../stores/routes.js'
-import LayerLegend from './LayerLegend.vue'
+import { layerNote } from '../lib/legend.js'
 import RouteInputs from './RouteInputs.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
@@ -17,9 +17,6 @@ defineProps({
 const emit = defineEmits(['pick'])
 const routes = useRoutesStore()
 const menuOpen = ref(false)
-/** Feels-like values of the streets along the routes, for the season and time shown. */
-const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
-const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 </script>
 
 <template>
@@ -33,8 +30,8 @@ const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
       <!-- Season and time matter for Thermal and Overall, not for Senses. -->
       <SeasonTime v-if="routes.layer !== 'senses'" :store="routes" />
     </section>
-    <section v-if="routes.hasResult && !phone" class="legend-section" aria-label="Legend">
-      <LayerLegend :layer="routes.layer" :values="thermalValues" :extra="NO_VALUE" />
+    <section class="note-section">
+      <p class="layer-note" data-testid="layer-note">{{ layerNote(routes.layer, routes.thermalWindow) }}</p>
     </section>
   </aside>
 </template>
@@ -44,7 +41,8 @@ const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 /* The suggestions float over the map, not inside the panel. */
 .left.menu-open { overflow: visible; }
 /* Inputs first, then a divider (when there are inputs), then the layer; the legend is last, after a divider. */
-.legend-section { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
+.note-section { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
+.layer-note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh); color: var(--text-2); }
 .colours { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
 .colours:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 </style>

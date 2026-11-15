@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { AREA, WITH_3, analyseCentre, chooseLayer, layoutProblems, mapIdle, markRatingMocked, mockArea, openMap, openRoutes, openSegment, mockRoutes, routeClicks } from './helpers.js'
 
-// The model is mocked: these checks never call OpenRouter or Street View.
+// The model is mocked: these checks never call OpenRouter or Mapillary.
 const anchors = ['not at all, too much for my senses', 'very much']
-const el = (code, en, sense) => ({ code, en, it: en, sense, kind: null })
-const TRAFFIC = el('traffic_trams_crowds', 'Traffic, trams, crowds (hearing)', 'hearing')
-const SHADE = el('shade', 'Shade from trees, pergolas or buildings (thermal)', 'thermal')
+const el = (code, n, en, icon_key) => ({ code, n, en, it: en, icon_key, also: [] })
+const TRAFFIC = el('traffic_trams', 5, 'Traffic, trams', 'hearing')
+const SHADE = el('shade', 11, 'Shade from trees or buildings', 'thermal')
 const result = (comfort) => ({
   comfort, anchors, bothers: [TRAFFIC], feels_good: [SHADE],
   reason: 'The trees give shade and the facades are pleasant, but the road carries steady traffic.',
@@ -13,7 +13,7 @@ const result = (comfort) => ({
 })
 
 /** Comfort per photo: the first places easy, the rest hard, so both lists fill up. */
-function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failPano = null, remaining = 0, cached = false } = {}) {
+function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failId = null, remaining = 0, cached = false } = {}) {
   const mock = { requests: [], remaining, cached, hold: false, release: null, error: null }
   markRatingMocked(page)
   return page.route('**/api/senses/rate', async (route) => {
@@ -24,14 +24,14 @@ function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failPano = null, 
     if (mock.error) lines.push({ type: 'error', message: mock.error })
     else {
       photos.forEach((p, i) => {
-        if (p.pano_id === failPano && !mock.requests[1]) {
-          lines.push({ type: 'photo', ...p, status: 'failed', cached: false, error: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"', cost_usd: 0.0002, streetview_usd: 0.007 })
+        if (p.id === failId && !mock.requests[1]) {
+          lines.push({ type: 'photo', ...p, status: 'failed', cached: false, error: 'The model\'s answer was not valid, twice, so nothing is shown. It said: "oops"', cost_usd: 0.0002 })
         } else {
-          lines.push({ type: 'photo', ...p, status: 'ok', cached: mock.cached, result: result(comfort(i)), cost_usd: mock.cached ? null : 0.0005, streetview_usd: mock.cached ? undefined : 0.007 })
+          lines.push({ type: 'photo', ...p, status: 'ok', cached: mock.cached, result: result(comfort(i)), cost_usd: mock.cached ? null : 0.0005 })
         }
       })
       const left = mock.remaining
-      lines.push({ type: 'done', seconds: 3.2, failed: 0, remaining: left, estimate_usd: left * 0.001, estimate_streetview_usd: left * 0.007 })
+      lines.push({ type: 'done', seconds: 3.2, failed: 0, remaining: left, estimate_usd: left * 0.001 })
     }
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   }).then(() => mock)
@@ -63,8 +63,10 @@ test.describe('Senses mode', () => {
 
     const sent = mock.requests[0]
     const every = AREA.features.flatMap((f) => f.properties.photos)
-    expect(sent.length).toBe(new Set(every.map((p) => `${p.pano_id}|${p.heading}`)).size)
-    expect(photos).toHaveLength(0) // the browser fetched no picture: the rating needs none
+    expect(sent.length).toBe(new Set(every.map((p) => `${p.id}|${p.heading}`)).size)
+    // The photos the app shows, by Mapillary image and heading (the API fetches them): the browser loads no picture for it.
+    expect(sent.every((p) => /^[0-9]+$/.test(p.id) && Object.keys(p).sort().join() === 'heading,id')).toBe(true)
+    expect(photos).toHaveLength(0)
 
     await expect(page.getByTestId('senses-best').locator('button').first()).toBeVisible()
     await expect(page.getByTestId('senses-avoid')).toHaveCount(0) // only positive recommendations
@@ -133,8 +135,8 @@ test.describe('Senses mode', () => {
     await openSegment(page, WITH_3.properties.id)
     const card = page.locator('[data-panel="place-card"]')
     await expect(card).toContainText('Easy · 4 · fairly comfortable')
-    await expect(card).toContainText('Traffic, trams, crowds')
-    await expect(card).not.toContainText('(hearing)') // the sense is the icon
+    await expect(card).toContainText('Traffic, trams')
+    await expect(card.locator('.sense-item[data-sense="hearing"] [role="img"]')).toHaveAttribute('aria-label', 'hearing') // the sense is the icon
     await expect(card.getByRole('img', { name: 'hearing' })).toBeVisible()
     await expect(card).toContainText('The trees give shade')
     await expect(card).toContainText('Based on 3 photos')
@@ -143,8 +145,11 @@ test.describe('Senses mode', () => {
     expect(mock.requests).toHaveLength(1)
 
     await page.getByRole('button', { name: 'Enlarge photo' }).first().click()
-    await expect(page.locator('[data-viewer]')).toContainText('4 · fairly comfortable, this photo')
-    await expect(page.locator('[data-viewer]')).toContainText('General prediction: not yet personal')
+    // The enlarged photo is the walk's view: the place's rating in its card (Elena, 2026-11-14).
+    const view = page.locator('[data-panel="walk-view"]')
+    await expect(view.getByTestId('walk-state')).toContainText('Easy')
+    await expect(view.getByTestId('walk-state')).toContainText('for your senses')
+    await expect(view).toContainText('A prediction, not a reason.')
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/senses-place.png' })
   })
@@ -154,7 +159,8 @@ test.describe('Senses mode', () => {
     const ask = page.getByTestId('senses-ask')
     await expect(ask).toContainText('182 more photos to rate')
     await expect(ask).toContainText('$0.18 for the model')
-    await expect(ask).toContainText('$1.27 for the')
+    await expect(ask).toContainText('the photos are free')
+    await expect(ask).not.toContainText('Street View')
     expect(mock.requests).toHaveLength(1)
     mock.remaining = 0
     await ask.getByRole('button', { name: 'Continue' }).click()
@@ -176,8 +182,8 @@ test.describe('Senses mode', () => {
       await page.route('**/api/area', async (route) => {
         await route.fulfill({ contentType: 'application/x-ndjson', body: `${JSON.stringify({ type: 'done', area: { type: 'FeatureCollection', features: [only] } })}\n` })
       })
-      await page.route('**/api/photo/**', (r) => r.fulfill({ status: 404 }))
-      return mockSenses(page, { failPano: failing[0].pano_id, comfort: () => 4 })
+      await page.route('**/mly-thumb/**', (r) => r.fulfill({ status: 404 }))
+      return mockSenses(page, { failId: failing[0].id, comfort: () => 4 })
     })()
     await openMap(page, 'light', { layer: null })
     await analyseCentre(page)
@@ -247,6 +253,44 @@ test.describe('Senses mode', () => {
     await expect(card).toContainText('B · alternative')
     expect(rate.requests).toHaveLength(1)
     await page.screenshot({ path: 'e2e/screens/senses-route.png' })
+  })
+
+  test('walking a Senses route shows the same photos and ratings as the preview, and rates nothing again', async ({ page }) => {
+    const rate = await mockSenses(page, { comfort: (i) => [2, 3, 5][i % 3] })
+    await mockRoutes(page)
+    let lookups = 0
+    await page.route('**/api/mapillary/along', (route) => { lookups++; return route.abort() })
+    await analyseRoute(page, true)
+    const card = page.locator('[data-panel="route-card"]')
+    await expect(card).toContainText('General prediction: not yet personal')
+    const walkBtn = card.locator('[data-walk]').first()
+    const id = await walkBtn.getAttribute('data-walk')
+    const fills = (bar) => bar.locator('[data-stretch] .fill').evaluateAll((els) => els.map((e) => e.className))
+    const preview = await fills(card.locator(`[data-route="${id}"]`))
+    expect(preview.some((c) => /easy|mixed|hard/.test(c))).toBe(true)
+    // The photo and rating of the first stretch, on its card.
+    await card.locator(`[data-stretch="${id}-0"]`).click()
+    const stretchCard = page.locator('[data-panel="place-card"]')
+    const photo = await stretchCard.locator('.photo img').getAttribute('src')
+    const rating = (await stretchCard.getByTestId('senses-result').locator('.scale-head strong').textContent()).trim()
+    await page.getByRole('button', { name: 'Back to comparison' }).click()
+
+    // Walk it (Elena, 2026-11-14): stable and the same as the preview, the same photos.
+    await page.locator(`[data-walk="${id}"]`).first().click()
+    const view = page.locator('[data-panel="walk-view"]')
+    await view.getByRole('button', { name: 'Pause' }).click()
+    await expect(page.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', photo)
+    expect(await fills(view)).toEqual(preview)
+    await expect(view.getByTestId('walk-state')).toContainText(rating.split(' · ')[0])
+    await expect(view.locator('#walk-details')).toContainText('Might bother you')
+    await expect(view.locator('#walk-details').getByRole('button', { name: 'Rate 1 of 5' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(view.getByTestId('comfort-key')).toContainText('Senses')
+    await page.waitForTimeout(800) // the mini map draws the route
+    await page.screenshot({ path: 'e2e/screens/walk/8-walk-senses.png' })
+    await view.getByRole('button', { name: 'Next stretch' }).click()
+    expect(await fills(view)).toEqual(preview) // nothing changes colour while walking
+    expect(rate.requests).toHaveLength(1) // no new rating run
+    expect(lookups).toBe(0) // no photos of its own
   })
 
   test('a Thermal route rates nothing and speaks only of thermal comfort', async ({ page }) => {

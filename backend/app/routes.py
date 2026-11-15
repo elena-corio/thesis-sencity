@@ -24,7 +24,7 @@ from tool.config import REPO_ROOT
 from tool.geo import LocalProjection
 from tool.infrared import ThermalError, count_jobs
 from tool import osm_local
-from tool.osm import build_segments, fetch_buildings_in, fetch_ways_in, parse, parse_buildings
+from tool.osm import build_segments, fetch_ways_in, parse
 from tool.routing import Graph, alternatives, build_graph, different_share, find_b, parts, shares, shortest_path, snap
 from tool.thermal import proj_geom, thermal_state
 
@@ -44,11 +44,30 @@ def cache_dir(cfg: dict) -> FilePath:
 
 def route_key(start: dict, end: dict, cfg: dict) -> str:
     """Same two points (to about a metre, either way round) and same settings → same key, so swapping
-    start and end is never paid for twice. The file name does not show the points."""
-    settings = {k: cfg[k] for k in ("osm", "segments", "candidates", "selection", "streetview", "routes")}
+    start and end never pays for thermal comfort twice. The file name does not show the points."""
+    settings = {"photos": "mapillary", **{k: cfg[k] for k in ("osm", "segments", "routes")},
+                "mapillary": {k: cfg["mapillary"][k] for k in area_mod.PHOTO_SETTINGS}}
     points = sorted([[round(start["lat"], 5), round(start["lon"], 5)], [round(end["lat"], 5), round(end["lon"], 5)]])
     raw = json.dumps({"points": points, "settings": settings}, sort_keys=True, default=str)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+def corridor_key(start: dict, end: dict, cfg: dict) -> str:
+    """The key of the corridor's streets and photos. Unlike route_key it keeps the direction: a street's photo faces the
+    way the routes walk it (Elena, 2026-11-14), so start → end and end → start have their own photos."""
+    return hashlib.sha1(json.dumps({"route": route_key(start, end, cfg), "photos": "facing the walk",
+                                    "from": [round(start["lat"], 5), round(start["lon"], 5)]}).encode()).hexdigest()[:16]
+
+
+def walk_directions(paths: list) -> dict:
+    """{segment id: True if walked along its own drawing, False if against it}, from the ways found, the shortest first:
+    a street the ways walk both ways keeps the direction of the first."""
+    out = {}
+    for path in paths:
+        for e, forward in path.steps:
+            if e.segment_id is not None and e.segment_id not in out:
+                out[e.segment_id] = forward
+    return out
 
 
 def load_cached(key: str, cfg: dict) -> dict | None:
@@ -119,10 +138,10 @@ def fit_zone(paths: list, proj: LocalProjection, cfg: dict) -> Polygon:
     return zone
 
 
-def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None = None):
+def build_corridor(start: dict, end: dict, cfg: dict, key: str | None = None):
     """Yield progress events, then {"type": "corridor", "area": FeatureCollection, "zone": polygon}.
-    With a key, the finished steps of an earlier try are read back (app/steps.py): the streets, the
-    building footprints and the photos found so far; when a lookup fails or the caller stops reading,
+    With a key, the finished steps of an earlier try are read back (app/steps.py): the streets and the
+    photos found so far; when a lookup fails or the caller stops reading,
     what was found is kept for the next try. Start and end are not written: only the key and streets."""
     r = cfg["routes"]
     where = cache_dir(cfg)
@@ -159,27 +178,13 @@ def build_corridor(start: dict, end: dict, cfg: dict, provider, key: str | None 
     near = prep(streets_zone)
     corridor = [s for s in segments if near.intersects(s.geom)]
 
-    buildings = None
-    try:
-        bdata = steps.load(where, key, "buildings") if key else None
-        if bdata is None:
-            ring = ring_lonlat(zone.simplify(10.0), proj)
-            bdata = osm_local.buildings_in(ring, cfg) or fetch_buildings_in(ring, cfg)
-            if key:
-                steps.save(where, key, "buildings", bdata)
-        footprints = parse_buildings(bdata, proj, 0)
-        if footprints is not None:
-            buildings = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"]))
-    except Exception as e:  # noqa: BLE001 (the indoor test improves the photos; the route works without it)
-        log.warning("route buildings unavailable: %s", type(e).__name__)
-
     total = len(corridor)
     found: dict = (steps.load(where, key, "photos") if key else None) or {}
     todo = [s for s in corridor if s.id not in found]
     yield {"type": "segments", "total": total, "done": total - len(todo)}
     finished = False
     try:
-        for done, seg, photos in area_mod.lookup_photos(todo, proj, buildings, cfg, provider):
+        for done, seg, photos in area_mod.lookup_photos(todo, proj, cfg, walk_directions(ways_found)):
             found[seg.id] = photos
             yield {"type": "segment", "done": total - len(todo) + done, "total": total}
         finished = True

@@ -1,12 +1,12 @@
-// Senses mode: from one rating per photo to one rating per place, and what to recommend. The labels themselves
-// come from the API, which reads them from model/app_v0/; nothing about the model is hard-coded here.
+// Senses mode: from one rating per photo to one rating per place, and what to recommend. The element labels come
+// from the API, which reads them from model/app_v9/; nothing about the model is hard-coded here.
 import config from '../config.js'
 import { pickSuggestions } from './suggest.js'
 
 export const GENERAL_LABEL = 'General prediction: not yet personal'
 
-/** The key of one photo in the ratings of this session. */
-export const photoKey = (photo) => `${photo.pano_id}|${photo.heading}`
+/** The key of one photo in the ratings of this session: its Mapillary image and the way it looks. */
+export const photoKey = (photo) => `${photo.id}|${photo.heading}`
 
 /** The state of a 1–5 rating (brief §4): 4–5 easy, 3 mixed, 1–2 hard. It names the colour (--easy, …). */
 export function comfortLevel(n) {
@@ -21,12 +21,38 @@ export function comfortLabel({ comfort, anchors }) {
   return `${comfort} · ${words}`
 }
 
-/** An element's label in the app's language, split from its sense: "Signs, ads (sight)" → text and sense word.
- *  The card shows the sense as an icon (boards 2, 2c); the word stays as the icon's name. */
+/** The eight senses, in the survey's order, with the words the app has always used for them (from the labels of the
+ *  V0 export, which named the sense in brackets; v9 gives only the key). The card shows a sense as an icon (boards 2,
+ *  2c); the word is the icon's name. */
+export const SENSE_NAMES = {
+  sight: { en: 'sight', it: 'vista' },
+  hearing: { en: 'hearing', it: 'udito' },
+  smell: { en: 'smell', it: 'olfatto' },
+  touch: { en: 'touch', it: 'tatto' },
+  thermal: { en: 'thermal', it: 'termico' },
+  balance_movement: { en: 'balance and movement', it: 'equilibrio e movimento' },
+  body_awareness: { en: 'body awareness', it: 'consapevolezza del corpo' },
+  inner_sensations: { en: 'internal sensations', it: 'sensazioni interne' },
+}
+const SENSE_ORDER = Object.keys(SENSE_NAMES)
+
+export const senseName = (key) => SENSE_NAMES[key]?.[config.language] ?? ''
+
+/** An element's label in the app's language, and the name of its main sense (icon_key). */
 export function elementLabel(element) {
-  const label = element[config.language]
-  const m = label.match(/^(.*\S)\s*\(([^()]+)\)$/)
-  return m ? { text: m[1], sense: m[2] } : { text: label, sense: '' }
+  return { text: element[config.language], sense: senseName(element.icon_key) }
+}
+
+/** The sense rows of a card: the elements grouped by main sense (icon_key), the senses in the survey's order and the
+ *  elements in the codebook's (n). The other senses an element touches (`also`) stay in the data, for later. */
+export function bySense(elements) {
+  const rows = new Map()
+  for (const e of [...elements].sort((a, b) => a.n - b.n)) {
+    if (!rows.has(e.icon_key)) rows.set(e.icon_key, [])
+    rows.get(e.icon_key).push(e)
+  }
+  return [...rows].sort(([a], [b]) => SENSE_ORDER.indexOf(a) - SENSE_ORDER.indexOf(b))
+    .map(([sense, list]) => ({ sense, name: senseName(sense), elements: list }))
 }
 
 /** The elements named in enough of the photos (brief §4): the one photo, both of two, at least 2 of 3. */
@@ -130,10 +156,9 @@ export function sensesVerdict([a, b]) {
   return hardShare(b.stretches) < hardShare(a.stretches) ? `${took} but has less hard walking.` : `${took} but has less mixed walking.`
 }
 
-/** "$0.0512 model, about $0.67 Street View" */
+/** "$0.0512 model" (the Mapillary photos are free) */
 export function moneyLine(run) {
-  const street = run.streetviewUsd ? `, about $${run.streetviewUsd.toFixed(2)} Street View` : ''
-  return `$${run.costUsd.toFixed(4)} model${street}`
+  return `$${run.costUsd.toFixed(4)} model`
 }
 
 /** "google/gemini-3.1-flash-lite · 40 places rated · 12 cached, 96 new · $0.05 model … · 38 s" */

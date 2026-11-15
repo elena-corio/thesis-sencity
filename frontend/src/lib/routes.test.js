@@ -47,7 +47,7 @@ describe('stretches', () => {
 
 describe('the stretch as a place', () => {
   it('is its segment, with the length walked (a snapped start walks only part of it)', () => {
-    const photos = [{ pano_id: 'a', heading: 10 }]
+    const photos = [{ id: '1', heading: 10 }]
     const byId = new Map([seg('Graben', 'hard', { length_m: 80, utci: 33, photos })])
     const f = stretchFeature({ key: 'A-0', segmentId: 'Graben', length_m: 30, coordinates: [[0, 48], [1, 48]] }, byId)
     expect(f.properties).toMatchObject({ id: 'A-0', name: 'Graben', length_m: 30, utci: 33, photos })

@@ -7,14 +7,18 @@ import { formatKm } from '../lib/routes.js'
 import { GENERAL_LABEL, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
+import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
+import ComfortKey from './ComfortKey.vue'
 import RouteBar from './RouteBar.vue'
+import ThermalLegend from './ThermalLegend.vue'
 import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
 
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
 const senses = useSensesStore()
+const walkStore = useWalkStore()
 const rating = computed(() => senses.routesProgress)
 const ratingShare = computed(() => (rating.value.total ? Math.round((100 * rating.value.done) / rating.value.total) : 0))
 const cancel = () => (senses.routesRating ? senses.stopHere('routes') : routes.cancel())
@@ -61,6 +65,9 @@ const bName = (r) => (r.kind === 'easiest' ? 'easiest' : 'alternative')
 /** Each layer's own numbers: Thermal's come with the routes, Senses' from the ratings as they are on the stretches. */
 const routeHard = (r) => (routes.layer === 'senses' ? hardShare(r.stretches) : r.hard_share)
 const hardColour = (r) => (routeHard(r) === 0 ? 'clear' : '')
+/** The legend straight under the bars: the key (Senses, Overall), or on Thermal the full legend (Elena, 2026-11-11). */
+const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
+const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
 const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown) : routes.verdict))
 const coverage = computed(() => {
   const [a, b] = routes.shown
@@ -74,7 +81,7 @@ const coverage = computed(() => {
   return `Thermal along ${each('thermal_share')}, photos along ${each('photo_share')}.`
 })
 
-// Phone (board P3): the walk (not built yet) starts from the easiest way; the other is the second choice.
+// Walk (boards Routes 3, P3): the main button walks the easiest way, by its letter; the other is the second choice.
 const walk = computed(() => {
   const [a, b] = routes.shown
   if (!b) return { main: a.id, other: null }
@@ -160,20 +167,29 @@ function onLeave() { routes.hoverRoute = null }
           <span class="hard" :class="hardColour(r)">hard {{ pct(routeHard(r)) }}</span>
         </p>
         <div class="bar-row">
-          <span class="muted bar-label">{{ routes.layer === 'senses' ? 'Senses' : 'Thermal' }}</span>
           <RouteBar :route="r" />
         </div>
+      </div>
+      <!-- The legend straight after the bars (Elena, 2026-11-11). -->
+      <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
+      <ComfortKey v-if="routes.layer !== 'thermal' && !phone" :layer="routes.layer" :window="routes.info" rule />
+      <div v-else-if="!phone" class="thermal-block" role="group" aria-label="Legend">
+        <ThermalLegend :values="thermalValues" :window="routes.info" :extra="NO_VALUE" />
       </div>
       <p class="verdict">{{ verdictText }}</p>
       <SensesPanel v-if="routes.layer === 'senses'" scope="routes" />
       <SensesFoot v-if="routes.layer === 'senses'" scope="routes" />
       <p v-if="routes.windowError" class="window-error" role="status">{{ routes.windowError }}</p>
+      <div v-if="!phone" class="walk">
+        <button type="button" class="btn btn-primary" :data-walk="walk.main" @click="walkStore.start(walk.main, $event.detail === 0)">Walk route {{ walk.main }}</button>
+        <button v-if="walk.other" type="button" class="btn" :data-walk="walk.other" @click="walkStore.start(walk.other, $event.detail === 0)">Walk {{ walk.other }}</button>
+      </div>
       <p class="foot">
         {{ coverage }} {{ verb }} a stretch on the map or a section of a bar to see it. Predictions, not reasons.
       </p>
       <div v-if="phone" class="walk">
-        <button type="button" class="btn btn-primary" aria-disabled="true" title="Coming soon">Walk route {{ walk.main }}</button>
-        <button v-if="walk.other" type="button" class="btn" aria-disabled="true" title="Coming soon">Walk {{ walk.other }}</button>
+        <button type="button" class="btn btn-primary" :data-walk="walk.main" @click="walkStore.start(walk.main, $event.detail === 0)">Walk route {{ walk.main }}</button>
+        <button v-if="walk.other" type="button" class="btn" :data-walk="walk.other" @click="walkStore.start(walk.other, $event.detail === 0)">Walk {{ walk.other }}</button>
       </div>
     </template>
     <slot />
@@ -226,18 +242,21 @@ function onLeave() { routes.hoverRoute = null }
 .route + .route { padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .route-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: 0; }
 .route-line strong { font-weight: var(--fw-semibold); }
-.hard { margin-left: auto; font-size: var(--fs-sm); color: var(--text-2); }
+.hard { margin-left: auto; color: var(--text-2); } /* the same size as the row (Elena, 2026-11-11) */
 .hard.clear { color: var(--easy); }
-.bar-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); margin-top: var(--space-1); }
-.bar-label { font-size: var(--fs-sm); }
+.thermal-block { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--hairline) solid var(--line); }
+.bar-row { margin-top: var(--space-1); } /* full width, as the area's bar; the key below names the layer (Elena, 2026-11-11) */
 .verdict {
   margin: var(--space-3) 0 0; padding: var(--space-3);
   border-radius: var(--radius-btn); background: var(--ground);
 }
 .window-error { margin: var(--space-3) 0 0; font-size: var(--fs-sm); }
 
-.walk { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2); margin-top: var(--space-3); }
-.walk .btn:only-child { grid-column: 1 / -1; }
+/* Board Routes 3: the main button takes the room, the other is as wide as its words. */
+.walk { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.walk .btn { min-height: var(--touch-phone); }
+.walk .btn-primary { flex: 1; font-weight: var(--fw-semibold); }
+.walk .btn:not(.btn-primary) { flex: none; font-size: var(--fs-sm); font-weight: var(--fw-regular); }
 
 /* Inside the phone sheet, which is the panel and does the scrolling. */
 .card.sheet { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

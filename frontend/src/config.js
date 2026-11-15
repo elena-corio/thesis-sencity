@@ -32,9 +32,9 @@ export default {
   // The layer Area and Routes open on.
   layerDefault: 'senses',
 
-  // The app's language: which label of model/app_v0/elements.json is shown ('en' or 'it').
+  // The app's language: which label of model/app_v9/elements.json is shown ('en' or 'it').
   language: 'en',
-  // The words of a comfort rating of 2, 3 and 4. Those of 1 and 5 are the survey's, from model/app_v0/.
+  // The words of a comfort rating of 2, 3 and 4. Those of 1 and 5 are the survey's, from model/app_v9/.
   comfortWords: { 2: 'not very comfortable', 3: 'somewhat comfortable', 4: 'fairly comfortable' },
   // The recommendations in Senses (lib/senses.js): how many to list, and at least this far apart (between middles),
   // so one long street does not fill the list.
@@ -78,9 +78,16 @@ export default {
     maxM: 1500, // straight line, and the longest walk
   },
 
-  // Street photos shown in the app (lib/photos.js): 'none' | 'streetview' | 'mapillary'. 'none' until the source is
-  // chosen: Google's EEA terms forbid Street View Static images next to any map (Elena, 2026-11-11).
-  photos: { provider: 'none' },
+  // Walk along a route (board Routes 5): at street level, eyes eyeHeightM above the start of each stretch, looking
+  // along it and a little down (pitch 84: 6° below the horizon, so the route ahead shows). maxZoom: a camera this
+  // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
+  // or jumps with reduced motion. A route's walk opens paused.
+  // miniZoom: the "Where you are" map on the right.
+  walk: { glideMs: 600, stretchMs: 8000, miniZoom: 16 },
+
+  // Street photos shown in the app (lib/photos.js): 'mapillary' | 'none'. They are rated either way; Street View is not
+  // used (Elena, 2026-11-11).
+  photos: { provider: 'mapillary' },
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',

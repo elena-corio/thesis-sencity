@@ -1,0 +1,30 @@
+Look at the photo. For each element in the list, say whether it should be listed for this place: true or false.
+
+Each element has a definition. Use it to decide.
+An element can name several things. It counts if at least one of them qualifies.
+Answer true only if the element is clearly visible and relevant: a noticeable part of the place for someone walking through it, as it is in the photo. Being present is not enough. Answer false if it is small, far away, hard to make out, or only a minor detail.
+Judge only what can be seen in the photo. Do not guess what is outside the frame.
+
+Elements:
+- greenery_trees (Greenery, trees): Trees, hedges, climbing plants and other large green vegetation, in the place or along its edges.
+- nice_buildings (Nice buildings): Building fronts with decoration, historic detail or careful design.
+- signs_ads (Signs, ads): Shop signs, billboards, posters, screens and other displays with text or advertising.
+- fountains_water (Fountains, water): Water you can see or could hear: fountains, ponds, rivers, canals or other water features.
+- traffic_trams (Traffic, trams): Vehicles moving or stopped in the roadway (in a queue or at a light): cars, buses, trams, motorbikes. A single car alone is not traffic, and parked cars are not traffic, wherever they are parked.
+- plants_flowers (Plants, flowers): Flower beds, planters, potted plants and flowering shrubs, smaller than trees.
+- trash_bins (Waste containers): Large waste or recycling containers, such as wheelie bins and glass, paper or plastic containers. Small litter bins on posts do not count.
+- food_stalls_cafes (Food stalls, cafés): Stalls, kiosks, market stands, and café or restaurant terraces where food or drink is sold.
+- grass_soil (Grass, soil): Natural ground underfoot: grass, lawns, bare earth or earth paths.
+- asphalt_stone_concrete (Asphalt, stone, concrete): Hard ground and surfaces of asphalt, paving, cobbles or concrete.
+- shade (Shade from trees or buildings): Shade from trees, buildings or awnings on the ground where people walk.
+- direct_sun (Direct sun, little shade): Walkable areas in full sunlight, with little or no shade nearby.
+- open_space (Open space): A wide, open area with a long clear view and room around you, such as a square or a wide promenade.
+- heights_bridges (Heights, bridges): Places where you walk above a drop, such as bridges, raised walkways or edges with railings.
+- car_free (Car-free zones): Areas for people on foot where cars cannot drive, such as pedestrian streets or squares.
+- crowds (Crowds): Many people close together in the walkable area, enough to shape how you move.
+- narrow_shared (Narrow or shared paths): Paths that are narrow, or shared with bikes or scooters, where others pass close.
+- seats (Seats): Public benches and other free seating, wooden ones included. Chairs and tables that belong to a café or restaurant are not seats: they count as food stalls, cafés.
+- drinking_fountains_toilets (Drinking fountains, toilets): Public drinking fountains, water taps or toilets.
+- steps_slopes (Steps, slopes): Stairs, steps, ramps or noticeably sloping ground on the way.
+
+Answer only with JSON that follows the schema: one true or false for every element code.

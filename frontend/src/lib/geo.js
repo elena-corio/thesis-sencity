@@ -136,7 +136,7 @@ export function compassWord(heading) {
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
   'October', 'November', 'December']
 
-/** Street View capture date "2024-07" → "July 2024". */
+/** A photo's capture month "2024-07" → "July 2024". */
 export function formatMonth(ym) {
   if (!ym) return 'date unknown'
   const [y, m] = ym.split('-').map(Number)

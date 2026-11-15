@@ -1,0 +1,234 @@
+[
+  {
+    "n": 1,
+    "code": "greenery_trees",
+    "en": "Greenery, trees",
+    "it": "Verde, alberi",
+    "definition": "Trees, hedges, climbing plants and other large green vegetation, in the place or along its edges.",
+    "sense": "sight",
+    "also": [
+      "hearing"
+    ],
+    "icon_key": "sight",
+    "grid": "A12"
+  },
+  {
+    "n": 2,
+    "code": "nice_buildings",
+    "en": "Nice buildings",
+    "it": "Begli edifici",
+    "definition": "Building fronts with decoration, historic detail or careful design.",
+    "sense": "sight",
+    "also": [],
+    "icon_key": "sight",
+    "grid": "A12"
+  },
+  {
+    "n": 3,
+    "code": "signs_ads",
+    "en": "Signs, ads",
+    "it": "Insegne, pubblicità",
+    "definition": "Shop signs, billboards, posters, screens and other displays with text or advertising.",
+    "sense": "sight",
+    "also": [],
+    "icon_key": "sight",
+    "grid": "A12"
+  },
+  {
+    "n": 4,
+    "code": "fountains_water",
+    "en": "Fountains, water",
+    "it": "Fontane, acqua",
+    "definition": "Water you can see or could hear: fountains, ponds, rivers, canals or other water features.",
+    "sense": "hearing",
+    "also": [
+      "sight"
+    ],
+    "icon_key": "hearing",
+    "grid": "A12"
+  },
+  {
+    "n": 5,
+    "code": "traffic_trams",
+    "en": "Traffic, trams",
+    "it": "Traffico, tram",
+    "definition": "Vehicles moving or stopped in the roadway (in a queue or at a light): cars, buses, trams, motorbikes. A single car alone is not traffic, and parked cars are not traffic, wherever they are parked.",
+    "sense": "hearing",
+    "also": [],
+    "icon_key": "hearing",
+    "grid": "A12"
+  },
+  {
+    "n": 6,
+    "code": "plants_flowers",
+    "en": "Plants, flowers",
+    "it": "Piante, fiori",
+    "definition": "Flower beds, planters, potted plants and flowering shrubs, smaller than trees.",
+    "sense": "smell",
+    "also": [],
+    "icon_key": "smell",
+    "grid": "A12"
+  },
+  {
+    "n": 7,
+    "code": "trash_bins",
+    "en": "Waste containers",
+    "it": "Bidoni dei rifiuti",
+    "definition": "Large waste or recycling containers, such as wheelie bins and glass, paper or plastic containers. Small litter bins on posts do not count.",
+    "sense": "smell",
+    "also": [],
+    "icon_key": "smell",
+    "grid": "A12"
+  },
+  {
+    "n": 8,
+    "code": "food_stalls_cafes",
+    "en": "Food stalls, cafés",
+    "it": "Bancarelle di cibo, bar",
+    "definition": "Stalls, kiosks, market stands, and café or restaurant terraces where food or drink is sold.",
+    "sense": "smell",
+    "also": [
+      "inner_sensations"
+    ],
+    "icon_key": "smell",
+    "grid": "A12"
+  },
+  {
+    "n": 9,
+    "code": "grass_soil",
+    "en": "Grass, soil",
+    "it": "Erba, terra",
+    "definition": "Natural ground underfoot: grass, lawns, bare earth or earth paths.",
+    "sense": "touch",
+    "also": [
+      "smell"
+    ],
+    "icon_key": "touch",
+    "grid": "A12"
+  },
+  {
+    "n": 10,
+    "code": "asphalt_stone_concrete",
+    "en": "Asphalt, stone, concrete",
+    "it": "Asfalto, pietra, cemento",
+    "definition": "Hard ground and surfaces of asphalt, paving, cobbles or concrete.",
+    "sense": "touch",
+    "also": [
+      "smell"
+    ],
+    "icon_key": "touch",
+    "grid": "A12"
+  },
+  {
+    "n": 11,
+    "code": "shade",
+    "en": "Shade from trees or buildings",
+    "it": "Ombra di alberi o edifici",
+    "definition": "Shade from trees, buildings or awnings on the ground where people walk.",
+    "sense": "thermal",
+    "also": [],
+    "icon_key": "thermal",
+    "grid": "A13"
+  },
+  {
+    "n": 12,
+    "code": "direct_sun",
+    "en": "Direct sun, little shade",
+    "it": "Sole diretto, poca ombra",
+    "definition": "Walkable areas in full sunlight, with little or no shade nearby.",
+    "sense": "thermal",
+    "also": [],
+    "icon_key": "thermal",
+    "grid": "A13"
+  },
+  {
+    "n": 13,
+    "code": "open_space",
+    "en": "Open space",
+    "it": "Spazio aperto",
+    "definition": "A wide, open area with a long clear view and room around you, such as a square or a wide promenade.",
+    "sense": "balance_movement",
+    "also": [],
+    "icon_key": "balance_movement",
+    "grid": "A13"
+  },
+  {
+    "n": 14,
+    "code": "heights_bridges",
+    "en": "Heights, bridges",
+    "it": "Altezze, ponti",
+    "definition": "Places where you walk above a drop, such as bridges, raised walkways or edges with railings.",
+    "sense": "balance_movement",
+    "also": [],
+    "icon_key": "balance_movement",
+    "grid": "A13"
+  },
+  {
+    "n": 15,
+    "code": "car_free",
+    "en": "Car-free zones",
+    "it": "Zone senza auto",
+    "definition": "Areas for people on foot where cars cannot drive, such as pedestrian streets or squares.",
+    "sense": "body_awareness",
+    "also": [],
+    "icon_key": "body_awareness",
+    "grid": "A13"
+  },
+  {
+    "n": 16,
+    "code": "crowds",
+    "en": "Crowds",
+    "it": "Folla",
+    "definition": "Many people close together in the walkable area, enough to shape how you move.",
+    "sense": "body_awareness",
+    "also": [],
+    "icon_key": "body_awareness",
+    "grid": "A13"
+  },
+  {
+    "n": 17,
+    "code": "narrow_shared",
+    "en": "Narrow or shared paths",
+    "it": "Percorsi stretti o condivisi",
+    "definition": "Paths that are narrow, or shared with bikes or scooters, where others pass close.",
+    "sense": "body_awareness",
+    "also": [],
+    "icon_key": "body_awareness",
+    "grid": "A13"
+  },
+  {
+    "n": 18,
+    "code": "seats",
+    "en": "Seats",
+    "it": "Sedute",
+    "definition": "Public benches and other free seating, wooden ones included. Chairs and tables that belong to a café or restaurant are not seats: they count as food stalls, cafés.",
+    "sense": "inner_sensations",
+    "also": [],
+    "icon_key": "inner_sensations",
+    "grid": "A13"
+  },
+  {
+    "n": 19,
+    "code": "drinking_fountains_toilets",
+    "en": "Drinking fountains, toilets",
+    "it": "Fontanelle, bagni",
+    "definition": "Public drinking fountains, water taps or toilets.",
+    "sense": "inner_sensations",
+    "also": [],
+    "icon_key": "inner_sensations",
+    "grid": "A13"
+  },
+  {
+    "n": 20,
+    "code": "steps_slopes",
+    "en": "Steps, slopes",
+    "it": "Scale, pendenze",
+    "definition": "Stairs, steps, ramps or noticeably sloping ground on the way.",
+    "sense": "inner_sensations",
+    "also": [
+      "balance_movement"
+    ],
+    "icon_key": "inner_sensations",
+    "grid": "A13"
+  }
+]

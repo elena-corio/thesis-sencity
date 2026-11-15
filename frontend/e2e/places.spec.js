@@ -1,5 +1,5 @@
 // Street segments and their photos: loading card, segments on the map, place card, enlarged photo.
-// /api/area and /api/photo are mocked (no Street View or Overpass calls).
+// /api/area and the Mapillary thumbnails are mocked (no Mapillary or Overpass calls).
 import { expect, test } from '@playwright/test'
 import { AREA, THERMAL, WITH_3, areaRequests, WITHOUT, analyseCentre, layoutProblems, mapIdle, mockArea, openMap, openSegment } from './helpers.js'
 
@@ -32,7 +32,9 @@ test.describe('desktop', () => {
     const card = page.locator('[data-panel="place-card"]')
     await expect(card.getByRole('heading')).toBeVisible()
     await expect(card).toContainText('Not rated yet. Ratings come in the next step.')
-    await expect(card).toContainText('Photo 1 of')
+    await expect(card.locator('.photo-line')).toBeVisible()
+    // One photo, never stepped through (Elena, 2026-11-14).
+    await expect(card.getByRole('button', { name: /Previous photo|Next photo/ })).toHaveCount(0)
     await expect(card.locator('img').first()).toHaveJSProperty('complete', true)
     // Only this street's photos load (at most 3: the current one, the previous and the next).
     await expect.poll(() => new Set(photos).size).toBeGreaterThan(0)
@@ -40,9 +42,9 @@ test.describe('desktop', () => {
     expect(shown.size).toBeLessThanOrEqual(3)
     const segPhotos = AREA.features.find((f) => f.properties.id === (
       // the clicked street may be a neighbour of WITH_3 if they overlap on screen
-      [...shown][0] && AREA.features.find((x) => x.properties.photos.some((ph) => [...shown][0].includes(ph.pano_id)))?.properties.id))
+      [...shown][0] && AREA.features.find((x) => x.properties.photos.some((ph) => [...shown][0].includes(`/${ph.id}.png`)))?.properties.id))
     expect(segPhotos).toBeTruthy()
-    expect([...shown].every((u) => segPhotos.properties.photos.some((ph) => u.includes(ph.pano_id)))).toBe(true)
+    expect([...shown].every((u) => segPhotos.properties.photos.some((ph) => u.includes(`/${ph.id}.png`)))).toBe(true)
     await mapIdle(page)
     await page.screenshot({ path: 'e2e/screens/places-dark-card.png' })
 
@@ -69,21 +71,22 @@ test.describe('desktop', () => {
     await expect(card.getByRole('button', { name: 'Back to area' })).toBeFocused()
 
     await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
-    const viewer = page.getByRole('dialog')
-    await expect(viewer).toContainText('Photo 1 of 3')
+    // The walk's view, for a place of an area (Elena, 2026-11-14): nothing to walk, so no Play, arrows, bar or count.
+    const viewer = page.locator('[data-panel="walk-view"]')
+    const src = await viewer.getByTestId('walk-photo').locator('img').getAttribute('src')
+    await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
+    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
+    await expect(viewer.getByTestId('walk-count')).toHaveCount(0)
+    await expect(viewer.getByTestId('comfort-key')).toBeVisible()
+    await expect(viewer.locator('[data-panel="walk-card"]')).toContainText(WITH_3.properties.name)
+    await expect(page.locator('[data-panel="place-card"]')).toHaveCount(0) // not left under the view, where Tab would reach it
     await page.keyboard.press('ArrowRight')
-    await expect(viewer).toContainText('Photo 2 of 3')
-    await page.keyboard.press('ArrowLeft')
-    await page.keyboard.press('ArrowLeft')
-    await expect(viewer).toContainText('Photo 3 of 3')
+    await expect(viewer.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', src)
     await page.screenshot({ path: 'e2e/screens/places-dark-viewer.png' })
-
-    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')
-    expect(await page.evaluate(() => !!document.activeElement.closest('[role="dialog"]'))).toBe(true)
 
     await page.keyboard.press('Escape')
     await expect(viewer).toHaveCount(0)
-    await expect(card.getByRole('button', { name: 'Enlarge photo', exact: true })).toBeFocused()
+    await expect(page.locator('[data-panel="place-card"]').getByRole('button', { name: 'Enlarge photo', exact: true })).toBeFocused()
     // A second Esc goes back to the area, and focus returns to the street that opened the card.
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-panel="place-card"]')).toHaveCount(0)
@@ -102,7 +105,7 @@ test.describe('desktop', () => {
     expect(photos).toHaveLength(0)
     await page.screenshot({ path: 'e2e/screens/places-light-no-photo.png' })
     await card.getByRole('button', { name: 'Go to the nearest street with photos' }).click()
-    await expect(card).toContainText('Photo 1 of')
+    await expect(card.locator('.photo-line')).toBeVisible()
   })
 
   test('thermal comfort arrives after the photos and becomes the layer', async ({ page }) => {
@@ -148,8 +151,12 @@ test.describe('desktop', () => {
     expect(lit.filter).toEqual(['has', 'thermal_state'])
     expect(new Set(lit.states)).toEqual(new Set(['easy', 'mixed', 'hard']))
     const card = page.locator('[data-panel="area-card"]')
-    await expect(card).toContainText(`Thermal · ${AREA.features.length} street stretches`)
-    await expect(card.getByRole('img', { name: /^Thermal: Easy \d+, Mixed \d+, Hard \d+/ })).toBeVisible()
+    // As a route row: the stretches and the hard share of the street length, then the bar; the counts are its label.
+    await expect(card.locator('.stack-head')).toContainText(`${AREA.features.length} street stretches`)
+    await expect(card.locator('.stack-head')).toContainText(/hard \d+%/)
+    await expect(card.getByRole('img', { name: /^Thermal: \d+ easy, \d+ mixed, \d+ hard, \d+ without a value\. Hard \d+% of the street length\.$/ })).toBeVisible()
+    await expect(card.getByTestId('thermal-legend')).toBeVisible() // Thermal: the full legend at the bottom, no short key
+    await expect(card.getByTestId('comfort-key')).toHaveCount(0)
     await expect(card).toContainText('Places here')
     await page.screenshot({ path: 'e2e/screens/places-dark-thermal.png' })
 
@@ -180,8 +187,8 @@ test.describe('desktop', () => {
     const zoomBefore = await page.evaluate(() => window.__sencityMap.getZoom())
     await link.click()
     await expect(place.getByTestId('thermal')).not.toContainText('above 32 °C')
-    // The ring pulses on the new street, even while the map moves there (the pulse lasts 6 s).
-    await expect(page.locator('.ring.pulsing')).toHaveCount(1)
+    // The selected point's arc (the photo's direction) pulses on the new street, even while the map moves there (6 s).
+    await expect(page.locator('.point .marker-arc .pulse')).toHaveCount(1)
     await expect(page.getByRole('radio', { name: 'Thermal', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(page.locator('[data-seg][aria-pressed="true"]')).toHaveCount(1)
     await mapIdle(page)
@@ -227,15 +234,15 @@ test.describe('desktop', () => {
     expect(await page.evaluate(() => window.__sencityMap.getSource('sc-mark').serialize().data.features.length)).toBe(n)
     await page.screenshot({ path: 'e2e/screens/places-dark-suggestions.png' })
 
-    // A pin opens that place's card; the other pins stay. Nothing about suggestions in the card.
+    // A pin opens that place's card; the other pins hide. Nothing about suggestions in the card.
     const name = (await first.getAttribute('aria-label')).replace(/^Suggestion 1: /, '')
     const pinBox = await first.boundingBox()
     await first.click()
     const place = page.locator('[data-panel="place-card"]')
     await expect(place.locator('#place-title')).toHaveText(name)
-    // The selection ring takes the pin's place; the other pins stay.
-    await expect(pins).toHaveCount(n - 1)
-    const ringBox = await page.locator('.ring:not(.focus)').boundingBox()
+    // The selected point takes the pin's place; the other pins hide until "Back to area" (Elena, 2026-11-11).
+    await expect(pins).toHaveCount(0)
+    const ringBox = await page.locator('.point').boundingBox()
     expect(Math.abs(ringBox.x + ringBox.width / 2 - (pinBox.x + pinBox.width / 2))).toBeLessThan(2)
     expect(Math.abs(ringBox.y + ringBox.height / 2 - (pinBox.y + pinBox.height / 2))).toBeLessThan(2)
     await expect(place).not.toContainText('uggestion')
@@ -433,12 +440,14 @@ test.describe('phone', () => {
     await expect(page.getByText('street stretches')).toBeVisible()
     await openSegment(page, WITH_3.properties.id)
     const sheet = page.locator('[data-panel="place-card"]')
-    await expect(sheet).toContainText('Photo 1 of 3')
+    await expect(sheet.locator('.photo-line')).toBeVisible()
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/places-phone-sheet.png' })
     await sheet.getByRole('button', { name: 'Enlarge photo', exact: true }).tap()
-    await expect(page.getByRole('dialog')).toContainText('Swipe or tap the arrows')
+    const viewer = page.locator('[data-panel="walk-view"]')
+    await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
+    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
     await page.screenshot({ path: 'e2e/screens/places-phone-viewer.png' })
   })
 })

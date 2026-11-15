@@ -1,13 +1,19 @@
 <script setup>
 // Credits (brief §2). On a phone they ride on top of the sheet, so they are not a panel of their own there.
+import { photoProvider, showsPhotos, showsWalkPhotos } from '../lib/photos.js'
+import { useWalkStore } from '../stores/walk.js'
+
 defineProps({ inSheet: Boolean })
+const walk = useWalkStore()
 </script>
 
 <template>
   <p class="attribution" :data-panel="inSheet ? undefined : 'attribution'">
     © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
     · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>
-    · thermal: Infrared.city
+    <!-- The photos' source: in the walk, and on the cards when they show photos. -->
+    <span v-if="walk.active ? showsWalkPhotos() : showsPhotos()"> · photo: {{ photoProvider().name }}</span>
+    <span> · thermal: Infrared.city</span>
   </p>
 </template>
 
