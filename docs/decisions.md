@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – The V2 request is checked against the study pipeline (accepted)
+**Context.** Elena: the personalised request must match the study's V2 exactly; a parity test against what the study pipeline sends, failing on any difference.
+**Decision.**
+- *Fixture:* `backend/tests/fixtures/v2_parity.json`, made by the study's own code (thesis-personas `src/task_v9.build_call`, V2, commit 60c9222) for study photo 1 and the made-up test profile, without the image: system text, user text, response format and the photo's element list.
+- *Test:* the app's request for that photo and profile has the same system text (instruction, blank line, profile ending with the study's closing line), the same user text (task, then the photo only), the same response format, and the settings of `model.json` (gemini-3.1-flash-lite, google-vertex/eu only, zero retention, data collection denied, no fallbacks, temperature 0.7, reasoning after).
+- *What it found:* the app sent the task text and the V0 system instruction with the trailing newline of their files; the study strips them. Fixed: both now end as in the study. `PROMPT_VERSION` ("2") names how the app puts the request together; personal ratings carry it in their stamp, so a change makes them stale.
+- *Proposed:* the 2,071 general (V0) ratings already cached on the server were made with that trailing newline. They are kept (one newline at the end of the instruction and the task); asked whether to re-rate them.
+
 ## 2026-11-15 – "Before you start": the consent screen (accepted)
 **Context.** Brief §3: one consent screen before Part A (board 3), with an unticked checkbox and "Agree and start" enabled only when ticked. The board's text was out of date ("16 things", a database); Elena wrote the new one.
 **Decision (Elena).** Title "Before you start", four points (what is asked: 20 visible elements, about 5 minutes, no health questions; answers stay in this browser, no account, nothing saved on a server; for a personal rating the answers go with the photo to an AI model in the EU, used only for that rating and not kept by the provider; change, download or delete at any time under Profile), the box "I have read this and agree that my answers are used to build my profile and personalise ratings." (unticked), Not now and Agree and start. Icons from board 3.
