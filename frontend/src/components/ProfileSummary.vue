@@ -54,7 +54,7 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
     <aside class="side panel" aria-label="Your words and your data">
       <!-- Overall sensory comfort (A11): the comfort bar of the place card (board 2c), at the top of the right card (Elena). -->
       <div class="overall" data-testid="overall-comfort">
-        <div class="overall-head">
+        <div class="card-head">
           <h3 id="overall-title">Overall sensory comfort</h3>
           <strong>{{ p.answers.A11 }} of 5</strong>
           <button type="button" class="edit" :aria-label="`Edit: ${a11.title[lang]}`" @click="edit('A11')">Edit</button>
@@ -69,12 +69,14 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
         </div>
       </div>
 
-      <h3>In your words</h3>
+      <div class="card-head">
+        <h3>In your words</h3>
+        <button type="button" class="edit" aria-label="Edit your own words" @click="edit('A16')">Edit</button>
+      </div>
       <blockquote v-if="p.answers.A16" class="words" data-testid="answer-A16">“{{ p.answers.A16 }}”</blockquote>
       <p v-else class="muted">Nothing written.</p>
-      <button type="button" class="edit inline" aria-label="Edit your own words" @click="edit('A16')">Edit</button>
 
-      <h3>Strongest for you</h3>
+      <div class="card-head"><h3>Strongest for you</h3></div>
       <ul v-if="top.length" class="top">
         <li v-for="t in top" :key="t.row.code">
           <span class="dot" :class="t.kind" aria-hidden="true" />
@@ -85,7 +87,7 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
       <p v-else class="muted">Nothing stands out: every element is in the middle.</p>
 
       <details class="text">
-        <summary>Your sensory profile, as the model reads it</summary>
+        <summary class="card-head"><h3>Your sensory profile, as the model reads it</h3><AppIcon name="chevronDown" class="chev" /></summary>
         <pre data-testid="profile-text">{{ p.text }}</pre>
         <p class="muted">Sent with each rating, to a model that keeps nothing. In English, with your own words as written.</p>
       </details>
@@ -120,11 +122,12 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .group { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .group-head { display: flex; align-items: baseline; gap: var(--space-3); justify-content: space-between; }
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
-.edit.inline { align-self: flex-start; padding-left: 0; }
 .overall { padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
-.overall-head { display: flex; align-items: center; gap: var(--space-3); }
-.overall-head h3 { flex: 1; color: var(--text); }
-.overall-head strong { font-variant-numeric: tabular-nums; }
+/* The titles of the right card, one style (Elena, 2026-11-15): the title on the left, a value or Edit on the right. */
+.side .card-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); }
+.side .card-head h3 { flex: 1; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }
+.side .card-head strong { font-variant-numeric: tabular-nums; }
+.side .card-head .edit { padding-right: 0; }
 .overall-q { font-size: var(--fs-sm); color: var(--text-2); }
 .bar { margin-top: var(--space-5); }
 .track {
@@ -158,7 +161,10 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .dot { width: var(--space-3); height: var(--space-3); border-radius: 50%; }
 .dot.bothers { background: var(--hard); }
 .dot.good { background: var(--easy); }
-.text summary { cursor: pointer; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); min-height: var(--touch); display: flex; align-items: center; }
+.text summary { cursor: pointer; list-style: none; }
+.text summary::-webkit-details-marker { display: none; }
+.text .chev { transition: transform var(--transition); color: var(--text-2); }
+.text[open] .chev { transform: rotate(180deg); }
 .text pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: var(--fs-xs); color: var(--text-2); background: var(--ground); padding: var(--space-3); border-radius: var(--radius-btn); margin: 0 0 var(--space-2); }
 .buttons { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); margin-top: var(--space-2); }
 .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2) var(--space-4); }

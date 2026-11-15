@@ -2,6 +2,10 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – The right card of the profile: one title style (accepted)
+**Context.** Elena: "put Edit on the right of In your words, as for the sensory profile; unify the style of the titles in the card".
+**Decision (Elena).** Every title of the right card is one row in the same style (small, semibold, full text colour): the title on the left, its value or Edit on the right: Overall sensory comfort (2 of 5, Edit), In your words (Edit), Strongest for you, and "Your sensory profile, as the model reads it", which folds with a chevron like "Your answers, element by element".
+
 ## 2026-11-15 – No "Show as a list" under the radar (accepted)
 **Context.** Elena: "remove show as a list".
 **Decision (Elena).** The radar has no list version on the page. Tapping a sense still lists its elements, and each sense's icon tells a screen reader its name and both values ("Hearing: bothers you 5, feels good 5"); the answers themselves are in "Your answers, element by element".
