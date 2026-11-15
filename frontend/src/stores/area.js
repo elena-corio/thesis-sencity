@@ -7,11 +7,22 @@ import { placeGroup } from '../lib/place.js'
 import { sensesMarkers, withSenses } from '../lib/senses.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
+import { withOverall } from '../lib/overall.js'
+import { SAVED_KEY } from './profile.js'
 
 /**
  * Two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c).
  * step: 'centre' (Flow 1) → 'radius' (1b) → 'set' (1c) → 'analysed'.
  */
+/** A saved profile on this device (read once, at start): Overall is then the default layer. */
+function hasSavedProfile() {
+  try {
+    return !!localStorage.getItem(SAVED_KEY)
+  } catch {
+    return false
+  }
+}
+
 export const useAreaStore = defineStore('area', () => {
   const step = ref('centre')
   /** @type {import('vue').Ref<{lat:number, lon:number} | null>} */
@@ -56,13 +67,16 @@ export const useAreaStore = defineStore('area', () => {
   /** The bar can be used before analysis (the choice is free) and whenever nothing is loading. */
   const windowActive = computed(() => step.value !== 'analysed' ||
     (load.value === 'ready' && (thermal.value === 'ready' || thermal.value === 'error')))
-  /** The chosen layer, before or after Analyse: 'senses' | 'thermal' | 'overall'. Decides what is loaded. */
-  const layer = ref(config.layerDefault)
+  /** The chosen layer, before or after Analyse: 'senses' | 'thermal' | 'overall'. Decides what is loaded. With a profile
+   *  on this device, Overall is the default (Elena, 2026-11-15). */
+  const layer = ref(hasSavedProfile() ? 'overall' : config.layerDefault)
   /** What the chosen layer needs: { thermal }. */
   const needs = computed(() => config.layers[layer.value])
-  /** What the map colours by: 'thermal' once it is known, 'senses', or null (photos only: Overall has no ratings yet). */
+  /** What the map colours by: 'senses'; 'thermal' once it is known; 'overall' once the area is here (its thermal part
+   *  arrives when it is known, its senses part as the photos are rated). */
   const mapLayer = computed(() => {
     if (layer.value === 'senses') return 'senses'
+    if (layer.value === 'overall') return load.value === 'ready' ? 'overall' : null
     return layer.value === 'thermal' && thermalInfo.value ? 'thermal' : null
   })
   /** A later layer is loading its missing part: Cancel keeps the area. */
@@ -94,8 +108,10 @@ export const useAreaStore = defineStore('area', () => {
   // Places filter (left panel): 'all' | 'streets' | 'parks' | 'squares'. It filters the map and the
   // suggestions; the area card's counts stay for the whole area.
   const placeFilter = ref('all')
+  /** The streets with their overall level too (lib/overall.js): the worse of senses_state and thermal_state. */
+  const rated = computed(() => withOverall(segments.value))
   const visibleSegments = computed(() => {
-    const fc = segments.value
+    const fc = rated.value
     if (!fc || placeFilter.value === 'all') return fc
     return { type: 'FeatureCollection',
       features: fc.features.filter((f) => placeGroup(f.properties, f.geometry.type) === placeFilter.value) }
@@ -488,7 +504,7 @@ export const useAreaStore = defineStore('area', () => {
     step, centre, radius, capped, analysed, byKeyboard, hasCircle, placeCentre, radiusTo, nudge, fix, analyse, reset,
     centreLabel, centreName, inputsOpen, fieldTarget, armField, disarmField, takeField, setCentre, setRadius,
     load, progress, loadError, segments, selectedId, selectedPoint, selected, counts,
-    thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer,
+    thermal, thermalError, thermalInfo, thermalWindow, windowActive, setThermalWindow, layer, setLayer, needs, mapLayer, rated,
     busy, legendReady, applySenses, sensesFinished,
     startLoad, retryLoad, retryThermal, cancelLoad, select, clearSelection, cameFrom, zoomToSelected, goNearby, goBack,
     placeFilter, visibleSegments, setPlaceFilter,

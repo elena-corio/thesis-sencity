@@ -32,21 +32,23 @@ const emit = defineEmits(['pick', 'recentre'])
 const area = useAreaStore()
 const titleEl = ref(null)
 
-const features = computed(() => area.segments?.features ?? [])
+const features = computed(() => area.rated?.features ?? [])
 /** The Senses view of the card: the same bar and places as Thermal, from the ratings so far. */
 const sensesView = computed(() => area.layer === 'senses' && area.load === 'ready')
-const stateKey = computed(() => (area.layer === 'senses' ? 'senses_state' : 'thermal_state'))
-const layerName = computed(() => (area.layer === 'senses' ? 'Senses' : 'Thermal'))
+/** Overall: the worse of the two per street (lib/overall.js), as soon as the area is here. */
+const overallView = computed(() => area.layer === 'overall' && area.load === 'ready')
+const stateKey = computed(() => `${area.layer}_state`)
+const layerName = computed(() => ({ senses: 'Senses', thermal: 'Thermal', overall: 'Overall' })[area.layer])
 const known = (f) => ['easy', 'mixed', 'hard'].includes(f.properties[stateKey.value])
 /** By street length, as a route's bar (Elena, 2026-11-11); "none": no value there (e.g. under a building) or no rating. */
 const shares = computed(() => lengthShares(features.value, (f) => (known(f) ? f.properties[stateKey.value] : null)))
-const keyLayer = computed(() => (area.layer === 'senses' ? 'senses' : 'thermal'))
+const keyLayer = computed(() => area.layer)
 const stack = computed(() => keyRows(keyLayer.value).map((r) => ({ ...r, m: shares.value.metres[r.id] })).filter((r) => r.m > 0))
 const hardPct = computed(() => Math.round(shares.value.hard * 100))
 /** The counts the rows used to show, for a screen reader: "21 easy, 18 mixed, 13 hard, 6 without a photo". */
 const stackLabel = computed(() => {
   const c = shares.value.counts
-  const none = area.layer === 'senses' ? 'without a rating' : 'without a value'
+  const none = { senses: 'without a rating', thermal: 'without a value', overall: 'without data' }[area.layer]
   return `${layerName.value}: ${c.easy} easy, ${c.mixed} mixed, ${c.hard} hard, ${c.none} ${none}. Hard ${hardPct.value}% of the street length.`
 })
 /** Thermal: the full thermal legend at the bottom of the card, from the area's feels-like values. */
@@ -91,7 +93,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <SeasonTime v-if="showWindow" :store="area" />
       </div>
 
-      <template v-if="sensesView || (area.mapLayer === 'thermal' && area.thermal === 'ready')">
+      <template v-if="sensesView || overallView || (area.mapLayer === 'thermal' && area.thermal === 'ready')">
         <div class="stack-head">
           <span>{{ area.counts.all }} street stretches</span>
           <span class="hard" :class="{ clear: hardPct === 0 }" title="Share of the street length that is hard">hard {{ hardPct }}%</span>
@@ -102,6 +104,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <!-- The legend straight after the bar (Elena, 2026-11-11): the key, or on Thermal the full legend (bands in °C, info tip). -->
         <!-- On a phone the key floats on the map instead (the phone's right card), so not here too. -->
         <ComfortKey v-if="sensesView && !phone" layer="senses" rule />
+        <ComfortKey v-else-if="overallView && !phone" layer="overall" :window="area.thermalInfo" rule />
         <div v-else-if="!phone" class="thermal-block" aria-label="Legend" role="group">
           <ThermalLegend :values="thermalValues" :window="area.thermalInfo" :extra="[{ label: 'No value', color: 'var(--no-photo)' }]" />
         </div>
@@ -144,9 +147,9 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <p v-if="area.thermal === 'error'" class="thermal-error">{{ area.thermalError }}</p>
       </template>
 
-      <SensesFoot v-if="sensesView" scope="area" />
+      <SensesFoot v-if="sensesView || overallView" scope="area" />
       <p class="foot">
-        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'its rating' : area.mapLayer === 'thermal' ? 'why' : 'its photos' }}.
+        {{ props.phone ? 'Tap' : 'Click' }} a street to see {{ area.layer === 'senses' ? 'its rating' : ['thermal', 'overall'].includes(area.mapLayer) ? 'why' : 'its photos' }}.
         Predictions, not reasons.
       </p>
       <div class="buttons">

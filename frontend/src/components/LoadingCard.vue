@@ -73,16 +73,13 @@ const profileStore = useProfileStore()
         <!-- One simulation with no count: the bar slides until it is done. -->
         <span v-if="area.thermal === 'loading'" class="bar waiting" aria-hidden="true"><span /></span>
       </li>
-      <!-- Senses rates every photo once they are found (board Flow 3). General, so not "for your profile" yet. -->
-      <li v-if="area.layer === 'senses'" :class="{ next: !senses.areaRating, active: senses.areaRating }" data-testid="rating-step">
+      <!-- Senses and Overall rate every photo once they are found (board Flow 3). -->
+      <li v-if="area.layer === 'senses' || area.layer === 'overall'" :class="{ next: !senses.areaRating, active: senses.areaRating }" data-testid="rating-step">
         <AppIcon name="pending" />
         <span class="label" role="status">{{ senses.areaRating ? `Rating ${rating.done} of ${rating.total} places…` : 'Rating the photos' }}</span>
         <span v-if="senses.areaRating" class="bar" aria-hidden="true">
           <span :style="{ width: `${rating.total ? Math.round((100 * rating.done) / rating.total) : 0}%` }" />
         </span>
-      </li>
-      <li v-if="area.layer === 'overall'" class="next">
-        <AppIcon name="pending" /><span class="label">Rating for your profile</span>
       </li>
     </ul>
 

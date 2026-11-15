@@ -83,6 +83,9 @@
   /* Map: street segments (brief §4). Before rating, segments with photos use one neutral colour. */
   --map-seg-width: 3;
   --map-seg-opacity: 0.5;          /* translucent core line (brief: 50%) */
+  --map-seg-partial-dash: 1.4;     /* Overall with one layer only: dashes and gaps, in line widths */
+  --map-seg-partial-gap: 1.2;
+  --partial-swatch: repeating-linear-gradient(90deg, var(--text-2) 0 4px, transparent 4px 7px); /* its key swatch */
   --map-seg-hover-opacity: 0.85;
   --map-seg-halo-width: 9;         /* soft halo, ~3x the line */
   --map-seg-halo-blur: 4;

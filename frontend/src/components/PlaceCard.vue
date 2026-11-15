@@ -18,6 +18,8 @@ import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import AppIcon from './AppIcon.vue'
 import SensesPrediction from './SensesPrediction.vue'
+import OverallSummary from './OverallSummary.vue'
+import { useProfileStore } from '../stores/profile.js'
 
 const props = defineProps({
   phone: Boolean,
@@ -98,6 +100,10 @@ watch(() => src.value.key, () => {
 // Senses: the place from the ratings already here, never a new call. Also for a stretch of a route.
 const sensesOn = computed(() => src.value.layer === 'senses')
 const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
+// Overall (lib/overall.js): the worse of the two, from what is here; the senses part may still be general.
+const overallOn = computed(() => src.value.layer === 'overall')
+const overallPlace = computed(() => (overallOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
+const profileStore = useProfileStore()
 // The photo on the card is the one rated.
 const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
@@ -165,7 +171,9 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
       </div>
     </div>
 
-    <template v-if="thermalView">
+    <OverallSummary v-if="overallOn" :street="p" :place="overallPlace" :info="src.info" :personal="profileStore.personal" />
+
+    <template v-else-if="thermalView">
       <div class="thermal" data-testid="thermal">
         <p v-if="!source" class="t-meta">
           This {{ feature.geometry.type === 'Polygon' ? 'place' : 'street stretch' }},

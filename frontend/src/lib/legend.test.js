@@ -3,7 +3,7 @@ import { keyRows, keyTitle, layerNote, lengthShares } from './legend.js'
 
 describe('the key', () => {
   it('names the layer and the window, except for Senses', () => {
-    expect(keyTitle('overall', { season: 'summer', time: '15:00' })).toEqual({ name: 'Overall', when: 'summer, 15:00' })
+    expect(keyTitle('overall', { season: 'summer', time: '15:00' })).toEqual({ name: 'Overall comfort', when: 'summer, 15:00' })
     expect(keyTitle('senses', { season: 'summer', time: '15:00' })).toEqual({ name: 'Sensory comfort', when: '' })
   })
   it('ends with No photo, or No value on Thermal', () => {
@@ -15,7 +15,7 @@ describe('the key', () => {
 describe('the layer note', () => {
   const w = { season: 'summer', time: '15:00' }
   it('says what the colours mean', () => {
-    expect(layerNote('overall', w)).toBe('Each street stretch shows the worse of thermal comfort (summer, 15:00) and the rating of its photo.')
+    expect(layerNote('overall', w)).toBe('Each street stretch shows the worse of thermal comfort (summer, 15:00) and its photo rating. The photo rating is from when the photo was taken: season and time change only the thermal part.')
     expect(layerNote('senses', w)).toBe('Each street stretch is rated from its photo.')
     expect(layerNote('thermal', w)).toBe('Each street stretch shows its simulated feels-like temperature (summer, 15:00).')
   })

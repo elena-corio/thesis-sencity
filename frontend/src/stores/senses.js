@@ -127,9 +127,9 @@ export const useSensesStore = defineStore('senses', () => {
   }
   const areaProgress = computed(() => progressOf('area'))
   /** The area's rating is running: the loading card stays until it ends (boards Flow 2, 3). */
-  const areaRating = computed(() => area.layer === 'senses' && runs.area.status === 'rating')
+  const areaRating = computed(() => ['senses', 'overall'].includes(area.layer) && runs.area.status === 'rating')
   const routesProgress = computed(() => progressOf('routes'))
-  const routesRating = computed(() => routes.layer === 'senses' && runs.routes.status === 'rating')
+  const routesRating = computed(() => ['senses', 'overall'].includes(routes.layer) && runs.routes.status === 'rating')
 
   // An area: when its photos are known and the Senses layer is on, nearest to the centre first.
   const areaKey = computed(() => {
@@ -137,7 +137,8 @@ export const useSensesStore = defineStore('senses', () => {
     return area.step === 'analysed' && a ? `${a.lat}|${a.lon}|${a.radius}` : null
   })
   watch(areaKey, (key) => { if (runs.area.key && key !== runs.area.key) clear('area') })
-  watch(() => (areaKey.value && area.load === 'ready' && area.layer === 'senses' ? areaKey.value : null), (key) => {
+  // Overall needs the senses part as much as Senses does (Elena, 2026-11-15).
+  watch(() => (areaKey.value && area.load === 'ready' && ['senses', 'overall'].includes(area.layer) ? areaKey.value : null), (key) => {
     if (!key || runs.area.key === key) return
     const centre = area.analysed
     const places = (area.segments?.features ?? []).filter((f) => f.properties.photos?.length)

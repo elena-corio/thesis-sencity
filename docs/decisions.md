@@ -34,6 +34,20 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
 - *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
 
+## 2026-11-15 – Overall: the worse of Senses and Thermal, per street (accepted)
+**Context.** Elena: Overall mode, the worse of Senses and Thermal per street, following boards 1 and 2b and the canvas's legend wording; worked out in the browser from cached values, no new model call and nothing new sent to the server; the default layer when a profile exists.
+**Decision (Elena).**
+- *Rule (`lib/overall.js`):* the Senses level of a street is its existing one (the median of its photos, 4–5 easy, 3 mixed, 1–2 hard); the Thermal level is its feels-like value at the chosen season and time with the limits in use (standard: easy 9–26, mixed 26–32 and 0–9, hard above 32 and below 0; personal from the hot and cold answers and the comfort bar's handles). Overall is the worse (hard > mixed > easy).
+- *Edge cases:* both equal: that level, both named as the reason; one missing (no photo, or no thermal value): the other, drawn dashed ("partial") and noted "based on thermal only" or "based on senses only"; both missing: "No data", drawn as "No photo" is now; senses still general (no profile): the card says "not personalised yet" for the senses part.
+- *The card:* the overall level, then what decides in plain words ("Hard because of heat: feels like 34 °C", "Mixed because of your senses: traffic, trams; signs, ads"), then both parts as small rows (Senses ·, Thermal ·), then what might bother or feel good.
+- *Map and legend:* the streets in their overall colour, one-layer streets dashed; the key "Overall comfort" with Easy, Mixed, Hard, "Partial: one layer only" and "No data"; the note says the photo rating is from when the photo was taken and that season and time change only the thermal part (they recolour only that part; nothing is rated again).
+- *Rating:* Overall rates the photos as Senses does (the same runs and caches). *Default:* with a saved profile on this device the Area opens on Overall.
+
+**Proposed.**
+- The board's place card shows both parts as full bars; Elena's text asks for small rows, which this follows. "Hard overall, because of heat" (board) reads "Hard overall" then "Hard because of heat: feels like 31 °C".
+- A partial park or square is filled as usual (a hatched fill needs an image pattern); its card and key still say partial.
+- No "Likely easiest for you" markers on Overall yet (they are Thermal's).
+
 ## 2026-11-15 – Cold is hard below 0 °C; the temperature bars run from −10 to 45 °C (accepted)
 **Context.** Elena: the thermal bar's scale "from −10 to 45 °C feels like (centred on 17.5)", then −15 to 45, then back to −10 to 45 (the standard easy range 9–26 in the middle); values beyond the ends clamped with an arrow marker; cold "hard" below 0 °C (moderate cold stress), "mixed" 0–9 °C, heat unchanged; the reason in the brief.
 **Decision (Elena).**
