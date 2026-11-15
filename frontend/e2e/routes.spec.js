@@ -61,7 +61,7 @@ test.describe('desktop', () => {
 
     // The points and the limits travel in the body; the URL has nothing in it.
     expect(mock.requests).toHaveLength(1)
-    expect(mock.requests[0].limits).toEqual({ heat: [26, 32], cold: [9, -13] })
+    expect(mock.requests[0].limits).toEqual({ heat: [26, 32], cold: [9, 0] })
     expect(mock.urls[0]).toMatch(/\/api\/routes$/)
 
     // A section of a bar opens the stretch.

@@ -1,22 +1,94 @@
 // Thermal comfort in the app (brief §4): the feels-like temperature of a street (°C, from the
-// API) to its state: easy, mixed or hard (no 1–5 score). All limits are in config.js (standard, for everyone).
+// API) to its state: easy, mixed or hard (no 1–5 score). The standard limits and the personal shifts are in config.js.
+import { shallowRef } from 'vue'
 import config from '../config.js'
 
 const STANDARD = config.thermalLimits
+const PERSONAL = config.thermalPersonal
+const personal = shallowRef(null)
 
 /**
- * The limits in use: the standard ones from config.js, for everyone (no profiles yet). The card, the
- * legend, the nearby street, the suggestions and the routes all read them here.
+ * The limits in use: personal when the profile has weather answers or a limit moved on its bar (stores/profile.js
+ * sets them), else the standard ones. The card, the legend, the nearby street, the suggestions, the map and the routes
+ * all read them here, and follow when they change. They stay on this device, except as the four numbers a Thermal
+ * route request uses for its answer (not kept by the API).
  */
 export function thermalLimits() {
-  return STANDARD
+  return personal.value ?? STANDARD
+}
+export const standardLimits = () => STANDARD
+export const hasPersonalLimits = () => personal.value != null
+/** Set by the profile store: the personal limits, or null for the standard ones. */
+export function setPersonalLimits(limits) {
+  personal.value = limits
 }
 
+const answerShift = (answer) => PERSONAL.shift[answer] ?? 0
+
+/**
+ * Personal limits from the weather answers ({ hot, cold, wind }: 1–5) and the starts moved by hand on the profile's bar
+ * ({ heat, cold }: °C, or null to follow the answers). Hot 1 → heat limits −3 °C, 2 → −1.5 °C; cold 1 → cold limits
+ * +3 °C, 2 → +1.5 °C (config.thermalPersonal). A start moved by hand moves its side's two limits together. Null when
+ * nothing is personal.
+ */
+export function personalLimits(weather, manual = null) {
+  let heat = manual?.heat != null ? manual.heat : STANDARD.heat[0] - answerShift(weather?.hot)
+  let cold = manual?.cold != null ? manual.cold : STANDARD.cold[0] + answerShift(weather?.cold)
+  // A start kept from before (an earlier scale or rule) is brought back into its range, so both outer limits are
+  // always on the bar: the start of cold has a minimum as the start of hot has a maximum (Elena, 2026-11-15).
+  if (manual?.cold != null) cold = clampStart('cold', cold, heat)
+  if (manual?.heat != null) heat = clampStart('heat', heat, cold)
+  const heatShift = heat - STANDARD.heat[0]
+  const coldShift = cold - STANDARD.cold[0]
+  if (!heatShift && !coldShift) return null
+  return { heat: STANDARD.heat.map((t) => t + heatShift), cold: STANDARD.cold.map((t) => t + coldShift) }
+}
+
+/** The start of hot and of cold that the answers alone give (what Reset goes back to). */
+export function startsFromAnswers(weather) {
+  const l = personalLimits(weather) ?? STANDARD
+  return { heat: l.heat[0], cold: l.cold[0] }
+}
+
+/**
+ * How far a start can move (Elena, 2026-11-15): its side's outer limit stays on the bar, so the start of hot goes up to
+ * 45 − 6 = 39 °C and the start of cold down to −10 + 9 = −1 °C; and the easy range stays at least minEasy wide.
+ * `other` is the other side's start. { min, max } in °C.
+ */
+export function startRange(side, other) {
+  const { min, max } = config.thermalBar
+  const heatBand = STANDARD.heat[1] - STANDARD.heat[0]
+  const coldBand = STANDARD.cold[0] - STANDARD.cold[1]
+  return side === 'heat'
+    ? { min: other + PERSONAL.minEasy, max: max - heatBand }
+    : { min: min + coldBand, max: other - PERSONAL.minEasy }
+}
+
+/** A start moved by hand, in its steps and within its range (startRange). */
+export function clampStart(side, value, other) {
+  const step = PERSONAL.step
+  const { min, max } = startRange(side, other)
+  const v = Math.round(value / step) * step
+  return Math.min(max, Math.max(min, v))
+}
+
+/** "9", "24.5", "−1.5": a limit in the profile's words, with a real minus sign. */
+export const limitText = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1)).replace('-', '−')
+
+/** ["Comfortable for you: about 9 to 23 °C (feels like).", "Standard: 9 to 26 °C."]: shown on two lines. */
+export function comfortLines(limits) {
+  const [lo, hi] = easyRange(limits)
+  const [slo, shi] = easyRange(STANDARD)
+  return [`Comfortable for you: about ${limitText(lo)} to ${limitText(hi)} °C (feels like).`, `Standard: ${limitText(slo)} to ${limitText(shi)} °C.`]
+}
+/** "Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C." */
+export const comfortSummary = (limits) => comfortLines(limits).join(' ')
+
 /** The easy range [lower, upper] and its middle, the comfort target. */
-export function easyRange(limits = STANDARD) {
+export function easyRange(limits = thermalLimits()) {
   return [limits.cold[0], limits.heat[0]]
 }
-export function comfortTarget(limits = STANDARD) {
+export function comfortTarget(limits = thermalLimits()) {
   const [lo, hi] = easyRange(limits)
   return (lo + hi) / 2
 }
@@ -26,7 +98,7 @@ export function comfortTarget(limits = STANDARD) {
  * nearby" and the suggestions: [degrees outside the easy range (0 inside), and, inside it only, the
  * degrees from the middle of the range]. Compare with compareComfort.
  */
-export function comfortKey(utci, limits = STANDARD) {
+export function comfortKey(utci, limits = thermalLimits()) {
   const [lo, hi] = easyRange(limits)
   const outside = utci < lo ? lo - utci : utci > hi ? utci - hi : 0
   return [outside, outside ? 0 : Math.abs(utci - comfortTarget(limits))]
@@ -36,7 +108,7 @@ export function compareComfort(a, b) {
 }
 
 /** easy, mixed or hard for these limits (thermal has no 1–5 score). */
-export function thermalState(utci, limits = STANDARD) {
+export function thermalState(utci, limits = thermalLimits()) {
   const [hMixed, hHard] = limits.heat
   const [cEasy, cHard] = limits.cold
   if (utci > hHard || utci < cHard) return 'hard'
@@ -52,11 +124,11 @@ export function formatDegrees(t) {
 const deg = (t) => t.toString().replace('-', '−')
 
 /** Too warm: above the easy range (the nearby street to suggest is then a cooler one). */
-export function isHot(utci, limits = STANDARD) {
+export function isHot(utci, limits = thermalLimits()) {
   return utci > limits.heat[0]
 }
 /** Too cold: below the easy range (the nearby street to suggest is then a warmer one). */
-export function isCold(utci, limits = STANDARD) {
+export function isCold(utci, limits = thermalLimits()) {
   return utci < limits.cold[0]
 }
 
@@ -64,7 +136,7 @@ export function isCold(utci, limits = STANDARD) {
  * The card line, only for the side that applies: "Hard: above 32 °C", "Mixed: below 9 °C",
  * "Easy: 9 to 26 °C".
  */
-export function thermalVerdict(utci, limits = STANDARD) {
+export function thermalVerdict(utci, limits = thermalLimits()) {
   const [hMixed, hHard] = limits.heat
   const [cEasy, cHard] = limits.cold
   const state = thermalState(utci, limits)
@@ -84,7 +156,7 @@ export function walkMinutes(m) {
  * Which side of the scale the values on screen reach: 'heat' when none is below the easy range,
  * 'cold' when some are below it and none above it, 'both' when there are some of each.
  */
-export function thermalSide(values, limits = STANDARD) {
+export function thermalSide(values, limits = thermalLimits()) {
   const [lo, hi] = easyRange(limits)
   const cold = values.some((v) => v < lo)
   const hot = values.some((v) => v > hi)
@@ -97,7 +169,7 @@ export function thermalSide(values, limits = STANDARD) {
  * 'both'; with both, each has two short lines). Plain numbers: the legend's title carries the °C.
  * { state, label, lines }
  */
-export function thermalLegend(limits = STANDARD, side = 'both') {
+export function thermalLegend(limits = thermalLimits(), side = 'both') {
   const [hMixed, hHard] = limits.heat.map(deg)
   const [cEasy, cHard] = limits.cold.map(deg)
   const heat = side !== 'cold'
@@ -116,7 +188,7 @@ export function thermalLegend(limits = STANDARD, side = 'both') {
  * bar's max; cold side from the bar's min to heat[0], so hard is on the left; both from min to max.
  * Positions are 0–100 (%). { min, max, stops: [{ at, state }], ticks: [{ at, value }] }
  */
-export function thermalBar(limits = STANDARD, side = 'heat', ends = config.thermalBar) {
+export function thermalBar(limits = thermalLimits(), side = 'heat', ends = config.thermalBar) {
   const [hMixed, hHard] = limits.heat
   const [cEasy, cHard] = limits.cold
   const min = side === 'heat' ? cEasy : ends.min
@@ -134,6 +206,11 @@ export function thermalBar(limits = STANDARD, side = 'heat', ends = config.therm
   }
 }
 
+/** Beyond an end of the bar: 'low', 'high' or null (the marker is then an arrow pointing out). */
+export function beyondBar(utci, bar) {
+  return utci < bar.min ? 'low' : utci > bar.max ? 'high' : null
+}
+
 /** Where a value sits on the bar, 0–100, clamped at the ends. */
 export function barPosition(utci, bar) {
   return Math.min(100, Math.max(0, (100 * (utci - bar.min)) / (bar.max - bar.min)))
@@ -146,7 +223,7 @@ export function barLabel(utci, side) {
 }
 
 /** Set utci and thermal_state on every segment that has a value. */
-export function withThermal(fc, values, limits = STANDARD) {
+export function withThermal(fc, values, limits = thermalLimits()) {
   return {
     type: 'FeatureCollection',
     features: fc.features.map((f) => {

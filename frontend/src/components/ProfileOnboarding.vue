@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router'
 import config from '../config.js'
 import { A16_MAX, answered, complete, gridRows } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
+import { WEATHER } from '../lib/weather.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
@@ -29,8 +30,12 @@ const last = computed(() => step.value === STEPS.length - 1)
 
 const rows = computed(() => (q.value?.type === 'grid_1_5' ? gridRows(survey.value, code.value) : []))
 const answeredRows = computed(() => rows.value.filter((r) => Number.isInteger(draft.value.answers[code.value]?.[r.code])).length)
+// The Weather step (optional; the app's own question, lib/weather.js): on the Part A scale, with its words.
+const partAScale = computed(() => survey.value.questions.find((x) => x.code === 'A12'))
+const weatherAnswered = computed(() => WEATHER.rows.filter((r) => Number.isInteger(draft.value.weather?.[r.code])).length)
 const done = computed(() => answered(survey.value, draft.value.answers, code.value))
-const countLine = computed(() => (rows.value.length ? `${answeredRows.value} of ${rows.value.length} answered` : ''))
+const countLine = computed(() => (rows.value.length ? `${answeredRows.value} of ${rows.value.length} answered`
+  : code.value === 'weather' ? `${weatherAnswered.value} of ${WEATHER.rows.length} answered` : ''))
 
 const a11Words = computed(() => {
   const l = q.value?.labels
@@ -103,7 +108,7 @@ function cancelEdit() {
           <p class="intro">{{ survey.intro[lang] }}</p>
         </template>
 
-        <template v-else-if="q.code === 'A11'">
+        <template v-else-if="q?.code === 'A11'">
           <h2 :id="`q-${code}`" tabindex="-1">{{ q.title[lang] }}</h2>
           <p class="help">1 = {{ q.labels['1'][lang] }}, 5 = {{ q.labels['5'][lang] }}</p>
           <div class="cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
@@ -111,7 +116,7 @@ function cancelEdit() {
                        @update:model-value="store.answer('A11', $event)" />
         </template>
 
-        <template v-else-if="q.type === 'grid_1_5'">
+        <template v-else-if="q?.type === 'grid_1_5'">
           <h2 :id="`q-${code}`" tabindex="-1">{{ q.title[lang] }}</h2>
           <p class="help">{{ q.help[lang] }}</p>
           <div class="cols grid-cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
@@ -120,7 +125,17 @@ function cancelEdit() {
                        @update:model-value="store.answer(code, $event, r.code)" />
         </template>
 
-        <template v-else-if="q.code === 'A16'">
+        <template v-else-if="code === 'weather'">
+          <h2 :id="`q-${code}`" tabindex="-1">{{ WEATHER.title[lang] }}</h2>
+          <p class="help">{{ partAScale.help[lang] }}</p>
+          <p class="help weather-note">{{ WEATHER.note[lang] }}</p>
+          <div class="cols grid-cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
+          <ScoreChoice v-for="r in WEATHER.rows" :key="r.code" :name="`weather-${r.code}`" :label="r[lang]" :icon="r.icon"
+                       :words="partAScale.scale[lang]" :model-value="draft.weather?.[r.code] ?? null"
+                       @update:model-value="store.answer('weather', $event, r.code)" />
+        </template>
+
+        <template v-else-if="q?.code === 'A16'">
           <h2 :id="`q-${code}`" tabindex="-1">
             <label for="a16">{{ q.title[lang] }}</label>
           </h2>
@@ -162,7 +177,7 @@ p, h2 { margin: 0; }
 .body { width: min(100%, var(--onboarding-w)); container: onboarding / inline-size; margin-top: var(--space-5); }
 .progress-row { display: flex; justify-content: space-between; font-weight: var(--fw-semibold); color: var(--text-2); }
 .progress-row .step { margin-left: auto; }
-.progress { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-1); margin: var(--space-2) 0 var(--space-4); }
+.progress { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--space-1); margin: var(--space-2) 0 var(--space-4); }
 .seg { height: var(--progress-h); border-radius: var(--radius-pill); background: var(--line); }
 .seg.on { background: var(--text-muted); }
 
@@ -180,6 +195,7 @@ h2 label { cursor: text; }
 }
 .answer:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
 .message { color: var(--hard-text); font-size: var(--fs-sm); }
+.weather-note { color: var(--text-muted); }
 .foot { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
 .count { flex: 1; text-align: center; color: var(--text-2); font-size: var(--fs-sm); }
 .btn:disabled { opacity: var(--inactive-opacity); }

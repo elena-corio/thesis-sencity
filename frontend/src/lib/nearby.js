@@ -4,7 +4,7 @@
 // level and rank.
 import config from '../config.js'
 import { haversine, midpoint } from './geo.js'
-import { compareComfort, comfortKey, thermalState } from './thermal.js'
+import { compareComfort, comfortKey, thermalLimits, thermalState } from './thermal.js'
 
 /** Comfort levels, worst first: a candidate must have a higher one. */
 export const LEVEL = { hard: 0, mixed: 1, easy: 2 }
@@ -36,12 +36,12 @@ export function easierNearby(feature, features, { levelOf, rank = () => 0, compa
 }
 
 /** Thermal level of a feels-like value for these limits (the person's, once the profile sets them). */
-export function thermalLevel(utci, limits = config.thermalLimits) {
+export function thermalLevel(utci, limits = thermalLimits()) {
   return utci == null ? null : LEVEL[thermalState(utci, limits)]
 }
 
 /** "Cooler (or warmer) street nearby": ranked by closeness to comfort (comfortKey), then walking distance. */
-export function easierThermalNearby(feature, features, limits = config.thermalLimits, maxM = config.nearby.maxM) {
+export function easierThermalNearby(feature, features, limits = thermalLimits(), maxM = config.nearby.maxM) {
   if (feature.properties.utci == null) return null
   return easierNearby(feature, features, {
     levelOf: (f) => thermalLevel(f.properties.utci, limits),

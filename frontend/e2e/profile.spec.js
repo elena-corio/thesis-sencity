@@ -78,13 +78,13 @@ test.describe('your sensory profile', () => {
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-consent')))).agreed).toBeTruthy()
 
     const ob = page.locator('[data-panel="onboarding"]')
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 1 of 6')
     await expect(ob).toContainText('Think of all eight senses') // part_a.json intro, word for word
     await expect(page.getByRole('navigation', { name: 'Views' })).toHaveCount(0) // full screen
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A11: required.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 6')
     await expect(ob.getByRole('heading', { level: 2 })).toHaveText('In general, how sensory-comfortable do you feel spending time in outdoor public spaces?')
     await ob.getByRole('button', { name: 'Next' }).click()
     await expect(ob.getByRole('alert')).toHaveText('Please choose an answer to go on.')
@@ -92,7 +92,7 @@ test.describe('your sensory profile', () => {
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A12: 10 rows with their sense icons; every row required. Leave halfway: the answers are kept.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 6')
     await expect(ob.locator('fieldset')).toHaveCount(10)
     await expect(ob.locator('fieldset .sense-icon')).toHaveCount(10)
     await expect(ob.locator('fieldset').first()).toContainText('Greenery, trees')
@@ -109,12 +109,12 @@ test.describe('your sensory profile', () => {
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 5') // back where you left
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 6') // back where you left
     await expect(ob).toContainText('5 of 10 answered')
     await answerGrid(page, 'A12', DEV.answers.A12)
     await ob.getByRole('button', { name: 'Next' }).click()
 
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 4 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 4 of 6')
     await answerGrid(page, 'A13', DEV.answers.A13)
     await ob.getByRole('button', { name: 'Back' }).click()
     await expect(ob).toContainText('10 of 10 answered')
@@ -122,8 +122,21 @@ test.describe('your sensory profile', () => {
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A16: optional.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 5 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 5 of 6')
     await ob.getByRole('textbox', { name: 'Is there anything else in public spaces that pleases or bothers your senses? (optional)' }).fill(DEV.answers.A16)
+    await ob.getByRole('button', { name: 'Next' }).click()
+
+    // Weather (Elena, 2026-11-15): hot, cold and windy weather on the Part A scale; local only.
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 6 of 6')
+    await expect(ob.getByRole('heading', { level: 2 })).toHaveText('Outdoors, how pleasant or unpleasant is this weather for you?')
+    await expect(ob.locator('fieldset')).toHaveCount(3)
+    // The progress bar: six segments on one line.
+    expect(new Set(await ob.locator('.progress .seg').evaluateAll((s) => s.map((e) => Math.round(e.getBoundingClientRect().top)))).size).toBe(1)
+    await expect(ob).toContainText('It is not sent to the model.')
+    await choose(page, 'weather-hot', 1)
+    await choose(page, 'weather-cold', 3)
+    await choose(page, 'weather-wind', 2)
+    await page.screenshot({ path: 'e2e/screens/profile-weather-dark.png' })
     await ob.getByRole('button', { name: 'Save your profile' }).click()
 
     // 5: the profile. Its text is the study's, word for word; the version is the server's.
@@ -134,7 +147,73 @@ test.describe('your sensory profile', () => {
     expect(stored.text).toBe(DEV.expected)
     expect(stored.version).toBe(DEV_VERSION)
     expect(stored.answers).toEqual(DEV.answers)
+    // The weather answers are kept with the profile, apart from the answers: the text and the version are unchanged.
+    expect(stored.weather).toEqual({ hot: 1, cold: 3, wind: 2 })
+    expect(stored.text).not.toContain('weather')
     expect(await draft(page)).toBe(null)
+
+    // "Temperature that feels comfortable to you", under the overall comfort: hot 1 moves the heat limits down 3 °C.
+    const tc = summary.getByTestId('thermal-comfort')
+    expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="thermal-comfort"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
+    await expect(tc.getByTestId('thermal-summary')).toHaveText('Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C.')
+    // "Standard: 9 to 26 °C." on its own line, under the person's range.
+    const [mineLine, stdLine] = await Promise.all([tc.getByTestId('thermal-summary').locator('span').first().boundingBox(), tc.getByTestId('thermal-summary').locator('.standard').boundingBox()])
+    expect(stdLine.y).toBeGreaterThan(mineLine.y + mineLine.height - 1)
+    await expect(tc.locator('[data-tick]')).toHaveCount(4)
+    const hot = tc.locator('[data-handle="heat"]')
+    await expect(hot).toHaveAttribute('aria-valuenow', '23')
+    // Reset is always there; it works once a limit was moved by hand.
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeDisabled()
+    const size = await hot.boundingBox()
+    expect(size.width).toBeGreaterThanOrEqual(44)
+    expect(size.height).toBeGreaterThanOrEqual(44)
+    // Keyboard: 0.5 °C a press. Reset goes back to the answers.
+    await hot.focus()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 24 °C')
+    expect((await saved(page)).thermal).toEqual({ heat: 24 })
+    // No standard ticks on the bar (Elena, 2026-11-15): only the person's four limits.
+    await expect(tc.locator('.tick.standard')).toHaveCount(0)
+    // The start of hot stops at 39 °C, so its hard limit (+6) stays on the bar's end, 45 °C.
+    await expect(hot).toHaveAttribute('aria-valuemax', '39')
+    for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowRight')
+    await expect(hot).toHaveAttribute('aria-valuenow', '39')
+    const [lastTick, trackBox] = await Promise.all([tc.locator('[data-tick]').last().boundingBox(), tc.locator('.track').boundingBox()])
+    expect(lastTick.x + lastTick.width / 2).toBeLessThanOrEqual(trackBox.x + trackBox.width + 1)
+    await page.keyboard.press('Tab')
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowLeft') // nothing focused: nothing moves
+    expect((await saved(page)).text).toBe(DEV.expected) // never in the profile text
+    await tc.getByRole('button', { name: 'Reset' }).click()
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 23 °C')
+    expect((await saved(page)).thermal).toBe(null)
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeVisible()
+    await expect(tc.getByRole('button', { name: 'Reset' })).toBeDisabled()
+    // Dragging the start of cold.
+    const track = await tc.locator('.track').boundingBox()
+    const cold = tc.locator('[data-handle="cold"]')
+    const c = await cold.boundingBox()
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(track.x + track.width * (14 + 10) / 55, c.y + c.height / 2, { steps: 5 }) // 14 °C
+    await page.mouse.up()
+    await expect(cold).toHaveAttribute('aria-valuenow', '14')
+    await expect(cold).toHaveAttribute('aria-valuemin', '-1') // its hard limit (−9) stays on the bar's end, −10 °C
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
+    const c2 = await cold.boundingBox()
+    await page.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(track.x - 40, c.y + c.height / 2, { steps: 5 }) // past the cold end
+    await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' }) // while dragging: no standard ticks
+    await page.mouse.up()
+    await expect(cold).toHaveAttribute('aria-valuenow', '-1')
+    // The ends under the snowflake and the sun (Elena, 2026-11-15); a border on the end is not written again.
+    await expect(tc.locator('[data-end="cold"]')).toHaveText('−10')
+    await expect(tc.locator('[data-end="hot"]')).toHaveText('45 °C')
+    expect(await tc.locator('.bar-ticks span', { hasText: /^−10$/ }).count()).toBe(0)
+    const [flake, coldEnd] = await Promise.all([tc.locator('.end').first().boundingBox(), tc.locator('[data-end="cold"]').boundingBox()])
+    expect(Math.abs((flake.x + flake.width / 2) - (coldEnd.x + coldEnd.width / 2))).toBeLessThan(2)
+    await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
     await expect(summary.locator('aside .top li').first()).toHaveText(/Traffic, trams\s*1 · very unpleasant/) // the answers' words
@@ -193,7 +272,7 @@ test.describe('your sensory profile', () => {
     // Edit one answer: the onboarding opens at that question, with Cancel and Save changes.
     await summary.getByRole('button', { name: /^Edit: In general/ }).click()
     const ob = page.locator('[data-panel="onboarding"]')
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 6')
     await expect(page.locator('[data-row="A11"] input[value="2"]')).toBeChecked()
     await choose(page, 'A11', 4)
     await ob.getByRole('button', { name: 'Save changes' }).click()
@@ -201,6 +280,24 @@ test.describe('your sensory profile', () => {
     const edited = await saved(page)
     expect(edited.text).toBe(DEV.expected.replace('(1 = not at all … 5 = very much): 2.', '(1 = not at all … 5 = very much): 4.'))
     expect(edited.version).not.toBe(DEV_VERSION)
+
+    // The overall comfort bar can be dragged too: it snaps to 1–5, saves A11 and builds the profile again.
+    const a11 = summary.locator('[data-handle="A11"]')
+    await expect(a11).toHaveAttribute('aria-valuenow', '4')
+    const a11Track = await summary.getByTestId('overall-bar').locator('.track').boundingBox()
+    const h = await a11.boundingBox()
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(a11Track.x + a11Track.width * 0.48, h.y + h.height / 2, { steps: 5 }) // nearest is 3
+    await page.mouse.up()
+    await expect(a11).toHaveAttribute('aria-valuenow', '3')
+    await expect(summary.getByTestId('overall-comfort')).toContainText('3 of 5')
+    expect((await saved(page)).answers.A11).toBe(3)
+    expect((await saved(page)).text).toContain('(1 = not at all … 5 = very much): 3.')
+    await a11.focus()
+    await page.keyboard.press('ArrowRight') // and with the keys, one step
+    await expect(summary.getByTestId('overall-comfort')).toContainText('4 of 5')
+    expect((await saved(page)).answers.A11).toBe(4)
 
     // The radar follows an edit at once: traffic from 1 to 3, hearing now bothers 3.
     await summary.getByText('Your answers, element by element').click()
@@ -325,7 +422,7 @@ test.describe('your sensory profile', () => {
     // Delete my profile took the consent too: "Before you start" again, then the first step.
     await page.getByText('I have read this and agree').click()
     await page.getByRole('button', { name: 'Agree and start' }).click()
-    await expect(page.locator('[data-panel="onboarding"]').getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
+    await expect(page.locator('[data-panel="onboarding"]').getByTestId('onboarding-step')).toHaveText('Step 1 of 6')
   })
 })
 
@@ -357,5 +454,20 @@ test.describe('your sensory profile on a phone', () => {
     await expect(page.getByRole('button', { name: 'Next' })).toBeInViewport()
     expect(await page.locator('[data-panel="onboarding"]').evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0)
     await page.screenshot({ path: 'e2e/screens/profile-onboarding-phone-dark.png' })
+  })
+})
+
+test.describe('your sensory profile, a start kept from before', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a start of cold saved beyond the bar is shown at its minimum, its hard limit on the bar\'s end', async ({ page }) => {
+    await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: DEV_VERSION, saved: '2026-11-15T10:00:00Z',
+      weather: {}, thermal: { cold: -6 } }) // allowed by an earlier scale (−15 to 45)
+    await openProfile(page)
+    const tc = page.getByTestId('thermal-comfort')
+    await expect(tc.locator('[data-handle="cold"]')).toHaveAttribute('aria-valuenow', '-1')
+    const [first, track] = await Promise.all([tc.locator('[data-tick]').first().boundingBox(), tc.locator('.track').boundingBox()])
+    expect(first.x + first.width / 2).toBeGreaterThanOrEqual(track.x - 1)
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about −1 to 26 °C')
   })
 })

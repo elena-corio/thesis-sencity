@@ -48,6 +48,8 @@ const PATHS = {
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'],
   lock: ['M6 11h12v10H6z', 'M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11'],
   send: ['M21 3L10 14', 'M21 3l-7 18-4-7-7-4z'],
+  snowflake: ['M12 2v20', 'M4.5 7l15 10', 'M19.5 7l-15 10', 'M9.5 3.5L12 6l2.5-2.5', 'M9.5 20.5L12 18l2.5 2.5'],
+  wind: ['M3 9h11a3 3 0 1 0-3-3', 'M3 15h15a3 3 0 1 1-3 3', 'M3 12h7'],
 }
 
 defineProps({ name: { type: String, required: true } })

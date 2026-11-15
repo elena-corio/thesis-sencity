@@ -12,7 +12,7 @@ import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
 import { nearestWithPhotos, photoLine, sizeLabel, typeLabel } from '../lib/place.js'
-import { barLabel, barPosition, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
+import { barLabel, barPosition, beyondBar, formatDegrees, isCold, thermalBar, thermalLimits, thermalSide, thermalVerdict, walkMinutes } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -182,7 +182,8 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
             <strong :class="['state-label', p.thermal_state]">{{ STATE_LABEL[p.thermal_state] }}</strong>
           </div>
           <div class="track" role="img" :aria-label="barLabel(p.utci, side)" :style="{ background: gradient }">
-            <span class="diamond" :style="{ left: `${barPosition(p.utci, bar)}%` }" />
+            <span class="diamond" :class="beyondBar(p.utci, bar)" :style="{ left: `${barPosition(p.utci, bar)}%` }"
+                  :data-beyond="beyondBar(p.utci, bar) ?? undefined" />
           </div>
           <div class="bar-ticks" aria-hidden="true">
             <span v-for="(t, i) in bar.ticks" :key="t.value" :class="{ first: i === 0, last: i === bar.ticks.length - 1 }"
@@ -253,6 +254,12 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
   transform: translate(-50%, -50%) rotate(45deg);
   background: var(--ring); border: var(--hairline) solid var(--ring-edge);
 }
+/* A value beyond an end: an arrow at that end, pointing out (Elena, 2026-11-15). */
+.diamond.low, .diamond.high {
+  width: var(--icon-sm); height: var(--icon-sm); border: 0; transform: translate(-50%, -50%);
+}
+.diamond.low { clip-path: polygon(0 50%, 100% 0, 100% 100%); }
+.diamond.high { clip-path: polygon(100% 50%, 0 0, 0 100%); }
 /* Scale ends and band borders (°C), each under its place on the bar; the ends align to the bar's ends. */
 .bar-ticks { position: relative; height: calc(var(--fs-xs) * var(--lh)); margin: var(--space-2) var(--space-1) 0; font-size: var(--fs-xs); color: var(--text-muted); }
 .bar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }

@@ -1,6 +1,7 @@
 <script setup>
 // One 1–5 answer (boards 4, P4): a group of five radio buttons, so the arrow keys move between them and a screen
 // reader names the row. The label and its icon come from part_a.json and elements.json (icon_key).
+import AppIcon from './AppIcon.vue'
 import SenseIcon from './SenseIcon.vue'
 
 const props = defineProps({
@@ -9,6 +10,8 @@ const props = defineProps({
   modelValue: { type: Number, default: null },
   sense: { type: String, default: null },
   senseName: { type: String, default: '' },
+  /** A plain icon instead of a sense (the Weather step: sun, snowflake, wind). */
+  icon: { type: String, default: null },
   /** The words of each value, for screen readers ("1, very unpleasant"). */
   words: { type: Array, default: () => [] },
   /** A question on its own (A11): the label is the question above, so it is not repeated here. */
@@ -22,6 +25,7 @@ const VALUES = [1, 2, 3, 4, 5]
   <fieldset class="score" :class="{ bare }" :data-row="name">
     <legend :class="{ 'visually-hidden': bare }">
       <SenseIcon v-if="sense" :sense="sense" :label="senseName" />
+      <AppIcon v-else-if="icon" :name="icon" class="plain-icon" />
       <span>{{ label }}</span>
     </legend>
     <div class="boxes">
@@ -44,7 +48,7 @@ legend {
   float: left; display: flex; align-items: center; gap: var(--space-3); padding: 0;
   color: var(--text); font-size: var(--fs-md);
 }
-legend :deep(.sense-icon) { color: var(--text-muted); }
+legend :deep(.sense-icon), legend .plain-icon { color: var(--text-muted); }
 .boxes { display: grid; grid-template-columns: repeat(5, var(--score-w)); gap: var(--space-2); }
 .bare .boxes { grid-template-columns: repeat(5, minmax(var(--score-w), 1fr)); }
 .box {
