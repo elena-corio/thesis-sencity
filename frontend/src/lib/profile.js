@@ -92,6 +92,8 @@ export function exportFile(profile) {
     answers: profile.answers,
     profile: profile.text,
     version: profile.version,
+    weather: profile.weather ?? {}, // the Weather step: local only, never in the profile text
+    thermal: profile.thermal ?? null, // the starts of hot and cold moved by hand on the profile's bar
   }
 }
 
@@ -104,7 +106,8 @@ export function readFile(survey, data) {
   if (!['en', 'it'].includes(data.language)) return { error: 'The file names a language the app does not know.' }
   const answers = clean(survey, data.answers)
   if (!complete(survey, answers)) return { error: 'The file does not answer every question the profile needs.' }
-  return { answers, language: data.language }
+  const thermal = data.thermal && typeof data.thermal === 'object' ? data.thermal : null
+  return { answers, language: data.language, weather: data.weather ?? {}, thermal }
 }
 
 /** The elements as bothers / feels good, strongest first (board 5, "Strongest for you"): 1–2 bother, 4–5 feel good. */

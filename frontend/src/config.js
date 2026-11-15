@@ -42,13 +42,18 @@ export default {
 
   // Thermal window shown before analysis (brief §6, Infrared.city windows).
   thermalDefault: { season: 'summer', time: '15:00' },
-  // Thermal limits, the standard ones for everyone (no profiles yet): every one lives here, and
-  // lib/thermal.js thermalLimits() is the only reader. Feels-like °C, standard UTCI stress categories.
+  // Thermal limits, the standard ones: every one lives here, and lib/thermal.js reads them (thermalLimits() gives the
+  // ones in use: personal with a profile's weather answers, else these). Feels-like °C, standard UTCI stress categories.
   // Easy from cold[0] to heat[0] (no thermal stress); mixed from heat[0] to heat[1] (moderate heat) or
   // cold[1] to cold[0] (slight and moderate cold, so 0–9 °C is mixed); hard above heat[1] or below
   // cold[1]. Thermal has no 1–5 score, only these three levels. The comfort target is the middle of
   // the easy range in use: (9 + 26) / 2 = 17.5 °C here.
   thermalLimits: { heat: [26, 32], cold: [9, -13] },
+  // Personal limits from the Weather step (Elena, 2026-11-15): hot weather answered 1 moves both heat limits down by
+  // 3 °C, 2 by 1.5 °C; cold weather 1 moves both cold limits up by 3 °C, 2 by 1.5 °C; 3–5 keep the standard bands.
+  // On the profile's bar the start of hot and of cold can be dragged in steps of `step` °C, keeping the easy range at
+  // least `minEasy` °C wide.
+  thermalPersonal: { shift: { 1: 3, 2: 1.5 }, step: 0.5, minEasy: 2 },
   // The temperature bar on the place card: its ends (°C). Heat side from cold[0] to max, cold side from
   // min to heat[0], both sides from min to max; a value beyond an end sits at that end.
   thermalBar: { min: -20, max: 40 },

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
 import { ApiError, loadArea, pointName } from '../lib/api.js'
 import { POINT_LABEL, haversine, limitRadius } from '../lib/geo.js'
@@ -211,6 +211,14 @@ export const useAreaStore = defineStore('area', () => {
         : 'Could not load street photos for this area. Check that the API is running, then try again.'
     }
   }
+
+  // Personal limits changed (the profile's weather answers or its bar): the streets' states follow, from the values
+  // already here; nothing is asked again.
+  watch(() => thermalLimits(), () => {
+    const fc = segments.value
+    if (!fc?.features?.some((f) => f.properties.utci != null)) return
+    segments.value = withThermal(fc, Object.fromEntries(fc.features.map((f) => [f.properties.id, f.properties.utci])))
+  })
 
   function applyThermal(e) {
     segments.value = withThermal(segments.value, e.values)

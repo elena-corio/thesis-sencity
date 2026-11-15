@@ -184,6 +184,7 @@
   --radar-fill-opacity: 0.22;
   --radar-line: 2.5px;
   --radar-ring: 1px;
+  --thermal-track-h: 10px;         /* the profile's "Temperature that feels comfortable to you" bar */
 }
 
 :root[data-theme="dark"] {

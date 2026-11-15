@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import config from '../config.js'
 import { loadRoutes, pointName } from '../lib/api.js'
 import { formatKm, stretchesOf, stretchMiddle } from '../lib/routes.js'
@@ -193,6 +193,15 @@ export const useRoutesStore = defineStore('routes', () => {
     end.value = null
     inputsOpen.value = false
   }
+
+  // Personal limits changed: the streets' states follow, from the values already here. The two ways were chosen with
+  // the limits of their request; a new route request uses the new ones.
+  watch(() => thermalLimits(), () => {
+    const feats = [...segments.value.values()]
+    if (!feats.some((f) => f.properties.utci != null)) return
+    const values = Object.fromEntries(feats.map((f) => [f.properties.id, f.properties.utci]))
+    segments.value = new Map(withThermal({ type: 'FeatureCollection', features: feats }, values).features.map((f) => [f.properties.id, f]))
+  })
 
   function apply(e) {
     segments.value = new Map(withThermal(e.segments, e.values).features.map((f) => [f.properties.id, f]))

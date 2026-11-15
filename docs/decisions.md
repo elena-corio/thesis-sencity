@@ -34,6 +34,20 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
 - *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
 
+## 2026-11-15 – Weather step and personal Thermal limits; the comfortable temperature on the profile (accepted)
+**Context.** Elena: a Weather step after A16 (hot, cold and windy weather outdoors, on the Part A scale, EN and IT), kept with the profile but never in the profile text or a model call; personal Thermal limits from it; on the profile, a bar "Temperature that feels comfortable to you" whose two inner limits are draggable; remove the old rule that used "Direct sun, little shade" for heat.
+**Decision (Elena).**
+- *Weather step:* step 6 of 6, after A16: "Outdoors, how pleasant or unpleasant is this weather for you?" with Hot weather, Cold weather, Windy weather (Caldo, Freddo, Vento), each 1–5 with the Part A scale words and help. The words are the app's (`lib/weather.js`), not the export's.
+- *Kept apart:* `profile.weather` and `profile.thermal` sit next to `profile.answers`, not in it: never in the profile text, the profile version or any request to the model. The parity test is unchanged and passes. Edited from the profile ("Your answers, element by element" → Weather, Edit), in the download file, imported back, removed by "Delete my profile".
+- *Limits:* hot 1 → both heat limits −3 °C, 2 → −1.5 °C; cold 1 → both cold limits +3 °C, 2 → +1.5 °C; otherwise the standard UTCI bands (`config.thermalPersonal`). They apply everywhere `thermalLimits()` is read: the map's colours (recoloured from the values already loaded, no new request), the place card, the legend (which then says the range is the person's and that this personalisation is untested), the nearby street, the suggestions and the routes. A Thermal route request sends the four numbers for its answer, as the API was built for ("used for this answer and not kept"); the answers themselves never leave the device.
+- *The bar:* directly under the overall comfort in the right card; feels-like −20 to 40 °C with a snowflake at the cold end and a sun at the hot end; the map's comfort colours blending hard → mixed → easy → mixed → hard; four ticks at the person's limits and the standard ones faint behind; the start of cold and the start of hot are handles (44 px, `role="slider"`, arrow keys 0.5 °C); Reset back to the answers; the summary line "Comfortable for you: about … to … °C (feels like). Standard: 9 to 26 °C.", also read by screen readers. The handles replace the separate sliders of the first request.
+- *Removed:* the brief's rule that moved the heat limits when "Direct sun, little shade" bothers the person (it was never built).
+
+**Proposed.**
+- *The Weather step is optional* (Next works with rows unanswered): an unanswered row keeps the standard band, and profiles saved before this step keep working.
+- *Moving a handle moves its side's two limits together* (the 6 °C mixed band kept), and the easy range stays at least 2 °C wide. New weather answers drop a handle moved by hand, so the bar follows the answers again.
+- *Not built: the windy-corner flag.* The app has no wind data (Infrared.city gives the feels-like temperature only), so there is no windy corner to flag yet; the wind answer is kept and `windSensitive` (wind 1–2) is ready for it. Asked.
+
 ## 2026-11-15 – Profile on a phone; no profile text on the page (accepted)
 **Context.** Elena: on a phone, past half of the ratings "the view is cropped"; more margin above the profile title; and "remove Your sensory profile, as the model reads it".
 **Decision.**

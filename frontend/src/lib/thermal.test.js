@@ -130,3 +130,51 @@ describe('temperature bar', () => {
     expect(barLabel(5, 'both')).toBe('Feels like 5 °C on the full scale, heat and cold')
   })
 })
+
+// Personal limits from the Weather step (Elena, 2026-11-15)
+import { clampStart, comfortSummary, personalLimits, setPersonalLimits, startsFromAnswers, thermalLimits as inUse } from './thermal.js'
+import { cleanWeather, windSensitive } from './weather.js'
+
+describe('personal thermal limits', () => {
+  it('shift the heat limits down for hot 1 and 2, the cold limits up for cold 1 and 2, and nothing for 3–5', () => {
+    expect(personalLimits({ hot: 1, cold: 1 })).toEqual({ heat: [23, 29], cold: [12, -10] })
+    expect(personalLimits({ hot: 2, cold: 2 })).toEqual({ heat: [24.5, 30.5], cold: [10.5, -11.5] })
+    expect(personalLimits({ hot: 2 })).toEqual({ heat: [24.5, 30.5], cold: [9, -13] })
+    for (const v of [3, 4, 5]) expect(personalLimits({ hot: v, cold: v, wind: 1 })).toBe(null)
+    expect(personalLimits({})).toBe(null)
+  })
+
+  it('follow a start moved by hand, which moves its side\'s two limits together', () => {
+    expect(personalLimits({ hot: 1 }, { heat: 28 })).toEqual({ heat: [28, 34], cold: [9, -13] })
+    expect(personalLimits({}, { cold: 5 })).toEqual({ heat: [26, 32], cold: [5, -17] })
+    expect(startsFromAnswers({ hot: 1, cold: 2 })).toEqual({ heat: 23, cold: 10.5 })
+  })
+
+  it('keep a moved start on the scale, in 0.5 °C steps, and the easy range at least 2 °C wide', () => {
+    expect(clampStart('heat', 23.3, 9)).toBe(23.5)
+    expect(clampStart('heat', 10, 9)).toBe(11)
+    expect(clampStart('cold', 30, 26)).toBe(24)
+    expect(clampStart('heat', 99, 9)).toBe(40)
+    expect(clampStart('cold', -99, 26)).toBe(-20)
+  })
+
+  it('say the comfortable range in words, next to the standard one', () => {
+    expect(comfortSummary({ heat: [23, 29], cold: [9, -13] })).toBe('Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C.')
+    expect(comfortSummary({ heat: [24.5, 30.5], cold: [10.5, -11.5] })).toBe('Comfortable for you: about 10.5 to 24.5 °C (feels like). Standard: 9 to 26 °C.')
+  })
+
+  it('are the ones in use while set, and the state of a street follows them', () => {
+    setPersonalLimits(personalLimits({ hot: 1 }))
+    expect(inUse()).toEqual({ heat: [23, 29], cold: [9, -13] })
+    expect(thermalState(24)).toBe('mixed') // easy for the standard limits
+    setPersonalLimits(null)
+    expect(thermalState(24)).toBe('easy')
+  })
+
+  it('keep only hot, cold and wind answered 1–5; wind 1–2 flags wind', () => {
+    expect(cleanWeather({ hot: 1, cold: 9, wind: 2, rain: 1 })).toEqual({ hot: 1, wind: 2 })
+    expect(windSensitive({ wind: 2 })).toBe(true)
+    expect(windSensitive({ wind: 3 })).toBe(false)
+    expect(windSensitive({})).toBe(false)
+  })
+})

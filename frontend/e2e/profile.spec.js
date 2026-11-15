@@ -78,13 +78,13 @@ test.describe('your sensory profile', () => {
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-consent')))).agreed).toBeTruthy()
 
     const ob = page.locator('[data-panel="onboarding"]')
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 1 of 6')
     await expect(ob).toContainText('Think of all eight senses') // part_a.json intro, word for word
     await expect(page.getByRole('navigation', { name: 'Views' })).toHaveCount(0) // full screen
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A11: required.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 6')
     await expect(ob.getByRole('heading', { level: 2 })).toHaveText('In general, how sensory-comfortable do you feel spending time in outdoor public spaces?')
     await ob.getByRole('button', { name: 'Next' }).click()
     await expect(ob.getByRole('alert')).toHaveText('Please choose an answer to go on.')
@@ -92,7 +92,7 @@ test.describe('your sensory profile', () => {
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A12: 10 rows with their sense icons; every row required. Leave halfway: the answers are kept.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 6')
     await expect(ob.locator('fieldset')).toHaveCount(10)
     await expect(ob.locator('fieldset .sense-icon')).toHaveCount(10)
     await expect(ob.locator('fieldset').first()).toContainText('Greenery, trees')
@@ -109,12 +109,12 @@ test.describe('your sensory profile', () => {
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-map-ready', 'true', { timeout: 30_000 })
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 5') // back where you left
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 3 of 6') // back where you left
     await expect(ob).toContainText('5 of 10 answered')
     await answerGrid(page, 'A12', DEV.answers.A12)
     await ob.getByRole('button', { name: 'Next' }).click()
 
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 4 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 4 of 6')
     await answerGrid(page, 'A13', DEV.answers.A13)
     await ob.getByRole('button', { name: 'Back' }).click()
     await expect(ob).toContainText('10 of 10 answered')
@@ -122,8 +122,21 @@ test.describe('your sensory profile', () => {
     await ob.getByRole('button', { name: 'Next' }).click()
 
     // A16: optional.
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 5 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 5 of 6')
     await ob.getByRole('textbox', { name: 'Is there anything else in public spaces that pleases or bothers your senses? (optional)' }).fill(DEV.answers.A16)
+    await ob.getByRole('button', { name: 'Next' }).click()
+
+    // Weather (Elena, 2026-11-15): hot, cold and windy weather on the Part A scale; local only.
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 6 of 6')
+    await expect(ob.getByRole('heading', { level: 2 })).toHaveText('Outdoors, how pleasant or unpleasant is this weather for you?')
+    await expect(ob.locator('fieldset')).toHaveCount(3)
+    // The progress bar: six segments on one line.
+    expect(new Set(await ob.locator('.progress .seg').evaluateAll((s) => s.map((e) => Math.round(e.getBoundingClientRect().top)))).size).toBe(1)
+    await expect(ob).toContainText('It is not sent to the model.')
+    await choose(page, 'weather-hot', 1)
+    await choose(page, 'weather-cold', 3)
+    await choose(page, 'weather-wind', 2)
+    await page.screenshot({ path: 'e2e/screens/profile-weather-dark.png' })
     await ob.getByRole('button', { name: 'Save your profile' }).click()
 
     // 5: the profile. Its text is the study's, word for word; the version is the server's.
@@ -134,7 +147,42 @@ test.describe('your sensory profile', () => {
     expect(stored.text).toBe(DEV.expected)
     expect(stored.version).toBe(DEV_VERSION)
     expect(stored.answers).toEqual(DEV.answers)
+    // The weather answers are kept with the profile, apart from the answers: the text and the version are unchanged.
+    expect(stored.weather).toEqual({ hot: 1, cold: 3, wind: 2 })
+    expect(stored.text).not.toContain('weather')
     expect(await draft(page)).toBe(null)
+
+    // "Temperature that feels comfortable to you", under the overall comfort: hot 1 moves the heat limits down 3 °C.
+    const tc = summary.getByTestId('thermal-comfort')
+    expect(await summary.getByTestId('overall-comfort').evaluate((el) => el.compareDocumentPosition(document.querySelector('[data-testid="thermal-comfort"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
+    await expect(tc.getByTestId('thermal-summary')).toHaveText('Comfortable for you: about 9 to 23 °C (feels like). Standard: 9 to 26 °C.')
+    await expect(tc.locator('[data-tick]')).toHaveCount(4)
+    const hot = tc.locator('[data-handle="heat"]')
+    await expect(hot).toHaveAttribute('aria-valuenow', '23')
+    const size = await hot.boundingBox()
+    expect(size.width).toBeGreaterThanOrEqual(44)
+    expect(size.height).toBeGreaterThanOrEqual(44)
+    // Keyboard: 0.5 °C a press. Reset goes back to the answers.
+    await hot.focus()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 24 °C')
+    expect((await saved(page)).thermal).toEqual({ heat: 24 })
+    expect((await saved(page)).text).toBe(DEV.expected) // never in the profile text
+    await page.screenshot({ path: 'e2e/screens/profile-thermal-dark.png' })
+    await tc.getByRole('button', { name: 'Reset' }).click()
+    await expect(tc.getByTestId('thermal-summary')).toContainText('about 9 to 23 °C')
+    expect((await saved(page)).thermal).toBe(null)
+    // Dragging the start of cold.
+    const track = await tc.locator('.track').boundingBox()
+    const cold = tc.locator('[data-handle="cold"]')
+    const c = await cold.boundingBox()
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(track.x + track.width * (14 + 20) / 60, c.y + c.height / 2, { steps: 5 }) // 14 °C
+    await page.mouse.up()
+    await expect(cold).toHaveAttribute('aria-valuenow', '14')
+    await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
     await expect(summary.locator('aside .top li').first()).toHaveText(/Traffic, trams\s*1 · very unpleasant/) // the answers' words
@@ -193,7 +241,7 @@ test.describe('your sensory profile', () => {
     // Edit one answer: the onboarding opens at that question, with Cancel and Save changes.
     await summary.getByRole('button', { name: /^Edit: In general/ }).click()
     const ob = page.locator('[data-panel="onboarding"]')
-    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 5')
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 6')
     await expect(page.locator('[data-row="A11"] input[value="2"]')).toBeChecked()
     await choose(page, 'A11', 4)
     await ob.getByRole('button', { name: 'Save changes' }).click()
@@ -325,7 +373,7 @@ test.describe('your sensory profile', () => {
     // Delete my profile took the consent too: "Before you start" again, then the first step.
     await page.getByText('I have read this and agree').click()
     await page.getByRole('button', { name: 'Agree and start' }).click()
-    await expect(page.locator('[data-panel="onboarding"]').getByTestId('onboarding-step')).toHaveText('Step 1 of 5')
+    await expect(page.locator('[data-panel="onboarding"]').getByTestId('onboarding-step')).toHaveText('Step 1 of 6')
   })
 })
 

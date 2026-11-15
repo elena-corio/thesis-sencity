@@ -1,7 +1,8 @@
 <script setup>
 // Your sensory profile (board 5): every answer, each group with Edit (editing builds the profile again); on the right,
 // your own words, the strongest elements, and the device-only actions: download,
-// import, delete. The radar (ProfileRadar) under the title; thermal limits and "Places that may suit you" come later.
+// import, delete. The radar (ProfileRadar) under the title; under the overall comfort, the temperature that feels
+// comfortable (ThermalComfortBar, from the Weather step). "Places that may suit you" comes later.
 import { computed } from 'vue'
 import config from '../config.js'
 import { GRIDS, gridRows, strongest } from '../lib/profile.js'
@@ -9,6 +10,9 @@ import { senseName } from '../lib/senses.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
 import AppIcon from './AppIcon.vue'
 import ProfileRadar from './ProfileRadar.vue'
+import ThermalComfortBar from './ThermalComfortBar.vue'
+import { standardLimits } from '../lib/thermal.js'
+import { WEATHER } from '../lib/weather.js'
 import SenseIcon from './SenseIcon.vue'
 
 defineProps({ error: { type: String, default: '' }, dev: Boolean })
@@ -24,6 +28,8 @@ const kind = (v) => (v <= 2 ? 'bothers' : v >= 4 ? 'good' : 'neither')
 const top = computed(() => strongest(survey.value, p.value.answers))
 const saved = computed(() => new Date(p.value.saved).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))
 const edit = (code) => store.begin(STEPS.indexOf(code))
+const limits = computed(() => store.limits ?? standardLimits())
+const moved = computed(() => !!p.value.thermal)
 </script>
 
 <template>
@@ -48,6 +54,20 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
             </li>
           </ul>
         </div>
+        <div class="group" data-testid="answers-weather">
+          <div class="group-head">
+            <h3>{{ WEATHER.title[lang] }}</h3>
+            <button type="button" class="edit" aria-label="Edit the weather" @click="edit('weather')">Edit</button>
+          </div>
+          <ul class="rows">
+            <li v-for="r in WEATHER.rows" :key="r.code" :data-testid="`answer-weather-${r.code}`">
+              <AppIcon :name="r.icon" class="plain-icon" />
+              <span class="name">{{ r[lang] }}</span>
+              <span v-if="p.weather?.[r.code]" class="score" :class="kind(p.weather[r.code])">{{ p.weather[r.code] }} · {{ words('A12')[p.weather[r.code] - 1] }}</span>
+              <span v-else class="score">Not answered</span>
+            </li>
+          </ul>
+        </div>
       </details>
     </section>
 
@@ -67,6 +87,11 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
         <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
         <div class="ends" aria-hidden="true"><span>{{ a11.labels['1'][lang] }}</span><span>{{ a11.labels['5'][lang] }}</span></div>
         </div>
+      </div>
+
+      <!-- Directly under the general comfort line (Elena, 2026-11-15): local only, from the Weather step. -->
+      <div class="thermal">
+        <ThermalComfortBar :limits="limits" :moved="moved" @move="(side, v) => store.setStart(side, v)" @reset="store.resetStarts()" />
       </div>
 
       <div class="card-head">
@@ -116,7 +141,8 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .group { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .group-head { display: flex; align-items: baseline; gap: var(--space-3); justify-content: space-between; }
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
-.overall { padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
+.overall, .thermal { padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
+.rows .plain-icon { color: var(--text-muted); }
 /* The titles of the right card, one style (Elena, 2026-11-15): the title on the left, a value or Edit on the right. */
 .side .card-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); }
 .side .card-head h3 { flex: 1; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }

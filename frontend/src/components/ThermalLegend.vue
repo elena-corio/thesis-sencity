@@ -4,9 +4,9 @@
 // with a small info icon: its tooltip explains the feels-like temperature and names the source, on
 // hover, keyboard focus or tap (touch has no hover); Esc, blur or a tap elsewhere close it. Easy always
 // shows its range; Mixed and Hard only the side the values on screen reach (heat, cold or both).
-// Standard limits for everyone, from the config.
+// The limits in use: standard, or personal from the profile's weather answers (lib/thermal.js).
 import { computed, ref, useId } from 'vue'
-import { easyRange, thermalLegend, thermalLimits, thermalSide } from '../lib/thermal.js'
+import { easyRange, hasPersonalLimits, thermalLegend, thermalLimits, thermalSide } from '../lib/thermal.js'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -23,9 +23,11 @@ const rows = computed(() => thermalLegend(limits.value, side.value))
 const deg = (v) => String(v).replace('-', '−')
 const info = computed(() => {
   const [lo, hi] = easyRange(limits.value)
+  const easy = hasPersonalLimits()
+    ? `Easy is ${deg(lo)} to ${deg(hi)} °C for you, from your answers about the weather (this personalisation is untested). `
+    : `Easy is ${deg(lo)} to ${deg(hi)} °C, where most people feel no heat or cold stress. `
   return 'Feels-like temperature (UTCI). How hot or cold it feels on the body: air temperature, sun, shade, ' +
-    `wind and humidity together. Easy is ${deg(lo)} to ${deg(hi)} °C, where most people feel no heat or cold ` +
-    'stress. Simulated by Infrared.city.'
+    `wind and humidity together. ${easy}Simulated by Infrared.city.`
 })
 const tipId = useId()
 const focused = ref(false)
