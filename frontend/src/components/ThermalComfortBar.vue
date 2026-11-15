@@ -6,7 +6,7 @@
 // the arrow keys (0.5 °C). Reset goes back to the weather answers. Local only: never in the profile text or a model call.
 import { computed, ref } from 'vue'
 import config from '../config.js'
-import { comfortSummary, limitText, standardLimits } from '../lib/thermal.js'
+import { comfortSummary, limitText, standardLimits, thermalBar } from '../lib/thermal.js'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -23,13 +23,9 @@ const pct = (t) => `${((Math.min(max, Math.max(min, t)) - min) / (max - min)) * 
 const std = standardLimits()
 const ticks = computed(() => [props.limits.cold[1], props.limits.cold[0], props.limits.heat[0], props.limits.heat[1]])
 const stdTicks = [std.cold[1], std.cold[0], std.heat[0], std.heat[1]]
-const fill = computed(() => {
-  const [cHard, cEasy, hMixed, hHard] = ticks.value
-  const p = (t) => ((t - min) / (max - min)) * 100
-  const mid = (a, b) => (p(a) + p(b)) / 2
-  return `linear-gradient(to right, var(--hard) 0%, var(--hard) ${p(cHard)}%, var(--mixed) ${mid(cHard, cEasy)}%, ` +
-    `var(--easy) ${p(cEasy)}%, var(--easy) ${p(hMixed)}%, var(--mixed) ${mid(hMixed, hHard)}%, var(--hard) ${p(hHard)}%, var(--hard) 100%)`
-})
+// The same bar as the place card's temperature bar (lib/thermal.js thermalBar, both sides): its colours and its labels.
+const bar = computed(() => thermalBar(props.limits, 'both'))
+const fill = computed(() => `linear-gradient(to right, ${bar.value.stops.map((s) => `var(--${s.state}) ${s.at}%`).join(', ')})`)
 const summary = computed(() => comfortSummary(props.limits))
 const HANDLES = [
   { side: 'cold', label: 'Start of cold' },
@@ -76,12 +72,16 @@ function key(side, e) {
                 role="slider" :aria-label="h.label" :aria-valuemin="min" :aria-valuemax="max" :aria-valuenow="valueOf(h.side)"
                 :aria-valuetext="`${h.label}: ${limitText(valueOf(h.side))} °C, feels like`" :data-handle="h.side"
                 aria-describedby="thermal-comfort-summary" @pointerdown="down(h.side, $event)" @keydown="key(h.side, $event)">
-          <span class="dot" aria-hidden="true" />
+          <span class="diamond" aria-hidden="true" />
         </button>
       </div>
       <AppIcon name="sun" class="end" aria-hidden="true" />
+      <!-- The band borders in °C under their place, as on the place card. -->
+      <div class="bar-ticks" aria-hidden="true">
+        <span v-for="(tk, i) in bar.ticks" :key="i" :class="{ first: i === 0, last: i === bar.ticks.length - 1 }"
+              :style="{ left: `${tk.at}%` }">{{ limitText(tk.value) }}<template v-if="i === bar.ticks.length - 1"> °C</template></span>
+      </div>
     </div>
-    <div class="scale" aria-hidden="true"><span>{{ limitText(min) }}</span><span>0</span><span>{{ limitText(max) }} °C</span></div>
     <p id="thermal-comfort-summary" class="summary" aria-live="polite" data-testid="thermal-summary">{{ summary }}</p>
   </div>
 </template>
@@ -92,23 +92,31 @@ p { margin: 0; }
 .card-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); }
 .card-head h3 { flex: 1; margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }
 .link { border: 0; background: none; padding: var(--space-2) 0; min-height: var(--touch); color: var(--text-2); text-decoration: underline; font-size: var(--fs-sm); }
-.row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+.row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: var(--space-3); padding-top: var(--space-2); }
 .end { color: var(--text-2); }
-.track { position: relative; height: var(--thermal-track-h); border-radius: var(--radius-pill); touch-action: none; }
+/* The place card's bar: thin, rounded, the comfort colours blending (PlaceCard .track). */
+.track { position: relative; height: var(--swatch-h); border-radius: var(--radius-pill); touch-action: none; }
 .tick { position: absolute; top: 50%; width: var(--hairline); transform: translate(-50%, -50%); }
-.tick.standard { height: calc(var(--thermal-track-h) + 2 * var(--space-2)); background: var(--text-muted); opacity: var(--inactive-opacity); }
-.tick.mine { height: calc(var(--thermal-track-h) + 2 * var(--space-3)); width: var(--focus-width); background: var(--text); }
+.tick.standard { height: calc(var(--swatch-h) + 2 * var(--space-1)); background: var(--text-muted); opacity: var(--inactive-opacity); }
+.tick.mine { height: calc(var(--swatch-h) + 2 * var(--space-2)); background: var(--text-2); }
 .handle {
-  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1;
   width: var(--touch-phone); height: var(--touch-phone); padding: 0; border: 0; background: transparent;
-  display: grid; place-items: center; cursor: grab; touch-action: none; border-radius: 50%;
+  display: grid; place-items: center; cursor: grab; touch-action: none;
 }
 .handle:active { cursor: grabbing; }
-.handle .dot {
-  width: var(--handle-size); height: var(--handle-size); border-radius: 50%;
-  background: var(--ring); border: var(--focus-width) solid var(--ring-edge); box-shadow: var(--photo-btn-shadow);
+/* The place card's marker, a diamond. */
+.handle .diamond {
+  width: var(--handle-size); height: var(--handle-size); transform: rotate(45deg);
+  background: var(--ring); border: var(--hairline) solid var(--ring-edge);
 }
-.handle:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: calc(-1 * var(--space-2)); }
-.scale { display: flex; justify-content: space-between; padding: 0 calc(var(--icon) + var(--space-3)); font-size: var(--fs-xs); color: var(--text-muted); }
-.summary { font-size: var(--fs-sm); color: var(--text-2); }
+.handle:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: calc(-1 * var(--space-2)); border-radius: var(--radius-chip); }
+.bar-ticks {
+  grid-column: 2; position: relative; height: calc(var(--fs-xs) * var(--lh)); margin-top: var(--space-2);
+  font-size: var(--fs-xs); color: var(--text-muted);
+}
+.bar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar-ticks .first { transform: none; }
+.bar-ticks .last { transform: translateX(-100%); }
+.summary { font-size: var(--fs-sm); color: var(--text-2); margin-top: var(--space-2); }
 </style>
