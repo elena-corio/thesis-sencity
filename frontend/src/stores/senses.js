@@ -2,17 +2,22 @@ import { defineStore } from 'pinia'
 import { computed, markRaw, reactive, watch } from 'vue'
 import { rateSenses } from '../lib/api.js'
 import { haversine, midpoint } from '../lib/geo.js'
+import * as personalRatings from '../lib/personalRatings.js'
+import { requestProfile } from '../lib/profile.js'
 import { combinePlace, photoKey } from '../lib/senses.js'
 import { useAreaStore } from './area.js'
+import { useProfileStore } from './profile.js'
 import { useRoutesStore } from './routes.js'
 
 function emptyRun() {
-  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', costUsd: 0, newCount: 0,
+  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', personal: false, costUsd: 0, newCount: 0,
     cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0 }
 }
 
 /**
- * General predictions (Senses, no profile). As soon as an area or a pair of routes is ready, every photo not yet
+ * Senses predictions: personal with your sensory profile (the study's V2), general without it (V0); the answers are
+ * sent with each request (stores/profile.js). Personal ratings are kept in this browser only (lib/personalRatings.js):
+ * for a photo already rated with this profile, only its stamp is sent, and the API answers "keep" while it holds. As soon as an area or a pair of routes is ready, every photo not yet
  * rated goes to the API, nearest first; ratings arrive one by one. The photos are the ones the app shows (Mapillary,
  * Elena 2026-11-11): one per street or place; a walk shows and rates the same ones (2026-11-14). Nothing is written to the browser's storage: the API's cache is what makes reopening instant and free.
  * A run: status 'idle' | 'rating' | 'paused' (over the cap, waiting for an answer) | 'stopped' (by the person) | 'done' | 'error'.
@@ -20,6 +25,7 @@ function emptyRun() {
 export const useSensesStore = defineStore('senses', () => {
   const area = useAreaStore()
   const routes = useRoutesStore()
+  const profile = useProfileStore()
   /** photo key → { status: 'ok', result } | { status: 'failed', error } */
   const ratings = reactive(new Map())
   const runs = reactive({ area: emptyRun(), routes: emptyRun() })
@@ -34,8 +40,19 @@ export const useSensesStore = defineStore('senses', () => {
     const run = runs[scope]
     if (e.type === 'start') {
       run.model = e.model
+      run.personal = !!e.personal
     } else if (e.type === 'photo') {
       const key = photoKey(e)
+      const version = profile.version
+      if (e.status === 'keep') {
+        // The browser's own rating still holds: shown from here, nothing came back from the API.
+        const mine = version && personalRatings.find(e, version)
+        if (!mine) return
+        ratings.set(key, { status: 'ok', result: mine.result })
+        if (!counted[scope].has(key)) { counted[scope].add(key); run.cachedCount++ }
+        return
+      }
+      if (e.status === 'ok' && e.stamp && version) personalRatings.keep(e, version, e.stamp, e.result)
       ratings.set(key, e.status === 'ok' ? { status: 'ok', result: e.result } : { status: 'failed', error: e.error })
       if (!e.cached) run.costUsd += e.cost_usd ?? 0
       // A photo counts once per run, also when asking again after the cap brings it back from the cache.
@@ -68,9 +85,12 @@ export const useSensesStore = defineStore('senses', () => {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).map((ph) => ({ id: ph.id, heading: ph.heading }))
+    }).map((ph) => {
+      const mine = profile.version && personalRatings.find(ph, profile.version)
+      return mine ? { id: ph.id, heading: ph.heading, cached: mine.stamp } : { id: ph.id, heading: ph.heading }
+    })
     try {
-      await rateSenses(photos, (e) => onEvent(scope, e), controller.signal)
+      await rateSenses(photos, (e) => onEvent(scope, e), controller.signal, requestProfile(profile.profile))
       if (run.status === 'rating') Object.assign(run, { status: 'error', error: 'The rating stopped before the end. Retry to go on.' })
     } catch (err) {
       if (controller.signal.aborted) return
@@ -144,6 +164,17 @@ export const useSensesStore = defineStore('senses', () => {
       const place = placeFor(routes.segments.get(id)?.properties.photos)
       return place.status === 'rated' ? place.level : null
     })
+  })
+
+  // A new profile, an edited one or none: the ratings of the old one are not used; what is open is rated again.
+  watch(() => profile.version, () => {
+    ratings.clear()
+    for (const scope of ['area', 'routes']) {
+      if (!runs[scope].key) continue
+      counted[scope] = new Set()
+      Object.assign(runs[scope], { costUsd: 0, newCount: 0, cachedCount: 0, seconds: 0 })
+      rate(scope)
+    }
   })
 
   watch(() => runs.area.status, (status) => { area.sensesFinished = !['idle', 'rating'].includes(status) }, { immediate: true })

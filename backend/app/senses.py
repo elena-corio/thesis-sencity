@@ -8,7 +8,15 @@ the request stops with ExportError: there are no defaults.
 Each new photo takes two calls (Elena, 2026-11-14). The presence call (presence_prompt.txt, presence_schema.json) says
 which of the 20 elements are clearly visible; it is cached per photo. The rating call then sends the study's task and
 schema with that list. If nothing is listed, B2 takes no items and B2_none must be true. Without a profile the system
-message is system_instruction.txt alone: the study's V0. Unlike the study, no person confirms the lists.
+message is system_instruction.txt alone: the study's V0. With your sensory profile (app/profile.py) it is the system
+instruction, a blank line and the profile: the study's V2. Unlike the study, no person confirms the lists.
+
+Personal ratings are never kept here (Elena, 2026-11-15): the server only relays them. It builds the profile text for
+the one call and stores or logs neither the answers, the text nor the result; the browser keeps its own ratings, keyed
+by photo, profile version, element list, model and export. For a photo it already has, the browser sends only that
+stamp (element list, model, export: nothing personal), and the server answers "keep" when the photo's presence list,
+model and export are still the same. This server cache holds only what is not personal: general (V0) ratings and the
+presence lists.
 
 The model rates the photo the person sees (Elena, 2026-11-11): the Mapillary photo of the street, place or walk stretch
 (tool/photos/mapillary.py), a panorama rendered as the 90 degree view the app shows. The backend fetches each picture
@@ -41,8 +49,8 @@ from tool.photos.mapillary import NotThisPhoto
 EXPORT_DIR = REPO_ROOT / "model" / "app_v9"
 log = logging.getLogger("sencity.api")
 
-# The files the app reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked, the
-# profile files too, though they are not read yet.
+# The files the rating reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked; the
+# profile files are read by app/profile.py.
 FILES = ("system_instruction.txt", "task_template.txt", "schema_template.json", "elements.json", "model.json",
          "presence_prompt.txt", "presence_schema.json")
 SENSES = ("sight", "hearing", "smell", "touch", "thermal", "balance_movement", "body_awareness", "inner_sensations")
@@ -95,7 +103,8 @@ OUTPUT_FIELDS = ("B1_comfort", "B2_marked", "B2_none", "reasoning")
 SLOT = "{ELEMENTS}"
 BOTHERS = ("unpleasant", "both")
 FEELS_GOOD = ("pleasant", "both")
-GENERAL = "general"  # the profile part of a rating key while there is no profile (the study's V0)
+GENERAL = "general"  # the end of every rating key: only general (V0) ratings are cached here
+PROFILE_PART = "|profile "  # personal ratings were once cached under this; they are removed (drop_personal)
 CALLS_PER_PHOTO = 2  # presence + rating, for the cost estimate of photos left out by the cap
 FATAL_STATUSES = (401, 402, 403, 404)  # key, credit or endpoint: no use trying the next photo
 
@@ -441,6 +450,26 @@ def mark_stale(path: Path) -> int:
     return n
 
 
+def drop_personal(path: Path) -> int:
+    """Remove every personal rating the cache held from before (Elena, 2026-11-15: personal results live in the browser
+    only). Returns how many were removed."""
+    with _cache_lock:
+        data = _read_cache(path)
+        keys = [k for k in data if PROFILE_PART in k]
+        if not keys:
+            return 0
+        for k in keys:
+            del data[k]
+        try:
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError as e:
+            log.warning("senses: cache not written: %s", type(e).__name__)
+            return 0
+    return len(keys)
+
+
 def _read_cache(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -468,7 +497,7 @@ def element_view(export: Export, code: str) -> dict:
     return {"code": code, "n": e["n"], "en": e["en"], "it": e["it"], "icon_key": e["icon_key"], "also": e.get("also", [])}
 
 
-def _view(export: Export, entry: dict, cached: bool) -> dict:
+def _view(export: Export, entry: dict, cached: bool, personal: bool = False) -> dict:
     output = entry["output"]
     answers = {}
     for mark in output["B2_marked"]:
@@ -488,6 +517,7 @@ def _view(export: Export, entry: dict, cached: bool) -> dict:
         "latency_ms": entry["latency_ms"],
         "cost_usd": entry["cost_usd"],
         "cached": cached,
+        "personal": personal,  # rated with your sensory profile (V2), not the general prediction (V0)
     }
 
 
@@ -507,21 +537,42 @@ class Plan:
     remaining: int  # new photos left out by the cap
     presence: dict  # (photo_id, heading) → the cached listed elements, for photos to rate whose presence is known
     api_key: str | None
+    profile: str | None = None  # the filled profile text (V2), or None (V0); never logged or stored
+    kept: tuple = ()  # personal: [(photo_id, heading, listed)] the browser already has, still valid ("keep")
 
 
-def plan_rating(photos: list, cfg: dict) -> Plan:
-    """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError."""
+def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dict | None = None) -> Plan:
+    """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError.
+    General (profile None): the server cache answers what it has. Personal: nothing is looked up in it; a photo whose
+    browser stamp ({listed, model, commit}, in `stamps` by (photo_id, heading)) still matches its presence list, the
+    model and the export is kept by the browser, every other one is new."""
     export = load_export()
     model = export.model["model"]
     with _cache_lock:
         cache = _read_cache(REPO_ROOT / cfg["cache_file"])
         presence_cache = _read_cache(REPO_ROOT / cfg["presence_cache_file"])
-    cached, new, seen = [], [], set()
+    cached, new, kept, seen = [], [], [], set()
+
+    def present(photo_id, heading):
+        hit = presence_cache.get(presence_key(photo_id, heading, model, export.presence_version))
+        if isinstance(hit, dict) and isinstance(hit.get("present"), list) and set(hit["present"]) <= set(export.elements):
+            return [c for c in export.elements if c in hit["present"]]
+        return None
+
     for photo_id, heading in photos:
         key = cache_key(photo_id, heading, model, export.commit)
         if key in seen:
             continue
         seen.add(key)
+        if profile:
+            stamp = (stamps or {}).get((photo_id, heading))
+            listed = present(photo_id, heading)
+            if (stamp and listed is not None and stamp.get("model") == model and stamp.get("commit") == export.commit
+                    and list(stamp.get("listed") or []) == listed):
+                kept.append((photo_id, heading, listed))
+            else:
+                new.append((photo_id, heading))
+            continue
         hit = cache.get(key)
         if (isinstance(hit, dict) and not hit.get("stale") and isinstance(hit.get("listed"), list)
                 and set(hit["listed"]) <= set(export.elements) and problem_with(export, hit["listed"], hit.get("output")) is None):
@@ -531,11 +582,12 @@ def plan_rating(photos: list, cfg: dict) -> Plan:
     cap = cfg["cap_photos"]
     to_rate = new[:cap]
     known = {}
-    for photo_id, heading in to_rate:
-        hit = presence_cache.get(presence_key(photo_id, heading, model, export.presence_version))
-        if isinstance(hit, dict) and isinstance(hit.get("present"), list) and set(hit["present"]) <= set(export.elements):
-            known[(photo_id, heading)] = [c for c in export.elements if c in hit["present"]]
-    return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None)
+    for photo in to_rate:
+        listed = present(*photo)
+        if listed is not None:
+            known[photo] = listed
+    return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None, profile or None,
+                tuple(kept))
 
 
 def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
@@ -583,7 +635,7 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
                      "cost_usd": sum(costs) if costs else None})
 
     try:
-        output = _ask(build_request(export, data_url, listed), plan.api_key, cfg,
+        output = _ask(build_request(export, data_url, listed, plan.profile), plan.api_key, cfg,
                       lambda t: parse_reply(export, listed, t), costs, "rating")
     except PredictionError as e:
         e.cost = sum(costs)
@@ -597,8 +649,12 @@ def rate_events(plan: Plan, cfg: dict, provider):
     cfg["concurrency"] at a time), and "done", or "error" when going on is pointless. Every rating goes in the cache."""
     export = plan.export
     path = REPO_ROOT / cfg["cache_file"]
-    yield {"type": "start", "model": export.model["model"], "cached": len(plan.cached), "to_rate": len(plan.to_rate),
-           "remaining": plan.remaining}
+    personal = plan.profile is not None
+    model = export.model["model"]
+    yield {"type": "start", "model": model, "cached": len(plan.cached) + len(plan.kept), "to_rate": len(plan.to_rate),
+           "remaining": plan.remaining, "personal": personal}
+    for photo_id, heading, _listed in plan.kept:  # the browser has these: nothing to send but "keep"
+        yield {"type": "photo", "id": photo_id, "heading": heading, "status": "keep", "cached": True}
     for photo_id, heading, entry in plan.cached:
         yield {"type": "photo", "id": photo_id, "heading": heading, "status": "ok", "cached": True,
                "result": _view(export, entry, cached=True)}
@@ -630,8 +686,13 @@ def rate_events(plan: Plan, cfg: dict, provider):
                 continue
             if entry is None:
                 continue
-            _save_cache(path, cache_key(photo_id, heading, export.model["model"], export.commit), entry)
-            yield {**base, "status": "ok", "result": _view(export, entry, cached=False), "cost_usd": entry["cost_usd"]}
+            result = _view(export, entry, cached=False, personal=personal)
+            if personal:  # relayed, never kept: the stamp lets the browser keep it and ask for "keep" next time
+                yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"],
+                       "stamp": {"listed": list(entry["listed"]), "model": model, "commit": export.commit}}
+                continue
+            _save_cache(path, cache_key(photo_id, heading, model, export.commit), entry)
+            yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"]}
     finally:
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)

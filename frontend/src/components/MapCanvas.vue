@@ -482,6 +482,7 @@ function onKeyDown(e) {
 
 function onWindowKey(e) {
   if (e.key !== 'Escape' || e.defaultPrevented) return
+  if (container.value?.closest('[inert]')) return // Profile is open over the map
   if (props.routesMode) {
     // Esc: back to the comparison, or start choosing again. While loading, Cancel does it.
     if (routes.selected) routes.back(true)

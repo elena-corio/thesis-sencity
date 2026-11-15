@@ -2,6 +2,8 @@
 // Map view: the map with floating panels (brief §3, boards Flow 1, 1b, 1c; phone P1, P5).
 // Fit every screen: panels are placed from the viewport and never overlap; the page never scrolls.
 // Walk along a route (WalkView): its own panel over the map, under the top bar (on a phone, above the tab bar).
+// Profile (ProfilePage): over the map, which stays as it was in Area or Routes and cannot be reached meanwhile; the
+// onboarding takes the whole screen (boards 4, P4).
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMedia } from '../composables.js'
@@ -18,6 +20,9 @@ import MapAttribution from '../components/MapAttribution.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import MapControls from '../components/MapControls.vue'
 import PhoneSheet from '../components/PhoneSheet.vue'
+import ProfilePage from '../components/ProfilePage.vue'
+import AppLogo from '../components/AppLogo.vue'
+import { useProfileStore } from '../stores/profile.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import WalkView from '../components/WalkView.vue'
@@ -32,7 +37,14 @@ const senses = useSensesStore()
 const walk = useWalkStore()
 const route = useRoute()
 const sheetRef = ref(null)
-const routesMode = computed(() => route.params.mode === 'routes')
+const profile = useProfileStore()
+const profileMode = computed(() => route.params.mode === 'profile')
+// The map's own mode: Area or Routes, kept while Profile is open.
+const mapMode = ref(route.params.mode === 'routes' ? 'routes' : 'area')
+watch(() => route.params.mode, (m) => { if (m === 'area' || m === 'routes') mapMode.value = m })
+const routesMode = computed(() => mapMode.value === 'routes')
+// The onboarding is full screen; the profile itself keeps the tabs.
+const onboarding = computed(() => profileMode.value && !!profile.survey && (!!profile.draft || profile.askingConsent))
 // Going to the other view (Area or Routes) closes the walk or the enlarged photo.
 watch(routesMode, () => { if (walk.active) walk.exit() })
 const phone = useMedia('(max-width: 767px)')
@@ -59,11 +71,23 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 
 <template>
   <div class="app" :class="{ phone, wide, 'with-left': showLeft, 'with-card': hasCard, 'routes-mode': routesMode, walking: walk.active }">
-    <MapCanvas ref="mapRef" :routes-mode="routesMode" />
+    <MapCanvas ref="mapRef" :routes-mode="routesMode" :inert="profileMode" />
 
-    <h1 class="visually-hidden">SenCity map</h1>
+    <h1 class="visually-hidden">{{ profileMode ? 'SenCity: your sensory profile' : 'SenCity map' }}</h1>
 
-    <template v-if="!phone">
+    <template v-if="profileMode">
+      <div class="slot" :class="onboarding ? 's-onboarding' : phone ? 's-p-profile' : 's-profile'"><ProfilePage :phone="phone" /></div>
+      <template v-if="!onboarding">
+        <div v-if="!phone" class="slot s-top-left">
+          <RouterLink to="/area" class="logo-box panel" aria-label="SenCity, back to the map"><AppLogo /></RouterLink>
+        </div>
+        <div v-if="!phone" class="slot s-top-centre"><ViewTabs /></div>
+        <div v-if="!phone" class="slot s-top-right"><TopActions /></div>
+        <div v-else class="slot s-p-tabs"><ViewTabs phone /></div>
+      </template>
+    </template>
+
+    <template v-else-if="!phone">
       <div class="slot s-top-left"><TopSearch :get-centre="getCentre" @pick="onPick" /></div>
       <div class="slot s-top-centre"><ViewTabs /></div>
       <div class="slot s-top-right"><TopActions /></div>
@@ -171,6 +195,14 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
 }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
+
+/* Profile (ProfilePage): under the top bar (on a phone, above the tab bar); the onboarding on the whole screen. */
+.s-profile { inset: 0; padding-top: calc(var(--row-main) - var(--space-2)); background: var(--ground); }
+.s-p-profile { top: 0; left: 0; right: 0; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); background: var(--ground); }
+.s-onboarding { inset: 0; }
+.logo-box { display: grid; place-items: center; width: var(--topbar-h); height: var(--topbar-h); color: var(--logo); }
+.logo-box :deep(svg) { width: var(--logo-size); height: var(--logo-size); }
+.s-profile > *, .s-p-profile > *, .s-onboarding > * { height: 100%; }
 
 /* Walk (WalkView): one panel from under the top bar down to the credits; on a phone from under the search to the tab bar. */
 .s-walk { top: var(--row-main); left: var(--margin); right: var(--margin); bottom: var(--row-bottom); }

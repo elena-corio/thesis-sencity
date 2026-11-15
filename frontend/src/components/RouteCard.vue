@@ -4,7 +4,7 @@
 // panel (Settings on a phone), and the map hint says what to do.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
-import { GENERAL_LABEL, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
+import { predictionLabel, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -14,6 +14,7 @@ import RouteBar from './RouteBar.vue'
 import ThermalLegend from './ThermalLegend.vue'
 import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
+import { useProfileStore } from '../stores/profile.js'
 
 const props = defineProps({ phone: Boolean })
 const routes = useRoutesStore()
@@ -90,6 +91,7 @@ const walk = computed(() => {
 
 function onEnter(id) { routes.hoverRoute = id }
 function onLeave() { routes.hoverRoute = null }
+const profileStore = useProfileStore()
 </script>
 
 <template>
@@ -130,7 +132,7 @@ function onLeave() { routes.hoverRoute = null }
       <p v-if="routes.load === 'error'" class="note error" role="alert">{{ routes.error }}</p>
       <p v-else-if="senses.routesRating" class="note">
         The two ways appear when the rating ends. <span data-testid="senses-cost">{{ moneyLine(senses.runs.routes) }} so far.</span>
-        <strong class="general">{{ GENERAL_LABEL }}</strong>
+        <strong class="general">{{ predictionLabel(profileStore.personal) }}</strong>
       </p>
       <p v-else-if="routes.hasResult && routes.info" class="note">
         The ways on the map are for {{ routes.info.season }}, {{ routes.info.time }} until the new ones are ready.

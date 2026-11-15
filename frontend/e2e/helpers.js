@@ -309,3 +309,28 @@ export async function mockRoutes(page, { hold = false, thermal = true, sameState
   await page.route('**/mly-thumb/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
   return mock
 }
+
+// Your sensory profile: the survey as GET /api/profile/survey sends it (backend/app/profile.py), from model/app_v9/.
+const v9 = new URL('../../model/app_v9/', import.meta.url)
+const surveyRules = JSON.parse(readFileSync(new URL('profile_rules.json', v9), 'utf-8'))
+const ICONS = Object.fromEntries(JSON.parse(readFileSync(new URL('elements.json', v9), 'utf-8')).map((e) => [e.code, e.icon_key]))
+const partA = JSON.parse(readFileSync(new URL('part_a.json', v9), 'utf-8'))
+export const SURVEY = {
+  ...partA,
+  questions: partA.questions.map((q) => (q.rows ? { ...q, rows: q.rows.map((r) => ({ ...r, icon_key: ICONS[r.code] })) } : q)),
+  profile: {
+    template: readFileSync(new URL('profile_template.txt', v9), 'utf-8'),
+    constants: Object.fromEntries(['{A11_LOW}', '{A11_HIGH}', '{SCALE_1}', '{SCALE_5}'].map((k) => [k, surveyRules.placeholders[k]])),
+    scale_words_en: surveyRules.scale_words_en,
+    languages: { en: 'English', it: 'Italian' },
+  },
+}
+/** The made-up profiles of the tests, with the study's own texts (src/dev/test-profiles.json). */
+export const TEST_PROFILES = JSON.parse(readFileSync(new URL('../src/dev/test-profiles.json', import.meta.url), 'utf-8'))
+
+export const mockSurvey = (page) => page.route('**/api/profile/survey', (route) => route.fulfill({ json: SURVEY }))
+
+/** Start with a saved profile on this device (as the app saves it). */
+export const withSavedProfile = (page, profile) => page.addInitScript((p) => {
+  try { localStorage.setItem('sencity-profile', JSON.stringify(p)) } catch {}
+}, profile)

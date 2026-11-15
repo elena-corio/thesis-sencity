@@ -2,6 +2,66 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – "Before you start": the consent screen (accepted)
+**Context.** Brief §3: one consent screen before Part A (board 3), with an unticked checkbox and "Agree and start" enabled only when ticked. The board's text was out of date ("16 things", a database); Elena wrote the new one.
+**Decision (Elena).** Title "Before you start", four points (what is asked: 20 visible elements, about 5 minutes, no health questions; answers stay in this browser, no account, nothing saved on a server; for a personal rating the answers go with the photo to an AI model in the EU, used only for that rating and not kept by the provider; change, download or delete at any time under Profile), the box "I have read this and agree that my answers are used to build my profile and personalise ratings." (unticked), Not now and Agree and start. Icons from board 3.
+**Proposed.**
+- *When:* before a new profile's first question (from Profile or the "Create your profile" shortcut) and before an import; not when editing. Full screen, like the onboarding. An onboarding left halfway from before this screen existed asks first too.
+- *Kept:* the date of the agreement on this device (`sencity-consent`); "Delete my profile" removes it, so a new profile asks again. Not now keeps nothing and goes back to the map.
+- *No consent (Elena):* the map stays as without a profile: Senses with the general ratings (V0, "not personalised yet") and Thermal. General ratings send nothing about the person. Brief §3 updated (it said "No consent → map with Thermal only").
+
+## 2026-11-15 – Personal ratings live in the browser; the server only relays (accepted)
+**Context.** The server's rating cache kept each personal rating under the profile version (a hash), and they stayed after "Delete my profile", while the dialog says everything is in this browser. With A16 empty a hash of the profile could in principle be matched by trying the answer combinations. Elena chose option 3.
+**Decision (Elena).**
+- *Browser:* personal (V2) ratings are kept in this browser (`sencity-ratings` in local storage, `lib/personalRatings.js`), found by photo and profile version, each with the element list, model and export (prompt) version it was made from. Only the current profile's are kept; "Delete my profile" clears them, so the dialog stays true ("…your sensory profile and the ratings made with it").
+- *Server:* only relays. It builds the profile text for the single call and never stores or logs the answers, the text or the personal result. Its cache keeps only what is not personal: general (V0) ratings and presence lists. For a photo the browser has, the request carries the stamp (element list, model, export) and the server answers "keep" when they still match its presence list, model and export: no call.
+- *Cleanup:* the personal entries already in `runs/senses/predictions.json` were removed (2, the example ratings of the same day); `drop_personal` also runs on the first rating request of a server, so a deployed copy cleans itself.
+- *Proposed:* local storage rather than IndexedDB (simpler; at most 3000 entries of about 1 kB, the oldest dropped first).
+- *Tests:* after a V2 rating the server holds nothing keyed to the profile hash, nor the answers, the text or the result; a stamp that holds is kept with no call, a stale one is rated again.
+
+## 2026-11-15 – The right card of the profile: one title style (accepted)
+**Context.** Elena: "put Edit on the right of In your words, as for the sensory profile; unify the style of the titles in the card".
+**Decision (Elena).** Every title of the right card is one row in the same style (small, semibold, full text colour): the title on the left, its value or Edit on the right: Overall sensory comfort (2 of 5, Edit), In your words (Edit), Strongest for you, and "Your sensory profile, as the model reads it", which folds with a chevron like "Your answers, element by element". "Strongest for you" uses the answers' words and colours ("1 · very unpleasant", "5 · very pleasant"), as everywhere else on the profile (Elena).
+- *Sense names on hover (Elena):* pointing at an icon of the radar shows the name of its sense beside it, as on board 5 ("Sight").
+
+## 2026-11-15 – No "Show as a list" under the radar (accepted)
+**Context.** Elena: "remove show as a list".
+**Decision (Elena).** The radar has no list version on the page. Tapping a sense still lists its elements, and each sense's icon tells a screen reader its name and both values ("Hearing: bothers you 5, feels good 5"); the answers themselves are in "Your answers, element by element".
+
+## 2026-11-15 – Overall sensory comfort as a bar; the answers fold (accepted)
+**Context.** Elena: "make the list collapsable and maybe use a bar with gradient for the overall sensory comfort, maybe above the senses diagram".
+**Decision.**
+- *Overall sensory comfort (Elena):* A11 as the comfort bar of the place card (board 2c: pink, orange, cyan; a diamond at the answer; 1–5), at the top of the right card, above "In your words" (first above the radar, then under it; Elena moved it), with "2 of 5", the question and its end labels from `part_a.json` ("Not at all", "Very much"), and Edit. It replaces the A11 line of the answers.
+- *The bar:* as wide as the right card (it was as wide as the radar while it was under it).
+- *The answers fold (Elena):* "Your answers, element by element" (A12 and A13 with Edit), closed at first, with a chevron that turns up when open. *Proposed:* "the list" read as this one; "Show as a list" under the radar and the profile text in the right card already fold.
+
+## 2026-11-15 – The radar of the profile (accepted)
+**Context.** Elena: "the spider web diagram is missing". A first version followed board 5 and brief §4; Elena then specified another (0–2: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x); A11 in the centre, A16 below; pleasant solid, unpleasant dashed), saw it, and preferred the first: "i preferred how it was before". Kept from the second: tapping a sense lists its elements, the visible list, gaps.
+**Decision (Elena).**
+- *Axes:* the 8 senses in the onboarding order (the main sense of each grid row, A12 then A13), icons instead of names, circular rings 1–5.
+- *Values:* each element counts only for its main sense (`icon_key` in `elements.json`). Per sense: *what bothers you* (pink) = 6 − its lowest answer, *what feels good* (cyan) = its highest answer, both 1–5; all "neither" is 3 and 3. Both shapes solid and filled. A sense with no answers is a gap (the line breaks there, no fill).
+- *Reading it:* tapping a sense (its icon or its slice) lists its elements with their answers in a small card next to it (first under the radar, where on a laptop it fell below the screen and tapping seemed to do nothing; Elena: "tap a sense does not work for me"); tapping again, elsewhere, or Esc closes it; "Tap a sense to see its elements." under the legend; "Show as a list" gives every sense as text; legend "What bothers you", "What feels good" (board 5). A11 is not on the radar; A16 stays in the right card, "In your words".
+- *Source:* the stored answers only, no model call; it follows every edit at once.
+
+## 2026-11-15 – The onboarding and the profile screen (proposed)
+**Context.** Elena: the onboarding as one question group per screen with progress, Back and Next, answers kept when leaving halfway; a profile screen to see and edit any answer; export, import, "Delete my profile"; boards 4, P4, 5, 5b, 5c.
+**Decision.**
+- *Where:* Profile is a third mode of the map view (`/profile`): the map stays as it was in Area or Routes underneath and cannot be reached (inert); the onboarding takes the whole screen, as on boards 4 and P4.
+- *Questions:* every question, label, scale word and the intro come from `part_a.json` in the app's language (`config.language`); the app adds only its own buttons and one heading for the intro screen ("Before the questions"). 5 steps: intro, A11, A12, A13, A16. A11 and every grid row are required, as in the survey; Next is never disabled: pressed with an answer missing, it says so and moves to the first one missing.
+- *Leaving halfway:* every answer is saved on this device as it is given; Skip for now goes to the map and the Profile tab opens the onboarding where it was left. Editing a saved profile uses the same screens, at the question chosen, with Cancel (nothing changes) and Save changes (the text and version are built again).
+- *Profile screen (board 5), first version:* every answer with Edit, your words, "Strongest for you" (the elements answered 1–2 and 4–5, strongest first, in turn, at most four), and "Your sensory profile, as the model reads it" (the exact text, folded). "Save and go to map" reads "Go to map" (the profile is already saved). The personal thermal limits and "Places that may suit you" come later (the radar: entry above).
+- *Delete (board 5c):* the dialog says what is true in phase 1 (everything is in this browser); "Delete my profile" as Elena named it.
+- *Labels:* "Personal prediction: from your sensory profile"; without a profile "General prediction: not personalised yet" (was "not yet personal") and the "Not personalised yet" box of board 2c with Create your profile, at the end of the Senses card.
+- *Consent screen:* not part of this step at first; built the same day with Elena's text (entry "Before you start").
+
+## 2026-11-15 – Your sensory profile: built on the server for each rating call, checked against the study (proposed)
+**Context.** Elena: Part A as the in-app onboarding, saved on the device and used for ratings; the profile text built from `model/app_v9/` word for word as in the study; ratings cached per photo and per profile version; the profile leaves the device only inside the model call. Brief §12: phase 1 has no profile endpoints, the browser sends the profile in the body of each request.
+**Decision.**
+- *Where the text is built (proposed):* the browser sends your answers (not the text) with each rating request; the server checks them against `part_a.json` and fills `profile_template.txt` for that call only. It is never stored or logged. (The rating cache first kept personal ratings under the profile version; since the same day the server keeps none: entry "Personal ratings live in the browser".) The browser builds the same text from the same files (`GET /api/profile/survey`) to show and keep it.
+- *The test:* the expected texts were made by the study's own code (`thesis-personas`, `personas.persona_texts_v9`, "V2", commit 60c9222) for four made-up people, including the cases where lines are left out (`frontend/src/dev/test-profiles.json`, no participant data). The export has no example of its own.
+- *Two small rules the export leaves open (proposed):* the filled text has no trailing newline (the study's text has none); the open answer (A16) is trimmed before use, so a blank answer leaves its line out, as in the study.
+- *Checks:* A11 and every grid row must be answered 1–5 (required in the survey); A16 is optional, at most 2000 characters. A 422 names the question, never the answer.
+
 ## 2026-11-14 – The enlarged photo is the walk's view (accepted)
 **Context.** Elena: "make enlarge picture look the same. When clicking walk this route play is default, when enlarging the photo stop is default", and "in the case of area it should not have the play button".
 **Decision (Elena).**

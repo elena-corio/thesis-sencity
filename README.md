@@ -151,6 +151,7 @@ Results are cached in `runs/senses/predictions.json` (not committed) per Mapilla
 cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 .venv/Scripts/python -m pytest backend/tests/test_senses.py --rootdir backend   # only the Senses request and replies
+.venv/Scripts/python -m pytest backend/tests/test_profile.py --rootdir backend  # only your sensory profile (text, checks, V0/V2)
 ```
 
 These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the hash check of `model/app_v9/`, the presence and rating requests built from it, the empty list, validated replies, the retry, both caches, the stale marks, the cap, at most 4 at a time). They make no API calls.
@@ -174,7 +175,7 @@ npm run dev                     # starts the API too, and opens http://localhost
 | `npm run build` | Builds the static site into `frontend/dist/` (for Render) |
 | `npm run preview` | Serves the built site locally |
 | `npm test` | Unit tests for the radius maths, thermal score and route stretches (Vitest), no browser needed |
-| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos; Routes, with its own fit check. The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, made-up routes, a placeholder image), so no Mapillary, Street View, Overpass, Infrared.city or OpenRouter calls are made. Starts the dev server itself if it is not running. |
+| `npm run test:e2e` | Playwright: step screenshots; the fit-every-screen check at all sizes, both orientations, dark and light, 200% zoom and larger text, with the place card and the enlarged photo open; the keyboard walk-through; search; streets and photos; Routes, with its own fit check; your sensory profile (onboarding, edit, download, delete, import, general and personal ratings). The API is mocked (a fixed Stephansplatz area in `e2e/fixtures/`, made-up routes, a placeholder image), so no Mapillary, Street View, Overpass, Infrared.city or OpenRouter calls are made. Starts the dev server itself if it is not running. |
 | `REAL_PHOTOS=1 REAL_API=http://127.0.0.1:8001 npx playwright test e2e/walk-real.spec.js` | The walk with real Mapillary photos, for screenshots in `e2e/screens/walk-real/` (only the routes are mocked; free). Needs `MAPILLARY_ACCESS_TOKEN` and an API with the current code: start one with `../.venv/Scripts/python -m app --port 8001` in `backend/`. Without `REAL_API` it uses the API on port 8000. |
 
 **Using the map:**

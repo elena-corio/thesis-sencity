@@ -8,11 +8,15 @@
                      corridor, then the shortest and the easiest way
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
 - POST /api/mapillary/along   one Mapillary photo per stretch of a walk (free; the token stays here)
-- POST /api/senses/rate   the model's general predictions for a list of Mapillary photos, streamed; cached ones cost nothing
+- POST /api/senses/rate   the model's predictions for a list of Mapillary photos, streamed; cached ones cost nothing.
+                          With "profile" (your answers, from the browser) they are personal (V2), else general (V0);
+                          personal ones are relayed, never kept here: the browser keeps them
+- GET  /api/profile/survey   the onboarding questions and the profile template, from model/app_v9/ (nothing personal)
 
 No Street View call is left in the app (Elena, 2026-11-11): its photos are Mapillary's, and those are the ones rated.
 
-Privacy (brief §10): request bodies are never logged. Search text and area coordinates travel in
+Privacy (brief §10): request bodies are never logged. The profile has no endpoint of its own (phase 1): the browser
+keeps it and sends it in the body of a rating request, where it is used for the model call only. Search text and area coordinates travel in
 the body, not the URL, so they do not appear in access logs or the browser history either.
 """
 import json
@@ -33,6 +37,7 @@ from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import profile as profile_mod
 from . import buildings as buildings_mod
 from . import routes as routes_mod
 from . import search as search_mod
@@ -339,13 +344,42 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
 # (their keys never match a Mapillary photo anyway; the mark is for the record).
 _stale_marked = False
 
+class RatingStamp(BaseModel):
+    """What the browser's own personal rating of a photo was made from: nothing personal."""
+    listed: list[str] = Field(..., max_length=20)
+    model: str = Field(..., max_length=200)
+    commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
+
+
 class SensesPhoto(BaseModel):
     id: str = Field(..., pattern=r"^[0-9]{1,20}$")  # a Mapillary image ID
     heading: float = Field(..., ge=0, lt=360)
+    cached: RatingStamp | None = None  # with a profile: the browser has a rating of this photo; "keep" if still valid
+
+
+class ProfileAnswers(BaseModel):
+    """Your answers to Part A (part_a.json), checked against it in app/profile.py. Never logged or stored."""
+    language: str = Field(..., pattern="^(en|it)$")
+    A11: int = Field(..., ge=1, le=5)
+    A12: dict[str, int] = Field(..., max_length=20)
+    A13: dict[str, int] = Field(..., max_length=20)
+    A16: str = Field("", max_length=profile_mod.A16_MAX)
 
 
 class SensesRateRequest(BaseModel):
     photos: list[SensesPhoto] = Field(..., max_length=cfg["senses"]["max_photos_per_request"])
+    profile: ProfileAnswers | None = None
+
+
+@app.get("/api/profile/survey")
+def profile_survey() -> dict:
+    """The onboarding (part_a.json, each element with its sense icon) and the profile template with its fixed words,
+    so the browser builds and shows the same text as the server."""
+    try:
+        return profile_mod.survey(profile_mod.load())
+    except senses_mod.ExportError as e:
+        log.warning("profile: the export cannot be used")
+        raise HTTPException(503, f"The survey cannot be loaded. {e}") from None
 
 
 @app.post("/api/senses/rate")
@@ -357,10 +391,19 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
     global _stale_marked
     if not _stale_marked:
         senses_mod.mark_stale(senses_mod.REPO_ROOT / cfg["senses"]["cache_file"])
+        senses_mod.drop_personal(senses_mod.REPO_ROOT / cfg["senses"]["cache_file"])  # personal results: browser only
         _stale_marked = True
     photos = [(p.id, round(p.heading, 1)) for p in body.photos]
     try:
-        plan = senses_mod.plan_rating(photos, cfg["senses"])
+        text, stamps = None, {}
+        if body.profile is not None:
+            pe = profile_mod.load()
+            answers = profile_mod.check(body.profile.model_dump(exclude={"language"}), body.profile.language, pe)
+            text = profile_mod.build(answers, body.profile.language, pe)
+            stamps = {(p.id, round(p.heading, 1)): p.cached.model_dump() for p in body.photos if p.cached}
+        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps)
+    except profile_mod.ProfileError as e:
+        raise HTTPException(422, f"Your sensory profile could not be used: {e}") from None
     except senses_mod.ExportError as e:
         log.warning("senses: the export cannot be used")
         raise HTTPException(503, f"The model settings cannot be used. {e}") from None

@@ -3,11 +3,12 @@
 // rating of the photos. Streets are grey on the map until they have a value, then take its colour. Recommendations
 // wait for the end of the rating. Cancel while rating only stops the rating: the area stays.
 import { computed, onMounted, ref } from 'vue'
-import { GENERAL_LABEL, moneyLine } from '../lib/senses.js'
+import { predictionLabel, moneyLine } from '../lib/senses.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import ThermalLegend from './ThermalLegend.vue'
+import { useProfileStore } from '../stores/profile.js'
 
 defineProps({ phone: Boolean })
 const area = useAreaStore()
@@ -27,6 +28,7 @@ const photosDetail = computed(() => {
 })
 const thermalValues = computed(() => (area.segments?.features ?? []).map((f) => f.properties.utci).filter((v) => v != null))
 const share = computed(() => (area.progress.total ? area.progress.done / area.progress.total : 0))
+const profileStore = useProfileStore()
 </script>
 
 <template>
@@ -87,7 +89,7 @@ const share = computed(() => (area.progress.total ? area.progress.done / area.pr
     <p v-if="area.load === 'error'" class="note error">{{ area.loadError }}</p>
     <p v-else-if="senses.areaRating" class="note">
       Streets light up as they are rated; you can keep exploring. <span data-testid="senses-cost">{{ moneyLine(senses.runs.area) }} so far.</span>
-      <strong class="general">{{ GENERAL_LABEL }}</strong>
+      <strong class="general">{{ predictionLabel(profileStore.personal) }}</strong>
     </p>
     <p v-else-if="area.thermal === 'loading'" class="note">
       Simulating sun, shade and wind for this area. This can take a few minutes; click a street to see its photos meanwhile.

@@ -3,7 +3,10 @@
 import config from '../config.js'
 import { pickSuggestions } from './suggest.js'
 
-export const GENERAL_LABEL = 'General prediction: not yet personal'
+export const GENERAL_LABEL = 'General prediction: not personalised yet'
+export const PERSONAL_LABEL = 'Personal prediction: from your sensory profile'
+/** What kind of rating the card shows: with your sensory profile (V2) or the general one (V0). */
+export const predictionLabel = (personal) => (personal ? PERSONAL_LABEL : GENERAL_LABEL)
 
 /** The key of one photo in the ratings of this session: its Mapillary image and the way it looks. */
 export const photoKey = (photo) => `${photo.id}|${photo.heading}`
@@ -34,7 +37,7 @@ export const SENSE_NAMES = {
   body_awareness: { en: 'body awareness', it: 'consapevolezza del corpo' },
   inner_sensations: { en: 'internal sensations', it: 'sensazioni interne' },
 }
-const SENSE_ORDER = Object.keys(SENSE_NAMES)
+export const SENSE_ORDER = Object.keys(SENSE_NAMES)
 
 export const senseName = (key) => SENSE_NAMES[key]?.[config.language] ?? ''
 
