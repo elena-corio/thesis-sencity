@@ -8,7 +8,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 **Proposed.**
 - *When:* before a new profile's first question (from Profile or the "Create your profile" shortcut) and before an import; not when editing. Full screen, like the onboarding. An onboarding left halfway from before this screen existed asks first too.
 - *Kept:* the date of the agreement on this device (`sencity-consent`); "Delete my profile" removes it, so a new profile asks again. Not now keeps nothing and goes back to the map.
-- *Not applied:* brief §3 "No consent → map with Thermal only". General (V0) ratings send nothing about the person, so the map stays as it is without consent ("not personalised yet"). Asked.
+- *No consent (Elena):* the map stays as without a profile: Senses with the general ratings (V0, "not personalised yet") and Thermal. General ratings send nothing about the person. Brief §3 updated (it said "No consent → map with Thermal only").
 
 ## 2026-11-15 – Personal ratings live in the browser; the server only relays (accepted)
 **Context.** The server's rating cache kept each personal rating under the profile version (a hash), and they stayed after "Delete my profile", while the dialog says everything is in this browser. With A16 empty a hash of the profile could in principle be matched by trying the answer combinations. Elena chose option 3.
