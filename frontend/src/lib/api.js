@@ -127,14 +127,23 @@ async function streamEvents(path, body, onEvent, signal) {
 }
 
 /**
- * The model's general predictions for a list of Mapillary photos, nearest first (POST /api/senses/rate): the photos the
- * app shows. Events: {type: "start", model, cached, to_rate, remaining} · {type: "photo", id, heading,
+ * The model's predictions for a list of Mapillary photos, nearest first (POST /api/senses/rate): the photos the app shows.
+ * With `profile` (your answers and language, lib/profile.js requestProfile) they are personal, else general.
+ * Events: {type: "start", model, cached, to_rate, remaining, personal} · {type: "photo", id, heading,
  * status: "ok"|"failed", cached, result|error, cost_usd} · {type: "done", seconds, failed, remaining, estimate_usd} or
  * {type: "error", message}. Abort the signal to stop.
  * @param {{id:string, heading:number}[]} photos
  * @param {(event: object) => void} onEvent
  * @param {AbortSignal} [signal]
+ * @param {object|null} [profile]
  */
-export function rateSenses(photos, onEvent, signal) {
-  return streamEvents('/api/senses/rate', { photos }, onEvent, signal)
+export function rateSenses(photos, onEvent, signal, profile = null) {
+  return streamEvents('/api/senses/rate', profile ? { photos, profile } : { photos }, onEvent, signal)
+}
+
+/** The onboarding questions and the profile template (GET /api/profile/survey), from model/app_v9/. Nothing personal. */
+export async function loadSurvey(signal) {
+  const res = await fetch(`${config.apiBase}/api/profile/survey`, { signal })
+  if (!res.ok) throw new ApiError(res.status, await errorText(res))
+  return res.json()
 }

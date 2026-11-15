@@ -2,6 +2,17 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-15 – The onboarding and the profile screen (proposed)
+**Context.** Elena: the onboarding as one question group per screen with progress, Back and Next, answers kept when leaving halfway; a profile screen to see and edit any answer; export, import, "Delete my profile"; boards 4, P4, 5, 5b, 5c.
+**Decision.**
+- *Where:* Profile is a third mode of the map view (`/profile`): the map stays as it was in Area or Routes underneath and cannot be reached (inert); the onboarding takes the whole screen, as on boards 4 and P4.
+- *Questions:* every question, label, scale word and the intro come from `part_a.json` in the app's language (`config.language`); the app adds only its own buttons and one heading for the intro screen ("Before the questions"). 5 steps: intro, A11, A12, A13, A16. A11 and every grid row are required, as in the survey; Next is never disabled: pressed with an answer missing, it says so and moves to the first one missing.
+- *Leaving halfway:* every answer is saved on this device as it is given; Skip for now goes to the map and the Profile tab opens the onboarding where it was left. Editing a saved profile uses the same screens, at the question chosen, with Cancel (nothing changes) and Save changes (the text and version are built again).
+- *Profile screen (board 5), first version:* every answer with Edit, your words, "Strongest for you" (the elements answered 1–2 and 4–5, strongest first, in turn, at most four), and "Your sensory profile, as the model reads it" (the exact text, folded). "Save and go to map" reads "Go to map" (the profile is already saved). The radar, the personal thermal limits and "Places that may suit you" come later.
+- *Delete (board 5c):* the dialog says what is true in phase 1 (everything is in this browser); "Delete my profile" as Elena named it.
+- *Labels:* "Personal prediction: from your sensory profile"; without a profile "General prediction: not personalised yet" (was "not yet personal") and the "Not personalised yet" box of board 2c with Create your profile, at the end of the Senses card.
+- *Not built:* the consent screen (board 3, brief §3) is not part of this step; its text also needs updating (it says "16 things"). Asked.
+
 ## 2026-11-15 – Your sensory profile: built on the server for each rating call, checked against the study (proposed)
 **Context.** Elena: Part A as the in-app onboarding, saved on the device and used for ratings; the profile text built from `model/app_v9/` word for word as in the study; ratings cached per photo and per profile version; the profile leaves the device only inside the model call. Brief §12: phase 1 has no profile endpoints, the browser sends the profile in the body of each request.
 **Decision.**

@@ -3,9 +3,10 @@
 // be rated (with Retry), or the rating on its 1–5 bar, what might bother and feel good with sense icons, and the
 // model's explanation of the photo shown. Model text is shown as text only.
 import { computed } from 'vue'
-import { GENERAL_LABEL, bySense, comfortLabel, levelWord } from '../lib/senses.js'
+import { predictionLabel, bySense, comfortLabel, levelWord } from '../lib/senses.js'
 import AppIcon from './AppIcon.vue'
 import SenseItem from './SenseItem.vue'
+import { useProfileStore } from '../stores/profile.js'
 
 const props = defineProps({
   /** The place, combined from its photos (lib/senses.js). */
@@ -30,6 +31,7 @@ const basedOn = computed(() => {
   return `Based on ${nRated} photo${nRated === 1 ? '' : 's'} ${props.along}${notes.length ? ` (${notes.join(', ')})` : ''}.`
 })
 const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.status === 'ok')
+const profileStore = useProfileStore()
 </script>
 
 <template>
@@ -54,7 +56,7 @@ const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.sta
         <span class="diamond" :style="{ left: `${((place.comfort - 1) / 4) * 100}%` }" />
       </div>
       <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
-      <p class="general">{{ GENERAL_LABEL }}</p>
+      <p class="general">{{ predictionLabel(profileStore.personal) }}</p>
       <p class="muted">A prediction, not a reason.</p>
     </div>
     <p class="based muted" data-testid="senses-based">{{ basedOn }}</p>

@@ -166,6 +166,20 @@
   --rate-h: 36px;
   --rate-w-phone: 44px;
   --rate-h-phone: 40px;
+
+  /* Your sensory profile (boards 4, P4, 5, 5b, 5c) */
+  --onboarding-w: 760px;           /* the question card */
+  --score-w: 44px;                 /* one 1–5 answer box */
+  --score-h: 40px;
+  --score-h-phone: 44px;
+  --progress-h: 6px;               /* the onboarding progress bar */
+  --answer-text-h: 140px;          /* the open answer (A16) */
+  --profile-side-w: 480px;         /* the right card of the profile */
+  --profile-main-w: 640px;         /* the answers column */
+  --empty-logo: 120px;             /* the logo of the empty profile (5b) */
+  --dialog-w: 480px;               /* the delete dialog (5c) */
+  --btn-danger-bg: var(--hard);    /* "Delete everything" */
+  --btn-danger-text: #ffffff;
 }
 
 :root[data-theme="dark"] {

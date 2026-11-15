@@ -1,6 +1,6 @@
 <script setup>
 // Area / Routes / Profile. Top centre on desktop, bottom tab bar on a phone (brief §3).
-// Area and Routes work; Profile does not yet.
+// Profile: your sensory profile, over the map (ProfilePage).
 import { useRoute } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 
@@ -9,7 +9,7 @@ const route = useRoute()
 const TABS = [
   { id: 'area', label: 'Area', icon: 'area', ready: true },
   { id: 'routes', label: 'Routes', icon: 'route', ready: true },
-  { id: 'profile', label: 'Profile', icon: 'user', ready: false },
+  { id: 'profile', label: 'Profile', icon: 'user', ready: true },
 ]
 </script>
 

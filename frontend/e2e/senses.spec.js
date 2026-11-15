@@ -52,7 +52,7 @@ test.describe('Senses mode', () => {
 
   test('an area is rated without a click, nearest first, with the panel and the markers filling in', async ({ page }) => {
     const { mock, photos } = await openSenses(page)
-    await expect(page.getByTestId('senses-foot')).toContainText('General prediction: not yet personal')
+    await expect(page.getByTestId('senses-foot')).toContainText('General prediction: not personalised yet')
     // At the bottom of the card, after the recommendations.
     expect(await page.locator('[data-panel="area-card"]').evaluate((card) => card.querySelector('[data-testid="senses-best"]')
       .compareDocumentPosition(card.querySelector('[data-testid="senses-foot"]')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
@@ -93,7 +93,7 @@ test.describe('Senses mode', () => {
     await expect(loading.getByTestId('rating-step')).toContainText(/Rating 0 of \d+ places…/)
     await expect(loading).toContainText('Street photos')
     await expect(loading.getByTestId('senses-cost')).toContainText('so far')
-    await expect(loading).toContainText('General prediction: not yet personal')
+    await expect(loading).toContainText('General prediction: not personalised yet')
     await expect(page.getByTestId('senses-best')).toHaveCount(0) // recommendations wait for the end
     // Streets with photos but no rating yet are drawn at full width, in grey, until their rating arrives.
     const grey = await page.evaluate(() => {
@@ -140,7 +140,7 @@ test.describe('Senses mode', () => {
     await expect(card.getByRole('img', { name: 'hearing' })).toBeVisible()
     await expect(card).toContainText('The trees give shade')
     await expect(card).toContainText('Based on 3 photos')
-    await expect(card).toContainText('General prediction: not yet personal')
+    await expect(card).toContainText('General prediction: not personalised yet')
     await expect(card).toContainText('A prediction, not a reason.')
     expect(mock.requests).toHaveLength(1)
 
@@ -214,7 +214,7 @@ test.describe('Senses mode', () => {
   test('the card and panel fit a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openSenses(page, { comfort: () => 4 })
-    await expect(page.locator('[data-panel="sheet"]')).toContainText('General prediction: not yet personal')
+    await expect(page.locator('[data-panel="sheet"]')).toContainText('General prediction: not personalised yet')
     await mapIdle(page)
     expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/senses-phone.png' })
@@ -243,7 +243,7 @@ test.describe('Senses mode', () => {
     await expect.poll(() => rate.release !== null).toBe(true)
     rate.release()
     // As on the board: the routes' own rows and one sentence, no detail per route.
-    await expect(card).toContainText('General prediction: not yet personal')
+    await expect(card).toContainText('General prediction: not personalised yet')
     await expect(card).toContainText('Based on photos along')
     await expect(card.locator('.hard').first()).toContainText('hard')
     await expect(card.locator('.verdict')).toContainText('easiest way') // every street here has the same photos
@@ -262,7 +262,7 @@ test.describe('Senses mode', () => {
     await page.route('**/api/mapillary/along', (route) => { lookups++; return route.abort() })
     await analyseRoute(page, true)
     const card = page.locator('[data-panel="route-card"]')
-    await expect(card).toContainText('General prediction: not yet personal')
+    await expect(card).toContainText('General prediction: not personalised yet')
     const walkBtn = card.locator('[data-walk]').first()
     const id = await walkBtn.getAttribute('data-walk')
     const fills = (bar) => bar.locator('[data-stretch] .fill').evaluateAll((els) => els.map((e) => e.className))

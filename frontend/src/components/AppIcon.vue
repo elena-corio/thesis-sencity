@@ -43,6 +43,9 @@ const PATHS = {
   chevronUp: ['M6 15l6-6 6 6'],
   swap: ['M8 20V5', 'M4 9l4-4 4 4', 'M16 4v15', 'M20 15l-4 4-4-4'],
   edit: ['M4 20h4L19 9l-4-4L4 16v4z'],
+  download: ['M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'],
+  upload: ['M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'],
+  trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'],
 }
 
 defineProps({ name: { type: String, required: true } })

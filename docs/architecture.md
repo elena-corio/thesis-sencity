@@ -8,7 +8,9 @@ How the tool is built **now**:
 - **Routes:** Start and End, the shortest and the easiest way on Thermal, compared stretch by stretch.
 - **Senses (general, no profile):** every photo of an area or of the two routes is rated in the background (`POST /api/senses/rate`), from the settings in `model/app_v9/`: a presence call lists the elements clearly visible in the photo (cached per photo), then the rating call uses the study's task and schema on that list, with the system instruction alone (the study's V0). Places appear on the map as ratings arrive, with recommendations beside them.
 
-There are no profiles yet, and Overall stays inactive.
+- **Your sensory profile (phase 1, this device only):** the Profile tab holds the onboarding (Part A of the survey: the eight-senses intro, A11, A12, A13, A16, from `model/app_v9/part_a.json`), the profile (every answer, editable; your words; the strongest elements; the exact text the model reads), download and import as a JSON file, and Delete my profile. With a profile, Senses ratings are personal (the study's V2); without one they are general (V0), with a "Not personalised yet" box and a shortcut to the onboarding.
+
+Overall stays inactive. Not built yet: the consent screen, the radar, personal thermal limits, "Places that may suit you", group mode, accounts.
 
 ## Data flow
 
@@ -123,6 +125,15 @@ flowchart LR
 | `src/map/layers.js` | Our map layers: teal tint, lit circle, dimmed outside (world minus circle), dashed circle and radius line; colours read from `style.css` |
 | `src/lib/geo.js` | Radius maths: haversine, limits (snap to 50 m, cap at 500 m, round to 10 m), 64-point circle, mask, photo estimate, coordinate label |
 | `src/stores/area.js` | Pinia: selection step (`centre` → `radius` → `set` → `analysed`), centre, radius, the analysed area `{lat, lon, radius}`; loading the area (progress, cancel, errors), its segments, the Places filter (`placeFilter`, `visibleSegments`); the markers (`suggestions` on the Thermal layer, `chatMarkers` hook with `showChatResults` / `clearChatResults`, `markersCollapsed` (hidden after selecting an unmarked place), `seenIds`); the selected segment (and `cameFrom`, the street a nearby link was followed from; `goNearby`, `goBack`); thermal comfort (state, window, station) and the layer on the map |
+| `src/stores/profile.js` | Pinia: your sensory profile on this device: the survey (loaded once), the saved profile (`sencity-profile`), the onboarding in progress (`sencity-profile-draft`, kept when you leave halfway), save (builds the text and its version), edit, import, Delete my profile; the made-up test profile in dev mode only |
+| `src/lib/profile.js` | Pure: required answers, cleaning, the profile text as the study builds it (`profile_template.txt` and `profile_rules.json`, from the survey), its version (sha256, as on the server), what a rating request carries (answers and language, never the text), the export file and reading it back, the strongest elements |
+| `src/dev/test-profiles.json` | Four made-up profiles with the texts the study's own code makes for them: the tests (frontend and backend) and the dev-only test profile. No participant data |
+| `src/components/ProfilePage.vue` | The Profile view over the map: onboarding, profile or empty state; download, import, delete |
+| `src/components/ProfileOnboarding.vue` | Boards 4, P4: one question group per screen, progress, Back and Next (never disabled: with an answer missing it says so and goes there), Skip for now (answers kept) or, when editing, Cancel and Save changes |
+| `src/components/ScoreChoice.vue` | One 1–5 answer: five radio buttons in a fieldset, with the element's sense icon |
+| `src/components/ProfileSummary.vue` | Board 5: every answer with Edit, your words, the strongest elements, the profile text, Edit answers, Go to map, Download my data, Import a file, Delete my profile |
+| `src/components/ProfileEmpty.vue` | Board 5b: no profile yet, Create your profile, import, the dev-only test profile |
+| `src/components/DeleteProfileDialog.vue` | Board 5c: alert dialog, focus on Cancel, Download a copy first, Delete everything |
 | `src/stores/theme.js` | Pinia: Appearance System / Light / Dark, follows `prefers-color-scheme` live, override in `localStorage` |
 | `src/components/TopSearch.vue` | Logo + search (`PlaceSearch`); picking moves the map |
 | `src/lib/api.js` | Calls to the SenCity API: `searchPlaces`, `pointName`, `loadArea` and `loadRoutes` (read the streamed events), `photoUrl`; error type, place-type labels |
@@ -145,10 +156,10 @@ flowchart LR
 | `src/lib/suggest.js` | "Likely easiest for you": `pickSuggestions` (greedy, at least `config.suggest.minApartM` apart, a new type first within `margin`, ties to the nearer centre; any layer passes its own keep and value) and `thermalSuggestions` (easy places in the Places filter, closest to the middle of the easy range first, via `comfortKey`) |
 | `src/lib/nearby.js` | "Easier street nearby": `easierNearby` (within `config.nearby.maxM`, at least one level better, the best rank first, then the shortest walk; any layer passes its own level and rank) and `easierThermalNearby` (Thermal, ranked by `comfortKey`) |
 | `src/lib/place.js` | The place filter (All, Streets, Parks, Squares) and which one a segment belongs to; words for the cards: place type, size, "Looking north-east, July 2024", distance from the middle, credit, nearest street with photos |
-| `src/stores/senses.js` | Pinia: starts the rating when an area or the two routes are ready; the ratings by photo, the run (progress, cost, the question above the cap, errors, Retry), the state of each street for the map |
+| `src/stores/senses.js` | Pinia: starts the rating when an area or the two routes are ready, with your profile when there is one (a new or deleted profile rates what is open again); the ratings by photo, the run (progress, cost, the question above the cap, errors, Retry), the state of each street for the map |
 | `src/components/SensesPanel.vue` | In the area and route cards: progress and running cost, the question above the cap, the label and status line, and once the rating has ended most comfortable nearby |
 | `src/lib/senses.js` | Pure: one place from its photos (median, shared elements), the recommendations, a route's hard share and verdict on Senses, a 1–5 rating to its state (easy, mixed, hard), "4 · fairly comfortable" (the survey's words for 1 and 5), an element's label in the app's language, the status line |
-| `src/components/SensesFoot.vue` | The end of a Senses card, area or routes: "General prediction: not yet personal" and the status line |
+| `src/components/SensesFoot.vue` | The end of a Senses card, area or routes: "Personal prediction: from your sensory profile" or "General prediction: not personalised yet" with the "Not personalised yet" box and Create your profile (board 2c), and the status line |
 | `src/components/SensesPrediction.vue`, `SenseIcon.vue` | A place's rating on the place and stretch card (board 2c), from the ratings already here: waiting, "Could not rate" with Retry, the rating bar, might bother and feel good, the model's explanation; one sense icon |
 | `src/components/AppLogo.vue`, `AppIcon.vue` | Logo (paths from `src/assets/logo/sencity.svg`, drawn in `var(--logo)`) and line icons |
 | `src/styles/style.css` | Every colour, font and size as a CSS variable, dark and light |
@@ -195,6 +206,8 @@ flowchart LR
 **Buildings** (`POST /api/buildings`, not called by the app since 2026-11-14): request `{ line: [[lon, lat], …] }` (the walked route, at most 3 km). Answer: a FeatureCollection of footprint Polygons with `h` (height, m) and `b` (base, m), and `source` ("Stadt Wien – data.wien.gv.at", "Overture Maps", or both joined by "and"). Cached in `runs/buildings/<key>.json` (not committed): `{ created, buildings }`; the key is a hash of the line, either way round, and the settings. 503 with a message when they cannot be read.
 
 **Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
+
+**Your sensory profile** (frontend, `stores/profile.js`, `localStorage` of this browser only): `sencity-profile` = `{ language: "en" | "it", answers: { A11, A12: {code: 1–5}, A13: {code: 1–5}, A16 }, text, version, saved }` (text and version as the server builds them); `sencity-profile-draft` = `{ answers, step, editing }` while the onboarding is open. Delete my profile removes both. The export file: `{ kind: "SenCity sensory profile", format: 1, saved, language, answers, profile, version }`; on import only the answers and language are used and the text is built again.
 
 **Selected area** (frontend, `stores/area.js`, in the browser only): `{ lat: number, lon: number, radius: number }` (metres, 50–500, a multiple of 10).
 
