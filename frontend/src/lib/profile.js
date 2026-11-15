@@ -126,25 +126,19 @@ export function senseOrder(survey) {
   return [...new Set(GRIDS.flatMap((g) => gridRows(survey, g).map((r) => r.icon_key)))]
 }
 
-/** One element on the 1–5 scale as the radar reads it: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x), 0–2. */
-export const elementValues = (x) => ({ pleasant: Math.max(0, x - 3), unpleasant: Math.max(0, 3 - x) })
-
 /**
- * The radar of the profile (Elena, 2026-11-15): one axis per sense, in the onboarding's order; each element counts only
- * for its main sense (icon_key). Per sense, pleasant and unpleasant are each the maximum over its answered elements
- * (0–2). A sense with no answered element has null for both: a gap on the radar. From the stored answers only.
+ * The radar of the profile (board 5; Elena, 2026-11-15: the first version, with tapping and a list): one axis per sense,
+ * in the onboarding's order; each element counts only for its main sense (icon_key). Per sense, on 1–5: what bothers
+ * you = 6 − the lowest answer (its most unpleasant element), what feels good = the highest answer (its most pleasant
+ * one); all "neither" is 3 and 3. A sense with no answered element has null for both: a gap. From the stored answers.
  */
 export function senseScores(survey, answers) {
   const rows = GRIDS.flatMap((g) => gridRows(survey, g).map((r) => ({ ...r, value: answers[g]?.[r.code] })))
   return senseOrder(survey).map((sense) => {
     const elements = rows.filter((r) => r.icon_key === sense && Number.isInteger(r.value))
-      .map((r) => ({ code: r.code, en: r.en, it: r.it, value: r.value, ...elementValues(r.value) }))
-    if (!elements.length) return { sense, elements, pleasant: null, unpleasant: null }
-    return {
-      sense,
-      elements,
-      pleasant: Math.max(...elements.map((e) => e.pleasant)),
-      unpleasant: Math.max(...elements.map((e) => e.unpleasant)),
-    }
+      .map((r) => ({ code: r.code, en: r.en, it: r.it, value: r.value }))
+    if (!elements.length) return { sense, elements, bothers: null, good: null }
+    const values = elements.map((e) => e.value)
+    return { sense, elements, bothers: 6 - Math.min(...values), good: Math.max(...values) }
   })
 }

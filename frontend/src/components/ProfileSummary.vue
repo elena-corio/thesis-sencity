@@ -29,8 +29,8 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
   <div class="summary" data-panel="profile-summary">
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
-      <p class="sub">From your answers · saved on {{ saved }}</p>
-      <ProfileRadar :survey="survey" :answers="p.answers" @edit-words="edit('A16')" />
+      <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
+      <ProfileRadar :survey="survey" :answers="p.answers" />
 
       <div class="group">
         <div class="group-head">
@@ -58,7 +58,12 @@ const edit = (code) => store.begin(STEPS.indexOf(code))
       </div>
     </section>
 
-    <aside class="side panel" aria-label="Your profile text and your data">
+    <aside class="side panel" aria-label="Your words and your data">
+      <h3>In your words</h3>
+      <blockquote v-if="p.answers.A16" class="words" data-testid="answer-A16">“{{ p.answers.A16 }}”</blockquote>
+      <p v-else class="muted">Nothing written.</p>
+      <button type="button" class="edit inline" aria-label="Edit your own words" @click="edit('A16')">Edit</button>
+
       <h3>Strongest for you</h3>
       <ul v-if="top.length" class="top">
         <li v-for="t in top" :key="t.row.code">

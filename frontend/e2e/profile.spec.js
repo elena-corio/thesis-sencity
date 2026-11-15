@@ -112,16 +112,14 @@ test.describe('your sensory profile', () => {
     expect(await draft(page)).toBe(null)
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     await expect(summary.getByTestId('answer-traffic_trams')).toContainText('1 · very unpleasant')
-    // The radar (Elena, 2026-11-15): eight senses in the onboarding order, A11 in the centre, A16 below, from the
-    // stored answers only. Tapping an axis lists its elements with their values.
+    // The radar (board 5; Elena, 2026-11-15): eight senses in the onboarding order, 1–5, from the stored answers only.
+    // Tapping a sense lists its elements with their answers; "Show as a list" says the same as text.
     const radar = summary.getByTestId('profile-radar')
     expect(await radar.locator('button[data-sense]').evaluateAll((b) => b.map((x) => x.dataset.sense)))
       .toEqual(['sight', 'hearing', 'smell', 'touch', 'thermal', 'balance_movement', 'body_awareness', 'inner_sensations'])
-    await expect(radar.getByTestId('radar-a11')).toContainText('2')
-    await expect(radar.getByTestId('answer-A16')).toHaveText(DEV.answers.A16)
-    await expect(radar.locator('[data-shape="unpleasant"]')).toHaveCSS('stroke-dasharray', /\d/)
-    await expect(radar.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: pleasant 2, unpleasant 2')
-    await expect(radar.locator('button[data-sense="balance_movement"]')).toHaveAttribute('aria-label', 'Balance and movement: pleasant 1, unpleasant 0')
+    await expect(summary.getByTestId('answer-A16')).toContainText(DEV.answers.A16)
+    await expect(radar.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: bothers you 5, feels good 5')
+    await expect(radar.locator('button[data-sense="balance_movement"]')).toHaveAttribute('aria-label', 'Balance and movement: bothers you 3, feels good 4')
     await radar.locator('button[data-sense="hearing"]').click()
     await expect(radar.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-expanded', 'true')
     const detail = radar.getByTestId('radar-detail')
@@ -130,7 +128,7 @@ test.describe('your sensory profile', () => {
     await radar.locator('.radar').scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'e2e/screens/profile-radar-dark.png' })
     await radar.getByText('Show as a list').click()
-    await expect(radar.locator('.as-list')).toContainText('Internal sensations: pleasant 2, unpleasant 0 (Seats 5 · very pleasant; Drinking fountains, toilets 4 · a little pleasant; Steps, slopes 3 · neither)')
+    await expect(radar.locator('.as-list')).toContainText('Internal sensations: bothers you 3, feels good 5 (Seats 5 · very pleasant; Drinking fountains, toilets 4 · a little pleasant; Steps, slopes 3 · neither)')
     await page.screenshot({ path: 'e2e/screens/profile-summary-dark.png' })
   })
 
@@ -148,10 +146,18 @@ test.describe('your sensory profile', () => {
     await choose(page, 'A11', 4)
     await ob.getByRole('button', { name: 'Save changes' }).click()
     await expect(summary.getByTestId('answer-A11')).toContainText('4')
-    await expect(summary.getByTestId('radar-a11')).toContainText('4') // the radar follows the edit
     const edited = await saved(page)
     expect(edited.text).toBe(DEV.expected.replace('(1 = not at all … 5 = very much): 2.', '(1 = not at all … 5 = very much): 4.'))
     expect(edited.version).not.toBe(DEV_VERSION)
+
+    // The radar follows an edit at once: traffic from 1 to 3, hearing now bothers 3.
+    await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
+    await choose(page, 'A12-traffic_trams', 3)
+    await ob.getByRole('button', { name: 'Save changes' }).click()
+    await expect(summary.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: bothers you 3, feels good 5')
+    await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
+    await choose(page, 'A12-traffic_trams', 1)
+    await ob.getByRole('button', { name: 'Save changes' }).click()
 
     // Cancel an edit: nothing changes.
     await summary.getByRole('button', { name: 'Edit answers' }).click()

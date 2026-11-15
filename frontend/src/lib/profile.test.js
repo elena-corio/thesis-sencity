@@ -95,34 +95,36 @@ describe('the radar', () => {
     expect(senseOrder(survey)).toEqual(['sight', 'hearing', 'smell', 'touch', 'thermal', 'balance_movement', 'body_awareness', 'inner_sensations'])
   })
 
-  it('gives each sense the maximum pleasant (x − 3) and unpleasant (3 − x) of its elements, on the made-up profile', () => {
+  it('gives each sense what bothers (6 − lowest) and what feels good (highest), 1–5, on the made-up profile', () => {
     const s = senseScores(survey, DEV.answers)
-    expect(s.map((x) => [x.sense, x.pleasant, x.unpleasant])).toEqual([
-      ['sight', 2, 1], // greenery 5, buildings 4, signs 2
-      ['hearing', 2, 2], // fountains 5, traffic 1
-      ['smell', 2, 1], // plants 5, bins 2, food 3
-      ['touch', 1, 1], // grass 4, asphalt 2
-      ['thermal', 2, 2], // shade 5, direct sun 1
-      ['balance_movement', 1, 0], // open space 4, heights 3
-      ['body_awareness', 2, 2], // car-free 5, crowds 1, narrow 2
-      ['inner_sensations', 2, 0], // seats 5, toilets 4, steps 3
+    expect(s.map((x) => [x.sense, x.bothers, x.good])).toEqual([
+      ['sight', 4, 5], // greenery 5, buildings 4, signs 2
+      ['hearing', 5, 5], // fountains 5, traffic 1
+      ['smell', 4, 5], // plants 5, bins 2, food 3
+      ['touch', 4, 4], // grass 4, asphalt 2
+      ['thermal', 5, 5], // shade 5, direct sun 1
+      ['balance_movement', 3, 4], // open space 4, heights 3
+      ['body_awareness', 5, 5], // car-free 5, crowds 1, narrow 2
+      ['inner_sensations', 3, 5], // seats 5, toilets 4, steps 3
     ])
     expect(s[1].elements).toEqual([
-      { code: 'fountains_water', en: 'Fountains, water', it: 'Fontane, acqua', value: 5, pleasant: 2, unpleasant: 0 },
-      { code: 'traffic_trams', en: 'Traffic, trams', it: 'Traffico, tram', value: 1, pleasant: 0, unpleasant: 2 },
+      { code: 'fountains_water', en: 'Fountains, water', it: 'Fontane, acqua', value: 5 },
+      { code: 'traffic_trams', en: 'Traffic, trams', it: 'Traffico, tram', value: 1 },
     ])
   })
 
-  it('counts each element only for its main sense, and leaves a sense with no answers as a gap', () => {
+  it('counts each element only for its main sense, puts all "neither" at 3 and 3, and leaves a sense with no answers as a gap', () => {
     const only = { A12: { greenery_trees: 1, fountains_water: 4 }, A13: {} } // greenery also touches hearing; not counted there
     const s = senseScores(survey, only)
-    expect(s.find((x) => x.sense === 'sight')).toMatchObject({ pleasant: 0, unpleasant: 2 })
-    expect(s.find((x) => x.sense === 'hearing')).toMatchObject({ pleasant: 1, unpleasant: 0 })
-    expect(s.find((x) => x.sense === 'touch')).toEqual({ sense: 'touch', elements: [], pleasant: null, unpleasant: null })
+    expect(s.find((x) => x.sense === 'sight')).toMatchObject({ bothers: 5, good: 1 })
+    expect(s.find((x) => x.sense === 'hearing')).toMatchObject({ bothers: 2, good: 4 })
+    expect(s.find((x) => x.sense === 'touch')).toEqual({ sense: 'touch', elements: [], bothers: null, good: null })
+    const neutral = Object.fromEntries(['A12', 'A13'].map((g) => [g, Object.fromEntries(survey.questions.find((q) => q.code === g).rows.map((r) => [r.code, 3]))]))
+    expect(senseScores(survey, neutral).every((x) => x.bothers === 3 && x.good === 3)).toBe(true)
   })
 
   it('updates with the answers', () => {
     const edited = { ...DEV.answers, A12: { ...DEV.answers.A12, traffic_trams: 3 } }
-    expect(senseScores(survey, edited)[1]).toMatchObject({ pleasant: 2, unpleasant: 0 })
+    expect(senseScores(survey, edited)[1]).toMatchObject({ bothers: 3, good: 5 })
   })
 })

@@ -184,7 +184,6 @@
   --radar-fill-opacity: 0.22;
   --radar-line: 2.5px;
   --radar-ring: 1px;
-  --radar-dash: 6 5;               /* the unpleasant line */
 }
 
 :root[data-theme="dark"] {

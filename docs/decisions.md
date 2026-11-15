@@ -3,15 +3,12 @@
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
 ## 2026-11-15 – The radar of the profile (accepted)
-**Context.** Elena: "the spider web diagram is missing", then the rules for it. Replaces the rule first proposed the same day (6 − the lowest answer, the highest answer, on 1–5).
+**Context.** Elena: "the spider web diagram is missing". A first version followed board 5 and brief §4; Elena then specified another (0–2: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x); A11 in the centre, A16 below; pleasant solid, unpleasant dashed), saw it, and preferred the first: "i preferred how it was before". Kept from the second: tapping a sense lists its elements, the visible list, gaps.
 **Decision (Elena).**
-- *Axes:* the 8 senses, in the onboarding order (the main sense of each grid row, A12 then A13: sight, hearing, smell, touch, thermal, balance and movement, body awareness, internal sensations), each with its icon.
-- *Values:* each element counts only for its main sense (`icon_key` in `elements.json`). Per element on the 1–5 scale: pleasant = max(0, x − 3), unpleasant = max(0, 3 − x). Per sense, each value is the maximum over its answered elements.
-- *Drawing:* two polygons on a 0–2 radius: pleasant in blue (`--easy`), solid; unpleasant in pink (`--hard`), dashed. A sense with no answers is a gap (the line breaks there and the polygon is not filled).
-- *Also on it:* A11 as a number in the centre; A16 as text below. Tapping an axis (its icon or its slice) lists its elements with their answers; a legend; "Show as a list", the same as text.
+- *Axes:* the 8 senses in the onboarding order (the main sense of each grid row, A12 then A13), icons instead of names, circular rings 1–5.
+- *Values:* each element counts only for its main sense (`icon_key` in `elements.json`). Per sense: *what bothers you* (pink) = 6 − its lowest answer, *what feels good* (cyan) = its highest answer, both 1–5; all "neither" is 3 and 3. Both shapes solid and filled. A sense with no answers is a gap (the line breaks there, no fill).
+- *Reading it:* tapping a sense (its icon or its slice) lists its elements with their answers, under the radar; "Show as a list" gives every sense as text; legend "What bothers you", "What feels good" (board 5). A11 is not on the radar; A16 stays in the right card, "In your words".
 - *Source:* the stored answers only, no model call; it follows every edit at once.
-
-**Consequences (proposed).** "In your words" moved from the right card to under the radar, so A16 is shown once.
 
 ## 2026-11-15 – The onboarding and the profile screen (proposed)
 **Context.** Elena: the onboarding as one question group per screen with progress, Back and Next, answers kept when leaving halfway; a profile screen to see and edit any answer; export, import, "Delete my profile"; boards 4, P4, 5, 5b, 5c.
