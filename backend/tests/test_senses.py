@@ -386,6 +386,7 @@ def test_a_new_photo_takes_the_presence_call_then_the_rating_call_on_its_list(ca
     assert ok["bothers"][1] == {"code": "traffic_trams", "n": 5, "en": "Traffic, trams", "it": "Traffico, tram",
                                 "icon_key": "hearing", "also": []}
     assert ok["cost_usd"] == pytest.approx(0.0005)  # both calls
+    assert ok["commit"] == load_export().commit and ok["prompt"] == senses_mod.PROMPT_VERSION  # what it was made from
 
 
 def test_nothing_detected_sends_an_empty_list_and_needs_b2_none(calls, cfg):
