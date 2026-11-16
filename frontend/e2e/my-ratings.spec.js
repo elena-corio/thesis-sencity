@@ -113,3 +113,43 @@ test.describe('Rate this place', () => {
     expect((await mine(page)).map((e) => e.rating.B1)).toEqual([2])
   })
 })
+
+test.describe('How close SenCity is to you', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const DEV = TEST_PROFILES[0]
+  const at = (i) => `2026-11-16T10:${String(i).padStart(2, '0')}:00Z`
+  const r = (i, you, pred, version) => ({ photo: { id: `p${i}`, heading: 0, source: 'streetview' }, rating: { B1: you, marked: null }, from: 'map', at: at(i),
+    prediction: pred == null ? null : { level: 'mixed', B1: pred, version, profileHash: version === 'V2' ? 'x' : null, elements: [], prompt: '2', model: 'm', commit: 'c' } })
+  // The unit test's fixture (lib/myRatings.test.js): 12 with a prediction, gaps 1,0,3,1, 0,0,2,0 (V2), 2,2,0,1 (V0).
+  const FIXTURE = [
+    r(1, 2, 3, 'V2'), r(2, 4, 4, 'V2'), r(3, 1, 4, 'V2'), r(4, 5, 4, 'V2'),
+    r(5, 3, 3, 'V2'), r(6, 2, 2, 'V2'), r(7, 4, 2, 'V2'), r(8, 3, 3, 'V2'),
+    r(9, 4, 2, 'V0'), r(10, 5, 3, 'V0'), r(11, 1, 1, 'V0'), r(12, 3, 4, 'V0'), r(13, 3, null),
+  ]
+  async function open(page, ratings) {
+    await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z', weather: {}, thermal: null })
+    await page.addInitScript((list) => localStorage.setItem('sencity-my-ratings', JSON.stringify(list)), ratings)
+    await mockSurvey(page)
+    await openMap(page, 'dark', { layer: null })
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
+    return page.getByTestId('how-close')
+  }
+
+  test('the numbers on a fixture, and a line each for personal and general predictions', async ({ page }) => {
+    const hc = await open(page, FIXTURE)
+    await expect(hc.getByTestId('how-close-n')).toHaveText('12') // the one without a prediction is left out
+    await expect(hc.getByTestId('how-close-gap')).toHaveText('1.0')
+    await expect(hc.getByTestId('how-close-within')).toHaveText('67%')
+    await expect(hc.locator('path.line')).toHaveCount(2)
+    await expect(hc.locator('circle.dot.v2')).toHaveCount(2) // groups 1–4 and 5–8
+    await expect(hc.locator('circle.dot.v0')).toHaveCount(1)
+    await expect(hc.locator('table')).toContainText('1.3') // 1.25, the first personal group
+    await hc.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: 'e2e/screens/profile-how-close-dark.png' })
+  })
+
+  test('under 4 ratings with a prediction it asks for more', async ({ page }) => {
+    const hc = await open(page, FIXTURE.slice(0, 3))
+    await expect(hc.getByTestId('how-close-empty')).toHaveText('Rate a few places to see how close SenCity is to you.')
+  })
+})
