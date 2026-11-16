@@ -250,3 +250,24 @@ def test_the_v0_request_differs_from_v2_by_the_profile_only():
     assert v0["messages"][0]["content"] == PARITY["system"].split("\n\n")[0]
     assert v0["messages"][1]["content"][0]["text"] == PARITY["user_text"]
     assert v0["response_format"] == PARITY["response_format"]
+
+
+# The study's confirmed element lists (model/app_v9/study_lists.json, hash-checked with the export) as the parity fixture.
+
+STUDY_LISTS = json.loads((senses_mod.EXPORT_DIR / "study_lists.json").read_text(encoding="utf-8"))
+
+
+def test_the_study_lists_are_checked_with_the_export_and_cover_the_20_photos():
+    files, _commit, _presence = senses_mod.verified_files()
+    assert "study_lists.json" in files  # listed in MANIFEST.md, so its sha256 is checked
+    places = STUDY_LISTS["places"]
+    assert [p["place"] for p in places] == list(range(1, 21))
+    codes = set(load_export().elements)
+    assert all(set(p["elements"]) <= codes and set(p["visible_not_listed"]) <= codes for p in places)
+    assert not any(set(p["elements"]) & set(p["visible_not_listed"]) for p in places)
+
+
+def test_the_v2_parity_fixture_uses_the_study_list_of_its_photo():
+    place = next(p for p in STUDY_LISTS["places"] if p["place"] == PARITY["photo"])
+    order = list(load_export().elements)
+    assert PARITY["listed"] == [c for c in order if c in place["elements"]]
