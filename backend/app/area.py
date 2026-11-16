@@ -78,12 +78,14 @@ def feature(seg, proj: LocalProjection, photos: list | None) -> dict:
     }
 
 
-def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None, indoor=None):
+def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None, indoor=None,
+                  streets: list | None = None):
     """Yield (done, segment, its photos) as the lookups finish, several at a time (app/photos.py). `directions`
     (routes): {segment id: True if walked along its own drawing, False if against it}; such a street gets photos facing
-    the way it is walked. `indoor`: building footprints (prepared), whose Street View photos are left out. Stops as soon
-    as the caller stops reading."""
-    finder = photos_mod.Finder(cfg, proj, indoor)
+    the way it is walked. `indoor`: building footprints (prepared), whose Street View photos are left out. `streets`:
+    every street and place of the area or route (default: `segments`), so a photo nearer another street is not used.
+    Stops as soon as the caller stops reading."""
+    finder = photos_mod.Finder(cfg, proj, indoor, streets if streets is not None else segments)
     directions = directions or {}
 
     def one(seg):
@@ -127,7 +129,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, key: str | None = N
 
     finished = False
     try:
-        for done, seg, photos in lookup_photos(todo, proj, cfg, indoor=indoor):
+        for done, seg, photos in lookup_photos(todo, proj, cfg, indoor=indoor, streets=segments):
             found[seg.id] = photos
             features[seg.id] = feature(seg, proj, photos)
             yield {"type": "segment", "feature": features[seg.id], "done": total - len(todo) + done, "total": total}

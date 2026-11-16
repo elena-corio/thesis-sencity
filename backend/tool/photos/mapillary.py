@@ -80,11 +80,12 @@ def angle_of(im: dict) -> float | None:
 
 
 def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: datetime | None = None,
-         kind: str = "walk", ahead: list[list[float]] | None = None) -> dict | None:
+         kind: str = "walk", ahead: list[list[float]] | None = None, keep=None) -> dict | None:
     """The image to show for a stretch, in the shape the app shows, or None. `heading` is the direction the view looks:
     the walk's bearing for a panorama (the app turns it there, from `pano_heading`), the camera's for a flat photo.
     kind: 'walk' (the way it is walked, from coordinates[0]; `ahead`: the route's next points, for the bearing near the
-    end), 'street' (either way along it) or 'area' (a park or square: any direction)."""
+    end), 'street' (either way along it) or 'area' (a park or square: any direction). keep(lon, lat): False for an
+    image that belongs to another street (app/photos.py)."""
     m = cfg["mapillary"]
     wp = cfg["walk_photos"]
     now = now or datetime.now(timezone.utc)
@@ -120,6 +121,8 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
         geom = im.get("computed_geometry") or im.get("geometry")
         angle = angle_of(im)
         if not geom or angle is None or (im.get("captured_at") or 0) < oldest:
+            continue
+        if keep is not None and not keep(*geom["coordinates"]):
             continue
         pt = Point(proj.to_xy(*geom["coordinates"]))
         d = line.distance(pt)
@@ -160,16 +163,16 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
     }
 
 
-def photo_for(s: requests.Session, coordinates: list[list[float]], kind: str, cfg: dict) -> dict | None:
+def photo_for(s: requests.Session, coordinates: list[list[float]], kind: str, cfg: dict, keep=None) -> dict | None:
     """The photo of one street ('street') or place ('area'), or None."""
-    return pick(search(s, coordinates, cfg), coordinates, cfg, kind=kind)
+    return pick(search(s, coordinates, cfg), coordinates, cfg, kind=kind, keep=keep)
 
 
 def photo_walking(s: requests.Session, coordinates: list[list[float]], cfg: dict,
-                  ahead: list[list[float]] | None = None) -> dict | None:
+                  ahead: list[list[float]] | None = None, keep=None) -> dict | None:
     """The photo of a street a route walks from coordinates[0] to coordinates[-1], facing the way it is walked (Elena,
     2026-11-16), or None: never one facing another way."""
-    return pick(search(s, coordinates, cfg), coordinates, cfg, kind="walk", ahead=ahead)
+    return pick(search(s, coordinates, cfg), coordinates, cfg, kind="walk", ahead=ahead, keep=keep)
 
 
 # The image for the model

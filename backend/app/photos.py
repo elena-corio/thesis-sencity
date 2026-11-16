@@ -9,6 +9,10 @@
   kept (Google terms); images are fetched on demand, in memory only, and every fetch counts against a daily cap.
 - mapillary (any public version): one Mapillary photo per street or place (tool/photos/mapillary.py).
 
+A photo belongs to its street only if no other street of the area or route is nearer to it by more than
+selection.own_street_tolerance_m (Elena, 2026-11-16): the pano at a junction is often on the crossing street, and a path
+beside a road has the road's panos.
+
 A photo, as the app gets it: Street View {id: "sv:<pano ID>", source, pano_id, lat, lon, heading, date, year,
 contributor, copyright?}; Mapillary as tool/photos/mapillary.py makes it, with source "mapillary". The "sv:" prefix
 keeps the two kinds of ID apart in the app and in the rating cache.
@@ -21,6 +25,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from shapely.geometry import LineString, Point
+from shapely.strtree import STRtree
 
 from tool.candidates import candidates_for, make_lookup, photos_for_segment
 from tool.config import REPO_ROOT, photo_source
@@ -91,8 +96,12 @@ def walk_candidates(seg, metas: list, proj, forward: bool, ahead: list | None, a
 class Finder:
     """Finds the photos of one street or place; shared by the lookups of one area or route (several at a time)."""
 
-    def __init__(self, cfg: dict, proj, indoor=None):
+    def __init__(self, cfg: dict, proj, indoor=None, streets: list | None = None):
+        """streets: every street and place of the area or route (local metres), to tell which a photo belongs to."""
         self.cfg, self.proj, self.indoor = cfg, proj, indoor
+        self.streets = [s.geom for s in (streets or [])]
+        self.tree = STRtree(self.streets) if self.streets else None
+        self.tolerance = cfg["selection"]["own_street_tolerance_m"]
         self.source = photo_source(cfg)
         self.today = date.today()
         self._mly, self._mly_tried, self._mly_ok = None, False, False
@@ -106,6 +115,22 @@ class Finder:
                                                "GOOGLE_MAPS_API_KEY to .env, or set PHOTO_SOURCE=mapillary.") from None
             self.lookup = make_lookup(self.sv, proj)
             self.copyrights: dict[str, str] = {}
+
+    def belongs(self, seg, x: float, y: float) -> bool:
+        """No other street is nearer to this point than seg, by more than the tolerance."""
+        if self.tree is None:
+            return True
+        p = Point(x, y)
+        own = seg.geom.distance(p)
+        near = own - self.tolerance
+        if near <= 0:
+            return True
+        return not any(self.streets[i] is not seg.geom and self.streets[i].distance(p) < near
+                       for i in self.tree.query(p.buffer(near)))
+
+    def keep_for(self, seg):
+        """keep(lon, lat) for Mapillary: the image belongs to seg."""
+        return lambda lon, lat: self.belongs(seg, *self.proj.to_xy(lon, lat))
 
     def mly(self) -> tuple[bool, object]:
         """(True, the Mapillary session), or (False, None) when it is not set up (with Street View it is only the
@@ -127,14 +152,14 @@ class Finder:
             return []
         geom = self.proj.geom_to_lonlat(seg.geom)
         if seg.kind == "area":
-            photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", self.cfg)
+            photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", self.cfg, self.keep_for(seg))
         elif walk is not None:
             forward, ahead = walk
             coords = [list(c) for c in geom.coords]
             ahead_lonlat = [list(self.proj.to_lonlat(x, y)) for x, y in (ahead or [])]
-            photo = mapillary.photo_walking(s, coords if forward else coords[::-1], self.cfg, ahead_lonlat)
+            photo = mapillary.photo_walking(s, coords if forward else coords[::-1], self.cfg, ahead_lonlat, self.keep_for(seg))
         else:
-            photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", self.cfg)
+            photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", self.cfg, self.keep_for(seg))
         return [{**photo, "source": "mapillary"}] if photo else []
 
     def streetview_photos(self, seg, walk: tuple | None) -> list:
@@ -145,7 +170,8 @@ class Finder:
             if m is not None and not m.official:
                 self.copyrights[m.photo_id] = m.copyright
             return m
-        metas = photos_for_segment(seg, remember, self.cfg, {})
+        metas = [m for m in photos_for_segment(seg, remember, self.cfg, {})
+                 if self.belongs(seg, *self.proj.to_xy(m.lon, m.lat))]
         if walk is None or seg.kind != "street":
             chosen = select(candidates_for(seg, metas, self.proj, self.indoor), self.cfg, self.today,
                             contributor_fallback=seg.kind == "area")

@@ -20,17 +20,43 @@ export function ratedPhotoOf(stretch, segments, placeFor) {
   return { photo: photos[place.rep ?? 0], photos, place }
 }
 
+/** Distance (m) from point p to a line, and how far along the line its nearest point is (m); [lon, lat], small areas. */
+function nearestOn(coords, [lon, lat]) {
+  const k = Math.cos((lat * Math.PI) / 180) * 111320
+  const xy = ([x, y]) => [x * k, y * 110540]
+  const [px, py] = xy([lon, lat])
+  let best = { dist: Infinity, along: 0 }
+  let walked = 0
+  for (let i = 0; i + 1 < coords.length; i++) {
+    const [ax, ay] = xy(coords[i])
+    const [bx, by] = xy(coords[i + 1])
+    const len2 = (bx - ax) ** 2 + (by - ay) ** 2
+    const t = len2 ? Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / len2)) : 0
+    const dist = Math.hypot(px - (ax + t * (bx - ax)), py - (ay + t * (by - ay)))
+    if (dist < best.dist) best = { dist, along: walked + t * Math.sqrt(len2) }
+    walked += Math.sqrt(len2)
+  }
+  return best
+}
+
 /**
- * A stretch's photos in the order they are walked past: by distance from its first point (a stretch is a street of about
- * 50 m, nearly straight). With Street View a walked street has one every 10 to 20 m (Elena, 2026-11-16).
+ * A stretch's photos along the part of the street it walks, in the order they are walked past (Elena, 2026-11-16: the
+ * walk went back and forth). A route starts and ends part way along a street, so a photo behind the start or past the end
+ * (further from the stretch than from the whole street, by more than `slack` m) is left out. With Street View a walked
+ * street has one every 10 to 20 m. The API does the same for each route; this keeps the walk right on a street that two
+ * routes walk in different parts.
  * @param {object[]} photos
  * @param {number[][]} coordinates the stretch, [lon, lat], in the walking direction
+ * @param {number[][]} [street] the whole street's line, [lon, lat]
  */
-export function photosInOrder(photos, coordinates) {
-  const [lon0, lat0] = coordinates?.[0] ?? [0, 0]
-  const k = Math.cos((lat0 * Math.PI) / 180)
-  const d = (p) => ((p.lon - lon0) * k) ** 2 + (p.lat - lat0) ** 2
-  return [...photos].sort((a, b) => d(a) - d(b))
+export function photosInOrder(photos, coordinates, street = null, slack = 2) {
+  if (!coordinates?.length) return photos
+  return photos
+    .map((p) => ({ p, at: nearestOn(coordinates, [p.lon, p.lat]) }))
+    .filter(({ p, at }) => !street || street.length < 2 || coordinates.length < 2
+      || at.dist <= nearestOn(street, [p.lon, p.lat]).dist + slack)
+    .sort((a, b) => a.at.along - b.at.along)
+    .map(({ p }) => p)
 }
 
 /** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. With several

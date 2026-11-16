@@ -57,7 +57,8 @@ def corridor_key(start: dict, end: dict, cfg: dict) -> str:
     """The key of the corridor's streets and photos. Unlike route_key it keeps the direction: a street's photo faces the
     way the routes walk it (Elena, 2026-11-14), so start → end and end → start have their own photos. The walk_photos
     settings are here, not in route_key, so the thermal key does not change with them."""
-    photos = {"facing": "the walk, the street ahead at a turn", **cfg["walk_photos"]}
+    photos = {"facing": "the walk, the street ahead at a turn", **cfg["walk_photos"],
+              "own_street_tolerance_m": cfg["selection"]["own_street_tolerance_m"]}
     return hashlib.sha1(json.dumps({"route": route_key(start, end, cfg), "photos": photos,
                                     "from": [round(start["lat"], 5), round(start["lon"], 5)]}).encode()).hexdigest()[:16]
 
@@ -93,11 +94,15 @@ def orient_photos(features: list, ways: list, proj: LocalProjection, cfg: dict) 
     """The route streets with their photos facing the way each route walks them (Elena, 2026-11-16). The walking
     direction at a photo is the route's bearing walk_photos.ahead_m further on (at a turn, the street ahead). A Street
     View photo or a Mapillary panorama is turned to it; a flat photo is kept only within walk_photos.max_turn_deg of it.
-    Each kept photo has `offset_deg`, how far it looks from that direction. A street walked by several routes takes the
-    first route's direction, A's (Elena, 2026-11-16: it should have a photo for each direction; for now A's), so on the
-    other route it may face the other way. The features are copies."""
+    Each kept photo has `offset_deg`, how far it looks from that direction. Only the photos along the part of the street
+    the route walks are kept, in walking order: a route starts and ends part way along a street, and a photo behind the
+    start or past the end made the walk go back and forth (Elena, 2026-11-16). A street walked by several routes takes
+    the first route's, A's (Elena, 2026-11-16: it should have a photo for each direction; for now A's), so on the other
+    route it may face the other way. The features are copies."""
     wp = cfg["walk_photos"]
+    slack = cfg["selection"]["own_street_tolerance_m"]
     photos = {f["properties"]["id"]: f["properties"].get("photos") or [] for f in features}
+    streets = {f["properties"]["id"]: proj_geom(shape(f["geometry"]), proj) for f in features}
     done: set = set()
     for way in ways:
         pts, spans, walked = [], [], 0.0
@@ -115,14 +120,20 @@ def orient_photos(features: list, ways: list, proj: LocalProjection, cfg: dict) 
                 continue
             kept = []
             for ph in photos[seg_id]:
-                way_at = bearing_ahead(route, start + line.project(Point(proj.to_xy(ph["lon"], ph["lat"]))), wp["ahead_m"])
+                pt = Point(proj.to_xy(ph["lon"], ph["lat"]))
+                # Along the walked part: no further from it than from the whole street (behind the start or past the end
+                # of the part, it is further).
+                if line.distance(pt) > streets[seg_id].distance(pt) + slack:
+                    continue
+                at = start + line.project(pt)
+                way_at = bearing_ahead(route, at, wp["ahead_m"])
                 if _turnable(ph):
-                    kept.append({**ph, "heading": round(way_at, 1), "offset_deg": 0.0})
+                    kept.append((at, {**ph, "heading": round(way_at, 1), "offset_deg": 0.0}))
                     continue
                 offset = signed_turn(ph["heading"], way_at)
                 if abs(offset) <= wp["max_turn_deg"]:
-                    kept.append({**ph, "offset_deg": round(offset, 1)})
-            photos[seg_id] = kept
+                    kept.append((at, {**ph, "offset_deg": round(offset, 1)}))
+            photos[seg_id] = [ph for _, ph in sorted(kept, key=lambda t: t[0])]
             done.add(seg_id)
     return [{**f, "properties": {**f["properties"], "photos": photos[f["properties"]["id"]]}}
             if f["properties"]["id"] in done else f for f in features]
@@ -249,7 +260,7 @@ def build_corridor(start: dict, end: dict, cfg: dict, key: str | None = None):
     yield {"type": "segments", "total": total, "done": total - len(todo)}
     finished = False
     try:
-        for done, seg, photos in area_mod.lookup_photos(todo, proj, cfg, walk_directions(ways_found)):
+        for done, seg, photos in area_mod.lookup_photos(todo, proj, cfg, walk_directions(ways_found), streets=segments):
             found[seg.id] = photos
             yield {"type": "segment", "done": total - len(todo) + done, "total": total}
         finished = True

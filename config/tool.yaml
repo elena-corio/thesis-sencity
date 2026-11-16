@@ -94,6 +94,10 @@ selection:
   max_photos: 3
   max_age_years: 5              # older photos are dropped when a newer one exists for the segment
   max_distance_to_segment_m: 15 # pano must be this close to the segment line (or inside the area)
+  # The app (Elena, 2026-11-16): a photo belongs to its street only if no other street of the area or route is nearer by more
+  # than this, so a junction's pano on the crossing street, or a road's pano for the path beside it, is not used (Street View
+  # and Mapillary).
+  own_street_tolerance_m: 2
   min_spacing_m: 10             # kept photos must be at least this far apart ("different spots")
   indoor_building_inset_m: 1.5  # a photo inside an OSM building footprint (shrunk by this) is "indoor"
   heading_tolerance_deg: 45     # Mapillary only (camera heading vs street direction); unused for Street View

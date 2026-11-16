@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-16 – A photo belongs to the street it stands on (accepted; tolerance proposed)
+**Context.** Elena: the walk showed extra stretches of other streets. In her last route, 22 of 71 photos stood nearer another street than their own: at a junction the nearest pano is often on the crossing street, and a footway or cycleway beside a road finds the road's panos (Street View's metadata gives the nearest pano within 15 m).
+**Decision.**
+- *Rule (Elena):* a photo is used for a street only if no other street or place of the area (or of the route's search ellipse) is nearer to it by more than `selection.own_street_tolerance_m` = 2 m (proposed), so a pano right at a junction may still stand for the side street. For Street View (before the selection rule) and Mapillary (before the choice) alike.
+- *Where nothing is left:* Street View falls back to Mapillary as before, else "No photo".
+- *Only the walked part of a street (Elena: it still went back and forth and made detours):* a route starts and ends part way along a street (the street is cut at the start and end points), and the walk showed every photo of the whole street, so it jumped behind the start and past the end. Now a route keeps only the photos along the part it walks (no further from that part than from the whole street, by more than the same 2 m), in walking order: in the routes answer (`orient_photos`, so the ratings use the same photos) and again in the walk (`photosInOrder`, for a street two routes walk in different parts).
+**Consequences.** On her route the rule drops 19 photos, all on footway and cycleway pieces beside a road; named streets keep theirs. Those pieces now often say "No photo", with no Senses rating. Street View areas and all corridors are looked up again (the tolerance is in their keys); areas cached with Mapillary keep their photos until they are loaded anew, since their key must not change (the thermal keys share it).
+
 ## 2026-11-16 – Route photos face the way they are walked; unused code removed (accepted; details marked proposed)
 **Context.** Elena: on routes, each photo should face the direction of walking. Street View: turned to the route's bearing at that point. Mapillary: panoramas first, turned to the route's bearing; flat photos only within ±60° of it, the closest to 0° first, never more and never the opposite way. No valid photo: skip it; a stretch with none says "No photo". At turns, the bearing of the segment ahead. Store each photo's offset from the route bearing. And: delete what is no longer used.
 **Decision.**

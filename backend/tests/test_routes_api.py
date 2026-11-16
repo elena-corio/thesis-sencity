@@ -63,8 +63,9 @@ def fake_mapillary(monkeypatch, photo_for=None):
     photo facing the walk (kind "walk"), with its coordinates in walking order."""
     find = photo_for or (lambda s, coords, kind, cfg: facing(coords, kind))
     monkeypatch.setattr(photos_mod.mapillary, "session", lambda: None)
-    monkeypatch.setattr(photos_mod.mapillary, "photo_for", find)
-    monkeypatch.setattr(photos_mod.mapillary, "photo_walking", lambda s, coords, cfg, ahead=None: find(s, coords, "walk", cfg))
+    monkeypatch.setattr(photos_mod.mapillary, "photo_for", lambda s, coords, kind, cfg, keep=None: find(s, coords, kind, cfg))
+    monkeypatch.setattr(photos_mod.mapillary, "photo_walking",
+                        lambda s, coords, cfg, ahead=None, keep=None: find(s, coords, "walk", cfg))
 
 
 def fake_utci(calls, cooler_north=True):
@@ -264,7 +265,8 @@ def test_photos_are_turned_or_kept_by_the_way_each_route_walks():
     Street View photo (turned to the walk)."""
     from tool.geo import LocalProjection
     proj = LocalProjection(48.208, 16.37)
-    street = {"type": "Feature", "properties": {"id": "s", "photos": [
+    street = {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[16.37, 48.208], [16.371, 48.208]]},
+              "properties": {"id": "s", "photos": [
         {"id": "ne", "source": "mapillary", "pano": False, "lon": 16.3702, "lat": 48.208, "heading": 50.0},
         {"id": "w", "source": "mapillary", "pano": False, "lon": 16.3703, "lat": 48.208, "heading": 270.0},
         {"id": "sv:p", "source": "streetview", "pano_id": "p", "lon": 16.3704, "lat": 48.208, "heading": 270.0}]}}
@@ -321,3 +323,18 @@ def test_route_streets_ask_for_a_photo_facing_the_walk_and_swapping_has_its_own(
     assert len(calls) == 1  # thermal comfort is still paid for once, either way round
     assert routes_mod.corridor_key(START, END, main.full_cfg) != routes_mod.corridor_key(END, START, main.full_cfg)
     assert routes_mod.route_key(START, END, main.full_cfg) == routes_mod.route_key(END, START, main.full_cfg)
+
+
+def test_a_route_keeps_only_the_photos_along_the_part_it_walks():
+    """Elena, 2026-11-16: the walk went back and forth. A route starts part way along a street: the photos behind its
+    start (and past its end) are not its own. The rest come in walking order."""
+    from tool.geo import LocalProjection
+    proj = LocalProjection(48.208, 16.37)
+    street = {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[16.37, 48.208], [16.372, 48.208]]},
+              "properties": {"id": "s", "photos": [
+                  {"id": f"sv:p{k}", "source": "streetview", "pano_id": f"p{k}", "lon": lon, "lat": 48.208, "heading": 0.0}
+                  for k, lon in [(3, 16.3716), (0, 16.3702), (1, 16.3708), (2, 16.3712)]]}}
+    # Walked east from about 37 m along (between p0 and p1) to the street's end.
+    way = {"parts": [{"segment_id": "s", "coordinates": [[16.3705, 48.208], [16.372, 48.208]]}]}
+    [f] = routes_mod.orient_photos([street], [way], proj, main.full_cfg)
+    assert [p["id"] for p in f["properties"]["photos"]] == ["sv:p1", "sv:p2", "sv:p3"]  # p0 is behind the start

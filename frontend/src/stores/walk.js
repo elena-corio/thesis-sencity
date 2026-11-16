@@ -61,11 +61,14 @@ export const useWalkStore = defineStore('walk', () => {
   })
   /** The current stretch's photo and rating, whether or not photos are shown: { photo, photos, place }, or null with none. */
   const ratedPhoto = computed(() => (current.value ? ratedOf(current.value) : null))
-  /** The stretch's photos in the order they are walked past (Elena, 2026-11-16: with Street View a walked street has one
-   *  every 10 to 20 m, each its own step; with Mapillary one per street). A place keeps its own order. */
+  /** The stretch's photos along the part of the street it walks, in the order they are walked past (Elena, 2026-11-16:
+   *  with Street View a walked street has one every 10 to 20 m, each its own step; with Mapillary one per street; none
+   *  behind the start or past the end, which made the walk go back and forth). A place keeps its own order. */
   const photos = computed(() => {
     const list = ratedPhoto.value?.photos ?? []
-    return mode.value === 'place' || list.length < 2 ? list : photosInOrder(list, current.value.coordinates)
+    if (mode.value === 'place' || !list.length) return list
+    const street = byId.value.get(current.value.segmentId)?.geometry
+    return photosInOrder(list, current.value.coordinates, street?.type === 'LineString' ? street.coordinates : null)
   })
   /** Which of the stretch's photos is shown. */
   const sub = ref(0)

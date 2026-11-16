@@ -230,3 +230,55 @@ def test_near_a_turn_a_street_view_photo_looks_along_the_street_ahead(streetview
     photos = finder.photos(STREET, walk=(True, [(60, 30)]))
     assert abs(photos[0]["heading"] - 90) < 1  # the first, far from the turn: east
     assert abs(photos[-1]["heading"] - 0) < 1 or abs(photos[-1]["heading"] - 360) < 1  # 4 m before it: north
+
+
+def road_panos(self, lat, lon, radius_m=None):
+    """Street View, faked: official panos only on the road (y = 0), every 4 m, found from up to 15 m away."""
+    x, y = PROJ.to_xy(lon, lat)
+    if abs(y) > (radius_m or 15) or not -2 <= x <= 62:
+        return None
+    x4 = round(x / 4) * 4
+    lon4, lat4 = PROJ.to_lonlat(x4, 0)
+    return PhotoMeta(photo_id=f"road{int(x4):03d}xxxxxx", lat=lat4, lon=lon4, date="2024-06", official=True,
+                     copyright="© Google")
+
+
+def test_a_path_beside_a_road_does_not_take_the_road_s_photos(monkeypatch):
+    # Elena, 2026-11-16: the walk showed other streets. A footway 6 m beside the road found the road's panos.
+    monkeypatch.setenv("PHOTO_SOURCE", "streetview")
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "test-key")
+    monkeypatch.setenv("MAPILLARY_ACCESS_TOKEN", "")
+    monkeypatch.setattr(StreetViewProvider, "search", road_panos)
+    path = Segment("p1", "street", LineString([(0, 6), (60, 6)]), "", "footway")
+    finder = photos_mod.Finder(CFG, PROJ, streets=[STREET, path])
+    assert finder.photos(path) == [] and finder.photos(path, walk=(True, [])) == []
+    assert finder.photos(STREET)  # the road keeps them
+    # Without the other streets known (the old behaviour), the path took them.
+    assert photos_mod.Finder(CFG, PROJ).photos(path)
+
+
+def test_a_junction_s_pano_on_the_crossing_street_is_not_used(monkeypatch):
+    monkeypatch.setenv("PHOTO_SOURCE", "streetview")
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "test-key")
+    monkeypatch.setenv("MAPILLARY_ACCESS_TOKEN", "")
+    monkeypatch.setattr(StreetViewProvider, "search", road_panos)
+    # A side street leaving the road northwards at x = 30: only the road's panos near it. Those up to 2 m from the
+    # side street (at the junction itself) may stand for it; the ones further along the road may not.
+    side = Segment("s2", "street", LineString([(30, 0), (30, 40)]), "Seitengasse", "residential")
+    finder = photos_mod.Finder(CFG, PROJ, streets=[STREET, side])
+    found = finder.photos(side)
+    assert all(abs(PROJ.to_xy(p["lon"], p["lat"])[0] - 30) <= 2.01 for p in found)
+    assert finder.belongs(side, 29, 0) and not finder.belongs(side, 20, 0)  # 1 m away yes, 10 m along the road no
+    assert finder.belongs(STREET, 20, 0)
+
+
+def test_mapillary_images_of_another_street_are_skipped(monkeypatch):
+    monkeypatch.setenv("PHOTO_SOURCE", "mapillary")
+    monkeypatch.setenv("MAPILLARY_ACCESS_TOKEN", "test-token")
+    path = Segment("p1", "street", LineString([(0, 6), (60, 6)]), "", "footway")
+    on_road = {"id": 5, "computed_compass_angle": 90.0, "geometry": {"type": "Point", "coordinates": list(PROJ.to_lonlat(30, 0))},
+               "is_pano": False, "captured_at": 1_720_000_000_000, "creator": {"username": "carla"},
+               "thumb_1024_url": "https://example/t.jpg"}
+    monkeypatch.setattr(mly, "search", lambda s, coords, cfg: [on_road])
+    assert photos_mod.Finder(CFG, PROJ, streets=[STREET, path]).photos(path) == []
+    assert photos_mod.Finder(CFG, PROJ, streets=[STREET, path]).photos(STREET)[0]["id"] == "5"
