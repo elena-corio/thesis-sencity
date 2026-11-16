@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import config from '../config.js'
 import { comfortLines, limitText, startRange, thermalBar } from '../lib/thermal.js'
 import AppIcon from './AppIcon.vue'
+import HowLink from './HowLink.vue'
 
 const props = defineProps({
   limits: { type: Object, required: true },
@@ -88,6 +89,7 @@ function key(side, e) {
       <span class="end-label" aria-hidden="true" data-end="hot">{{ limitText(max) }} °C</span>
     </div>
     <p id="thermal-comfort-summary" class="summary" aria-live="polite" data-testid="thermal-summary"><span>{{ lines[0] }}</span> <span class="standard">{{ lines[1] }}</span></p>
+    <HowLink section="weather" />
   </div>
 </template>
 

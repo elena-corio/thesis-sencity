@@ -34,6 +34,7 @@ test.describe('Rate this place', () => {
     const sent = bodies(page)
     await mockArea(page)
     await mockRatings(page)
+    await mockSurvey(page) // the chips' names, without a local API
     await openMap(page, 'dark', { layer: null })
     await analyseCentre(page)
     await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })

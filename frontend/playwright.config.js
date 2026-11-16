@@ -8,6 +8,11 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:5173',
+    // The first-time tips start as seen, so other tests see the app as before; e2e/about.spec.js clears this.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: 'http://localhost:5173', localStorage: [{ name: 'sencity-tips-seen', value: '["map","place","routes","walk","profile"]' }] }],
+    },
     // MapLibre needs WebGL in headless Chromium.
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },

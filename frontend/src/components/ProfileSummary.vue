@@ -15,6 +15,7 @@ import ThermalComfortBar from './ThermalComfortBar.vue'
 import { standardLimits } from '../lib/thermal.js'
 import { WEATHER } from '../lib/weather.js'
 import SenseIcon from './SenseIcon.vue'
+import HowLink from './HowLink.vue'
 
 defineProps({ error: { type: String, default: '' }, dev: Boolean })
 const emit = defineEmits(['map', 'download', 'import', 'delete', 'test'])
@@ -67,7 +68,7 @@ function a11Key(e) {
   <div class="summary" data-panel="profile-summary">
     <section class="main" aria-labelledby="profile-title">
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
-      <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
+      <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }} · <HowLink section="data" /></p>
       <ProfileRadar :survey="survey" :answers="p.answers" />
       <HowClose />
 

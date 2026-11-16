@@ -8,6 +8,7 @@ import { layerNote } from '../lib/legend.js'
 import RouteInputs from './RouteInputs.vue'
 import RouteLayerButtons from './RouteLayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
+import FirstHint from './FirstHint.vue'
 
 defineProps({
   /** The Settings tab of the phone sheet: no panel of its own, and the legend floats on the map instead. */
@@ -22,6 +23,7 @@ const menuOpen = ref(false)
 <template>
   <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
          data-scrollable aria-label="Start, end and colours">
+    <FirstHint id="routes" :phone="phone" class="first-hint" />
     <RouteInputs :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
 
     <section class="colours">
@@ -38,6 +40,7 @@ const menuOpen = ref(false)
 
 <style scoped>
 .left { padding: var(--space-4) var(--space-5); overflow-y: auto; }
+.first-hint { margin-bottom: var(--space-4); }
 /* The suggestions float over the map, not inside the panel. */
 .left.menu-open { overflow: visible; }
 /* Inputs first, then a divider (when there are inputs), then the layer; the legend is last, after a divider. */

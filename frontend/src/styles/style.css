@@ -182,6 +182,8 @@
   --profile-main-w: 640px;         /* the answers column */
   --empty-logo: 120px;             /* the logo of the empty profile (5b) */
   --dialog-w: 480px;               /* the delete dialog (5c) */
+  --about-w: 800px;                /* About and how to use (board 7) */
+  --about-logo: 56px;              /* the logo in its title */
   --btn-danger-bg: var(--hard);    /* "Delete everything" */
   --btn-danger-text: #ffffff;
   --radar-max: 540px;              /* the radar of the profile (board 5); was 460 (Elena, 2026-11-15: slightly bigger) */

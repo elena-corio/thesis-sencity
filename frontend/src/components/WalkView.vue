@@ -17,6 +17,7 @@ import WalkControls from './WalkControls.vue'
 import WalkDetails from './WalkDetails.vue'
 import WalkMiniMap from './WalkMiniMap.vue'
 import WalkPhoto from './WalkPhoto.vue'
+import FirstHint from './FirstHint.vue'
 
 const props = defineProps({ phone: Boolean })
 const walk = useWalkStore()
@@ -71,6 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
         <WalkChip v-if="!isPlace" :phone="props.phone" />
         <span v-if="count" class="count" data-testid="walk-count">{{ count }}</span>
       </div>
+      <FirstHint id="walk" :phone="props.phone" />
 
       <!-- Phone (Elena, 2026-11-14): where you are first, the photo under it. -->
       <template v-if="props.phone">

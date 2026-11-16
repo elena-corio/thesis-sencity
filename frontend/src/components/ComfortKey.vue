@@ -5,6 +5,7 @@
 // label and bars.
 import { computed } from 'vue'
 import { keyRows, keyTitle } from '../lib/legend.js'
+import HowLink from './HowLink.vue'
 
 const props = defineProps({
   layer: { type: String, required: true },
@@ -30,6 +31,7 @@ const SHORT = { senses: 'Senses', thermal: 'Thermal' }
     <ul class="rows" data-testid="legend-rows">
       <li v-for="r in rows" :key="r.id"><span class="swatch" :style="{ background: r.color }" />{{ r.label }}</li>
     </ul>
+    <HowLink v-if="!inline" section="colours" />
   </div>
 </template>
 

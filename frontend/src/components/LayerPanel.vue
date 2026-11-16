@@ -10,6 +10,7 @@ import AreaInputs from './AreaInputs.vue'
 import ChoiceButtons from './ChoiceButtons.vue'
 import LayerButtons from './LayerButtons.vue'
 import SeasonTime from './SeasonTime.vue'
+import FirstHint from './FirstHint.vue'
 
 defineProps({ phone: Boolean, getCentre: { type: Function, default: () => null } })
 const emit = defineEmits(['pick'])
@@ -25,6 +26,7 @@ const placesReady = computed(() => area.step === 'analysed' && area.load === 're
 <template>
   <aside :class="phone ? 'embedded' : ['panel', 'left', { 'menu-open': menuOpen }]" :data-panel="phone ? undefined : 'layers'"
          data-scrollable aria-label="Area, layers and places">
+    <FirstHint id="map" :phone="phone" class="first-hint" />
     <AreaInputs class="area-inputs" :phone="phone" :get-centre="getCentre" @pan="emit('pick', $event)" @menu="menuOpen = $event" />
     <section>
       <h2 class="section-title">Layer</h2>
@@ -42,6 +44,7 @@ const placesReady = computed(() => area.step === 'analysed' && area.load === 're
 
 <style scoped>
 .left { padding: var(--space-4) var(--space-5); overflow-y: auto; }
+.first-hint { margin-bottom: var(--space-4); }
 /* The suggestions float over the map, not inside the panel. */
 .left.menu-open { overflow: visible; }
 /* The inputs are a section too: the line between sections divides them from the layer. */

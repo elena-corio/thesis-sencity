@@ -7,6 +7,7 @@ import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion
 import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '../lib/thermal.js'
 import { cleanWeather } from '../lib/weather.js'
 import { allRatings, clearRatings, setRatings } from '../lib/myRatings.js'
+import { useHelpStore } from './help.js'
 
 // On this device only (phase 1, brief §12): no server, no sign-in. "Delete my profile" removes both keys and the
 // personal ratings (lib/personalRatings.js).
@@ -199,6 +200,7 @@ export const useProfileStore = defineStore('profile', () => {
     write(CONSENT_KEY, null)
     personalRatings.clearAll()
     clearRatings() // your own photo ratings too
+    useHelpStore().clearSeen() // and which tips were seen: they show again
   }
 
   const fileData = () => (profile.value ? exportFile(profile.value, allRatings()) : null)

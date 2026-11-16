@@ -9,6 +9,7 @@ import DeleteProfileDialog from './DeleteProfileDialog.vue'
 import ProfileEmpty from './ProfileEmpty.vue'
 import ProfileOnboarding from './ProfileOnboarding.vue'
 import ProfileSummary from './ProfileSummary.vue'
+import FirstHint from './FirstHint.vue'
 
 defineProps({ phone: Boolean })
 const store = useProfileStore()
@@ -97,6 +98,7 @@ async function loadTest() {
     <ConsentScreen v-if="store.askingConsent && store.survey" :phone="phone" @agree="onAgree" @decline="onDecline" />
     <ProfileOnboarding v-else-if="store.draft && store.survey" :phone="phone" />
     <template v-else>
+      <FirstHint v-if="store.survey && store.profile" id="profile" :phone="phone" class="first-hint" />
       <div v-if="store.surveyStatus === 'error'" class="state" role="alert">
         <p>{{ store.surveyError }}</p>
         <button type="button" class="btn" @click="store.ensureSurvey()">Retry</button>
@@ -114,6 +116,10 @@ async function loadTest() {
 
 <style scoped>
 .profile-page { height: 100%; overflow-y: auto; background: var(--ground); }
+.first-hint {
+  width: min(calc(100% - 2 * var(--margin)), calc(var(--profile-main-w) + var(--profile-side-w) + var(--space-5)));
+  margin: var(--space-4) auto 0;
+}
 .state { margin: var(--space-5) auto; max-width: var(--onboarding-w); text-align: center; color: var(--text-2); display: grid; gap: var(--space-3); justify-items: center; padding: var(--space-4); }
 .profile-page :deep(h2[tabindex="-1"]), .profile-page :deep(h2) { scroll-margin-top: var(--space-5); }
 </style>
