@@ -21,6 +21,7 @@ import SensesPrediction from './SensesPrediction.vue'
 import OverallSummary from './OverallSummary.vue'
 import { useProfileStore } from '../stores/profile.js'
 import RateThisPlace from './RateThisPlace.vue'
+import FirstHint from './FirstHint.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -152,6 +153,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
       <AppIcon name="chevronLeft" /> <span>Back to <span lang="de">{{ cameFrom.name }}</span></span>
     </button>
     <slot name="head" />
+    <FirstHint id="place" :phone="props.phone" class="first-hint" />
 
     <div class="top">
       <div v-if="photo && showsPhotos()" class="photo">
@@ -307,6 +309,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
   border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-md);
 }
 .top { display: flex; gap: var(--space-4); margin-top: var(--space-2); }
+.first-hint { margin-top: var(--space-3); }
 .photo {
   position: relative; flex: none;
   width: var(--card-photo); aspect-ratio: 1;

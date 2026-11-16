@@ -8,6 +8,7 @@ import AppIcon from './AppIcon.vue'
 import SenseItem from './SenseItem.vue'
 import { useProfileStore } from '../stores/profile.js'
 import { useSensesStore } from '../stores/senses.js'
+import HowLink from './HowLink.vue'
 
 const props = defineProps({
   /** The place, combined from its photos (lib/senses.js). */
@@ -76,6 +77,7 @@ const stale = computed(() => senses.runs.area.stale || senses.runs.routes.stale)
       <h3>A prediction, not a reason</h3>
       <p v-if="showPhotoLine" class="muted">Photo {{ photoNumber }}: {{ comfortLabel(shown.result) }}</p>
       <p class="reason">{{ reason }}</p>
+      <HowLink section="ratings" />
     </section>
   </div>
 </template>

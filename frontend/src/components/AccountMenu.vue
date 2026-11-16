@@ -1,12 +1,19 @@
 <script setup>
-// Account menu (board P5): header, Appearance, About, Print. Account and Log out come in phase 2.
+// Account menu (board P5): header, Appearance, About (opens AboutDialog), Print. Account and Log out come in phase 2.
 // Esc or a click outside closes it; focus moves into the menu and back to the button.
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import AppearanceSwitch from './AppearanceSwitch.vue'
+import { useHelpStore } from '../stores/help.js'
 
 const emit = defineEmits(['close'])
 const menu = ref(null)
+const help = useHelpStore()
+/** About replaces the menu; focus goes back to the account button when About closes. */
+function about() {
+  emit('close')
+  help.openAbout()
+}
 
 function onKey(e) {
   if (e.key === 'Escape') {
@@ -41,7 +48,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown,
       <AppearanceSwitch />
     </div>
     <div class="block items">
-      <button type="button" class="item" aria-disabled="true" title="Coming soon">
+      <button type="button" class="item" aria-haspopup="dialog" @click="about">
         <AppIcon name="help" /> About and how to use
       </button>
       <button type="button" class="item" aria-disabled="true" title="Coming soon">
