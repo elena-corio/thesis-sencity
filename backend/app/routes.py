@@ -93,8 +93,9 @@ def orient_photos(features: list, ways: list, proj: LocalProjection, cfg: dict) 
     """The route streets with their photos facing the way each route walks them (Elena, 2026-11-16). The walking
     direction at a photo is the route's bearing walk_photos.ahead_m further on (at a turn, the street ahead). A Street
     View photo or a Mapillary panorama is turned to it; a flat photo is kept only within walk_photos.max_turn_deg of it.
-    Each kept photo has `offset_deg`, how far it looks from that direction. A street walked by several routes is checked
-    against each in turn, so one walked both ways keeps no photo ("No photo"). The features are copies."""
+    Each kept photo has `offset_deg`, how far it looks from that direction. A street walked by several routes takes the
+    first route's direction, A's (Elena, 2026-11-16: it should have a photo for each direction; for now A's), so on the
+    other route it may face the other way. The features are copies."""
     wp = cfg["walk_photos"]
     photos = {f["properties"]["id"]: f["properties"].get("photos") or [] for f in features}
     done: set = set()
@@ -110,12 +111,12 @@ def orient_photos(features: list, ways: list, proj: LocalProjection, cfg: dict) 
             continue
         route = LineString(pts)
         for seg_id, start, line in spans:
-            if not seg_id or line is None or seg_id not in photos:
+            if not seg_id or line is None or seg_id not in photos or seg_id in done:
                 continue
             kept = []
             for ph in photos[seg_id]:
                 way_at = bearing_ahead(route, start + line.project(Point(proj.to_xy(ph["lon"], ph["lat"]))), wp["ahead_m"])
-                if _turnable(ph) and seg_id not in done:
+                if _turnable(ph):
                     kept.append({**ph, "heading": round(way_at, 1), "offset_deg": 0.0})
                     continue
                 offset = signed_turn(ph["heading"], way_at)

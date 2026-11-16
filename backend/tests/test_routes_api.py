@@ -112,8 +112,7 @@ def test_new_route_streams_progress_then_two_ways(client, monkeypatch):
     assert a["hard_share"] == 1 and b["hard_share"] < 0.5
     assert b["length_m"] > a["length_m"] and b["length_m"] <= a["length_m"] * 1.25
     assert a["minutes"] >= 1 and b["minutes"] >= a["minutes"]
-    # A's last street is walked south by B (a different way): its photo faces neither, so it has none (Elena, 2026-11-16).
-    assert a["thermal_share"] == 1 and 0.8 < a["photo_share"] < 1
+    assert a["thermal_share"] == 1 and a["photo_share"] == 1
     assert "avoids the hot part of Heissgasse" in done["verdict"]  # the fixture joins the corner into one street
     # The first part starts where the walk starts, and the last part ends at the end.
     assert a["parts"][0]["coordinates"][0] == pytest.approx([START["lon"], START["lat"]], abs=1e-5)
@@ -253,12 +252,11 @@ def test_route_streets_get_their_mapillary_photo_facing_the_walk(client, monkeyp
             if p["segment_id"]:
                 walks.setdefault(p["segment_id"], []).append(r["id"])
     for seg, photos in by_id.items():
-        assert all(abs(p["offset_deg"]) <= 60 for p in photos)
-        if len(walks[seg]) == 1:
-            assert len(photos) == 1 and photos[0]["id"] == "1001"
-    # The street both ways walk in different directions (A east, B south into the end): no photo faces both.
+        assert len(photos) == 1 and photos[0]["id"] == "1001" and abs(photos[0]["offset_deg"]) <= 60
+    # The street both ways walk in different directions (A east, B south into the end) keeps A's photo (checked
+    # against A's way above), not none.
     shared = [seg for seg, ways in walks.items() if len(ways) > 1]
-    assert shared and all(by_id[seg] == [] for seg in shared)
+    assert shared and all(walks[seg][0] == "A" and by_id[seg] for seg in shared)
 
 
 def test_photos_are_turned_or_kept_by_the_way_each_route_walks():
@@ -275,10 +273,10 @@ def test_photos_are_turned_or_kept_by_the_way_each_route_walks():
     got = {p["id"]: (round(p["heading"]), p["offset_deg"]) for p in f["properties"]["photos"]}
     assert got == {"ne": (50, -40.0), "sv:p": (90, 0.0)}
     assert street["properties"]["photos"][2]["heading"] == 270.0  # the cached street is not changed
-    # Walked west by a second route as well: nothing faces both ways.
+    # Walked west by a second route as well: the first route's photos stay (Elena, 2026-11-16: for now A's).
     west = {"parts": [{"segment_id": "s", "coordinates": [[16.371, 48.208], [16.37, 48.208]]}]}
     [f] = routes_mod.orient_photos([street], [east, west], proj, main.full_cfg)
-    assert f["properties"]["photos"] == []
+    assert {p["id"]: round(p["heading"]) for p in f["properties"]["photos"]} == {"ne": 50, "sv:p": 90}
 
 
 def test_walk_directions_keep_the_first_way_that_walks_a_street():
