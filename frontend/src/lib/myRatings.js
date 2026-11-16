@@ -6,6 +6,9 @@
 
 export const MY_RATINGS_KEY = 'sencity-my-ratings'
 export const GROUP = 4 // ratings per point on the "how close" line: the study's rounds
+/** "Something else?": at most this many characters, like the survey's "Other". */
+export const OTHER_MAX = 150
+const MARKS = { pleasant: ['pleasant'], unpleasant: ['unpleasant'] }
 const SOURCES = ['map', 'photo', 'walk']
 
 const store = () => (typeof localStorage === 'undefined' ? null : localStorage)
@@ -29,10 +32,16 @@ function write(list, storage) {
   }
 }
 
-/** A rating as kept: photo, rating, prediction (or null), when and where. */
+/** B2 as the study stores it: { element: ["pleasant"] | ["unpleasant"] | ["pleasant", "unpleasant"] }, or null when
+ *  nothing was ticked (the ticks are optional here, so none is "not said", not the study's "none"). */
+const validB2 = (b2) => b2 === null || b2 === undefined || (typeof b2 === 'object' && !Array.isArray(b2) &&
+  Object.values(b2).every((v) => Array.isArray(v) && v.length && v.every((a) => a === 'pleasant' || a === 'unpleasant')))
+
+/** A rating as kept: photo, rating (B1, B2 ticks, B2_other), prediction (or null), when and where. */
 function valid(e) {
-  return e && typeof e === 'object' && e.photo?.id && isScore(e.rating?.B1) && SOURCES.includes(e.from) &&
-    typeof e.at === 'string' && (e.prediction === null || isScore(e.prediction?.B1))
+  return e && typeof e === 'object' && e.photo?.id && isScore(e.rating?.B1) && validB2(e.rating.B2) &&
+    (e.rating.B2_other == null || (typeof e.rating.B2_other === 'string' && e.rating.B2_other.length <= OTHER_MAX)) &&
+    SOURCES.includes(e.from) && typeof e.at === 'string' && (e.prediction === null || isScore(e.prediction?.B1))
 }
 
 /**
@@ -56,17 +65,42 @@ export function predictionOf(result, profileVersion = null) {
 }
 
 /** Keep a rating: always a new entry (rating the same photo again keeps the history). Returns the entry. */
-export function addRating({ photo, B1, marked = null, prediction, from, at = new Date().toISOString() }, storage = store()) {
+export function addRating({ photo, B1, prediction, from, at = new Date().toISOString() }, storage = store()) {
   if (!isScore(B1) || !SOURCES.includes(from) || !photo?.id) throw new Error('not a rating')
   const entry = {
+    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     photo: { id: String(photo.id), heading: photo.heading ?? null, source: photo.source ?? null }, // the ID only, never the image
-    rating: { B1, marked },
+    // B2: the chips ticked after rating, as the study stores B2; B2_other: "Something else?", in this browser only, never
+    // sent to a model (the study's "Other" is not shown in its examples either).
+    rating: { B1, B2: null, B2_other: null },
     prediction: prediction ?? null,
     at,
     from,
   }
   write([...allRatings(storage), entry], storage)
   return entry
+}
+
+/** The chip states as B2: { code: "+" | "−" } → { code: ["pleasant"] | ["unpleasant"] }, or null with none. */
+export function b2From(ticks) {
+  const out = {}
+  for (const [code, t] of Object.entries(ticks ?? {})) if (t === '+') out[code] = MARKS.pleasant; else if (t === '−') out[code] = MARKS.unpleasant
+  return Object.keys(out).length ? out : null
+}
+/** The chip state of one element from B2: '+', '−' or ''. */
+export const tickOf = (b2, code) => (b2?.[code]?.includes('pleasant') ? '+' : b2?.[code]?.includes('unpleasant') ? '−' : '')
+/** The next chip state: one tap +, two taps −, a third clears. */
+export const nextTick = (t) => (t === '' ? '+' : t === '+' ? '−' : '')
+
+/** After rating: the B2 ticks and "Something else?" of that rating (the same entry, not a new one). Returns it. */
+export function updateRating(id, { B2, B2_other } = {}, storage = store()) {
+  const list = allRatings(storage)
+  const e = list.find((x) => x.id === id)
+  if (!e) return null
+  if (B2 !== undefined) e.rating.B2 = B2
+  if (B2_other !== undefined) e.rating.B2_other = (B2_other ?? '').trim().slice(0, OTHER_MAX) || null
+  write(list, storage)
+  return e
 }
 
 /** Replace all (an imported file); only valid entries are kept. */

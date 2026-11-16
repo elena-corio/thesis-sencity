@@ -53,6 +53,29 @@ test.describe('Rate this place', () => {
     expect(list.map((e) => e.rating.B1)).toEqual([2, 4]) // the history is kept
     await expect(rate.getByTestId('rate-compare')).toHaveText(/You:\s*4\s*·\s*SenCity:\s*3/)
     expect(sent.some((b) => b.includes('"from":"map"') || b.includes('sencity-my-ratings') || b.includes('"B1"'))).toBe(false)
+
+    // What made the difference? The photo's listed elements as chips: one tap +, two taps −, a third clears.
+    const why = rate.getByTestId('rate-why')
+    await expect(why).toContainText('What made the difference? (optional)')
+    await expect(why.locator('[data-chip]')).toHaveCount(2) // traffic_trams and shade, the list on screen
+    const traffic = why.locator('[data-chip="traffic_trams"]')
+    await traffic.click()
+    await traffic.click() // −
+    await why.locator('[data-chip="shade"]').click() // +
+    await expect(traffic).toHaveAttribute('aria-label', /unpleasant$/)
+    list = await mine(page)
+    expect(list).toHaveLength(2) // the same rating, not a new one
+    expect(list[1].rating.B2).toEqual({ traffic_trams: ['unpleasant'], shade: ['pleasant'] })
+    await traffic.click() // a third tap clears
+    expect((await mine(page))[1].rating.B2).toEqual({ shade: ['pleasant'] })
+    // Something else? A short text, like the survey's "Other": B2_other, in this browser only.
+    await why.getByRole('button', { name: 'Something else?' }).click()
+    await why.getByTestId('rate-other').fill('the bells of the cathedral')
+    await why.getByTestId('rate-other').blur()
+    expect((await mine(page))[1].rating.B2_other).toBe('the bells of the cathedral')
+    await expect(why.getByTestId('rate-other')).toHaveAttribute('maxlength', '150')
+    await page.screenshot({ path: 'e2e/screens/rate-why-dark.png' })
+    expect(sent.some((b) => b.includes('bells') || b.includes('B2_other') || b.includes('"B2"'))).toBe(false) // never sent
   })
 
   test('the prediction is the one on screen before you rate: none shown, none kept, even if it arrives after', async ({ page }) => {
@@ -93,7 +116,7 @@ test.describe('Rate this place', () => {
     await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z', weather: {}, thermal: null })
     await page.addInitScript(() => {
       if (localStorage.getItem('sencity-my-ratings')) return
-      localStorage.setItem('sencity-my-ratings', JSON.stringify([{ photo: { id: 'sv:a', heading: 90, source: 'streetview' }, rating: { B1: 2, marked: null },
+      localStorage.setItem('sencity-my-ratings', JSON.stringify([{ photo: { id: 'sv:a', heading: 90, source: 'streetview' }, rating: { B1: 2, B2: { shade: ['pleasant'] }, B2_other: 'the bells' },
         prediction: { level: 'mixed', B1: 3, version: 'V2', profileHash: '386e888b8867', elements: [], prompt: '2', model: 'm', commit: 'c' },
         at: '2026-11-16T09:00:00Z', from: 'walk' }]))
     })
@@ -104,6 +127,7 @@ test.describe('Rate this place', () => {
     const [download] = await Promise.all([page.waitForEvent('download'), summary.getByRole('button', { name: 'Download my data' }).click()])
     const file = JSON.parse(await (await import('node:fs/promises')).readFile(await download.path(), 'utf-8'))
     expect(file.myRatings).toHaveLength(1)
+    expect(file.myRatings[0].rating).toEqual({ B1: 2, B2: { shade: ['pleasant'] }, B2_other: 'the bells' }) // ticks and text in the download
     await summary.getByRole('button', { name: 'Delete my profile' }).click()
     await expect(page.getByRole('alertdialog')).toContainText('your own ratings of places')
     await page.getByRole('button', { name: 'Delete everything' }).click()
@@ -118,7 +142,7 @@ test.describe('How close SenCity is to you', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
   const DEV = TEST_PROFILES[0]
   const at = (i) => `2026-11-16T10:${String(i).padStart(2, '0')}:00Z`
-  const r = (i, you, pred, version) => ({ photo: { id: `p${i}`, heading: 0, source: 'streetview' }, rating: { B1: you, marked: null }, from: 'map', at: at(i),
+  const r = (i, you, pred, version) => ({ photo: { id: `p${i}`, heading: 0, source: 'streetview' }, rating: { B1: you, B2: null, B2_other: null }, from: 'map', at: at(i),
     prediction: pred == null ? null : { level: 'mixed', B1: pred, version, profileHash: version === 'V2' ? 'x' : null, elements: [], prompt: '2', model: 'm', commit: 'c' } })
   // The unit test's fixture (lib/myRatings.test.js): 12 with a prediction, gaps 1,0,3,1, 0,0,2,0 (V2), 2,2,0,1 (V0).
   const FIXTURE = [

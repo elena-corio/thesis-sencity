@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GROUP, MY_RATINGS_KEY, addRating, allRatings, clearRatings, closeness, latestFor, predictionOf, setRatings } from './myRatings.js'
+import { GROUP, MY_RATINGS_KEY, OTHER_MAX, addRating, allRatings, b2From, clearRatings, closeness, latestFor, nextTick, predictionOf, setRatings, tickOf, updateRating } from './myRatings.js'
 
 function fakeStorage() {
   const m = new Map()
@@ -68,5 +68,33 @@ describe('how close SenCity is to you', () => {
   it('says not enough under 4 ratings with a prediction', () => {
     expect(closeness(FIXTURE.slice(0, 3)).enough).toBe(false)
     expect(closeness([]).gap).toBe(null)
+  })
+})
+
+describe('what made the difference (after rating)', () => {
+  it('one tap +, two taps −, a third clears; stored as B2 the way the study does', () => {
+    expect([nextTick(''), nextTick('+'), nextTick('−')]).toEqual(['+', '−', ''])
+    expect(b2From({ traffic_trams: '−', shade: '+', crowds: '' })).toEqual({ traffic_trams: ['unpleasant'], shade: ['pleasant'] })
+    expect(b2From({ shade: '' })).toBe(null) // nothing ticked: not said (optional), not the study's "none"
+    expect(tickOf({ shade: ['pleasant'] }, 'shade')).toBe('+')
+    expect(tickOf({ shade: ['unpleasant'] }, 'shade')).toBe('−')
+    expect(tickOf(null, 'shade')).toBe('')
+  })
+
+  it('updates the same rating, B2 and "Something else?" (at most 150 characters), and keeps them on import', () => {
+    const s = fakeStorage()
+    const e = addRating({ photo: PHOTO, B1: 2, prediction: predictionOf(RESULT), from: 'map' }, s)
+    expect(e.rating).toEqual({ B1: 2, B2: null, B2_other: null })
+    updateRating(e.id, { B2: { shade: ['pleasant'] } }, s)
+    updateRating(e.id, { B2_other: `  ${'x'.repeat(200)}  ` }, s)
+    const [kept] = allRatings(s)
+    expect(allRatings(s)).toHaveLength(1) // the same entry
+    expect(kept.rating.B2).toEqual({ shade: ['pleasant'] })
+    expect(kept.rating.B2_other).toHaveLength(OTHER_MAX)
+    const other = fakeStorage()
+    setRatings(JSON.parse(JSON.stringify(allRatings(s))), other)
+    expect(allRatings(other)[0].rating).toEqual(kept.rating)
+    setRatings([{ ...kept, rating: { ...kept.rating, B2: { shade: ['great'] } } }], other) // not the study's answers: dropped
+    expect(allRatings(other)).toHaveLength(0)
   })
 })
