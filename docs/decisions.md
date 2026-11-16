@@ -2,6 +2,19 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-16 – The app's V2 against the study pipeline, on Elena's profile (recorded)
+**Context.** Elena: compare the app's V2 with the study pipeline's V2 on her own profile (made by the thesis repo from her v9 retake), on the 20 study photos, one run each, same settings as `model.json`: (a) with the study's confirmed lists (`study_lists.json`), (b) with the app's presence lists. The profile, the pipeline results and the run's output stay local (`model/local/`, `runs/`, both git-ignored); only counts and averages are recorded here.
+**Checks.** The app's profile text hash equalled the thesis repo's (`cfb18130606a`); `study_lists.json` matched the updated MANIFEST. Fresh calls: all 20 (a) calls and all 20 (b) calls were billed, made directly to the model with no cache read (personal results are never cached on the server). Reasoning texts could not be compared: the run kept none (by the rule for this run) and the pipeline file has B1 only.
+**Result (counts and averages).**
+- Mean B1: (a) 3.35, (b) 3.25, pipeline 3.35.
+- (a) vs pipeline: mean difference +0.00, mean absolute difference 0.00, 0 photos differ by more than 1 point, 20 of 20 equal.
+- (b) vs pipeline: −0.10, 0.10, 0 more than 1 point, 18 of 20 equal.
+- (a) vs (b): +0.10, 0.10, 0 more than 1 point, 18 of 20 equal.
+- (b)'s presence lists against the study lists: 1.65 elements differ per photo on average (1.40 extra, 0.25 missing), `visible_not_listed` left out.
+- Cost: 40 calls, $0.038 (the presence lists of (b) reused from the same day's run, same presence files).
+
+**Housekeeping.** `model/app_v9/MANIFEST.md` replaced by the thesis export's updated one (source commit 60c9222, now listing `study_lists.json`); all 12 files verified. `study_lists.json` is the parity fixture: a test checks it covers the 20 photos with known codes and that the V2 parity fixture's list for photo 1 is the study's. The new source commit is part of the rating cache keys, so cached general ratings are re-rated as areas are opened (never all at once), and personal ratings in a browser ask to be rated again; the presence lists stay valid (their version comes from the presence files, unchanged). `model/local/` was already in `.gitignore` (since fb8a8e7).
+
 ## 2026-11-16 – A photo belongs to the street it stands on (accepted; tolerance proposed)
 **Context.** Elena: the walk showed extra stretches of other streets. In her last route, 22 of 71 photos stood nearer another street than their own: at a junction the nearest pano is often on the crossing street, and a footway or cycleway beside a road finds the road's panos (Street View's metadata gives the nearest pano within 15 m).
 **Decision.**
