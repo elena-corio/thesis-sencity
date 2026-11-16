@@ -7,7 +7,7 @@
 // more than one, the card shows the one closest to the place's rating. The image loads only now, on click. Enlarge opens
 // the walk's view (Elena, 2026-11-14): from a stretch of a route, paused there; for a place of an area, with nothing to walk.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { photoCredit, photoLink, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
+import { countShown, photoCredit, photoLink, shownPhotoUrl, showsPhotos } from '../lib/photos.js'
 import { useCardPhotosStore } from '../stores/cardPhotos.js'
 import { formatMonth } from '../lib/geo.js'
 import { easierThermalNearby } from '../lib/nearby.js'
@@ -56,7 +56,8 @@ const failed = ref(new Set())
 
 const feature = computed(() => src.value.feature)
 const p = computed(() => feature.value?.properties)
-/** The street's Mapillary photo (one, or none), found with the area or route: shown here and rated by the model. */
+/** The street's photos (Street View: up to 3, or a Mapillary one; or none), found with the area or route: the one shown
+ *  here is rated by the model. */
 const photos = computed(() => p.value?.photos ?? [])
 const emptyText = computed(() => {
   if (p.value?.photos == null) return 'Looking for photos…'
@@ -150,7 +151,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <button type="button" class="photo-open" aria-label="Enlarge the photo"
                 @click="openViewer">
           <img v-if="!failed.has(index)" :src="shownPhotoUrl(photo)" :alt="`Street photo of ${p.name}, ${photoLine(photo)}`"
-               @error="onImgError(index)" />
+               @load="countShown(photo)" @error="onImgError(index)" />
           <span v-else class="img-failed">The photo could not be loaded.</span>
         </button>
         <button ref="enlargeBtn" type="button" class="badge enlarge" aria-label="Enlarge photo" @click="openViewer">

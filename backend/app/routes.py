@@ -29,6 +29,7 @@ from tool.routing import Graph, alternatives, build_graph, different_share, find
 from tool.thermal import proj_geom, thermal_state
 
 from . import area as area_mod
+from . import photos as photos_mod
 from . import steps
 
 log = logging.getLogger("sencity.api")
@@ -42,11 +43,11 @@ def cache_dir(cfg: dict) -> FilePath:
     return REPO_ROOT / cfg["routes"]["cache_dir"]
 
 
-def route_key(start: dict, end: dict, cfg: dict) -> str:
+def route_key(start: dict, end: dict, cfg: dict, source: str | None = None) -> str:
     """Same two points (to about a metre, either way round) and same settings → same key, so swapping
-    start and end never pays for thermal comfort twice. The file name does not show the points."""
-    settings = {"photos": "mapillary", **{k: cfg[k] for k in ("osm", "segments", "routes")},
-                "mapillary": {k: cfg["mapillary"][k] for k in area_mod.PHOTO_SETTINGS}}
+    start and end never pays for thermal comfort twice. The file name does not show the points. source: as in
+    area.area_key (thermal comfort uses "mapillary", whatever PHOTO_SOURCE is)."""
+    settings = {**photos_mod.settings(cfg, source), **{k: cfg[k] for k in ("osm", "segments", "routes")}}
     points = sorted([[round(start["lat"], 5), round(start["lon"], 5)], [round(end["lat"], 5), round(end["lon"], 5)]])
     raw = json.dumps({"points": points, "settings": settings}, sort_keys=True, default=str)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]

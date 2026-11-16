@@ -2,18 +2,20 @@
 
 - POST /api/search   address and place search (Photon)
 - POST /api/reverse  the name of a point clicked on the map (Photon)
-- POST /api/area     street segments and their Mapillary photos for one circle (metadata only), then
+- POST /api/area     street segments and their photos for one circle (metadata only), then
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
 - POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
 - POST /api/mapillary/along   one Mapillary photo per stretch of a walk (free; the token stays here)
-- POST /api/senses/rate   the model's predictions for a list of Mapillary photos, streamed; cached ones cost nothing.
+- GET  /api/photo/{pano_id}?heading=…   one Street View image of a loaded area or route, never stored (paid, daily cap)
+- POST /api/senses/rate   the model's predictions for a list of photos, streamed; cached ones cost nothing.
                           With "profile" (your answers, from the browser) they are personal (V2), else general (V0);
                           personal ones are relayed, never kept here: the browser keeps them
 - GET  /api/profile/survey   the onboarding questions and the profile template, from model/app_v9/ (nothing personal)
 
-No Street View call is left in the app (Elena, 2026-11-11): its photos are Mapillary's, and those are the ones rated.
+The photos come from one source, PHOTO_SOURCE (app/photos.py, Elena 2026-11-16): Street View in the local prototype
+(Mapillary where it has none), Mapillary in any public version. The photo shown is the photo rated.
 
 Privacy (brief §10): request bodies are never logged. The profile has no endpoint of its own (phase 1): the browser
 keeps it and sends it in the body of a rating request, where it is used for the model call only. Search text and area coordinates travel in
@@ -26,17 +28,18 @@ import time
 from collections import defaultdict, deque
 
 import requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from tool.config import load_config
+from tool.config import load_config, photo_source
 from tool.buildings import BuildingsError
 from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import photos as photos_mod
 from . import profile as profile_mod
 from . import buildings as buildings_mod
 from . import routes as routes_mod
@@ -46,6 +49,7 @@ from . import steps
 
 full_cfg = load_config()
 cfg = full_cfg["api"]
+photo_source(full_cfg)  # refuses an unknown source, and Street View on Render, before the API starts
 log = logging.getLogger("sencity.api")
 
 app = FastAPI(title="SenCity API", docs_url=None, redoc_url=None, openapi_url=None)
@@ -72,16 +76,35 @@ def _ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-# The Mapillary images for the model; created on first use, on the server only (the token stays here).
+# (pano ID, heading) of every Street View photo of a cached area or route: the only ones fetched (not an open proxy).
+_known_photos: set[tuple[str, float]] = photos_mod.load_all_known(full_cfg)
+# The Street View images (the key stays here) and the pictures for the model; created on first use, on the server only.
+_streetview = None
 _images = None
 _images_lock = threading.Lock()
+
+
+def _make_streetview():
+    """The Street View images; SystemExit when GOOGLE_MAPS_API_KEY is missing."""
+    global _streetview
+    with _images_lock:
+        if _streetview is None:
+            _streetview = photos_mod.StreetViewImages(full_cfg, _known_photos)
+        return _streetview
+
+
+def streetview():
+    try:
+        return _make_streetview()
+    except SystemExit:
+        raise HTTPException(503, "Street View photos are not set up on the server.") from None
 
 
 def images():
     global _images
     with _images_lock:
         if _images is None:
-            _images = mapillary_mod.Images(full_cfg)
+            _images = photos_mod.Images(full_cfg, _make_streetview)
         return _images
 
 
@@ -153,6 +176,8 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     The photos always load; the Senses layer skips the thermal stage."""
     needs_thermal = body.layer != "senses"
     key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg)
+    # Thermal comfort does not depend on the photos: its key stays the same whatever PHOTO_SOURCE is (no new billed run).
+    thermal_key = area_mod.area_key(body.lat, body.lon, body.radius, full_cfg, source="mapillary")
     ip = _ip(request)
     cached = area_mod.load_cached(key, full_cfg)
     # Going on from a failed try is not a new area (its finished steps are kept, app/steps.py).
@@ -164,7 +189,7 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
         if not needs_thermal:
             return
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
-        for event in area_mod.thermal_events(key, fc, body.lat, body.lon,
+        for event in area_mod.thermal_events(thermal_key, fc, body.lat, body.lon,
                                              area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),
                                              body.season, body.time, full_cfg, allowed):
             yield _ndjson(event)
@@ -180,6 +205,7 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
                 if event["type"] == "done":
                     fc = event["area"]
                     area_mod.save_cached(key, body.lat, body.lon, body.radius, fc, full_cfg)
+                    _known_photos.update(photos_mod.known_photos(fc))
                     steps.clear(area_mod.cache_dir(full_cfg), key)
                 yield _ndjson(event)
         except (requests.RequestException, mapillary_mod.MapillaryError, SystemExit) as e:
@@ -227,7 +253,8 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         raise HTTPException(422, "Start and end are too close together. Choose points further apart.")
     if straight > r["max_walk_m"]:
         raise HTTPException(422, f"Start and end are too far apart. Routes go up to {r['max_walk_m'] / 1000:.1f} km for now.")
-    key = routes_mod.route_key(start, end, full_cfg)  # thermal comfort: either way round
+    # Thermal comfort: either way round, and whatever PHOTO_SOURCE is (it does not depend on the photos).
+    key = routes_mod.route_key(start, end, full_cfg, source="mapillary")
     corridor_key = routes_mod.corridor_key(start, end, full_cfg)  # streets and photos: the photos face the walk
     ip = _ip(request)
     cached = routes_mod.load_cached(corridor_key, full_cfg)
@@ -258,6 +285,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
             routes_mod.save_cached(corridor_key, corridor["area"], corridor["zone"], lat, lon, full_cfg)
             steps.clear(routes_mod.cache_dir(full_cfg), corridor_key)
         fc, zone = corridor["area"], corridor["zone"]
+        _known_photos.update(photos_mod.known_photos(fc))
         lat, lon = routes_mod.middle(start, end)
         allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
         thermal = None
@@ -338,6 +366,26 @@ def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
         raise HTTPException(503, str(e)) from None
 
 
+# Street View images: fetched on demand, in memory only, never stored (Google terms)
+
+@app.get("/api/photo/{pano_id}")
+def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=360)) -> Response:
+    """The Street View image of a photo of a loaded area or route, as the cards and the walk show it. Each one is a paid
+    call, counted against the daily cap; the browser is told not to keep it."""
+    if not photos_mod.PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in _known_photos:
+        raise HTTPException(404, "Not a photo of a loaded area or route.")
+    if _rate_limited("photo", _ip(request), cfg["photo"]["rate_per_minute"], 60):
+        raise HTTPException(429, "Too many photos in a short time. Wait a moment.")
+    try:
+        content = streetview().fetch(pano_id, heading)
+    except photos_mod.CapReached as e:
+        raise HTTPException(429, str(e)) from None
+    except requests.RequestException as e:
+        log.warning("photo failed: %s", type(e).__name__)
+        raise HTTPException(502, "The photo could not be loaded.") from None
+    return Response(content, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 # Senses mode: general predictions for the photos of an area or route (no profile), from model/app_v9/
 
 # Ratings made from Street View photos are stale from now on (Elena, 2026-11-11): marked on the first rating request
@@ -353,7 +401,7 @@ class RatingStamp(BaseModel):
 
 
 class SensesPhoto(BaseModel):
-    id: str = Field(..., pattern=r"^[0-9]{1,20}$")  # a Mapillary image ID
+    id: str = Field(..., pattern=r"^([0-9]{1,20}|sv:[A-Za-z0-9_\-]{10,120})$")  # a Mapillary image ID, or "sv:<pano ID>"
     heading: float = Field(..., ge=0, lt=360)
     cached: RatingStamp | None = None  # with a profile: the browser has a rating of this photo; "keep" if still valid
 

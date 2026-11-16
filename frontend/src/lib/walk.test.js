@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, photosInOrder, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -11,6 +11,21 @@ describe('progressAt', () => {
   })
   it('is zero on an empty route', () => {
     expect(progressAt([], 0)).toEqual({ doneM: 0, totalM: 0, share: 0 })
+  })
+  it('moves along a stretch with several photos', () => {
+    expect(progressAt(stretches, 0, 0, 4).doneM).toBe(50)
+    expect(progressAt(stretches, 0, 3, 4).doneM).toBe(350)
+  })
+})
+
+describe('photosInOrder', () => {
+  it('puts a stretch’s photos in the order they are walked past', () => {
+    const coords = [[16.37, 48.2], [16.371, 48.2]] // walking east
+    const far = { id: 'far', lon: 16.3708, lat: 48.2 }
+    const near = { id: 'near', lon: 16.3701, lat: 48.2 }
+    const mid = { id: 'mid', lon: 16.3704, lat: 48.2 }
+    expect(photosInOrder([far, near, mid], coords).map((p) => p.id)).toEqual(['near', 'mid', 'far'])
+    expect(photosInOrder([far, near, mid], [...coords].reverse()).map((p) => p.id)).toEqual(['far', 'mid', 'near'])
   })
 })
 

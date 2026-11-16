@@ -1,22 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import { panoShift, photoAlong, photoProvider } from './photos.js'
+import { countShown, isPaid, panoShift, photoAlong, photoCredit, photoLink, shownPhotoUrl, sourceOf, sourcesName, streetViewShown } from './photos.js'
 
-describe('photoProvider', () => {
-  it('shows no photo for none and for an unknown name', () => {
-    expect(photoProvider('none').cards).toBe(false)
-    expect(photoProvider('nope').walk).toBe(false)
-    expect(photoProvider('nope').url({ id: 'x', heading: 1 })).toBeNull()
+const STREET_VIEW = { id: 'sv:panoAAAAAAAAAA', source: 'streetview', pano_id: 'panoAAAAAAAAAA', heading: 90, date: '2024-06', year: 2024 }
+const MAPILLARY = { id: '1', source: 'mapillary', thumb_url: 'https://t/1', creator: 'anna', year: 2024, link: 'https://www.mapillary.com/app/?pKey=1' }
+
+describe('the source of each photo', () => {
+  it('Street View comes through our API, credited "© Google", with no link', () => {
+    expect(shownPhotoUrl(STREET_VIEW)).toBe('/api/photo/panoAAAAAAAAAA?heading=90')
+    expect(photoCredit(STREET_VIEW)).toBe('© Google')
+    expect(photoLink(STREET_VIEW)).toBeNull()
+    expect(isPaid(STREET_VIEW)).toBe(true)
   })
-  it('Street View is not a provider any more: an unknown name shows no photo', () => {
-    expect(photoProvider('streetview').url({ id: '1', heading: 90 })).toBeNull()
+  it('a contributor photosphere is credited to its author', () => {
+    expect(photoCredit({ ...STREET_VIEW, contributor: true, copyright: '© Anna' })).toBe('© Anna')
   })
-  it('Mapillary is in the cards and the walk, with the photographer, the year and the licence', () => {
-    const m = photoProvider('mapillary')
-    expect([m.cards, m.walk]).toEqual([true, true])
-    const photo = { thumb_url: 'https://t/1', creator: 'anna', year: 2024, link: 'https://www.mapillary.com/app/?pKey=1' }
-    expect(m.url(photo)).toBe('https://t/1')
-    expect(m.credit(photo)).toBe('anna · 2024 · CC BY-SA 4.0')
-    expect(m.link(photo)).toBe('https://www.mapillary.com/app/?pKey=1')
+  it('Mapillary, with the photographer, the year and the licence, linked to the image page', () => {
+    expect(shownPhotoUrl(MAPILLARY)).toBe('https://t/1')
+    expect(photoCredit(MAPILLARY)).toBe('anna · 2024 · CC BY-SA 4.0')
+    expect(photoLink(MAPILLARY)).toBe('https://www.mapillary.com/app/?pKey=1')
+    expect(isPaid(MAPILLARY)).toBe(false)
+  })
+  it('a photo of an older area, with no source, is Mapillary', () => {
+    const { source, ...old } = MAPILLARY
+    expect(source).toBe('mapillary')
+    expect(sourceOf(old).name).toBe('Mapillary')
+  })
+  it('the map credits name the shown photo, or the sources of the build', () => {
+    expect(sourcesName(STREET_VIEW)).toBe('Google')
+    expect(sourcesName(MAPILLARY)).toBe('Mapillary')
+    expect(sourcesName()).toBe('Google, Mapillary') // the tests run with the default, streetview
+  })
+  it('counts the Street View images shown, for the cost counter (Mapillary is free)', () => {
+    const before = streetViewShown.value
+    countShown(STREET_VIEW)
+    countShown(MAPILLARY)
+    expect(streetViewShown.value).toBe(before + 1)
   })
 })
 

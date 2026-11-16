@@ -88,13 +88,15 @@ export default {
   // Walk along a route (board Routes 5): at street level, eyes eyeHeightM above the start of each stretch, looking
   // along it and a little down (pitch 84: 6° below the horizon, so the route ahead shows). maxZoom: a camera this
   // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
-  // or jumps with reduced motion. A route's walk opens paused.
+  // or jumps with reduced motion. A route's walk opens paused. A stretch with several photos (Street View: one every 10 to
+  // 20 m, Elena 2026-11-16) shares its stretchMs between them, each shown at least photoMinMs.
   // miniZoom: the "Where you are" map on the right.
-  walk: { glideMs: 600, stretchMs: 8000, miniZoom: 16 },
+  walk: { glideMs: 600, stretchMs: 8000, photoMinMs: 2000, miniZoom: 16 },
 
-  // Street photos shown in the app (lib/photos.js): 'mapillary' | 'none'. They are rated either way; Street View is not
-  // used (Elena, 2026-11-11).
-  photos: { provider: 'mapillary' },
+  // Street photos (lib/photos.js). Where they come from is PHOTO_SOURCE, on the server (Elena, 2026-11-16). shown: false
+  // shows none anywhere (they are still found and rated). streetviewUsd: one Street View image at list price, for the cost
+  // counter in development only (as streetview.price_per_1000_images_usd in config/tool.yaml).
+  photos: { shown: true, streetviewUsd: 0.007 },
 
   // SenCity API. Empty = same origin (/api, proxied by Vite in development).
   apiBase: import.meta.env.VITE_API_BASE ?? '',

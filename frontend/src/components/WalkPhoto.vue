@@ -1,17 +1,18 @@
 <script setup>
 // The photo of the stretch ahead (WalkView): one square photo, facing along the walk. No enlarge and no labels: only the
-// credit, inside the frame (Mapillary: "{username} · {year} · CC BY-SA 4.0", linked to the image page). The photo is the
-// one the stretch is rated from, its street's, as on the stretch card (stores/walk.js). With no photo, or one that does not load,
+// credit, inside the frame (Street View: "© Google"; Mapillary: "{username} · {year} · CC BY-SA 4.0", linked to the image
+// page). The photo is one of its street's, which the stretch is rated from, as on the stretch card (stores/walk.js); with
+// Street View a walked street has one every 10 to 20 m. With no photo, or one that does not load,
 // the square says so, and there is no rating either (Elena, 2026-11-14). Images are loaded when shown, never stored.
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
-import { panoShift, photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
+import { countShown, panoShift, photoCredit, photoLink, shownPhotoUrl } from '../lib/photos.js'
 import { useWalkStore } from '../stores/walk.js'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
 const name = computed(() => walk.feature?.properties.name ?? 'the street')
-const source = 'Mapillary'
+const source = computed(() => (walk.photo?.source === 'streetview' ? 'Street View' : 'Mapillary'))
 const message = computed(() => {
   if (walk.photoState === 'none-here') return 'No photo for this stretch, so no rating.'
   if (walk.photoState === 'unloaded') return 'The photo could not be loaded, so no rating.'
@@ -23,6 +24,7 @@ const panoStyle = computed(() => (walk.photo?.pano ? {
   backgroundPositionX: `calc(${panoShift(walk.photo)} * 100cqw)`,
 } : null))
 const failed = () => walk.photoFailed(walk.photo)
+const loaded = () => countShown(walk.photo)
 </script>
 
 <template>
@@ -30,9 +32,10 @@ const failed = () => walk.photoFailed(walk.photo)
     <figure v-if="walk.photoState === 'shown'" class="frame" :aria-label="`${source} photo of the stretch ahead`" data-testid="walk-photo">
       <template v-if="panoStyle">
         <div class="pano" role="img" :aria-label="`${source} panorama at eye level, looking along ${name}`" :style="panoStyle" data-testid="walk-pano" />
-        <img class="probe" :src="shownPhotoUrl(walk.photo)" alt="" @error="failed" />
+        <img class="probe" :src="shownPhotoUrl(walk.photo)" alt="" @load="loaded" @error="failed" />
       </template>
-      <img v-else :src="shownPhotoUrl(walk.photo)" :alt="`${source} photo at eye level, looking along ${name}`" @error="failed" />
+      <img v-else :key="shownPhotoUrl(walk.photo)" :src="shownPhotoUrl(walk.photo)" :alt="`${source} photo at eye level, looking along ${name}`"
+           @load="loaded" @error="failed" />
       <a v-if="photoLink(walk.photo)" class="credit" :href="photoLink(walk.photo)" target="_blank" rel="noopener">{{ photoCredit(walk.photo) }}</a>
       <span v-else class="credit">{{ photoCredit(walk.photo) }}</span>
     </figure>

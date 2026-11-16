@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app import area as area_mod
 from app import main
+from app import photos as photos_mod
 from app import routes as routes_mod
 from tool.infrared import ThermalError
 
@@ -54,9 +55,9 @@ def fake_mapillary(monkeypatch, photo_for=None):
     """No Mapillary call: every street gets fake_photo (or what photo_for returns). A street the routes walk asks for a
     photo facing the walk (kind "walk"), with its coordinates in walking order."""
     find = photo_for or (lambda s, coords, kind, cfg: fake_photo(coords))
-    monkeypatch.setattr(area_mod.mapillary, "session", lambda: None)
-    monkeypatch.setattr(area_mod.mapillary, "photo_for", find)
-    monkeypatch.setattr(area_mod.mapillary, "photo_facing", lambda s, coords, cfg: find(s, coords, "walk", cfg))
+    monkeypatch.setattr(photos_mod.mapillary, "session", lambda: None)
+    monkeypatch.setattr(photos_mod.mapillary, "photo_for", find)
+    monkeypatch.setattr(photos_mod.mapillary, "photo_facing", lambda s, coords, cfg: find(s, coords, "walk", cfg))
 
 
 def fake_utci(calls, cooler_north=True):

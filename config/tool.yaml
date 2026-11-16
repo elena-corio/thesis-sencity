@@ -55,7 +55,11 @@ segments:
   # parks and squares are kept before pedestrian areas.
   max_area_overlap: 0.8
 
-photo_source: streetview    # streetview | mapillary (only streetview is implemented)
+# Where the app's street photos come from (Elena, 2026-11-16), one source for finding, rating and showing them.
+# PHOTO_SOURCE in .env or the environment wins over this. streetview: the local prototype (the study's photos), with
+# Mapillary where Street View has none (parks, paths); mapillary: any public version (the production build refuses
+# streetview, and so does the API on Render). The step-1 tool (tool.fetch_photos) always uses Street View.
+photo_source: streetview    # streetview | mapillary
 
 streetview:
   metadata_url: https://maps.googleapis.com/maps/api/streetview/metadata
@@ -74,6 +78,13 @@ streetview:
   price_per_1000_images_usd: 7.0
   free_images_per_month: 10000
   request_timeout_s: 20
+  # The app (PHOTO_SOURCE=streetview). Every image request (a card, the enlarged photo, the walk, or the model) is one
+  # paid call: the API stops fetching them once this many were made today (UTC), across all users. 10,000 a month are free.
+  daily_image_cap: 1000
+  usage_file: runs/streetview/usage.json   # today's count only: {date, images}
+  # A street a route walks: a photo every 10 to 20 m, facing the way it is walked (sampled every
+  # candidates.street_sample_spacing_m, kept at least this far apart, no limit on their number).
+  walk_min_spacing_m: 10
 
 candidates:
   street_sample_spacing_m: 10   # one metadata call per sample point along a segment
@@ -201,6 +212,8 @@ api:
     reverse_min_interval_s: 1  # at most one call per second from this server (fair use)
     reverse_cache_size: 1000   # points kept, in memory only
     reverse_rate_per_minute: 30  # per IP
+  photo:                         # GET /api/photo: a Street View image, fetched on demand and never stored
+    rate_per_minute: 60          # per IP (a walk shows one every 2 s at most)
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
     rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)

@@ -147,6 +147,50 @@ test.describe('desktop', () => {
     expect(lookups.along).toBe(0)
   })
 
+  test('with Street View, a street’s photos come one by one along the walk, credited © Google', async ({ page }) => {
+    // Elena, 2026-11-16: PHOTO_SOURCE=streetview gives a walked street a photo every 10 to 20 m, facing the walk. Each
+    // image is a paid call through our API, so only the photos shown are asked for, never ahead of time.
+    const mock = await mockRoutes(page, { streetview: true })
+    await noLookup(page)
+    await toRoutes(page)
+    expect(mock.photoUrls).toHaveLength(0) // the comparison loads no image
+    await page.getByRole('button', { name: 'Walk route B' }).click()
+    const v = view(page)
+    await page.locator('body').press('Space') // it opens playing: pause, to step by hand
+    await expect(v.getByRole('button', { name: 'Play' })).toBeVisible()
+    const img = page.getByTestId('walk-photo').locator('img')
+    // The photos of Kuehlgasse in the order they are walked past (the API gave them out of order).
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3, photo 1 of 3')
+    await expect(img).toHaveAttribute('src', /^\/api\/photo\/panob11x+\?heading=\d+$/)
+    await expect(page.getByTestId('walk-photo').locator('.credit')).toHaveText('© Google')
+    await expect(page.locator('[data-panel="attribution"]')).toContainText('photo: Google')
+    await expect(img).toHaveAttribute('alt', /^Street View photo/)
+    await expect(v.getByRole('button', { name: 'Next photo' })).toBeVisible()
+    await page.screenshot({ path: 'e2e/screens/walk/9-walk-streetview.png' })
+
+    await page.locator('body').press('ArrowRight')
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3, photo 2 of 3')
+    await expect(img).toHaveAttribute('src', /panob13x+/)
+    await expect(card(page)).toContainText('Kuehlgasse') // the same stretch, its card unchanged
+    await page.locator('body').press('ArrowRight')
+    await expect(img).toHaveAttribute('src', /panob15x+/)
+    // The last photo of the street: next is the next stretch.
+    await expect(v.getByRole('button', { name: 'Next stretch' })).toBeVisible()
+    await v.getByRole('button', { name: 'Next stretch' }).click()
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 2 of 3, photo 1 of 3')
+    await expect(card(page)).toContainText('Marktgasse')
+    await expect(img).toHaveAttribute('src', /panob21x+/)
+    // Back: the previous street's last photo.
+    await page.locator('body').press('ArrowLeft')
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3, photo 3 of 3')
+    // The route bar jumps to a stretch's first photo.
+    await v.getByRole('group', { name: /Route B, 3 stretches/ }).locator('[data-stretch="B-2"]').click()
+    await expect(v.getByTestId('walk-count')).toHaveText('Stretch 3 of 3, photo 1 of 3')
+    // Only the images shown were asked for, each through our API.
+    const asked = new Set(mock.photoUrls.map((u) => u.match(/pano(\w+?)x/)[1]))
+    expect([...asked].sort()).toEqual(['b11', 'b13', 'b15', 'b21', 'b31'])
+  })
+
   test('Esc and Area leave the walk; focus goes back to its button', async ({ page }) => {
     await mockRoutes(page)
     await noLookup(page)

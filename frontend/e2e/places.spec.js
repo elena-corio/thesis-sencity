@@ -71,17 +71,29 @@ test.describe('desktop', () => {
     await expect(card.getByRole('button', { name: 'Back to area' })).toBeFocused()
 
     await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
-    // The walk's view, for a place of an area (Elena, 2026-11-14): nothing to walk, so no Play, arrows, bar or count.
+    // The walk's view, for a place of an area (Elena, 2026-11-14): nothing to walk, so no Play or bar. It opens on the
+    // card's photo; a place with several (Street View: up to 3, Elena 2026-11-16) has arrows and a count for them.
     const viewer = page.locator('[data-panel="walk-view"]')
-    const src = await viewer.getByTestId('walk-photo').locator('img').getAttribute('src')
+    const img = viewer.getByTestId('walk-photo').locator('img')
     await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
-    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
-    await expect(viewer.getByTestId('walk-count')).toHaveCount(0)
+    await expect(viewer.getByRole('button', { name: /Play|Pause/ })).toHaveCount(0)
+    await expect(viewer.getByRole('group', { name: 'Walk controls' })).toHaveCount(0)
+    await expect(viewer.getByTestId('walk-count')).toHaveText(/^Photo [123] of 3$/)
     await expect(viewer.getByTestId('comfort-key')).toBeVisible()
     await expect(viewer.locator('[data-panel="walk-card"]')).toContainText(WITH_3.properties.name)
     await expect(page.locator('[data-panel="place-card"]')).toHaveCount(0) // not left under the view, where Tab would reach it
+    // The keys and the arrows go through the place's photos, and stop at either end.
+    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowLeft')
+    await expect(viewer.getByTestId('walk-count')).toHaveText('Photo 1 of 3')
+    await expect(viewer.getByRole('button', { name: 'Previous photo' })).toHaveAttribute('aria-disabled', 'true')
+    const first = await img.getAttribute('src')
     await page.keyboard.press('ArrowRight')
-    await expect(viewer.getByTestId('walk-photo').locator('img')).toHaveAttribute('src', src)
+    await expect(viewer.getByTestId('walk-count')).toHaveText('Photo 2 of 3')
+    await viewer.getByRole('button', { name: 'Next photo' }).click()
+    await expect(viewer.getByTestId('walk-count')).toHaveText('Photo 3 of 3')
+    await expect(viewer.getByRole('button', { name: 'Next photo' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(img).not.toHaveAttribute('src', first)
     await page.screenshot({ path: 'e2e/screens/places-dark-viewer.png' })
 
     await page.keyboard.press('Escape')
@@ -447,7 +459,10 @@ test.describe('phone', () => {
     await sheet.getByRole('button', { name: 'Enlarge photo', exact: true }).tap()
     const viewer = page.locator('[data-panel="walk-view"]')
     await expect(viewer.getByRole('button', { name: 'Back to place' })).toBeVisible()
-    await expect(viewer.getByRole('button', { name: /Previous|Next|Play|Pause/ })).toHaveCount(0)
+    await expect(viewer.getByRole('button', { name: /Play|Pause/ })).toHaveCount(0)
+    // Its 3 photos: 44 px arrows on the photo (Elena, 2026-11-16).
+    await expect(viewer.getByRole('button', { name: /Next photo|Previous photo/ })).toHaveCount(2)
+    expect(await layoutProblems(page)).toEqual([])
     await page.screenshot({ path: 'e2e/screens/places-phone-viewer.png' })
   })
 })

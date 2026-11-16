@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bySense, combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
+import { bySense, combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, moneyLine, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
 
 const anchors = ['not at all, too much for my senses', 'very much']
 const el = (code) => ({ code, n: 1, en: code, it: code, icon_key: 'sight', also: [] })
@@ -149,4 +149,10 @@ it('puts the state on the segments, and changes nothing when it is already there
 it('writes the status line', () => {
   const run = { model: 'm', cachedCount: 12, newCount: 96, costUsd: 0.0512, seconds: 38.2 }
   expect(runStatusLine(run, 40)).toBe('m · 40 places rated · 12 cached, 96 new · $0.0512 model · 38 s')
+})
+
+it('adds the Street View images to the cost counter: those the model got and those shown', () => {
+  expect(moneyLine({ costUsd: 0.05 }, 0)).toBe('$0.0500 model')
+  expect(moneyLine({ costUsd: 0.05, imageUsd: 0.7 }, 20)).toBe('$0.0500 model · $0.840 Street View (120 images)')
+  expect(moneyLine({ costUsd: 0, imageUsd: 0 }, 1)).toBe('$0.0000 model · $0.007 Street View (1 image)')
 })

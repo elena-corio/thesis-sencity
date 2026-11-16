@@ -20,11 +20,25 @@ export function ratedPhotoOf(stretch, segments, placeFor) {
   return { photo: photos[place.rep ?? 0], photos, place }
 }
 
-/** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. */
-export function progressAt(stretches, index) {
-  const totalM = stretches.reduce((n, s) => n + s.length_m, 0)
-  const before = stretches.slice(0, index).reduce((n, s) => n + s.length_m, 0)
-  const doneM = before + (stretches[index]?.length_m ?? 0) / 2
+/**
+ * A stretch's photos in the order they are walked past: by distance from its first point (a stretch is a street of about
+ * 50 m, nearly straight). With Street View a walked street has one every 10 to 20 m (Elena, 2026-11-16).
+ * @param {object[]} photos
+ * @param {number[][]} coordinates the stretch, [lon, lat], in the walking direction
+ */
+export function photosInOrder(photos, coordinates) {
+  const [lon0, lat0] = coordinates?.[0] ?? [0, 0]
+  const k = Math.cos((lat0 * Math.PI) / 180)
+  const d = (p) => ((p.lon - lon0) * k) ** 2 + (p.lat - lat0) ** 2
+  return [...photos].sort((a, b) => d(a) - d(b))
+}
+
+/** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. With several
+ *  photos on the stretch, at photo `sub` of `n`, spread evenly along it. */
+export function progressAt(stretches, index, sub = 0, n = 1) {
+  const totalM = stretches.reduce((m, s) => m + s.length_m, 0)
+  const before = stretches.slice(0, index).reduce((m, s) => m + s.length_m, 0)
+  const doneM = before + ((stretches[index]?.length_m ?? 0) * (sub + 0.5)) / Math.max(1, n)
   return { doneM, totalM, share: totalM ? doneM / totalM : 0 }
 }
 
