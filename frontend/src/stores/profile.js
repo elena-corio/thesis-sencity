@@ -6,6 +6,7 @@ import * as personalRatings from '../lib/personalRatings.js'
 import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile } from '../lib/profile.js'
 import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '../lib/thermal.js'
 import { cleanWeather } from '../lib/weather.js'
+import { allRatings, clearRatings, setRatings } from '../lib/myRatings.js'
 
 // On this device only (phase 1, brief §12): no server, no sign-in. "Delete my profile" removes both keys and the
 // personal ratings (lib/personalRatings.js).
@@ -197,9 +198,10 @@ export const useProfileStore = defineStore('profile', () => {
     write(DRAFT_KEY, null)
     write(CONSENT_KEY, null)
     personalRatings.clearAll()
+    clearRatings() // your own photo ratings too
   }
 
-  const fileData = () => (profile.value ? exportFile(profile.value) : null)
+  const fileData = () => (profile.value ? exportFile(profile.value, allRatings()) : null)
 
   /** Import a file saved with "Download my data". Returns '' or the error to show. */
   async function importData(data) {
@@ -208,6 +210,7 @@ export const useProfileStore = defineStore('profile', () => {
     const read = readFile(s, data)
     if (read.error) return read.error
     await save(read.answers, read.language, read.weather ?? {}, read.thermal ?? null)
+    setRatings(read.myRatings) // the file's own ratings replace this browser's
     discardDraft()
     return ''
   }

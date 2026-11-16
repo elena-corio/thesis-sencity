@@ -2,6 +2,16 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-16 – Your photo ratings, kept with the prediction shown (accepted)
+**Context.** Elena: save each "Rate this place" (map card, enlarged photo, walk) with the prediction that was on screen before rating; in this browser only; in download and import, cleared by "Delete my profile"; never sent to the server or used in a model call yet (after Tuesday's decision).
+**Decision (Elena).**
+- *What is kept, every time (appended, history kept):* the photo's ID (pano or Mapillary ID with its heading and source; never the image); your B1 (1–5) and `marked: null` (no + / − ticks in the UI yet); the prediction on screen (level, B1, V0 or V2, the profile hash, the element list, the prompt version, model and export commit) or `null` when none was shown (not rated yet, or "Couldn't rate this photo"); the date and time; where from: map, photo or walk.
+- *Never asked again:* the prediction is the photo's own rating already in the app; nothing is rated to fill it in. After rating, the card shows "You: 2 · SenCity: 3"; rating pauses the walk.
+- *Storage:* local storage, `sencity-my-ratings` (a new key: `sencity-ratings` already holds the cache of the model's personal predictions). Included in "Download my data" (`myRatings`) and "Import a file" (the file's ratings replace this browser's); cleared by "Delete my profile", and its dialog now says "…and your own ratings of places". Never in a request.
+- *Predictions carry what they were made from:* the API adds the export commit and the prompt version to every prediction (nothing personal), so a rating keeps them.
+
+**Proposed.** "At the moment the controls are shown": the prediction is read when the buttons appear for a photo, and updated only if it changes on screen before you rate (it can arrive while they are shown); never after you rate. The card's line under the buttons reads "From the photo. Kept on this device; not used by the model yet." (the board's "It tunes your profile" is not true yet).
+
 ## 2026-11-16 – The app's V2 against the study pipeline, on Elena's profile (recorded)
 **Context.** Elena: compare the app's V2 with the study pipeline's V2 on her own profile (made by the thesis repo from her v9 retake), on the 20 study photos, one run each, same settings as `model.json`: (a) with the study's confirmed lists (`study_lists.json`), (b) with the app's presence lists. The profile, the pipeline results and the run's output stay local (`model/local/`, `runs/`, both git-ignored); only counts and averages are recorded here.
 **Checks.** The app's profile text hash equalled the thesis repo's (`cfb18130606a`); `study_lists.json` matched the updated MANIFEST. Fresh calls: all 20 (a) calls and all 20 (b) calls were billed, made directly to the model with no cache read (personal results are never cached on the server). Reasoning texts could not be compared: the run kept none (by the rule for this run) and the pipeline file has B1 only.

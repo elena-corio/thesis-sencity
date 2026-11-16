@@ -30,8 +30,8 @@ function onKey(e) {
          aria-describedby="delete-text" data-panel="delete-dialog" @keydown="onKey">
       <h2 id="delete-title">Delete your profile?</h2>
       <div id="delete-text">
-        <p>This removes your answers, your own words, your sensory profile and the ratings made with it. The map goes back
-          to general ratings.</p>
+        <p>This removes your answers, your own words, your sensory profile, the ratings made with it and your own ratings of
+          places. The map goes back to general ratings.</p>
         <p>Everything is stored only in this browser, so it is removed from here. This cannot be undone.</p>
       </div>
       <button type="button" class="link" @click="emit('download')">Download a copy first</button>
