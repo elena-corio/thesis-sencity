@@ -83,7 +83,7 @@ export async function profileVersion(text) {
 export const requestProfile = (profile) => profile && ({ language: profile.language, ...profile.answers })
 
 /** The file "Download my data" saves. */
-export function exportFile(profile) {
+export function exportFile(profile, myRatings = []) {
   return {
     kind: FILE_KIND,
     format: FILE_FORMAT,
@@ -94,6 +94,7 @@ export function exportFile(profile) {
     version: profile.version,
     weather: profile.weather ?? {}, // the Weather step: local only, never in the profile text
     thermal: profile.thermal ?? null, // the starts of hot and cold moved by hand on the profile's bar
+    myRatings, // your own photo ratings, with the prediction shown before each (lib/myRatings.js)
   }
 }
 
@@ -107,7 +108,7 @@ export function readFile(survey, data) {
   const answers = clean(survey, data.answers)
   if (!complete(survey, answers)) return { error: 'The file does not answer every question the profile needs.' }
   const thermal = data.thermal && typeof data.thermal === 'object' ? data.thermal : null
-  return { answers, language: data.language, weather: data.weather ?? {}, thermal }
+  return { answers, language: data.language, weather: data.weather ?? {}, thermal, myRatings: Array.isArray(data.myRatings) ? data.myRatings : [] }
 }
 
 /** The elements as bothers / feels good, strongest first (board 5, "Strongest for you"): 1–2 bother, 4–5 feel good. */

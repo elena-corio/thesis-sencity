@@ -20,6 +20,7 @@ import AppIcon from './AppIcon.vue'
 import SensesPrediction from './SensesPrediction.vue'
 import OverallSummary from './OverallSummary.vue'
 import { useProfileStore } from '../stores/profile.js'
+import RateThisPlace from './RateThisPlace.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -105,6 +106,12 @@ const sensesPlace = computed(() => (sensesOn.value && photos.value.length ? sens
 const overallOn = computed(() => src.value.layer === 'overall')
 const overallPlace = computed(() => (overallOn.value && photos.value.length ? senses.placeFor(photos.value) : null))
 const profileStore = useProfileStore()
+// "Rate this place" (Senses and Overall): the photo on the card, with its rating as shown here (or none).
+const rateOn = computed(() => (sensesOn.value || overallOn.value) && !!photo.value)
+const shownResult = computed(() => {
+  const r = photo.value ? senses.ratingOf(photo.value) : null
+  return r?.status === 'ok' ? r.result : null
+})
 // The photo on the card is the one rated.
 const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
@@ -173,6 +180,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     </div>
 
     <OverallSummary v-if="overallOn" :street="p" :place="overallPlace" :info="src.info" :personal="profileStore.personal" />
+    <RateThisPlace v-if="rateOn && overallOn" :photo="photo" :result="shownResult" from="map" />
 
     <template v-else-if="thermalView">
       <div class="thermal" data-testid="thermal">
@@ -218,6 +226,7 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <template v-else>
       <SensesPrediction v-if="sensesPlace" :place="sensesPlace" :shown="shownRating" :photo-number="index + 1" :along="alongWord"
                         @retry="retryRating" />
+      <RateThisPlace v-if="rateOn && sensesPlace" :photo="photo" :result="shownResult" from="map" />
       <template v-else-if="photo">
         <div class="thumbs-row">
           <div class="along">

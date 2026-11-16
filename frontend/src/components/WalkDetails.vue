@@ -1,15 +1,17 @@
 <script setup>
 // The stretch ahead, in the walk's right column (WalkView): name, length and time; the comfort
-// label and its reason; what might bother and what might feel good, in two columns; and "Rate this place", drawn as on
-// the boards and not built yet (Elena, 2026-11-11: Coming soon). Details are always shown. Everything comes from what is
-// loaded: the Senses ratings already here, never a new call.
+// label and its reason; what might bother and what might feel good, in two columns; and "Rate this place" (RateThisPlace,
+// Elena 2026-11-16: kept in this browser with the prediction shown; rating pauses the walk). Details are always shown.
+// Everything comes from what is loaded: the Senses ratings already here, never a new call.
 import { computed } from 'vue'
 import { sizeLabel, typeLabel } from '../lib/place.js'
 import { stretchLine } from '../lib/routes.js'
 import { bySense } from '../lib/senses.js'
 import { comfortLine } from '../lib/walk.js'
 import { useWalkStore } from '../stores/walk.js'
+import RateThisPlace from './RateThisPlace.vue'
 import SenseItem from './SenseItem.vue'
+import { useSensesStore } from '../stores/senses.js'
 
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
@@ -30,6 +32,13 @@ const columns = computed(() => [
   { title: 'Might bother you', kind: 'bother', rows: rated.value ? bySense(place.value.bothers) : [] },
   { title: 'Might feel good', kind: 'good', rows: rated.value ? bySense(place.value.feelsGood) : [] },
 ])
+const senses = useSensesStore()
+/** The photo on screen and its rating as shown, for "Rate this place"; the walk itself or the enlarged photo. */
+const shownResult = computed(() => {
+  const r = walk.photo ? senses.ratingOf(walk.photo) : null
+  return r?.status === 'ok' ? r.result : null
+})
+const rateFrom = computed(() => (walk.back === 'comparison' ? 'walk' : 'photo'))
 const swatch = computed(() => `var(--${comfort.value.state === 'none' ? (walk.layer === 'thermal' ? 'no-photo' : 'no-photo-grey') : comfort.value.state})`)
 </script>
 
@@ -58,20 +67,7 @@ const swatch = computed(() => `var(--${comfort.value.state === 'none' ? (walk.la
         </div>
       </div>
       <div class="rule" />
-      <div class="rate">
-        <div class="rate-row">
-          <span id="walk-rate-title" class="rate-title">Rate this place</span>
-          <div role="group" aria-labelledby="walk-rate-title" aria-describedby="walk-rate-soon" class="rate-buttons">
-            <button v-for="n in 5" :key="n" type="button" class="rate-btn" :aria-label="`Rate ${n} of 5`" aria-disabled="true"
-                    title="Coming soon">{{ n }}</button>
-          </div>
-        </div>
-        <div class="rate-foot">
-          <span>From the photo. It tunes your profile.</span>
-          <button type="button" class="link" aria-disabled="true" title="Coming soon" aria-describedby="walk-rate-soon">How this works</button>
-        </div>
-        <span id="walk-rate-soon" class="visually-hidden">Coming soon</span>
-      </div>
+      <RateThisPlace :photo="walk.photo" :result="shownResult" :from="rateFrom" :phone="phone" @rated="walk.pause()" />
     </section>
     </template>
   </div>
@@ -106,17 +102,4 @@ p { margin: 0; }
 .phone .column ul { margin-top: var(--space-1); }
 .none { margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--text-2); }
 
-.rate { display: flex; flex-direction: column; gap: calc(var(--space-2) - 2px); }
-.rate-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-.rate-title { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
-.rate-buttons { display: flex; gap: var(--space-1); }
-.rate-btn {
-  width: var(--rate-w); height: var(--rate-h); padding: 0;
-  border: var(--hairline) solid var(--line); border-radius: var(--radius-chip); background: transparent;
-  color: var(--text); font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
-}
-.phone .rate-btn { width: var(--rate-w-phone); height: var(--rate-h-phone); }
-/* --text-2, not the board's muted grey, which is under 4.5:1 on white. */
-.rate-foot { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-2xs); color: var(--text-2); }
-.link { flex: none; padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: inherit; text-decoration: underline; }
 </style>

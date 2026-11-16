@@ -10,6 +10,7 @@ import { senseName } from '../lib/senses.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
 import AppIcon from './AppIcon.vue'
 import ProfileRadar from './ProfileRadar.vue'
+import HowClose from './HowClose.vue'
 import ThermalComfortBar from './ThermalComfortBar.vue'
 import { standardLimits } from '../lib/thermal.js'
 import { WEATHER } from '../lib/weather.js'
@@ -68,6 +69,7 @@ function a11Key(e) {
       <h2 id="profile-title" tabindex="-1">This is how you sense the city</h2>
       <p class="sub">From your answers, on a scale from 1 to 5 · saved on {{ saved }}</p>
       <ProfileRadar :survey="survey" :answers="p.answers" />
+      <HowClose />
 
       <details class="answers" data-testid="answers">
         <summary><span>Your answers, element by element</span><AppIcon name="chevronDown" class="chev" /></summary>

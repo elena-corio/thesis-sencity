@@ -284,7 +284,7 @@ test.describe('Senses mode', () => {
     expect(await fills(view)).toEqual(preview)
     await expect(view.getByTestId('walk-state')).toContainText(rating.split(' · ')[0])
     await expect(view.locator('#walk-details')).toContainText('Might bother you')
-    await expect(view.locator('#walk-details').getByRole('button', { name: 'Rate 1 of 5' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(view.locator('#walk-details').getByRole('button', { name: 'Rate 1 of 5' })).toBeEnabled() // built (Elena, 2026-11-16)
     await expect(view.getByTestId('comfort-key')).toContainText('Senses')
     await page.waitForTimeout(800) // the mini map draws the route
     await page.screenshot({ path: 'e2e/screens/walk/8-walk-senses.png' })

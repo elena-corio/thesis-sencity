@@ -536,6 +536,10 @@ def _view(export: Export, entry: dict, cached: bool, personal: bool = False) -> 
         "cost_usd": entry["cost_usd"],
         "cached": cached,
         "personal": personal,  # rated with your sensory profile (V2), not the general prediction (V0)
+        # What the prediction was made from, nothing personal: the export (prompt files) and how the app assembled the
+        # request. The browser keeps them with a person's own rating of the photo (Elena, 2026-11-16).
+        "commit": export.commit,
+        "prompt": entry.get("prompt", PROMPT_VERSION),
     }
 
 
