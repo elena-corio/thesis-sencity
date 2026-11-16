@@ -3,7 +3,8 @@
 - streetview (the local prototype, default): the study's source, so the app's photos and ratings look like the study's.
   A street or place gets up to 3 photos by the step-1 rule (brief §4: official imagery on streets, a contributor
   photosphere allowed in parks and squares, retries, newest first, different spots). A street a route walks gets a photo
-  every 10 to 20 m, facing the way it is walked. Where Street View has none (parks, paths), the Mapillary photo is used
+  every 10 to 20 m, turned to the way it is walked (the route's bearing walk_photos.ahead_m further on: at a turn, the
+  street ahead). Where Street View has none (parks, paths), the Mapillary photo is used
   instead, with its own credit; with neither, the street has no photo. Only pano IDs, location, date and heading are
   kept (Google terms); images are fetched on demand, in memory only, and every fetch counts against a daily cap.
 - mapillary (any public version): one Mapillary photo per street or place (tool/photos/mapillary.py).
@@ -19,11 +20,11 @@ import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point
 
 from tool.candidates import candidates_for, make_lookup, photos_for_segment
 from tool.config import REPO_ROOT, photo_source
-from tool.geo import line_bearing_at
+from tool.geo import bearing_ahead
 from tool.photos import mapillary
 from tool.selection import Candidate, select
 
@@ -49,28 +50,38 @@ def settings(cfg: dict, source: str | None = None) -> dict:
     return out
 
 
-def sv_photo(c: Candidate, copyright_: str = "") -> dict:
+def sv_photo(c: Candidate, copyright_: str = "", walked: bool = False) -> dict:
     out = {"id": SV + c.photo_id, "source": "streetview", "pano_id": c.photo_id, "lat": round(c.lat, 7),
            "lon": round(c.lon, 7), "heading": c.heading, "date": c.date, "year": int(c.date[:4]) if c.date else None,
            "contributor": not c.official}
+    if walked:
+        out["offset_deg"] = 0.0  # a panorama turned to the walking direction exactly
     if not c.official and copyright_:
         out["copyright"] = copyright_  # a contributor photosphere is credited to its author
     return out
 
 
-def walk_candidates(seg, metas: list, proj, forward: bool) -> list[Candidate]:
-    """One candidate per pano along a street a route walks: looking the way it is walked at that point."""
+def walked_line(seg, forward: bool, ahead: list | None = None) -> LineString:
+    """The street in walking order (local metres), then the route's next points (`ahead`), for the bearing at a turn."""
+    coords = list(seg.geom.coords)
+    return LineString((coords if forward else coords[::-1]) + list(ahead or []))
+
+
+def walk_candidates(seg, metas: list, proj, forward: bool, ahead: list | None, ahead_m: float) -> list[Candidate]:
+    """One candidate per pano along a street a route walks, looking the way it is walked: the route's bearing ahead_m
+    further on (at a turn, the street ahead). `dist_to_midpoint_m` holds the distance walked, for the order."""
     out, seen = [], set()
     line = seg.geom
+    walked = walked_line(seg, forward, ahead)
+    street = walked_line(seg, forward)
     for m in metas:
         if m.photo_id in seen:
             continue
         seen.add(m.photo_id)
         x, y = proj.to_xy(m.lon, m.lat)
         p = Point(x, y)
-        s = line.project(p)
-        heading = line_bearing_at(line, s) if forward else (line_bearing_at(line, s) + 180) % 360
-        along = s if forward else line.length - s
+        along = street.project(p)
+        heading = bearing_ahead(walked, along, ahead_m)
         out.append(Candidate(segment_id=seg.id, photo_id=m.photo_id, lat=m.lat, lon=m.lon, x=x, y=y, date=m.date,
                              official=m.official, heading=round(heading, 1), dist_to_segment_m=round(line.distance(p), 2),
                              dist_to_midpoint_m=round(along, 2), faces_midpoint=True))
@@ -110,21 +121,23 @@ class Finder:
                 self._mly_tried = True
             return self._mly_ok, self._mly
 
-    def mapillary_photos(self, seg, forward: bool | None) -> list:
+    def mapillary_photos(self, seg, walk: tuple | None) -> list:
         ok, s = self.mly()
         if not ok:
             return []
         geom = self.proj.geom_to_lonlat(seg.geom)
         if seg.kind == "area":
             photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", self.cfg)
-        elif forward is not None:
+        elif walk is not None:
+            forward, ahead = walk
             coords = [list(c) for c in geom.coords]
-            photo = mapillary.photo_facing(s, coords if forward else coords[::-1], self.cfg)
+            ahead_lonlat = [list(self.proj.to_lonlat(x, y)) for x, y in (ahead or [])]
+            photo = mapillary.photo_walking(s, coords if forward else coords[::-1], self.cfg, ahead_lonlat)
         else:
             photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", self.cfg)
         return [{**photo, "source": "mapillary"}] if photo else []
 
-    def streetview_photos(self, seg, forward: bool | None) -> list:
+    def streetview_photos(self, seg, walk: tuple | None) -> list:
         lookup = self.lookup
 
         def remember(x, y, radius=None):  # the copyright of contributor photospheres, for their credit
@@ -133,26 +146,29 @@ class Finder:
                 self.copyrights[m.photo_id] = m.copyright
             return m
         metas = photos_for_segment(seg, remember, self.cfg, {})
-        if forward is None or seg.kind != "street":
+        if walk is None or seg.kind != "street":
             chosen = select(candidates_for(seg, metas, self.proj, self.indoor), self.cfg, self.today,
                             contributor_fallback=seg.kind == "area")
             kept = [c for c in chosen if c.status == "kept"]
         else:
             walk_cfg = {**self.cfg, "selection": {**self.cfg["selection"], "max_photos": 10**6,
                                                   "min_spacing_m": self.cfg["streetview"]["walk_min_spacing_m"]}}
-            chosen = select(walk_candidates(seg, metas, self.proj, forward), walk_cfg, self.today)
+            forward, ahead = walk
+            candidates = walk_candidates(seg, metas, self.proj, forward, ahead, self.cfg["walk_photos"]["ahead_m"])
+            chosen = select(candidates, walk_cfg, self.today)
             # In the order they are walked past (the rank was newest first).
             kept = sorted((c for c in chosen if c.status == "kept"), key=lambda c: c.dist_to_midpoint_m)
+            return [sv_photo(c, self.copyrights.get(c.photo_id, ""), walked=True) for c in kept]
         return [sv_photo(c, self.copyrights.get(c.photo_id, "")) for c in kept]
 
-    def photos(self, seg, forward: bool | None = None) -> list:
-        """The photos of a street or place. forward: a street a route walks (True along its drawing, False against it),
-        or None."""
+    def photos(self, seg, walk: tuple | None = None) -> list:
+        """The photos of a street or place. walk: for a street a route walks, (forward, ahead): True if walked along its
+        drawing, False against it, and the route's next points after it (local metres); else None."""
         if self.source == "streetview":
-            found = self.streetview_photos(seg, forward)
+            found = self.streetview_photos(seg, walk)
             if found:
                 return found
-        return self.mapillary_photos(seg, forward)
+        return self.mapillary_photos(seg, walk)
 
 
 # Street View images: on demand, in memory only, under a daily cap

@@ -6,8 +6,6 @@
                      thermal comfort per segment for one season and time (Infrared.city, billed, cached)
 - POST /api/routes   two walking routes between two points: streets, photos, thermal comfort along a
                      corridor, then the shortest and the easiest way
-- POST /api/buildings   footprints and heights along a walked route, for the walk view (public data, free, cached)
-- POST /api/mapillary/along   one Mapillary photo per stretch of a walk (free; the token stays here)
 - GET  /api/photo/{pano_id}?heading=…   one Street View image of a loaded area or route, never stored (paid, daily cap)
 - POST /api/senses/rate   the model's predictions for a list of photos, streamed; cached ones cost nothing.
                           With "profile" (your answers, from the browser) they are personal (V2), else general (V0);
@@ -34,14 +32,12 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from tool.config import load_config, photo_source
-from tool.buildings import BuildingsError
 from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
 from . import photos as photos_mod
 from . import profile as profile_mod
-from . import buildings as buildings_mod
 from . import routes as routes_mod
 from . import search as search_mod
 from . import senses as senses_mod
@@ -304,6 +300,8 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         except routes_mod.RouteError as e:
             yield _ndjson({"type": "error", "message": str(e)})
             return
+        # The photos the routes show face the way they are walked (some turned): those images may be fetched.
+        _known_photos.update(photos_mod.known_photos(found["segments"]))
         if thermal:
             yield _ndjson({"type": "routes", "season": thermal["season"], "time": thermal["time"],
                            "station": thermal["station"], **found})
@@ -311,59 +309,6 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
             yield _ndjson({"type": "routes", "season": None, "time": None, "station": None, "routes": [], "verdict": "", **found})
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
-
-
-# Buildings along a walked route (board Routes 5)
-
-class BuildingsRequest(BaseModel):
-    line: list[tuple[float, float]] = Field(..., min_length=2, max_length=full_cfg["buildings"]["max_points"])
-
-
-@app.post("/api/buildings")
-def buildings(body: BuildingsRequest, request: Request) -> dict:
-    """Footprints and heights of the buildings along the walked line (lon, lat pairs), and their source, as
-    GeoJSON. The line is not logged or stored: the cache is keyed by a hash."""
-    b = full_cfg["buildings"]
-    line = [[lon, lat] for lon, lat in body.line]
-    if any(not (-180 <= lon <= 180 and -90 <= lat <= 90) for lon, lat in line):
-        raise HTTPException(422, "The route is not on the map.")
-    length = sum(km_between(a[1], a[0], c[1], c[0]) for a, c in zip(line, line[1:])) * 1000
-    if length > b["max_length_m"]:
-        raise HTTPException(422, "This route is too long for the walk view.")
-    key = buildings_mod.line_key(line, full_cfg)
-    if buildings_mod.load_cached(key, full_cfg) is None and _rate_limited("buildings", _ip(request), b["rate_per_hour"], 3600):
-        raise HTTPException(429, "Too many new walks in a short time. Wait a while and try again.")
-    try:
-        result, _ = buildings_mod.buildings_for(line, full_cfg)
-    except BuildingsError as e:
-        raise HTTPException(503, str(e)) from None
-    return result
-
-
-# Mapillary photos along a walk
-
-class WalkStretch(BaseModel):
-    key: str = Field(..., max_length=80)
-    coordinates: list[tuple[float, float]] = Field(..., min_length=1, max_length=400)
-    # 'walk': along its direction; 'street' (a card): either way; 'area' (a park or square): any direction.
-    kind: str = Field("walk", pattern="^(walk|street|area)$")
-
-
-class MapillaryRequest(BaseModel):
-    stretches: list[WalkStretch] = Field(..., min_length=1, max_length=full_cfg["mapillary"]["max_stretches"])
-
-
-@app.post("/api/mapillary/along")
-def mapillary_along(body: MapillaryRequest, request: Request) -> dict:
-    """{photos: {key: photo or null}}: for each stretch the newest flat Mapillary photo within 30 m facing along it, with
-    its public thumbnail URL and credit. The stretches travel in the body and are not logged or stored."""
-    if _rate_limited("mapillary", _ip(request), full_cfg["mapillary"]["rate_per_hour"], 3600):
-        raise HTTPException(429, "Too many walks in a short time. Wait a while and try again.")
-    stretches = [{"key": s.key, "kind": s.kind, "coordinates": [[lon, lat] for lon, lat in s.coordinates]} for s in body.stretches]
-    try:
-        return {"photos": mapillary_mod.along(stretches, full_cfg)}
-    except mapillary_mod.MapillaryError as e:
-        raise HTTPException(503, str(e)) from None
 
 
 # Street View images: fetched on demand, in memory only, never stored (Google terms)

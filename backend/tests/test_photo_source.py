@@ -88,13 +88,13 @@ def test_a_street_gets_up_to_three_street_view_photos(streetview):
 
 def test_a_walked_street_gets_a_photo_every_10_to_20_m_facing_the_walk(streetview):
     finder = photos_mod.Finder(CFG, PROJ)
-    east = finder.photos(STREET, forward=True)
-    west = finder.photos(STREET, forward=False)
+    east = finder.photos(STREET, walk=(True, []))
+    west = finder.photos(STREET, walk=(False, []))
     assert len(east) >= 4  # 60 m: more than the 3 of a card
     xs = [PROJ.to_xy(p["lon"], p["lat"])[0] for p in east]
     assert xs == sorted(xs)  # in the order they are walked past
     assert all(10 <= b - a <= 20.5 for a, b in zip(xs, xs[1:]))  # the projection adds a few mm
-    assert all(abs(p["heading"] - 90) < 1 for p in east)  # looking east, the way it is walked
+    assert all(abs(p["heading"] - 90) < 1 and p["offset_deg"] == 0 for p in east)  # looking east, the way it is walked
     assert all(abs(p["heading"] - 270) < 1 for p in west)
     wx = [PROJ.to_xy(p["lon"], p["lat"])[0] for p in west]
     assert wx == sorted(wx, reverse=True)
@@ -222,3 +222,11 @@ def test_thermal_keys_stay_the_same_whatever_the_photo_source(monkeypatch):
     assert area_mod.area_key(LAT, LON, 200, CFG) != area_before  # the photos are looked up again
     assert area_mod.area_key(LAT, LON, 200, CFG, source="mapillary") == area_before  # thermal: the same
     assert routes_mod.route_key(start, end, CFG, source="mapillary") == route_before
+
+
+def test_near_a_turn_a_street_view_photo_looks_along_the_street_ahead(streetview):
+    # The street runs east for 60 m, then the route turns north: the last photo looks north.
+    finder = photos_mod.Finder(CFG, PROJ)
+    photos = finder.photos(STREET, walk=(True, [(60, 30)]))
+    assert abs(photos[0]["heading"] - 90) < 1  # the first, far from the turn: east
+    assert abs(photos[-1]["heading"] - 0) < 1 or abs(photos[-1]["heading"] - 360) < 1  # 4 m before it: north

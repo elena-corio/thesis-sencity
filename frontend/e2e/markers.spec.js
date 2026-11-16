@@ -4,17 +4,9 @@
 import { expect, test } from '@playwright/test'
 import { PHOTO, analyseCentre, mapIdle, mockArea, mockRoutes, openMap, openRoutes, routeClicks } from './helpers.js'
 
-/** Mock POST /api/mapillary/along: a photo for every key, looking 35 + 70 x (its place in the request) degrees. */
+/** The photos' thumbnails (each street's photo comes with the mocked area or routes). */
 async function mockPhotos(page) {
   await page.route('**/mly-thumb/**', (route) => route.fulfill({ contentType: 'image/png', body: PHOTO }))
-  await page.route('**/api/mapillary/along', async (route) => {
-    const { stretches } = route.request().postDataJSON()
-    const photos = Object.fromEntries(stretches.map((s, i) => [s.key, {
-      id: `m${i}`, lon: s.coordinates[0][0], lat: s.coordinates[0][1], heading: (35 + 70 * i) % 360, pano: false, pano_heading: null,
-      turn: 0, year: 2023, date: '2023-05', creator: 'dora', thumb_url: `/mly-thumb/${s.key}.png`, link: `https://www.mapillary.com/app/?pKey=m${i}`,
-    }]))
-    await route.fulfill({ json: { photos } })
-  })
 }
 const settle = (page) => page.waitForFunction(() => !window.__sencityMap.isMoving(), null, { timeout: 15_000 })
 

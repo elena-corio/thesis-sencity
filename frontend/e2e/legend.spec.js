@@ -84,8 +84,6 @@ for (const [device, viewport, phone] of [['desktop', { width: 1440, height: 900 
 
       test('Routes on Thermal, then the walk', async ({ page }) => {
         await mockRoutes(page)
-        // The walk's photos: none (never the running API).
-        await page.route('**/api/mapillary/along', (route) => route.fulfill({ json: { photos: {} } }))
         await openRoutes(page, theme)
         const { a, b } = routeClicks(page.viewportSize(), phone)
         await page.mouse.click(a.x, a.y)

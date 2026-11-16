@@ -4,10 +4,10 @@
 import { expect, test } from '@playwright/test'
 import { WITH_3, WITHOUT, analyseCentre, mapIdle, mockArea, mockRoutes, openMap, openRoutes, openSegment, routeClicks } from './helpers.js'
 
-/** Requests the cards must no longer make: a Mapillary lookup from the browser, or a Street View image. */
+/** Requests a card with a Mapillary photo must not make: a Street View image. */
 function watchOld(page) {
   const urls = []
-  page.on('request', (r) => { if (r.url().includes('/api/photo/') || r.url().includes('/api/mapillary/along')) urls.push(r.url()) })
+  page.on('request', (r) => { if (r.url().includes('/api/photo/')) urls.push(r.url()) })
   return urls
 }
 

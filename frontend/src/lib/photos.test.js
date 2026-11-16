@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countShown, isPaid, panoShift, photoAlong, photoCredit, photoLink, shownPhotoUrl, sourceOf, sourcesName, streetViewShown } from './photos.js'
+import { countShown, isPaid, panoShift, photoCredit, photoLink, shownPhotoUrl, sourceOf, sourcesName, streetViewShown } from './photos.js'
 
 const STREET_VIEW = { id: 'sv:panoAAAAAAAAAA', source: 'streetview', pano_id: 'panoAAAAAAAAAA', heading: 90, date: '2024-06', year: 2024 }
 const MAPILLARY = { id: '1', source: 'mapillary', thumb_url: 'https://t/1', creator: 'anna', year: 2024, link: 'https://www.mapillary.com/app/?pKey=1' }
@@ -46,18 +46,5 @@ describe('panoShift', () => {
     expect(panoShift({ heading: 210, pano_heading: 120 })).toBeCloseTo(-2.5)
     // Across north: 10 to 350 is 20 degrees to the left.
     expect(panoShift({ heading: 350, pano_heading: 10 })).toBeCloseTo(-1.5 + 4 * (20 / 360))
-  })
-})
-
-describe('photoAlong', () => {
-  const photos = [{ heading: 10 }, { heading: 185 }, { heading: 350 }]
-  it('takes the photo facing along the walk', () => {
-    expect(photoAlong(photos, 0)).toBe(photos[0])
-    expect(photoAlong(photos, 345)).toBe(photos[2])
-    expect(photoAlong(photos, 170)).toBe(photos[1])
-  })
-  it('is null without photos', () => {
-    expect(photoAlong([], 0)).toBeNull()
-    expect(photoAlong(undefined, 0)).toBeNull()
   })
 })

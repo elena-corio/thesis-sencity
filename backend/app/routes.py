@@ -16,12 +16,12 @@ import math
 from datetime import date
 from pathlib import Path as FilePath
 
-from shapely.geometry import LineString, Polygon, mapping, shape
+from shapely.geometry import LineString, Point, Polygon, mapping, shape
 from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from tool.config import REPO_ROOT
-from tool.geo import LocalProjection
+from tool.geo import LocalProjection, bearing_ahead, signed_turn
 from tool.infrared import ThermalError, count_jobs
 from tool import osm_local
 from tool.osm import build_segments, fetch_ways_in, parse
@@ -55,20 +55,83 @@ def route_key(start: dict, end: dict, cfg: dict, source: str | None = None) -> s
 
 def corridor_key(start: dict, end: dict, cfg: dict) -> str:
     """The key of the corridor's streets and photos. Unlike route_key it keeps the direction: a street's photo faces the
-    way the routes walk it (Elena, 2026-11-14), so start → end and end → start have their own photos."""
-    return hashlib.sha1(json.dumps({"route": route_key(start, end, cfg), "photos": "facing the walk",
+    way the routes walk it (Elena, 2026-11-14), so start → end and end → start have their own photos. The walk_photos
+    settings are here, not in route_key, so the thermal key does not change with them."""
+    photos = {"facing": "the walk, the street ahead at a turn", **cfg["walk_photos"]}
+    return hashlib.sha1(json.dumps({"route": route_key(start, end, cfg), "photos": photos,
                                     "from": [round(start["lat"], 5), round(start["lon"], 5)]}).encode()).hexdigest()[:16]
 
 
-def walk_directions(paths: list) -> dict:
-    """{segment id: True if walked along its own drawing, False if against it}, from the ways found, the shortest first:
-    a street the ways walk both ways keeps the direction of the first."""
+def walk_directions(paths: list, ahead_m: float = 30.0) -> dict:
+    """{segment id: (forward, ahead)}, from the ways found, the shortest first: forward is True if the street is walked
+    along its own drawing, False against it; ahead, the way's next points after it (local metres, about ahead_m of them),
+    so a photo near a turn can look along the street ahead. A street the ways walk both ways keeps the first; the photos
+    are checked again against each route once the routes are found (orient_photos)."""
     out = {}
     for path in paths:
-        for e, forward in path.steps:
-            if e.segment_id is not None and e.segment_id not in out:
-                out[e.segment_id] = forward
+        steps = path.steps
+        for i, (e, forward) in enumerate(steps):
+            if e.segment_id is None or e.segment_id in out:
+                continue
+            tail, got = [], 0.0
+            for e2, f2 in steps[i + 1:]:
+                coords = list(e2.line.coords) if f2 else list(e2.line.coords)[::-1]
+                tail += coords[1:]
+                got += e2.length
+                if got >= ahead_m:
+                    break
+            out[e.segment_id] = (forward, tail)
     return out
+
+
+def _turnable(photo: dict) -> bool:
+    """A Street View photo or a Mapillary panorama can look any way; a flat photo looks its camera's way."""
+    return photo.get("source") == "streetview" or bool(photo.get("pano"))
+
+
+def orient_photos(features: list, ways: list, proj: LocalProjection, cfg: dict) -> list:
+    """The route streets with their photos facing the way each route walks them (Elena, 2026-11-16). The walking
+    direction at a photo is the route's bearing walk_photos.ahead_m further on (at a turn, the street ahead). A Street
+    View photo or a Mapillary panorama is turned to it; a flat photo is kept only within walk_photos.max_turn_deg of it.
+    Each kept photo has `offset_deg`, how far it looks from that direction. A street walked by several routes is checked
+    against each in turn, so one walked both ways keeps no photo ("No photo"). The features are copies."""
+    wp = cfg["walk_photos"]
+    photos = {f["properties"]["id"]: f["properties"].get("photos") or [] for f in features}
+    done: set = set()
+    for way in ways:
+        pts, spans, walked = [], [], 0.0
+        for part in way["parts"]:
+            xy = [proj.to_xy(lon, lat) for lon, lat in part["coordinates"]]
+            line = LineString(xy) if len(xy) > 1 else None
+            spans.append((part["segment_id"], walked, line))
+            walked += line.length if line is not None else 0.0
+            pts += xy[1:] if pts and xy and pts[-1] == xy[0] else xy
+        if len(pts) < 2:
+            continue
+        route = LineString(pts)
+        for seg_id, start, line in spans:
+            if not seg_id or line is None or seg_id not in photos:
+                continue
+            kept = []
+            for ph in photos[seg_id]:
+                way_at = bearing_ahead(route, start + line.project(Point(proj.to_xy(ph["lon"], ph["lat"]))), wp["ahead_m"])
+                if _turnable(ph) and seg_id not in done:
+                    kept.append({**ph, "heading": round(way_at, 1), "offset_deg": 0.0})
+                    continue
+                offset = signed_turn(ph["heading"], way_at)
+                if abs(offset) <= wp["max_turn_deg"]:
+                    kept.append({**ph, "offset_deg": round(offset, 1)})
+            photos[seg_id] = kept
+            done.add(seg_id)
+    return [{**f, "properties": {**f["properties"], "photos": photos[f["properties"]["id"]]}}
+            if f["properties"]["id"] in done else f for f in features]
+
+
+def _with_photo_share(ways: list, streets: list) -> list:
+    """The ways with photo_share counted again, on the photos left once they face the walk."""
+    has = {f["properties"]["id"] for f in streets if f["properties"].get("photos")}
+    return [{**w, "photo_share": round(sum(p["length_m"] for p in w["parts"] if p["segment_id"] in has)
+                                       / (w["length_m"] or 1), 3)} for w in ways]
 
 
 def load_cached(key: str, cfg: dict) -> dict | None:
@@ -285,10 +348,11 @@ def find_routes(fc: dict, start: dict, end: dict, values: dict, limits: dict, cf
     a = _summary("A", "shortest", route_a, state_of, by_id, proj, cfg)
     b = _summary("B", kind, route_b, state_of, by_id, proj, cfg) if route_b else None
     used = {p["segment_id"] for rt in (a, b) if rt for p in rt["parts"] if p["segment_id"]}
+    streets = orient_photos([f for f in fc["features"] if f["properties"]["id"] in used], [rt for rt in (a, b) if rt], proj, cfg)
     return {
-        "routes": [rt for rt in (a, b) if rt],
+        "routes": _with_photo_share([rt for rt in (a, b) if rt], streets),
         "verdict": verdict(a, b, values, by_id, state_of, limits),
-        "segments": {"type": "FeatureCollection", "features": [f for f in fc["features"] if f["properties"]["id"] in used]},
+        "segments": {"type": "FeatureCollection", "features": streets},
         "values": {k: values.get(k) for k in used},
     }
 
@@ -314,5 +378,6 @@ def find_candidates(fc: dict, start: dict, end: dict, limit: int, cfg: dict) -> 
     ways = [_summary("A" if i == 0 else f"C{i}", "shortest" if i == 0 else "candidate", p, no_state, by_id, proj, cfg)
             for i, p in enumerate(kept)]
     used = {p["segment_id"] for w in ways for p in w["parts"] if p["segment_id"]}
-    return {"candidates": ways, "values": {},
-            "segments": {"type": "FeatureCollection", "features": [f for f in fc["features"] if f["properties"]["id"] in used]}}
+    streets = orient_photos([f for f in fc["features"] if f["properties"]["id"] in used], ways, proj, cfg)
+    return {"candidates": _with_photo_share(ways, streets), "values": {},
+            "segments": {"type": "FeatureCollection", "features": streets}}

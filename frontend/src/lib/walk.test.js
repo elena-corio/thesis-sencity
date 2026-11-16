@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, photosInOrder, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, photosInOrder, progressAt, progressLine, ratedPhotoOf, routeKind } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -38,13 +38,6 @@ describe('progressLine', () => {
   })
 })
 
-describe('stretchBearing', () => {
-  it('looks along the stretch', () => {
-    expect(stretchBearing({ coordinates: [[16.37, 48.2], [16.37, 48.21]] })).toBeCloseTo(0, 5)
-    expect(stretchBearing({ coordinates: [[16.37, 48.2], [16.38, 48.2]] })).toBeCloseTo(90, 0)
-    expect(stretchBearing({ coordinates: [[16.37, 48.21], [16.36, 48.21]] })).toBeCloseTo(270, 0)
-  })
-})
 
 describe('chipText', () => {
   it('says what the easiest way is easiest for; shortest is just shortest', () => {

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app import area as area_mod
 from app import main
 from app import photos as photos_mod
+from tool.photos.mapillary import bearing as mly_bearing
 from app import routes as routes_mod
 from tool.infrared import ThermalError
 
@@ -43,21 +44,27 @@ def overpass_answer():
                          for w, name, coords, _ in STREETS]}
 
 
-def fake_photo(coords, n=1001):
-    """A Mapillary photo in the shape tool/photos/mapillary.pick returns, at the street's first point."""
-    lon, lat = coords[0]
-    return {"id": str(n), "lon": lon, "lat": lat, "heading": 63.5, "pano": False, "pano_heading": None, "turn": 0.0,
+def fake_photo(coords, n=1001, heading=63.5):
+    """A Mapillary photo in the shape tool/photos/mapillary.pick returns, a little way along the street."""
+    (lon0, lat0), (lon1, lat1) = coords[0], coords[-1]
+    lon, lat = lon0 + 0.25 * (lon1 - lon0), lat0 + 0.25 * (lat1 - lat0)
+    return {"id": str(n), "lon": lon, "lat": lat, "heading": heading, "pano": False, "pano_heading": None, "turn": 0.0,
             "year": 2024, "date": "2024-07", "creator": "dora", "thumb_url": "https://example.org/t.jpg",
             "link": f"https://www.mapillary.com/app/?pKey={n}"}
 
 
+def facing(coords, kind):
+    """A fake photo as the real lookup chooses it: on a walked street looking the way it is walked."""
+    return fake_photo(coords, heading=mly_bearing(coords[0], coords[-1]) if kind == "walk" else 63.5)
+
+
 def fake_mapillary(monkeypatch, photo_for=None):
-    """No Mapillary call: every street gets fake_photo (or what photo_for returns). A street the routes walk asks for a
+    """No Mapillary call: every street gets a fake photo (or what photo_for returns). A street the routes walk asks for a
     photo facing the walk (kind "walk"), with its coordinates in walking order."""
-    find = photo_for or (lambda s, coords, kind, cfg: fake_photo(coords))
+    find = photo_for or (lambda s, coords, kind, cfg: facing(coords, kind))
     monkeypatch.setattr(photos_mod.mapillary, "session", lambda: None)
     monkeypatch.setattr(photos_mod.mapillary, "photo_for", find)
-    monkeypatch.setattr(photos_mod.mapillary, "photo_facing", lambda s, coords, cfg: find(s, coords, "walk", cfg))
+    monkeypatch.setattr(photos_mod.mapillary, "photo_walking", lambda s, coords, cfg, ahead=None: find(s, coords, "walk", cfg))
 
 
 def fake_utci(calls, cooler_north=True):
@@ -105,7 +112,8 @@ def test_new_route_streams_progress_then_two_ways(client, monkeypatch):
     assert a["hard_share"] == 1 and b["hard_share"] < 0.5
     assert b["length_m"] > a["length_m"] and b["length_m"] <= a["length_m"] * 1.25
     assert a["minutes"] >= 1 and b["minutes"] >= a["minutes"]
-    assert a["thermal_share"] == 1 and a["photo_share"] == 1
+    # A's last street is walked south by B (a different way): its photo faces neither, so it has none (Elena, 2026-11-16).
+    assert a["thermal_share"] == 1 and 0.8 < a["photo_share"] < 1
     assert "avoids the hot part of Heissgasse" in done["verdict"]  # the fixture joins the corner into one street
     # The first part starts where the walk starts, and the last part ends at the end.
     assert a["parts"][0]["coordinates"][0] == pytest.approx([START["lon"], START["lat"]], abs=1e-5)
@@ -234,11 +242,43 @@ def test_the_corridor_is_narrowed_to_fit_the_tiles(client, monkeypatch):
     assert calls[0]["polygon"] == previews[1]
 
 
-def test_route_streets_get_their_mapillary_photo(client, monkeypatch):
+def test_route_streets_get_their_mapillary_photo_facing_the_walk(client, monkeypatch):
+    # Elena, 2026-11-16: each photo faces the way the route walks it, within 60 degrees, with its offset stored.
     monkeypatch.setattr(area_mod, "run_utci", fake_utci([]))
     done = events(client.post("/api/routes", json=REQ))[-1]
-    photos = [f["properties"]["photos"] for f in done["segments"]["features"]]
-    assert photos and all(len(p) == 1 and p[0]["id"] == "1001" for p in photos)
+    by_id = {f["properties"]["id"]: f["properties"]["photos"] for f in done["segments"]["features"]}
+    walks = {}
+    for r in done["routes"]:
+        for p in r["parts"]:
+            if p["segment_id"]:
+                walks.setdefault(p["segment_id"], []).append(r["id"])
+    for seg, photos in by_id.items():
+        assert all(abs(p["offset_deg"]) <= 60 for p in photos)
+        if len(walks[seg]) == 1:
+            assert len(photos) == 1 and photos[0]["id"] == "1001"
+    # The street both ways walk in different directions (A east, B south into the end): no photo faces both.
+    shared = [seg for seg, ways in walks.items() if len(ways) > 1]
+    assert shared and all(by_id[seg] == [] for seg in shared)
+
+
+def test_photos_are_turned_or_kept_by_the_way_each_route_walks():
+    """orient_photos on its own: a street walked east, with a flat photo looking north-east, one looking west and a
+    Street View photo (turned to the walk)."""
+    from tool.geo import LocalProjection
+    proj = LocalProjection(48.208, 16.37)
+    street = {"type": "Feature", "properties": {"id": "s", "photos": [
+        {"id": "ne", "source": "mapillary", "pano": False, "lon": 16.3702, "lat": 48.208, "heading": 50.0},
+        {"id": "w", "source": "mapillary", "pano": False, "lon": 16.3703, "lat": 48.208, "heading": 270.0},
+        {"id": "sv:p", "source": "streetview", "pano_id": "p", "lon": 16.3704, "lat": 48.208, "heading": 270.0}]}}
+    east = {"parts": [{"segment_id": "s", "coordinates": [[16.37, 48.208], [16.371, 48.208]]}]}
+    [f] = routes_mod.orient_photos([street], [east], proj, main.full_cfg)
+    got = {p["id"]: (round(p["heading"]), p["offset_deg"]) for p in f["properties"]["photos"]}
+    assert got == {"ne": (50, -40.0), "sv:p": (90, 0.0)}
+    assert street["properties"]["photos"][2]["heading"] == 270.0  # the cached street is not changed
+    # Walked west by a second route as well: nothing faces both ways.
+    west = {"parts": [{"segment_id": "s", "coordinates": [[16.371, 48.208], [16.37, 48.208]]}]}
+    [f] = routes_mod.orient_photos([street], [east, west], proj, main.full_cfg)
+    assert f["properties"]["photos"] == []
 
 
 def test_walk_directions_keep_the_first_way_that_walks_a_street():
@@ -249,7 +289,11 @@ def test_walk_directions_keep_the_first_way_that_walks_a_street():
         return Edge(i, (0, i), (0, i + 1), seg, LineString([(0, i), (0, i + 1)]))
     first = Path([(edge(0, "s1"), True), (edge(1, None), False), (edge(2, "s2"), False)], 3.0)
     second = Path([(edge(3, "s1"), False), (edge(4, "s3"), True)], 2.0)
-    assert routes_mod.walk_directions([first, second]) == {"s1": True, "s2": False, "s3": True}
+    found = routes_mod.walk_directions([first, second])
+    assert {k: forward for k, (forward, _) in found.items()} == {"s1": True, "s2": False, "s3": True}
+    # With the way's next points: s1 is followed by the connector (walked backwards), then s2 (backwards too).
+    assert found["s1"][1] == [(0.0, 1.0), (0.0, 2.0)]
+    assert found["s2"][1] == []  # the end of the way
 
 
 def test_route_streets_ask_for_a_photo_facing_the_walk_and_swapping_has_its_own(client, monkeypatch):
@@ -259,7 +303,7 @@ def test_route_streets_ask_for_a_photo_facing_the_walk_and_swapping_has_its_own(
 
     def photo_for(s, coords, kind, cfg):
         asked.append((kind, coords))
-        return fake_photo(coords)
+        return facing(coords, kind)
     fake_mapillary(monkeypatch, photo_for)
     monkeypatch.setattr(area_mod, "run_utci", fake_utci(calls))
     there = events(client.post("/api/routes", json=REQ))[-1]

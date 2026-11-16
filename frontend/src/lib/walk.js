@@ -48,17 +48,6 @@ export function progressLine({ doneM, totalM }, minutes) {
   return `${(doneM / 1000).toFixed(2)} of ${(totalM / 1000).toFixed(1)} km · ${minutes - done} min left`
 }
 
-/** Compass bearing in degrees (0 north, 90 east) from the stretch's first point to its last: the camera looks
- *  along the way. */
-export function stretchBearing(stretch) {
-  const c = stretch.coordinates
-  const [lon1, lat1] = c[0].map((v) => (v * Math.PI) / 180)
-  const [lon2, lat2] = c[c.length - 1].map((v) => (v * Math.PI) / 180)
-  const y = Math.sin(lon2 - lon1) * Math.cos(lat2)
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1)
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
-}
-
 /** The route's word on the comparison card: A shortest, B easiest (or the alternative). */
 export const routeKind = (route) => (route.id === 'A' ? 'shortest' : route.kind === 'easiest' ? 'easiest' : 'alternative')
 

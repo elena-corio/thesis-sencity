@@ -4,13 +4,6 @@
 import { expect, test } from '@playwright/test'
 import { layoutProblems, mockRoutes, openRoutes, routeClicks } from './helpers.js'
 
-/** The walk looks nothing up (Elena, 2026-11-14: it shows the routes' own photos): count any call to the old lookup. */
-async function noLookup(page) {
-  const calls = { along: 0, rate: 0 }
-  await page.route('**/api/mapillary/along', (route) => { calls.along++; return route.abort() })
-  return calls
-}
-
 /** Street View images asked for (the app has none any more), and with thumbs also the Mapillary thumbnails. */
 function watchPhotos(page, { thumbs = false } = {}) {
   const urls = []
@@ -37,9 +30,6 @@ test.describe('desktop', () => {
 
   test('walk the easiest route as photos, stretch by stretch, then back to the comparison', async ({ page }) => {
     await mockRoutes(page)
-    let buildings = 0
-    await page.route('**/api/buildings', (route) => { buildings++; return route.abort() })
-    const lookups = await noLookup(page)
     await toRoutes(page)
     const photoUrls = watchPhotos(page)
     await page.screenshot({ path: 'e2e/screens/walk/0-route-card.png' })
@@ -55,9 +45,8 @@ test.describe('desktop', () => {
     const v = view(page)
     await expect(v.getByRole('status').filter({ hasText: 'Walking route B' })).toHaveText(/Walking route B\s*easiest for thermal comfort$/)
     await expect(v.getByTestId('walk-count')).toHaveText('Stretch 1 of 3')
-    // No 3D street: the map stays flat and no buildings are asked for.
+    // No 3D street: the map stays flat.
     expect(await page.evaluate(() => window.__sencityMap.getPitch())).toBe(0)
-    expect(buildings).toBe(0)
 
     // No left panel or route card: the walk is its own view; the key is in its right column, read only.
     await expect(page.locator('[data-panel="layers"]')).toHaveCount(0)
@@ -75,7 +64,6 @@ test.describe('desktop', () => {
     await expect(photo.locator('img')).toHaveAttribute('src', cardPhoto)
     await expect(photo.locator('.credit')).toHaveText(cardCredit)
     expect(await barStates(v)).toEqual(preview)
-    expect(lookups.along).toBe(0)
     await expect(page.locator('[data-panel="attribution"]')).toContainText('photo: Mapillary')
     await expect(page.locator('[data-panel="attribution"]')).not.toContainText('buildings')
     await expect(card(page)).toContainText('Kuehlgasse')
@@ -124,7 +112,6 @@ test.describe('desktop', () => {
 
   test('a stretch with no photo at all says so, and has no rating', async ({ page }) => {
     await mockRoutes(page, { bare: ['b2'] })
-    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
@@ -136,7 +123,6 @@ test.describe('desktop', () => {
 
   test('with photos off, no image is loaded and the square says so', async ({ page }) => {
     await mockRoutes(page)
-    const lookups = await noLookup(page)
     await toRoutes(page, { photos: 'none' })
     const photoUrls = watchPhotos(page, { thumbs: true })
     await page.getByRole('button', { name: 'Walk route B' }).click()
@@ -144,14 +130,12 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('walk-photo')).toHaveCount(0)
     await expect(page.getByTestId('walk-no-photo')).toHaveText('Photos are not shown.')
     expect(photoUrls).toHaveLength(0)
-    expect(lookups.along).toBe(0)
   })
 
   test('with Street View, a street’s photos come one by one along the walk, credited © Google', async ({ page }) => {
     // Elena, 2026-11-16: PHOTO_SOURCE=streetview gives a walked street a photo every 10 to 20 m, facing the walk. Each
     // image is a paid call through our API, so only the photos shown are asked for, never ahead of time.
     const mock = await mockRoutes(page, { streetview: true })
-    await noLookup(page)
     await toRoutes(page)
     expect(mock.photoUrls).toHaveLength(0) // the comparison loads no image
     await page.getByRole('button', { name: 'Walk route B' }).click()
@@ -193,7 +177,6 @@ test.describe('desktop', () => {
 
   test('Esc and Area leave the walk; focus goes back to its button', async ({ page }) => {
     await mockRoutes(page)
-    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).focus()
     await page.keyboard.press('Enter')
@@ -212,7 +195,6 @@ test.describe('reduced motion', () => {
 
   test('opens paused, and steps only when asked', async ({ page }) => {
     await mockRoutes(page)
-    await noLookup(page)
     await toRoutes(page)
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(card(page)).toContainText('Kuehlgasse')
@@ -227,7 +209,6 @@ test.describe('light', () => {
 
   test('the walk in light mode', async ({ page }) => {
     await mockRoutes(page)
-    await noLookup(page)
     await toRoutes(page, { theme: 'light' })
     await page.getByRole('button', { name: 'Walk route B' }).click()
     await expect(page.getByTestId('walk-photo')).toBeVisible()
@@ -242,8 +223,7 @@ for (const theme of ['dark', 'light']) {
 
     test('the walk as one column, with the tab bar', async ({ page }) => {
       await mockRoutes(page, { bare: ['b2'] })
-      await noLookup(page)
-      await toRoutes(page, { theme, phone: true })
+        await toRoutes(page, { theme, phone: true })
       await page.getByRole('button', { name: 'Walk route B' }).click()
       const v = view(page)
       await expect(v.getByRole('button', { name: 'Exit walk, back to comparison' })).toBeInViewport()

@@ -261,8 +261,6 @@ test.describe('Senses mode', () => {
   test('walking a Senses route shows the same photos and ratings as the preview, and rates nothing again', async ({ page }) => {
     const rate = await mockSenses(page, { comfort: (i) => [2, 3, 5][i % 3] })
     await mockRoutes(page)
-    let lookups = 0
-    await page.route('**/api/mapillary/along', (route) => { lookups++; return route.abort() })
     await analyseRoute(page, true)
     const card = page.locator('[data-panel="route-card"]')
     await expect(card).toContainText('General prediction: not personalised yet')
@@ -293,7 +291,6 @@ test.describe('Senses mode', () => {
     await view.getByRole('button', { name: 'Next stretch' }).click()
     expect(await fills(view)).toEqual(preview) // nothing changes colour while walking
     expect(rate.requests).toHaveLength(1) // no new rating run
-    expect(lookups).toBe(0) // no photos of its own
   })
 
   test('a Thermal route rates nothing and speaks only of thermal comfort', async ({ page }) => {

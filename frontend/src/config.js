@@ -85,12 +85,10 @@ export default {
     maxM: 1500, // straight line, and the longest walk
   },
 
-  // Walk along a route (board Routes 5): at street level, eyes eyeHeightM above the start of each stretch, looking
-  // along it and a little down (pitch 84: 6° below the horizon, so the route ahead shows). maxZoom: a camera this
-  // low is past the map's usual 22. Play goes on to the next stretch every stretchMs; it glides there in glideMs,
-  // or jumps with reduced motion. A route's walk opens paused. A stretch with several photos (Street View: one every 10 to
-  // 20 m, Elena 2026-11-16) shares its stretchMs between them, each shown at least photoMinMs.
-  // miniZoom: the "Where you are" map on the right.
+  // Walk along a route (board Routes 5): a slideshow of the route's photos, each facing the way it is walked. Play goes on
+  // to the next stretch every stretchMs; the "Where you are" map glides there in glideMs, or jumps with reduced motion. A
+  // stretch with several photos (Street View: one every 10 to 20 m, Elena 2026-11-16) shares its stretchMs between them,
+  // each shown at least photoMinMs. miniZoom: the "Where you are" map on the right.
   walk: { glideMs: 600, stretchMs: 8000, photoMinMs: 2000, miniZoom: 16 },
 
   // Street photos (lib/photos.js). Where they come from is PHOTO_SOURCE, on the server (Elena, 2026-11-16). shown: false

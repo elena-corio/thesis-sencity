@@ -162,38 +162,28 @@ routes:
   cache_dir: runs/routes     # one JSON per start and end: the corridor's segments and photo metadata
   rate_per_hour: 10          # new (not cached) routes per IP
 
-# Buildings for the walk view (board Routes 5, 3D): footprints and heights along the walked route, from the
-# Infrared.city SDK's public building data (in Vienna the city's building model). Free: no billed call.
-buildings:
-  buffer_m: 120              # bodies this close to the walked line are drawn on both sides of it
-  min_height_m: 2            # lower bodies (walls, kiosks) are left out
-  simplify_m: 0.3            # footprint outlines are simplified to this
-  max_points: 4000           # points of the walked line accepted
-  max_length_m: 3000         # a longer line is refused (routes go up to about 1.9 km: 1.5 km x 1.25)
-  max_features: 12000        # at most this many bodies in one answer
-  timeout_s: 90
-  rate_per_hour: 30          # new (not cached) reads per IP
-  cache_dir: runs/buildings  # one JSON per walked line: the buildings and their source, never the line
-  # Credits: the source of a body by the prefix of its id; any other is Overture Maps.
-  sources:
-    FMZKBKMOGD: "Stadt Wien – data.wien.gv.at"
-  default_source: "Overture Maps"
+# The photos along a route face the way it is walked (Elena, 2026-11-16), set once the routes are found: the walking
+# direction at a photo is the route's bearing taken ahead_m further on, so near a turn it is the street ahead. A Street View
+# photo or a Mapillary panorama is turned to it exactly; a flat Mapillary photo is kept only within max_turn_deg of it (never
+# facing the other way). Its own section: the thermal cache keys include `routes`, and must not change with these.
+walk_photos:
+  ahead_m: 8
+  max_turn_deg: 60
 
-# Mapillary photos for the walk's photo window (Elena, 2026-11-11). The token is MAPILLARY_ACCESS_TOKEN in .env, on the
-# server only; the browser loads only the public thumbnail. Free (Graph API search: 10,000 per minute per app).
+# Mapillary photos (Elena, 2026-11-11): all of them with PHOTO_SOURCE=mapillary, else where Street View has none. The token
+# is MAPILLARY_ACCESS_TOKEN in .env, on the server only; the browser loads only the public thumbnail. Free (Graph API
+# search: 10,000 per minute per app).
 mapillary:
   radius_m: 30               # a photo this close to the stretch
-  max_turn_deg: 45           # its camera within this of the walk's direction
+  max_turn_deg: 45           # a street's photo (area): its camera within this of either way along the street
   max_age_years: 10          # older photos are left out; of the rest, the newest is shown
   search_limit: 500          # images read per stretch
-  max_stretches: 120         # stretches per request (a 1.9 km walk has about 50; a card asks for one)
   render:                    # a panorama, as the model gets it: the 90 degree view at the bearing (Elena, 2026-11-11)
     fov_deg: 90              # as the study's Street View crops
     pitch_deg: 0             # horizon in the middle, as the walk shows it (the study's crops: 7.5)
     size_px: 640             # as the study's crops
   workers: 10                # searches at a time (about 0.4 s per street with 6: 23 streets in 8.6 s)
   timeout_s: 20
-  rate_per_hour: 600         # requests per IP: an area's streets come in batches of 50 in the background
 
 # Backend API (backend/app). The browser only calls this API (brief §10).
 api:

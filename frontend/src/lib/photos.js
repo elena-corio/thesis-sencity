@@ -72,16 +72,3 @@ export function panoShift(photo) {
   return 0.5 - 4 * at
 }
 
-/** Of a stretch's photos, the one that faces most nearly along the walk (heading closest to `bearing`), or null. */
-export function photoAlong(photos, bearing) {
-  let best = null
-  let bestTurn = Infinity
-  for (const p of photos ?? []) {
-    const turn = Math.abs(((p.heading - bearing + 540) % 360) - 180)
-    if (turn < bestTurn) {
-      best = p
-      bestTurn = turn
-    }
-  }
-  return best
-}

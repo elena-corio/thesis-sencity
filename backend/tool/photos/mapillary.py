@@ -1,22 +1,24 @@
-"""Mapillary photos (Elena, 2026-11-11): the app's only street photos. One per street or place of an area or a route
-(chosen while it loads, kept with its metadata), and one per stretch of a walk (its photo window).
+"""Mapillary photos (Elena, 2026-11-11): all the app's photos with PHOTO_SOURCE=mapillary, else where Street View has
+none (app/photos.py, 2026-11-16). One per street or place of an area or a route, chosen while it loads, kept with its
+metadata.
 
 The access token stays here (MAPILLARY_ACCESS_TOKEN in .env); the browser gets only the public thumbnail URL. Per
 stretch, of the images within mapillary.radius_m and no older than mapillary.max_age_years (Elena, 2026-11-11):
 1. a panorama, if there is one (the nearest, then the newest): the app shows its view at exactly the walk's bearing;
 2. otherwise the flat photo with the smallest angle between its camera (computed_compass_angle if present) and the walk,
    within mapillary.max_turn_deg; ties go to the nearest, then the newest.
-A street has no walking direction, so either way along it counts; a park or square has none at all (the nearest
-flat photo, then the newest), and its distance is to its outline (0 inside).
+A street of an area has no walking direction, so either way along it counts; a park or square has none at all (the
+nearest flat photo, then the newest), and its distance is to its outline (0 inside). A street a route walks (Elena,
+2026-11-16): the walking direction at each image is the route's bearing walk_photos.ahead_m further on (the street ahead
+at a turn); a panorama is turned to it, a flat photo is kept only within walk_photos.max_turn_deg of it, never facing the
+other way, and `offset_deg` says how far it looks from it.
 Imagery is CC BY-SA 4.0, credited "{username} · {year} · CC BY-SA 4.0" with a link to the image page.
 
 The photo shown is the photo rated (Elena, 2026-11-11): Images fetches it for the model, in memory only, never stored. A
 flat photo goes as Mapillary serves it; a panorama is first rendered as the 90 degree view the app shows, at its bearing.
 """
 import io
-import logging
 import math
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import numpy as np
@@ -25,9 +27,7 @@ from PIL import Image
 from shapely.geometry import LineString, Point, Polygon
 
 from tool.config import get_key
-from tool.geo import LocalProjection
-
-log = logging.getLogger("sencity.mapillary")
+from tool.geo import LocalProjection, bearing_ahead, signed_turn
 
 GRAPH = "https://graph.mapillary.com"
 FIELDS = ("id,computed_compass_angle,compass_angle,computed_geometry,geometry,is_pano,captured_at,creator,"
@@ -80,11 +80,13 @@ def angle_of(im: dict) -> float | None:
 
 
 def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: datetime | None = None,
-         kind: str = "walk") -> dict | None:
+         kind: str = "walk", ahead: list[list[float]] | None = None) -> dict | None:
     """The image to show for a stretch, in the shape the app shows, or None. `heading` is the direction the view looks:
     the walk's bearing for a panorama (the app turns it there, from `pano_heading`), the camera's for a flat photo.
-    kind: 'walk' (along its direction), 'street' (either way along it) or 'area' (a park or square: any direction)."""
+    kind: 'walk' (the way it is walked, from coordinates[0]; `ahead`: the route's next points, for the bearing near the
+    end), 'street' (either way along it) or 'area' (a park or square: any direction)."""
     m = cfg["mapillary"]
+    wp = cfg["walk_photos"]
     now = now or datetime.now(timezone.utc)
     oldest = now.timestamp() * 1000 - m["max_age_years"] * 365.25 * 86400 * 1000
     want = bearing(coordinates[0], coordinates[-1])
@@ -96,35 +98,49 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
         line = Polygon(xy)
     else:
         line = LineString(xy) if len(xy) > 1 else Point(xy[0])
+    walked = None
+    if kind == "walk":
+        path = xy + [proj.to_xy(*c) for c in (ahead or [])]
+        walked = LineString(path) if len(path) > 1 else None
+    limit = wp["max_turn_deg"] if kind == "walk" else m["max_turn_deg"]
 
-    def off(angle):  # the angle between the camera and the way to look
+    def way_at(pt):  # the way to look from this point
+        if walked is None:
+            return want
+        return bearing_ahead(walked, walked.project(pt), wp["ahead_m"])
+
+    def off(angle, way):  # the angle between the camera and the way to look
         if kind == "area":
             return 0.0
         if kind == "street":
-            return min(turn(angle, want), turn(angle, want + 180))
-        return turn(angle, want)
+            return min(turn(angle, way), turn(angle, way + 180))
+        return turn(angle, way)
     panos, flats = [], []
     for im in images:
         geom = im.get("computed_geometry") or im.get("geometry")
         angle = angle_of(im)
         if not geom or angle is None or (im.get("captured_at") or 0) < oldest:
             continue
-        d = line.distance(Point(proj.to_xy(*geom["coordinates"])))
+        pt = Point(proj.to_xy(*geom["coordinates"]))
+        d = line.distance(pt)
         if d > m["radius_m"]:
             continue
+        way = way_at(pt)
         if im.get("is_pano"):
             if im.get("thumb_2048_url") or im.get("thumb_1024_url"):
-                panos.append((d, -im["captured_at"], im))
-        elif im.get("thumb_1024_url") and off(angle) <= m["max_turn_deg"]:
-            flats.append((round(off(angle), 1), d, -im["captured_at"], im))
+                panos.append((d, -im["captured_at"], way, im))
+        elif im.get("thumb_1024_url") and off(angle, way) <= limit:
+            flats.append((round(off(angle, way), 1), d, -im["captured_at"], way, im))
     if panos:
-        best = min(panos, key=lambda t: t[:2])[-1]
-        view, pano = want, True
+        *_, way, best = min(panos, key=lambda t: t[:2])
+        view, pano = way, True
         if kind == "street" and turn(angle_of(best), want + 180) < turn(angle_of(best), want):
             view = (want + 180) % 360  # the way along the street the panorama faces more
+        offset = 0.0
     elif flats:
-        best = min(flats, key=lambda t: t[:3])[-1]
+        *_, way, best = min(flats, key=lambda t: t[:3])
         view, pano = angle_of(best), False
+        offset = signed_turn(view, way)
     else:
         return None
     lon, lat = (best.get("computed_geometry") or best["geometry"])["coordinates"]
@@ -135,44 +151,25 @@ def pick(images: list[dict], coordinates: list[list[float]], cfg: dict, now: dat
         "heading": round(view, 1),
         "pano": pano,
         "pano_heading": round(angle_of(best), 1) if pano else None,
-        "turn": round(0.0 if pano else off(view), 1),
+        "turn": round(0.0 if pano else abs(offset) if kind == "walk" else off(view, want), 1),
         "year": taken.year, "date": taken.strftime("%Y-%m"),
         "creator": (best.get("creator") or {}).get("username") or "Mapillary contributor",
         "thumb_url": (best.get("thumb_2048_url") or best["thumb_1024_url"]) if pano else best["thumb_1024_url"],
         "link": f"https://www.mapillary.com/app/?pKey={best['id']}",
+        **({"offset_deg": round(offset, 1)} if kind == "walk" else {}),
     }
 
 
 def photo_for(s: requests.Session, coordinates: list[list[float]], kind: str, cfg: dict) -> dict | None:
-    """The photo of one street ('street'), place ('area') or walk stretch ('walk'), or None."""
+    """The photo of one street ('street') or place ('area'), or None."""
     return pick(search(s, coordinates, cfg), coordinates, cfg, kind=kind)
 
 
-def photo_facing(s: requests.Session, coordinates: list[list[float]], cfg: dict) -> dict | None:
-    """The photo of a street that a route walks from coordinates[0] to coordinates[-1] (Elena, 2026-11-14: photos in the
-    direction of the route first): one that faces that way ('walk'), else one either way along the street ('street').
-    One search: the same images are judged twice."""
-    images = search(s, coordinates, cfg)
-    return pick(images, coordinates, cfg, kind="walk") or pick(images, coordinates, cfg, kind="street")
-
-
-def along(stretches: list[dict], cfg: dict) -> dict:
-    """{key: photo or None} for [{key, coordinates, kind?}], one Graph search per stretch, a few at a time."""
-    s = session()
-
-    def one(st):
-        kind = st.get("kind") or "walk"
-        return st["key"], photo_for(s, st["coordinates"], kind, cfg)
-
-    try:
-        with ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"]) as pool:
-            out = dict(pool.map(one, stretches))
-    except requests.RequestException as e:
-        log.warning("mapillary search failed: %s", type(e).__name__)
-        raise MapillaryError("Mapillary photos could not be loaded.") from None
-    found = sum(1 for v in out.values() if v)
-    log.info("mapillary: %d of %d stretches with a photo", found, len(out))
-    return out
+def photo_walking(s: requests.Session, coordinates: list[list[float]], cfg: dict,
+                  ahead: list[list[float]] | None = None) -> dict | None:
+    """The photo of a street a route walks from coordinates[0] to coordinates[-1], facing the way it is walked (Elena,
+    2026-11-16), or None: never one facing another way."""
+    return pick(search(s, coordinates, cfg), coordinates, cfg, kind="walk", ahead=ahead)
 
 
 # The image for the model
