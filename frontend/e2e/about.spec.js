@@ -26,6 +26,7 @@ for (const theme of ['dark', 'light']) {
       await expect(about.getByRole('heading', { name: 'How SenCity works', level: 2 })).toBeFocused()
       await aboutHasNoOldWords(about)
       await expect(about).toContainText('20 visible elements')
+      await expect(about).toContainText('A prediction, not a reason')
       await expect(about).toContainText('Part of a master thesis final project')
       await page.screenshot({ path: `e2e/screens/about-desktop-${theme}.png` })
       // Tab stays inside.

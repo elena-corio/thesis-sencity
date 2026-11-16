@@ -9,16 +9,11 @@ export const ABOUT_SECTIONS = ['what', 'colours', 'ratings', 'data', 'weather', 
 
 /** The first-time hints, one per main view. `verb` is "Click" on a desktop and "Tap" on a phone. */
 export const TIPS = {
-  map: (verb) => `${verb} the map to choose an area, then Analyse. Streets light up easy, mixed or hard as their photos ` +
-    `are rated; ${verb.toLowerCase()} one to see why.`,
-  place: () => 'This card says why this place may feel the way it does, from its photo. On Senses and Overall you can ' +
-    'rate it yourself at the bottom, to see how close SenCity is to you.',
-  routes: () => 'Set where you start and where you want to go, then Analyse. A is the shortest way; B is the easiest, ' +
-    'at most 25% longer.',
-  walk: (verb) => `Walk along the route photo by photo: press Play, use the arrows or ${verb.toLowerCase()} a point on the bar. Rating ` +
-    'a photo pauses the walk.',
-  profile: () => 'Your profile stays in this browser. Edit any answer here; download, import or delete it all at the ' +
-    'bottom of the page.',
+  map: (verb) => `${verb} the map to choose an area, then Analyse. ${verb} a street to see why it is easy, mixed or hard.`,
+  place: () => 'Why this place may feel this way, from its photo. On Senses and Overall, rate it yourself at the bottom.',
+  routes: () => 'Set a start and an end, then Analyse. A is the shortest; B the easiest, at most 25% longer.',
+  walk: (verb) => `Press Play, use the arrows or ${verb.toLowerCase()} the bar. Rating a photo pauses the walk.`,
+  profile: () => 'Your profile stays in this browser. Edit any answer; download, import or delete it at the bottom.',
 }
 export const TIP_IDS = Object.keys(TIPS)
 

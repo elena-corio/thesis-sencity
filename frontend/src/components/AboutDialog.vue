@@ -64,10 +64,8 @@ function showTipsAgain() {
       <div ref="body" class="body" data-scrollable>
         <section id="about-what" class="full" aria-labelledby="about-what-h">
           <h3 id="about-what-h" tabindex="-1">What SenCity does</h3>
-          <p>SenCity checks how a street, park or square in Vienna may feel to your senses before you go. Choose an area
-            to see its streets coloured easy, mixed or hard, or set a start and an end to compare two walking routes: A,
-            the shortest, and B, the easiest, at most 25% longer. Open any street to see why, or walk along a route photo
-            by photo.</p>
+          <p>Check how a street, park or square in Vienna may feel to your senses before you go. Explore an area street
+            by street, or compare two walking routes: A, the shortest, and B, the easiest (at most 25% longer).</p>
         </section>
 
         <section id="about-colours" class="full" aria-labelledby="about-colours-h">
@@ -78,53 +76,46 @@ function showTipsAgain() {
             </ul>
             <p class="worse">Overall = the worse of thermal comfort and the photo rating</p>
           </div>
-          <p>Easy, mixed and hard say how comfortable a place may feel. “No photo” means there is nothing to rate the
-            street from yet; on Overall, “Partial” (faded colours) means only one of the two layers has a value. Senses
-            rates each street from its photos, Thermal from its simulated feels-like temperature at the season and time you
-            choose, and Overall shows the worse of the two: a street is easy only when both are.</p>
+          <p>Easy, mixed, hard: how comfortable a place may feel. No photo: nothing to rate yet. Partial: only one layer
+            has a value. Senses rates the photos, Thermal the simulated feels-like temperature; Overall takes the worse.</p>
         </section>
 
         <div class="grid">
           <section id="about-ratings" aria-labelledby="about-ratings-h">
             <h3 id="about-ratings-h" tabindex="-1">Where ratings come from</h3>
-            <p>An AI model looks at each street photo and predicts how comfortable it may feel, from 20 visible elements
-              such as traffic, signs or shade. With your sensory profile the ratings are personal; without it they are
-              general, for any visitor, marked “Not personalised yet”. Each one is a prediction, not a reason: it can be
-              wrong, and you know your senses best.</p>
+            <p>An AI model reads each street photo for 20 visible elements, such as traffic, signs or shade. With your
+              sensory profile the ratings are personal; without it, general (“Not personalised yet”). A prediction, not a
+              reason: you know your senses best.</p>
           </section>
 
           <section id="about-data" aria-labelledby="about-data-h">
             <h3 id="about-data-h" tabindex="-1">Your profile and data</h3>
-            <p>Your profile is stored only in this browser: no account, nothing saved on a server. Under Profile you can
-              download it, import it again or delete everything. For a personal rating, your answers (with your own words)
-              and the photo go to an AI model on an EU endpoint, used only for that rating and not kept. Your own ratings
-              of places and their notes, and your weather answers, never leave this device.</p>
+            <p>Your profile lives only in this browser: no account, no server. Download, import or delete it under Profile.
+              For a personal rating, your answers (with your own words) and the photo go to an AI model in the EU and are
+              not kept. Your own ratings, notes and weather answers never leave this device.</p>
           </section>
 
           <section id="about-weather" aria-labelledby="about-weather-h">
             <h3 id="about-weather-h" tabindex="-1">Weather and “feels like”</h3>
-            <p>“Feels like” is how warm or cold the air feels to your body, from temperature, sun, wind and humidity
-              together, simulated for the season and time you choose. Standard: 9 to 26 °C is easy, up to 32 °C or down to
-              0 °C mixed, beyond that hard. If hot or cold weather is unpleasant for you, that side’s limits move by 1.5
-              or 3 °C, and you can drag them on your profile. Your wind answer is kept but does not move the limits yet:
-              wind is already part of “feels like”.</p>
+            <p>“Feels like” combines temperature, sun, wind and humidity, simulated for the season and time you choose.
+              Easy 9–26 °C, mixed up to 32 °C or down to 0 °C, hard beyond. If heat or cold bothers you, that side moves
+              by 1.5–3 °C; drag it on your profile. Wind is already in “feels like”, so your wind answer changes nothing.</p>
           </section>
 
           <section id="about-photos" aria-labelledby="about-photos-h">
             <h3 id="about-photos-h" tabindex="-1">Photos</h3>
-            <p>The photos come from Google Street View or Mapillary, each with its credit on the photo. A photo shows one
-              moment: season, traffic, crowds, noise and smell may be different when you go. SenCity does not store the
-              photos; they are fetched when you look at them.</p>
+            <p>From Google Street View or Mapillary, credited on each photo, never stored. A photo shows one moment: traffic,
+              crowds, noise and smell may differ when you go.</p>
           </section>
         </div>
 
         <section id="about-limits" class="full limits" aria-labelledby="about-limits-h">
           <h3 id="about-limits-h" tabindex="-1">What SenCity does not do</h3>
           <ul>
-            <li>It gives no medical or health advice.</li>
-            <li>It does not measure noise, smell or air: it predicts from what a photo shows.</li>
-            <li>Not every street has a photo, and thermal comfort is a simulation, not a measurement.</li>
-            <li>The personal temperature limits are a first guess and not tested yet.</li>
+            <li>No medical or health advice.</li>
+            <li>No noise, smell or air measurements: only what a photo shows.</li>
+            <li>Not every street has a photo; thermal comfort is simulated.</li>
+            <li>The personal temperature limits are not tested yet.</li>
           </ul>
         </section>
       </div>

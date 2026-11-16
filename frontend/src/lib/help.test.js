@@ -10,7 +10,7 @@ describe('first-time tips', () => {
   it('one per main view, with click on a desktop and tap on a phone', () => {
     expect(TIP_IDS).toEqual(['map', 'place', 'routes', 'walk', 'profile'])
     expect(TIPS.map('Click')).toMatch(/^Click the map/)
-    expect(TIPS.map('Tap')).toMatch(/^Tap the map.*tap one to see why/)
+    expect(TIPS.map('Tap')).toMatch(/^Tap the map.*Tap a street to see why/)
     for (const id of TIP_IDS) expect(TIPS[id]('Click')).not.toMatch(/persona/i)
   })
 
