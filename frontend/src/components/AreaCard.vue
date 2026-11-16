@@ -19,6 +19,7 @@ import SeasonTime from './SeasonTime.vue'
 import SensesFoot from './SensesFoot.vue'
 import SensesPanel from './SensesPanel.vue'
 import ThermalLegend from './ThermalLegend.vue'
+import FirstHint from './FirstHint.vue'
 
 const props = defineProps({
   phone: Boolean,
@@ -84,6 +85,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <AppIcon name="locate" />
       </button>
     </div>
+    <FirstHint v-if="area.step === 'analysed'" id="results" :phone="phone" class="first-hint" />
     <p v-if="!controls && area.step === 'analysed'" class="meta"><span lang="de">{{ area.centreName }}</span> · {{ area.analysed.radius }} m radius</p>
     <AreaInputs v-if="controls" class="inputs" id-suffix="-card" :get-centre="getCentre" @pan="emit('pick', $event)" />
 
@@ -167,6 +169,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
 </template>
 
 <style scoped>
+.first-hint { margin: var(--space-3) 0; }
 .card { padding: var(--space-5); overflow-y: auto; }
 .title { font-size: var(--fs-lg); font-weight: var(--fw-semibold); margin: 0; }
 .meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
