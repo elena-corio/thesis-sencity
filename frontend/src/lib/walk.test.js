@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chipText, comfortLine, progressAt, progressLine, ratedPhotoOf, routeKind, stretchBearing } from './walk.js'
+import { chipText, comfortLine, photosInOrder, progressAt, progressLine, ratedPhotoOf, routeKind } from './walk.js'
 
 const stretches = [{ length_m: 400 }, { length_m: 200 }, { length_m: 1000 }]
 
@@ -12,6 +12,32 @@ describe('progressAt', () => {
   it('is zero on an empty route', () => {
     expect(progressAt([], 0)).toEqual({ doneM: 0, totalM: 0, share: 0 })
   })
+  it('moves along a stretch with several photos', () => {
+    expect(progressAt(stretches, 0, 0, 4).doneM).toBe(50)
+    expect(progressAt(stretches, 0, 3, 4).doneM).toBe(350)
+  })
+})
+
+describe('photosInOrder', () => {
+  it('puts a stretch’s photos in the order they are walked past', () => {
+    const coords = [[16.37, 48.2], [16.371, 48.2]] // walking east
+    const far = { id: 'far', lon: 16.3708, lat: 48.2 }
+    const near = { id: 'near', lon: 16.3701, lat: 48.2 }
+    const mid = { id: 'mid', lon: 16.3704, lat: 48.2 }
+    expect(photosInOrder([far, near, mid], coords).map((p) => p.id)).toEqual(['near', 'mid', 'far'])
+    expect(photosInOrder([far, near, mid], [...coords].reverse()).map((p) => p.id)).toEqual(['far', 'mid', 'near'])
+  })
+  it('leaves out the photos behind the start and past the end of the walked part (Elena, 2026-11-16)', () => {
+    const street = [[16.37, 48.2], [16.372, 48.2]] // the whole street
+    const part = [[16.3705, 48.2], [16.3715, 48.2]] // the route walks its middle, east
+    const photos = ['behind:16.3701', 'in1:16.3712', 'in0:16.3707', 'past:16.3719'].map((s) => {
+      const [id, lon] = s.split(':')
+      return { id, lon: Number(lon), lat: 48.2 }
+    })
+    expect(photosInOrder(photos, part, street).map((p) => p.id)).toEqual(['in0', 'in1'])
+    // A photo a little to the side of the walked part stays.
+    expect(photosInOrder([{ id: 'side', lon: 16.371, lat: 48.20008 }], part, street).map((p) => p.id)).toEqual(['side'])
+  })
 })
 
 describe('progressLine', () => {
@@ -23,13 +49,6 @@ describe('progressLine', () => {
   })
 })
 
-describe('stretchBearing', () => {
-  it('looks along the stretch', () => {
-    expect(stretchBearing({ coordinates: [[16.37, 48.2], [16.37, 48.21]] })).toBeCloseTo(0, 5)
-    expect(stretchBearing({ coordinates: [[16.37, 48.2], [16.38, 48.2]] })).toBeCloseTo(90, 0)
-    expect(stretchBearing({ coordinates: [[16.37, 48.21], [16.36, 48.21]] })).toBeCloseTo(270, 0)
-  })
-})
 
 describe('chipText', () => {
   it('says what the easiest way is easiest for; shortest is just shortest', () => {

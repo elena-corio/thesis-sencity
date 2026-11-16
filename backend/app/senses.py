@@ -18,11 +18,12 @@ stamp (element list, model, export: nothing personal), and the server answers "k
 model and export are still the same. This server cache holds only what is not personal: general (V0) ratings and the
 presence lists.
 
-The model rates the photo the person sees (Elena, 2026-11-11): the Mapillary photo of the street, place or walk stretch
-(tool/photos/mapillary.py), a panorama rendered as the 90 degree view the app shows. The backend fetches each picture
-itself, only for photos not in the cache. Images stay in memory: they are never written to disk, cached or logged. Only
-the model's JSON output, the listed elements, the model ID, latency and cost are kept, in git-ignored files. Ratings
-made earlier from Street View photos or from the V0 export are marked stale and never used.
+The model rates the photo the person sees (Elena, 2026-11-11), from the source in use (app/photos.py, 2026-11-16):
+a Street View photo ("sv:<pano ID>", the 640 x 640, 90 degree crop the app shows, a paid image under the daily cap) or a
+Mapillary photo (a panorama rendered as the 90 degree view the app shows). The backend fetches each picture itself,
+only for photos not in the cache. Images stay in memory: they are never written to disk, cached or logged. Only the
+model's JSON output, the listed elements, the model ID, latency and cost are kept, in git-ignored files. Ratings made
+before 2026-11-11 from Street View photos (keys with no source) or from the V0 export are marked stale and never used.
 """
 import base64
 import copy
@@ -45,6 +46,8 @@ from PIL import Image, UnidentifiedImageError
 
 from tool.config import REPO_ROOT, get_key
 from tool.photos.mapillary import NotThisPhoto
+
+from .photos import SV, CapReached
 
 EXPORT_DIR = REPO_ROOT / "model" / "app_v9"
 log = logging.getLogger("sencity.api")
@@ -415,19 +418,24 @@ def _reply_text(data: dict):
 # model, the export's commit and the profile, so results of another model, export or profile are never found.
 # Presence: {key: {present, model, latency_ms, cost_usd}}, per photo; the key holds the presence version.
 _cache_lock = threading.Lock()
-SOURCE = "mly"  # the photo source in every key; a key without it is a Street View rating, stale
+SOURCE = "mly"  # the photo source in every key: "mly:" (Mapillary) or "sv:" (Street View, since 2026-11-16, its ID
+# already has it). A key with neither is a Street View rating from before 2026-11-11 (another selection and crop), stale.
+
+
+def _photo_part(photo_id: str) -> str:
+    return photo_id if photo_id.startswith(SV) else f"{SOURCE}:{photo_id}"
 
 
 def cache_key(photo_id: str, heading: float, model: str, commit: str, profile: str = GENERAL) -> str:
-    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|{commit}|{profile}"
+    return f"{_photo_part(photo_id)}|{round(heading, 1)}|{model}|{commit}|{profile}"
 
 
 def presence_key(photo_id: str, heading: float, model: str, version: str) -> str:
-    return f"{SOURCE}:{photo_id}|{round(heading, 1)}|{model}|presence {version}"
+    return f"{_photo_part(photo_id)}|{round(heading, 1)}|{model}|presence {version}"
 
 
 def _stale_reason(key: str, entry=None) -> str | None:
-    if not key.startswith(f"{SOURCE}:"):
+    if not key.startswith((f"{SOURCE}:", SV)):
         return "streetview photo: the app now rates the Mapillary photo it shows"
     if key.count("|") == 3:  # photo|heading|model|commit: no profile part, so made from the V0 export
         return "V0 export: the app now rates with the v9 export"
@@ -617,8 +625,8 @@ def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
 
 
 def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> dict:
-    """One photo: the picture from Mapillary (in memory only), the presence call unless its result is cached, then
-    the rating call. An invalid reply is retried once, for each call."""
+    """One photo: the picture from its source (in memory only), the presence call unless its result is cached, then
+    the rating call. An invalid reply is retried once, for each call. Street View's daily cap stops the run."""
     export = plan.export
     model = export.model["model"]
     started = time.perf_counter()
@@ -626,6 +634,10 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
         image = provider.fetch_image(photo_id, heading)
     except NotThisPhoto:
         raise PredictionError(400, "This is not a photo the app shows.") from None
+    except CapReached as e:
+        raise PredictionError(429, str(e), fatal=True) from None
+    except SystemExit:  # no GOOGLE_MAPS_API_KEY: every Street View photo would fail
+        raise PredictionError(503, "Street View photos are not set up on the server.", fatal=True) from None
     except (requests.RequestException, UnidentifiedImageError, OSError, ValueError) as e:
         log.warning("senses: photo failed: %s", type(e).__name__)
         raise PredictionError(502, "The street photo could not be loaded.") from None
@@ -684,6 +696,8 @@ def rate_events(plan: Plan, cfg: dict, provider):
         for future in as_completed(futures):
             photo_id, heading = futures[future]
             base = {"type": "photo", "id": photo_id, "heading": heading, "cached": False}
+            # A Street View picture is paid too: its list price, for the cost counter in development.
+            image = {"image_usd": provider.image_usd(photo_id)} if photo_id.startswith(SV) else {}
             try:
                 entry = future.result()
             except PredictionError as e:
@@ -692,18 +706,18 @@ def rate_events(plan: Plan, cfg: dict, provider):
                     yield {"type": "error", "message": e.message}
                     return
                 failed += 1
-                yield {**base, "status": "failed", "error": e.message, "cost_usd": e.cost}
+                yield {**base, "status": "failed", "error": e.message, "cost_usd": e.cost, **(image if e.cost else {})}
                 continue
             if entry is None:
                 continue
             result = _view(export, entry, cached=False, personal=personal)
             if personal:  # relayed, never kept: the stamp lets the browser keep it and ask for "keep" next time
-                yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"],
+                yield {**base, **image, "status": "ok", "result": result, "cost_usd": entry["cost_usd"],
                        "stamp": {"listed": list(entry["listed"]), "model": model, "commit": export.commit,
                                  "prompt": PROMPT_VERSION}}
                 continue
             _save_cache(path, cache_key(photo_id, heading, model, export.commit), entry)
-            yield {**base, "status": "ok", "result": result, "cost_usd": entry["cost_usd"]}
+            yield {**base, **image, "status": "ok", "result": result, "cost_usd": entry["cost_usd"]}
     finally:
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)

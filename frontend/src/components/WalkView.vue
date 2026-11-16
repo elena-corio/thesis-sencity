@@ -21,13 +21,34 @@ import WalkPhoto from './WalkPhoto.vue'
 const props = defineProps({ phone: Boolean })
 const walk = useWalkStore()
 const backBtn = ref(null)
-const count = computed(() => `Stretch ${walk.index + 1} of ${walk.stretches.length}`)
 const isPlace = computed(() => walk.mode === 'place')
+/** With several photos on the stretch (Street View, Elena 2026-11-16) the arrows step photo by photo. */
+const several = computed(() => walk.photos.length > 1)
+const photoCount = computed(() => `photo ${walk.sub + 1} of ${walk.photos.length}`)
+const count = computed(() => {
+  if (isPlace.value) return several.value ? `Photo ${walk.sub + 1} of ${walk.photos.length}` : ''
+  const stretch = `Stretch ${walk.index + 1} of ${walk.stretches.length}`
+  return several.value ? `${stretch}, ${photoCount.value}` : stretch
+})
+/** The arrows: within a place its photos only; on a walk, the next photo of the stretch, else the next stretch. */
+const arrows = computed(() => !isPlace.value || several.value)
+const prevLabel = computed(() => `Previous ${isPlace.value ? 'photo' : walk.prevIs}`)
+const nextLabel = computed(() => `Next ${isPlace.value ? 'photo' : walk.nextIs}`)
+const prevOff = computed(() => (isPlace.value ? walk.sub === 0 : walk.atStart))
+const nextOff = computed(() => (isPlace.value ? walk.sub >= walk.photos.length - 1 : walk.atEnd))
 const BACK = { comparison: 'Exit walk, back to comparison', stretch: 'Back to preview', place: 'Back to place' }
 
-// Esc goes back, before the map or a card behind can take it (the view covers them).
+// Esc goes back, before the map or a card behind can take it (the view covers them). A place with several photos: ← →
+// switch them (a walk's keys are in WalkControls).
 function onKey(e) {
-  if (e.key !== 'Escape' || e.defaultPrevented) return
+  if (e.defaultPrevented) return
+  if (isPlace.value && several.value && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    const d = e.key === 'ArrowLeft' ? -1 : 1
+    e.preventDefault()
+    if (d < 0 ? !prevOff.value : !nextOff.value) walk.step(d, true)
+    return
+  }
+  if (e.key !== 'Escape') return
   e.preventDefault()
   e.stopPropagation()
   walk.exit(true)
@@ -48,7 +69,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
           <AppIcon name="chevronLeft" /> {{ BACK[walk.back] }}
         </button>
         <WalkChip v-if="!isPlace" :phone="props.phone" />
-        <span v-if="!isPlace" class="count" data-testid="walk-count">{{ count }}</span>
+        <span v-if="count" class="count" data-testid="walk-count">{{ count }}</span>
       </div>
 
       <!-- Phone (Elena, 2026-11-14): where you are first, the photo under it. -->
@@ -59,8 +80,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 
       <!-- The photo, and under it Play and the bar, as wide as the photo; the arrows beside the photo, at its middle. -->
       <div class="stage">
-        <button v-if="!isPlace" type="button" class="arrow prev" aria-label="Previous stretch" title="Previous stretch"
-                :aria-disabled="walk.index === 0" @click="walk.step(-1, $event.detail === 0)">
+        <button v-if="arrows" type="button" class="arrow prev" :aria-label="prevLabel" :title="prevLabel"
+                :aria-disabled="prevOff" @click="!prevOff && walk.step(-1, $event.detail === 0)">
           <AppIcon name="chevronLeft" />
         </button>
         <div class="column">
@@ -68,8 +89,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
           <WalkControls v-if="!isPlace" :phone="props.phone" />
           <ComfortKey v-else inline :layer="walk.layer" :window="walk.info" />
         </div>
-        <button v-if="!isPlace" type="button" class="arrow next" aria-label="Next stretch" title="Next stretch"
-                :aria-disabled="walk.atEnd" @click="walk.step(1, $event.detail === 0)">
+        <button v-if="arrows" type="button" class="arrow next" :aria-label="nextLabel" :title="nextLabel"
+                :aria-disabled="nextOff" @click="!nextOff && walk.step(1, $event.detail === 0)">
           <AppIcon name="chevronRight" />
         </button>
       </div>

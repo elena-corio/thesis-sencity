@@ -20,11 +20,51 @@ export function ratedPhotoOf(stretch, segments, placeFor) {
   return { photo: photos[place.rep ?? 0], photos, place }
 }
 
-/** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. */
-export function progressAt(stretches, index) {
-  const totalM = stretches.reduce((n, s) => n + s.length_m, 0)
-  const before = stretches.slice(0, index).reduce((n, s) => n + s.length_m, 0)
-  const doneM = before + (stretches[index]?.length_m ?? 0) / 2
+/** Distance (m) from point p to a line, and how far along the line its nearest point is (m); [lon, lat], small areas. */
+function nearestOn(coords, [lon, lat]) {
+  const k = Math.cos((lat * Math.PI) / 180) * 111320
+  const xy = ([x, y]) => [x * k, y * 110540]
+  const [px, py] = xy([lon, lat])
+  let best = { dist: Infinity, along: 0 }
+  let walked = 0
+  for (let i = 0; i + 1 < coords.length; i++) {
+    const [ax, ay] = xy(coords[i])
+    const [bx, by] = xy(coords[i + 1])
+    const len2 = (bx - ax) ** 2 + (by - ay) ** 2
+    const t = len2 ? Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / len2)) : 0
+    const dist = Math.hypot(px - (ax + t * (bx - ax)), py - (ay + t * (by - ay)))
+    if (dist < best.dist) best = { dist, along: walked + t * Math.sqrt(len2) }
+    walked += Math.sqrt(len2)
+  }
+  return best
+}
+
+/**
+ * A stretch's photos along the part of the street it walks, in the order they are walked past (Elena, 2026-11-16: the
+ * walk went back and forth). A route starts and ends part way along a street, so a photo behind the start or past the end
+ * (further from the stretch than from the whole street, by more than `slack` m) is left out. With Street View a walked
+ * street has one every 10 to 20 m. The API does the same for each route; this keeps the walk right on a street that two
+ * routes walk in different parts.
+ * @param {object[]} photos
+ * @param {number[][]} coordinates the stretch, [lon, lat], in the walking direction
+ * @param {number[][]} [street] the whole street's line, [lon, lat]
+ */
+export function photosInOrder(photos, coordinates, street = null, slack = 2) {
+  if (!coordinates?.length) return photos
+  return photos
+    .map((p) => ({ p, at: nearestOn(coordinates, [p.lon, p.lat]) }))
+    .filter(({ p, at }) => !street || street.length < 2 || coordinates.length < 2
+      || at.dist <= nearestOn(street, [p.lon, p.lat]).dist + slack)
+    .sort((a, b) => a.at.along - b.at.along)
+    .map(({ p }) => p)
+}
+
+/** Where you are: at the middle of stretch `index` (where its photo point is), in metres, and the whole way. With several
+ *  photos on the stretch, at photo `sub` of `n`, spread evenly along it. */
+export function progressAt(stretches, index, sub = 0, n = 1) {
+  const totalM = stretches.reduce((m, s) => m + s.length_m, 0)
+  const before = stretches.slice(0, index).reduce((m, s) => m + s.length_m, 0)
+  const doneM = before + ((stretches[index]?.length_m ?? 0) * (sub + 0.5)) / Math.max(1, n)
   return { doneM, totalM, share: totalM ? doneM / totalM : 0 }
 }
 
@@ -32,17 +72,6 @@ export function progressAt(stretches, index) {
 export function progressLine({ doneM, totalM }, minutes) {
   const done = Math.min(Math.round(doneM / config.walkMetresPerMinute), minutes)
   return `${(doneM / 1000).toFixed(2)} of ${(totalM / 1000).toFixed(1)} km · ${minutes - done} min left`
-}
-
-/** Compass bearing in degrees (0 north, 90 east) from the stretch's first point to its last: the camera looks
- *  along the way. */
-export function stretchBearing(stretch) {
-  const c = stretch.coordinates
-  const [lon1, lat1] = c[0].map((v) => (v * Math.PI) / 180)
-  const [lon2, lat2] = c[c.length - 1].map((v) => (v * Math.PI) / 180)
-  const y = Math.sin(lon2 - lon1) * Math.cos(lat2)
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1)
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
 }
 
 /** The route's word on the comparison card: A shortest, B easiest (or the alternative). */

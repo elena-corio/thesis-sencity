@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { showsPhotos } from '../lib/photos.js'
+import { isPaid, showsPhotos, shownPhotoUrl } from '../lib/photos.js'
 
 /**
- * The photos on the place and stretch cards (Elena, 2026-11-11). Each street or place comes with its one Mapillary photo,
- * found by the API with the area or the route, and that photo is the one the model rates. Here: resting the pointer on a
- * street starts loading its image, so it is there when the card opens; and the direction of the photo on the open card,
- * which the map draws as an arc on the selected point. Images are in the browser's memory only.
+ * The photos on the place and stretch cards (Elena, 2026-11-11). Each street or place comes with its photos, found by the
+ * API with the area or the route (lib/photos.js), and the photo shown is the one the model rates. Here: resting the pointer
+ * on a street starts loading its Mapillary image, so it is there when the card opens (never a Street View image: each load
+ * is a paid call, Elena 2026-11-16); and the direction of the photo on the open card, which the map draws as an arc on the
+ * selected point. Images are in the browser's memory only.
  */
 export const useCardPhotosStore = defineStore('cardPhotos', () => {
   /** The compass direction of the photo the open card shows, or null (the map draws it as an arc on the selected point). */
@@ -21,7 +22,8 @@ export const useCardPhotosStore = defineStore('cardPhotos', () => {
 
   /** The pointer rests on a street: start loading its image, so it is there when the card opens. */
   function preload(feature) {
-    const url = showsPhotos() ? feature?.properties.photos?.[0]?.thumb_url : null
+    const photo = feature?.properties.photos?.[0]
+    const url = photo && !isPaid(photo) ? shownPhotoUrl(photo) : null
     if (!url || preloaded.has(url)) return
     preloaded.add(url)
     new Image().src = url

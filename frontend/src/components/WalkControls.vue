@@ -1,8 +1,8 @@
 <script setup>
 // Walk controls (WalkView, board Routes 5 "photos, play"), as wide as the photo: the route bar, coloured as the Routes view
 // rates its stretches, with a marker where you are (a click on a section jumps there); then Play, "0.35 of 1.6 km · 16 min
-// left" and the key. Previous and next stretch are the arrows beside the photo. Keys
-// anywhere in the walk: the arrows go to the previous or next stretch, space plays or pauses (not while a field, a
+// left" and the key. Previous and next are the arrows beside the photo. Keys anywhere in the walk: the arrows go to the
+// previous or next photo (a stretch with Street View has several, Elena 2026-11-16) or stretch, space plays or pauses (not while a field, a
 // choice, the tabs or another button has the focus, which keep their own keys).
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { sectionLabel, stretchFeature } from '../lib/routes.js'
@@ -16,7 +16,7 @@ import RouteBar from './RouteBar.vue'
 defineProps({ phone: Boolean })
 const walk = useWalkStore()
 const routes = useRoutesStore()
-const progress = computed(() => progressAt(walk.stretches, walk.index))
+const progress = computed(() => progressAt(walk.stretches, walk.index, walk.sub, walk.photos.length))
 const line = computed(() => progressLine(progress.value, walk.route.minutes))
 /** For screen readers: where you are now. */
 const here = computed(() => {

@@ -21,3 +21,19 @@ def get_key(name: str) -> str:
     if not value:
         raise SystemExit(f"Missing {name}. Add it to .env at the repo root (see .env.example).")
     return value
+
+
+PHOTO_SOURCES = ("streetview", "mapillary")
+
+
+def photo_source(cfg: dict) -> str:
+    """Where the app's street photos come from (Elena, 2026-11-16): PHOTO_SOURCE in the environment or .env, else
+    photo_source in config/tool.yaml. 'streetview' (the local prototype, the study's source) or 'mapillary' (any public
+    version). On Render (it sets RENDER) Street View is refused until Google's terms are checked."""
+    load_dotenv(REPO_ROOT / ".env")
+    source = (os.environ.get("PHOTO_SOURCE") or cfg.get("photo_source") or "streetview").strip().lower()
+    if source not in PHOTO_SOURCES:
+        raise SystemExit(f"PHOTO_SOURCE must be one of {', '.join(PHOTO_SOURCES)}, not '{source}'.")
+    if source == "streetview" and os.environ.get("RENDER"):
+        raise SystemExit("PHOTO_SOURCE=streetview is for the local prototype only: set PHOTO_SOURCE=mapillary on Render.")
+    return source

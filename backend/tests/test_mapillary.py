@@ -1,11 +1,9 @@
-"""Mapillary photos along a walk: which image is picked, its credit, and the API. Mapillary is never called: search is
-faked with images around a stretch running due north."""
+"""Mapillary photos: which image is picked, facing the walk on a route street, and its credit. Mapillary is never called:
+search is faked with images around a stretch running due north."""
 from datetime import datetime, timezone
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.main import app, full_cfg
+from app.main import full_cfg
 from tool.photos import mapillary as mly
 
 NORTH = [[16.3700, 48.2000], [16.3700, 48.2010]]  # about 110 m due north
@@ -43,7 +41,7 @@ def test_else_the_flat_photo_closest_to_the_walk_direction():
     ]
     p = mly.pick(images, NORTH, full_cfg, now=NOW)
     assert (p["id"], p["pano"], p["turn"], p["year"]) == ("straight-near", False, 2.0, 2019)
-    assert p["heading"] == 358
+    assert p["heading"] == 358 and p["offset_deg"] == -2.0  # 2 degrees to the left of the walk
     assert p["link"] == "https://www.mapillary.com/app/?pKey=straight-near"
 
 
@@ -65,45 +63,46 @@ def test_a_place_any_direction_inside_it():
     assert p["date"] == "2026-06"
 
 
-def test_a_route_street_prefers_a_photo_facing_the_walk_else_either_way(monkeypatch):
-    # Elena, 2026-11-14: photos in the direction of the route first. One search, judged twice.
-    searches = []
-
-    def search(s, coords, cfg):
-        searches.append(coords)
-        return images
-    monkeypatch.setattr(mly, "search", search)
+def test_a_route_street_only_a_photo_facing_the_walk(monkeypatch):
+    # Elena, 2026-11-16: within 60 degrees of the walk, the closest first; never more, never the other way.
+    monkeypatch.setattr(mly, "search", lambda s, coords, cfg: images)
     images = [image("backwards-near", 180, 2026), image("forwards-far", 2, 2020, lon=16.37025)]
-    assert mly.photo_facing(None, NORTH, full_cfg)["id"] == "forwards-far"
+    assert mly.photo_walking(None, NORTH, full_cfg)["id"] == "forwards-far"
     # Walked the other way (south), the other photo faces the walk.
-    assert mly.photo_facing(None, NORTH[::-1], full_cfg)["id"] == "backwards-near"
-    # None facing the walk: one either way along the street will do.
+    assert mly.photo_walking(None, NORTH[::-1], full_cfg)["id"] == "backwards-near"
+    # None facing the walk: no photo, not one looking back along the street.
     images = [image("backwards", 180, 2026)]
-    p = mly.photo_facing(None, NORTH, full_cfg)
-    assert (p["id"], p["turn"]) == ("backwards", 0.0)
-    assert len(searches) == 3
+    assert mly.photo_walking(None, NORTH, full_cfg) is None
+    # 55 degrees off is kept, 65 is not.
+    images = [image("turned-55", 55, 2026)]
+    assert mly.photo_walking(None, NORTH, full_cfg)["offset_deg"] == 55.0
+    images = [image("turned-65", 295, 2026)]
+    assert mly.photo_walking(None, NORTH, full_cfg) is None
+
+
+def test_near_a_turn_a_photo_looks_along_the_street_ahead(monkeypatch):
+    # North, then a turn east at the end: a photo 3 m before the corner looks east, as the walk goes on.
+    monkeypatch.setattr(mly, "search", lambda s, coords, cfg: images)
+    corner = [16.3700, 48.20027]  # 30 m north of the start, where the way turns east
+    street = [NORTH[0], corner]
+    ahead = [[16.3710, 48.20027]]
+    images = [image("pano", 200, 2024, lon=16.37001, lat=48.20024, pano=True)]
+    p = mly.photo_walking(None, street, full_cfg, ahead)
+    assert p["heading"] == pytest.approx(90, abs=1) and p["offset_deg"] == 0.0
+    images = [image("looking-north", 0, 2024, lon=16.37001, lat=48.20024)]
+    assert mly.photo_walking(None, street, full_cfg, ahead) is None  # 90 degrees from the street ahead
+    images = [image("looking-east", 80, 2024, lon=16.37001, lat=48.20024)]
+    assert mly.photo_walking(None, street, full_cfg, ahead)["offset_deg"] == pytest.approx(-10, abs=1)
 
 
 def test_no_photo_when_none_fits():
     assert mly.pick([image("backwards", 180, 2026), image("ancient", 0, 2010)], NORTH, full_cfg, now=NOW) is None
 
 
-def test_api(monkeypatch):
-    monkeypatch.setenv("MAPILLARY_ACCESS_TOKEN", "test-token")
-    monkeypatch.setattr(mly, "search", lambda s, coords, cfg: [image("new", 0, 2025)] if coords[0][0] < 16.38 else [])
-    body = {"stretches": [{"key": "B-0", "coordinates": NORTH}, {"key": "B-1", "coordinates": [[16.39, 48.2], [16.39, 48.201]]}]}
-    res = TestClient(app).post("/api/mapillary/along", json=body)
-    assert res.status_code == 200
-    photos = res.json()["photos"]
-    assert photos["B-0"]["id"] == "new" and photos["B-1"] is None
-    assert "test-token" not in res.text  # the token never reaches the browser
-
-
-def test_api_without_a_token_is_503(monkeypatch):
+def test_without_a_token_mapillary_says_so(monkeypatch):
     monkeypatch.setenv("MAPILLARY_ACCESS_TOKEN", "")
-    res = TestClient(app).post("/api/mapillary/along", json={"stretches": [{"key": "A-0", "coordinates": NORTH}]})
-    assert res.status_code == 503
-    assert res.json()["detail"] == "Mapillary photos are not set up on the server."
+    with pytest.raises(mly.MapillaryError, match="Mapillary photos are not set up on the server."):
+        mly.session()
 
 
 @pytest.mark.parametrize("a,b,expected", [(350, 10, 20), (90, 270, 180), (0, 0, 0)])

@@ -4,7 +4,7 @@ import config from '../config.js'
 import { showsWalkPhotos } from '../lib/photos.js'
 import { stretchFeature, stretchesOf, stretchMiddle } from '../lib/routes.js'
 import { photoKey } from '../lib/senses.js'
-import { ratedPhotoOf } from '../lib/walk.js'
+import { photosInOrder, ratedPhotoOf } from '../lib/walk.js'
 import { useRoutesStore } from './routes.js'
 import { useSensesStore } from './senses.js'
 
@@ -61,9 +61,26 @@ export const useWalkStore = defineStore('walk', () => {
   })
   /** The current stretch's photo and rating, whether or not photos are shown: { photo, photos, place }, or null with none. */
   const ratedPhoto = computed(() => (current.value ? ratedOf(current.value) : null))
-  const isUnloaded = computed(() => !!ratedPhoto.value && unloaded.value.has(photoKey(ratedPhoto.value.photo)))
+  /** The stretch's photos along the part of the street it walks, in the order they are walked past (Elena, 2026-11-16:
+   *  with Street View a walked street has one every 10 to 20 m, each its own step; with Mapillary one per street; none
+   *  behind the start or past the end, which made the walk go back and forth). A place keeps its own order. */
+  const photos = computed(() => {
+    const list = ratedPhoto.value?.photos ?? []
+    if (mode.value === 'place' || !list.length) return list
+    const street = byId.value.get(current.value.segmentId)?.geometry
+    return photosInOrder(list, current.value.coordinates, street?.type === 'LineString' ? street.coordinates : null)
+  })
+  /** Which of the stretch's photos is shown. */
+  const sub = ref(0)
+  const framePhoto = computed(() => photos.value[Math.min(sub.value, photos.value.length - 1)] ?? null)
+  const isUnloaded = computed(() => !!framePhoto.value && unloaded.value.has(photoKey(framePhoto.value)))
   /** The photo shown, or null (none for the stretch, not loaded, or photos not shown). */
-  const photo = computed(() => (showsWalkPhotos() && ratedPhoto.value && !isUnloaded.value ? ratedPhoto.value.photo : null))
+  const photo = computed(() => (showsWalkPhotos() && framePhoto.value && !isUnloaded.value ? framePhoto.value : null))
+  /** The step of the photo whose rating the card shows (the closest to the stretch's rating), as the card opens on it. */
+  const repStep = () => {
+    const rep = ratedPhoto.value?.photo
+    return Math.max(0, photos.value.findIndex((p) => p === rep))
+  }
   /** What the photo square shows: 'shown' | 'unloaded' (its image did not load) | 'none-here' (no photo for this stretch) |
    *  'off' (photos not shown). */
   const photoState = computed(() => {
@@ -84,7 +101,11 @@ export const useWalkStore = defineStore('walk', () => {
   })
   /** The walked route with its stretches on the walk's layer, in the shape the map's route layers draw. */
   const shown = computed(() => (route.value ? { ...route.value, stretches: stretches.value } : null))
-  const atEnd = computed(() => index.value >= stretches.value.length - 1)
+  const atEnd = computed(() => index.value >= stretches.value.length - 1 && sub.value >= photos.value.length - 1)
+  const atStart = computed(() => index.value === 0 && sub.value === 0)
+  /** What the arrows step to: another photo of this stretch, or the next stretch. */
+  const nextIs = computed(() => (sub.value < photos.value.length - 1 ? 'photo' : 'stretch'))
+  const prevIs = computed(() => (sub.value > 0 ? 'photo' : 'stretch'))
 
   /** Overall is not built for the walk, so it is shown on the default layer. */
   const walkLayer = (l) => (l === 'overall' ? config.layerDefault : l)
@@ -107,6 +128,8 @@ export const useWalkStore = defineStore('walk', () => {
     playing.value = false
     layer.value = walkLayer(routes.layer)
     info.value = routes.info
+    // A walk starts at the stretch's first photo; the enlarged photo of a stretch on the photo its card showed.
+    sub.value = autoplay ? 0 : repStep()
     byKeyboard.value = keyboard
     routes.selected = null
     routes.hoverKey = null
@@ -128,6 +151,7 @@ export const useWalkStore = defineStore('walk', () => {
     index.value = 0
     layer.value = walkLayer(mapLayer)
     info.value = window_
+    sub.value = repStep() // the photo the card showed; the arrows go through the place's other photos
     byKeyboard.value = keyboard
     active.value = true
   }
@@ -150,6 +174,9 @@ export const useWalkStore = defineStore('walk', () => {
     requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(target)?.focus()))
   }
 
+  /** A stretch takes config.walk.stretchMs whatever its number of photos: they share it, each at least photoMinMs. */
+  const photoMs = () => Math.max(config.walk.photoMinMs, config.walk.stretchMs / Math.max(1, photos.value.length))
+
   function schedule() {
     clearTimeout(timer)
     timer = setTimeout(() => {
@@ -157,18 +184,36 @@ export const useWalkStore = defineStore('walk', () => {
         playing.value = false
         return
       }
-      index.value++
+      advance(1)
       schedule()
-    }, config.walk.stretchMs)
+    }, photoMs())
+  }
+
+  /** One photo on or back: within the stretch, else to the next stretch's first photo or the previous one's last. */
+  function advance(d) {
+    const s = sub.value + d
+    if (s >= 0 && s < photos.value.length) {
+      sub.value = s
+      return true
+    }
+    const i = index.value + d
+    if (i < 0 || i >= stretches.value.length) return false
+    index.value = i
+    sub.value = d > 0 ? 0 : Math.max(0, photos.value.length - 1)
+    return true
   }
 
   function go(i, keyboard = false) {
     if (i < 0 || i >= stretches.value.length) return
     byKeyboard.value = keyboard
     index.value = i
+    sub.value = 0
     if (playing.value) schedule()
   }
-  const step = (d, keyboard = false) => go(index.value + d, keyboard)
+  function step(d, keyboard = false) {
+    byKeyboard.value = keyboard
+    if (advance(d) && playing.value) schedule()
+  }
 
   function play() {
     if (atEnd.value) go(0)
@@ -185,7 +230,7 @@ export const useWalkStore = defineStore('walk', () => {
   watch(() => routes.hasResult, (has) => { if (!has && active.value && mode.value === 'route') exit() })
 
   return {
-    active, route, index, playing, layer, info, byKeyboard, mode, back, stretches, current, feature, ratedPhoto, photo, photoState,
-    photoFailed, point, shown, atEnd, start, openPlace, exit, go, step, play, pause, toggle,
+    active, route, index, sub, photos, playing, layer, info, byKeyboard, mode, back, stretches, current, feature, ratedPhoto, photo,
+    photoState, photoFailed, point, shown, atEnd, atStart, nextIs, prevIs, start, openPlace, exit, go, step, play, pause, toggle,
   }
 })

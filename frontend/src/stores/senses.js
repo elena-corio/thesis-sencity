@@ -10,16 +10,17 @@ import { useProfileStore } from './profile.js'
 import { useRoutesStore } from './routes.js'
 
 function emptyRun() {
-  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', personal: false, stale: false, costUsd: 0, newCount: 0,
-    cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0 }
+  return { key: null, places: markRaw([]), status: 'idle', error: '', model: '', personal: false, stale: false, costUsd: 0, imageUsd: 0,
+    newCount: 0, cachedCount: 0, seconds: 0, remaining: 0, estimateUsd: 0 }
 }
 
 /**
  * Senses predictions: personal with your sensory profile (the study's V2), general without it (V0); the answers are
  * sent with each request (stores/profile.js). Personal ratings are kept in this browser only (lib/personalRatings.js):
  * for a photo already rated with this profile, only its stamp is sent, and the API answers "keep" while it holds. As soon as an area or a pair of routes is ready, every photo not yet
- * rated goes to the API, nearest first; ratings arrive one by one. The photos are the ones the app shows (Mapillary,
- * Elena 2026-11-11): one per street or place; a walk shows and rates the same ones (2026-11-14). Nothing is written to the browser's storage: the API's cache is what makes reopening instant and free.
+ * rated goes to the API, nearest first; ratings arrive one by one. The photos are the ones the app shows (Elena
+ * 2026-11-11), from PHOTO_SOURCE (2026-11-16: Street View, up to 3 per street and one every 10 to 20 m along a walked
+ * street, or Mapillary, one per street); a walk shows and rates the same ones (2026-11-14). Nothing is written to the browser's storage: the API's cache is what makes reopening instant and free.
  * A run: status 'idle' | 'rating' | 'paused' (over the cap, waiting for an answer) | 'stopped' (by the person) | 'done' | 'error'.
  */
 export const useSensesStore = defineStore('senses', () => {
@@ -54,7 +55,10 @@ export const useSensesStore = defineStore('senses', () => {
       }
       if (e.status === 'ok' && e.stamp && version) personalRatings.keep(e, version, e.stamp, e.result)
       ratings.set(key, e.status === 'ok' ? { status: 'ok', result: e.result } : { status: 'failed', error: e.error })
-      if (!e.cached) run.costUsd += e.cost_usd ?? 0
+      if (!e.cached) {
+        run.costUsd += e.cost_usd ?? 0
+        run.imageUsd += e.image_usd ?? 0 // a Street View picture for the model (paid)
+      }
       // A photo counts once per run, also when asking again after the cap brings it back from the cache.
       if (e.status === 'ok' && !counted[scope].has(key)) {
         counted[scope].add(key)
@@ -180,7 +184,7 @@ export const useSensesStore = defineStore('senses', () => {
   function again(scope) {
     for (const p of runs[scope].places) for (const ph of p.photos) ratings.delete(photoKey(ph))
     counted[scope] = new Set()
-    Object.assign(runs[scope], { stale: false, costUsd: 0, newCount: 0, cachedCount: 0, seconds: 0 })
+    Object.assign(runs[scope], { stale: false, costUsd: 0, imageUsd: 0, newCount: 0, cachedCount: 0, seconds: 0 })
     return rate(scope)
   }
   /** "Rate again with your profile": after an edit, on demand (Elena, 2026-11-15). */

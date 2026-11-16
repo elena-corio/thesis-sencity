@@ -48,3 +48,22 @@ def line_bearing_at(line, dist: float, step: float = 2.0) -> float:
     if a.distance(b) < 1e-6:
         a, b = Point(line.coords[0]), Point(line.coords[-1])
     return bearing_xy(a.x, a.y, b.x, b.y)
+
+
+def signed_turn(a: float, b: float) -> float:
+    """From bearing b to bearing a, in degrees, -180 to 180 (positive: a is to the right of b)."""
+    return ((a - b + 540) % 360) - 180
+
+
+def bearing_ahead(line, dist: float, ahead_m: float, step: float = 2.0) -> float:
+    """The walking direction at `dist` along a walked line (local metres, in walking order), taken `ahead_m` further on:
+    near a turn, the bearing of the way ahead, not of the way just walked (Elena, 2026-11-16)."""
+    length = line.length
+    if length < 1e-6:
+        return 0.0
+    d = min(dist + ahead_m, length)
+    s = max(0.0, min(d, length - step))
+    a, b = line.interpolate(s), line.interpolate(min(length, s + step))
+    if a.distance(b) < 1e-6:
+        a, b = Point(line.coords[0]), Point(line.coords[-1])
+    return round(bearing_xy(a.x, a.y, b.x, b.y), 6) % 360  # 359.9999999 is north: 0, not 360

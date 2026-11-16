@@ -1,8 +1,8 @@
 """Street segments and their photos for one circle, served to the app.
 
-One Mapillary photo per street or place (tool/photos/mapillary.py, Elena 2026-11-11): metadata lookups only (free);
-no image is fetched here. The result is neutral data (segments, Mapillary image IDs, locations, dates, headings) and is
-cached on disk per area (brief §6: allowed). Progress is reported as events, so the app can light streets up while the
+The photos come from PHOTO_SOURCE (app/photos.py, Elena 2026-11-16): Street View (up to 3 per street, Mapillary where
+it has none) or Mapillary (one per street). Metadata lookups only (free); no image is fetched here. The result is neutral
+data (segments, photo IDs, locations, dates, headings) and is cached on disk per area (brief §6: allowed). Progress is reported as events, so the app can light streets up while the
 area loads (brief §4).
 
 Thermal comfort comes after the photos: one Infrared.city run per area and window (billed), cached as
@@ -17,32 +17,32 @@ from pathlib import Path
 
 import numpy as np
 from shapely.geometry import mapping
+from shapely.prepared import prep
 
 from tool.config import REPO_ROOT
 from tool.geo import LocalProjection, circle
 from tool.infrared import ThermalError, run_utci
 from tool import osm_local
 from tool.osm import build_segments, fetch_overpass, parse, parse_buildings
-from tool.photos import mapillary
 from tool.thermal import segment_values
 
+from . import photos as photos_mod
 from . import steps
 
 log = logging.getLogger("sencity.api")
 
 PLACE_TYPES = {"park": "park", "square": "square", "pedestrian": "pedestrian"}
-# The Mapillary settings that change which photo a street gets (and so the cached area).
-PHOTO_SETTINGS = ("radius_m", "max_turn_deg", "max_age_years", "search_limit")
 
 
 def cache_dir(cfg: dict) -> Path:
     return REPO_ROOT / cfg["api"]["area"]["cache_dir"]
 
 
-def area_key(lat: float, lon: float, radius: int, cfg: dict) -> str:
-    """Same circle and same pipeline settings → same key (and the same cached result)."""
-    settings = {"photos": "mapillary", **{k: cfg[k] for k in ("osm", "segments")},
-                "mapillary": {k: cfg["mapillary"][k] for k in PHOTO_SETTINGS}}
+def area_key(lat: float, lon: float, radius: int, cfg: dict, source: str | None = None) -> str:
+    """Same circle and same pipeline settings → same key (and the same cached result). source: the photo source the key
+    is for, PHOTO_SOURCE by default; the thermal key uses "mapillary" whatever the photos, so thermal comfort already paid
+    for is found again after PHOTO_SOURCE changes (it does not depend on the photos)."""
+    settings = {**photos_mod.settings(cfg, source), **{k: cfg[k] for k in ("osm", "segments")}}
     raw = json.dumps({"lat": round(lat, 5), "lon": round(lon, 5), "radius": radius, "settings": settings},
                      sort_keys=True, default=str)
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
@@ -78,24 +78,18 @@ def feature(seg, proj: LocalProjection, photos: list | None) -> dict:
     }
 
 
-def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None):
-    """Yield (done, segment, [its photo] or []) as the Mapillary lookups finish, several at a time. A street counts
-    either way along it, a park or square in any direction. `directions` (routes): {segment id: True if walked along its
-    own drawing, False if against it}; such a street prefers a photo facing the way it is walked. Stops as soon as the
-    caller stops reading."""
-    s = mapillary.session()
+def lookup_photos(segments: list, proj: LocalProjection, cfg: dict, directions: dict | None = None, indoor=None,
+                  streets: list | None = None):
+    """Yield (done, segment, its photos) as the lookups finish, several at a time (app/photos.py). `directions`
+    (routes): {segment id: True if walked along its own drawing, False if against it}; such a street gets photos facing
+    the way it is walked. `indoor`: building footprints (prepared), whose Street View photos are left out. `streets`:
+    every street and place of the area or route (default: `segments`), so a photo nearer another street is not used.
+    Stops as soon as the caller stops reading."""
+    finder = photos_mod.Finder(cfg, proj, indoor, streets if streets is not None else segments)
     directions = directions or {}
 
     def one(seg):
-        geom = proj.geom_to_lonlat(seg.geom)
-        if seg.kind == "area":
-            photo = mapillary.photo_for(s, [list(c) for c in geom.exterior.coords], "area", cfg)
-        elif seg.id in directions:
-            coords = [list(c) for c in geom.coords]
-            photo = mapillary.photo_facing(s, coords if directions[seg.id] else coords[::-1], cfg)
-        else:
-            photo = mapillary.photo_for(s, [list(c) for c in geom.coords], "street", cfg)
-        return seg, [photo] if photo else []
+        return seg, finder.photos(seg, directions.get(seg.id))
 
     pool = ThreadPoolExecutor(max_workers=cfg["mapillary"]["workers"])
     try:
@@ -125,6 +119,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, key: str | None = N
     footprints = parse_buildings(data, proj, 0)
     ways, node_xy, areas, _dropped = parse(data, proj, cfg)
     segments = build_segments(ways, node_xy, areas, area_poly, cfg, footprints, {})
+    indoor = prep(footprints.buffer(-cfg["selection"]["indoor_building_inset_m"])) if footprints is not None else None
 
     found: dict = (steps.load(where, key, "photos") if key else None) or {}
     features = {s.id: feature(s, proj, found.get(s.id)) for s in segments}
@@ -134,7 +129,7 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, key: str | None = N
 
     finished = False
     try:
-        for done, seg, photos in lookup_photos(todo, proj, cfg):
+        for done, seg, photos in lookup_photos(todo, proj, cfg, indoor=indoor, streets=segments):
             found[seg.id] = photos
             features[seg.id] = feature(seg, proj, photos)
             yield {"type": "segment", "feature": features[seg.id], "done": total - len(todo) + done, "total": total}

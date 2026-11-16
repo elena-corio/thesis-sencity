@@ -1,6 +1,7 @@
 // Senses mode: from one rating per photo to one rating per place, and what to recommend. The element labels come
 // from the API, which reads them from model/app_v9/; nothing about the model is hard-coded here.
 import config from '../config.js'
+import { streetViewShown } from './photos.js'
 import { pickSuggestions } from './suggest.js'
 
 export const GENERAL_LABEL = 'General prediction: not personalised yet'
@@ -160,12 +161,23 @@ export function sensesVerdict([a, b]) {
   return hardShare(b.stretches) < hardShare(a.stretches) ? `${took} but has less hard walking.` : `${took} but has less mixed walking.`
 }
 
-/** "$0.0512 model" (the Mapillary photos are free) */
 /** The cost counter is for development only (Elena, 2026-11-15): `npm run dev`, never a built site. */
 export const SHOW_COST = !!import.meta.env?.DEV
 
-export function moneyLine(run) {
-  return `$${run.costUsd.toFixed(4)} model`
+/**
+ * "$0.0512 model" (Mapillary photos are free), or with Street View "$0.0512 model · $0.840 Street View (120 images)": the
+ * pictures the model got in this run (`run.imageUsd`, from the API) and the images this browser has shown so far (each is
+ * a paid call), at list price, with the free 10,000 a month not taken off (Elena, 2026-11-16).
+ * @param {{costUsd:number, imageUsd?:number}} run
+ * @param {number} [shown] Street View images shown in this browser (lib/photos.js streetViewShown)
+ */
+export function moneyLine(run, shown = streetViewShown.value) {
+  const model = `$${run.costUsd.toFixed(4)} model`
+  const price = config.photos.streetviewUsd
+  const usd = (run.imageUsd ?? 0) + shown * price
+  if (!usd) return model
+  const n = Math.round((run.imageUsd ?? 0) / price) + shown
+  return `${model} · $${usd.toFixed(3)} Street View (${n} ${n === 1 ? 'image' : 'images'})`
 }
 
 /** "google/gemini-3.1-flash-lite · 40 places rated · 12 cached, 96 new · $0.05 model … · 38 s" */
