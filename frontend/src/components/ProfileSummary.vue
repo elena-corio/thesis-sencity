@@ -17,8 +17,8 @@ import { WEATHER } from '../lib/weather.js'
 import SenseIcon from './SenseIcon.vue'
 import HowLink from './HowLink.vue'
 
-defineProps({ error: { type: String, default: '' }, dev: Boolean })
-const emit = defineEmits(['map', 'download', 'import', 'delete', 'test'])
+defineProps({ error: { type: String, default: '' } })
+const emit = defineEmits(['map', 'download', 'import', 'delete'])
 const store = useProfileStore()
 const lang = config.language
 const survey = computed(() => store.survey)
@@ -157,7 +157,6 @@ function a11Key(e) {
         <button type="button" class="link" @click="emit('download')">Download my data</button>
         <button type="button" class="link" @click="emit('import')">Import a file</button>
         <button type="button" class="link" @click="emit('delete')">Delete my profile</button>
-        <button v-if="dev" type="button" class="link" data-dev @click="emit('test')">Load the test profile (dev only)</button>
       </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </aside>

@@ -104,8 +104,8 @@ async function loadTest() {
         <button type="button" class="btn" @click="store.ensureSurvey()">Retry</button>
       </div>
       <p v-else-if="!store.survey" class="state" role="status">Loading the questions…</p>
-      <ProfileSummary v-else-if="store.profile" :error="error" :dev="dev" @map="router.push('/area')" @download="download"
-                      @import="pickFile" @delete="askDelete" @test="loadTest" />
+      <ProfileSummary v-else-if="store.profile" :error="error" @map="router.push('/area')" @download="download"
+                      @import="pickFile" @delete="askDelete" />
       <ProfileEmpty v-else :error="error" :dev="dev" @create="store.begin()" @import="pickFile" @test="loadTest" />
     </template>
     <input ref="fileInput" type="file" accept="application/json,.json" class="visually-hidden" tabindex="-1"
