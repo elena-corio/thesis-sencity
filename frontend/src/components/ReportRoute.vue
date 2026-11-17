@@ -1,7 +1,7 @@
 <script setup>
 // The report's route comparison (board 8b): a light map of both routes (A solid, B dashed, Start a ring, End a dot),
-// one row per route (line sample, km and minutes, its bar stretch by stretch, the hard and mixed stretches, % hard), the
-// legend with the layer and its season and time, and the verdict with what it rests on, as on the route card.
+// the legend on the map with the layer and its season and time first, one row per route (line sample, km and minutes,
+// its bar stretch by stretch, the hard and mixed stretches, % hard), and the verdict with what it rests on, as on the route card.
 import { computed, onMounted, ref } from 'vue'
 import { keyTitle } from '../lib/legend.js'
 import { routeCoverage, routeRow, routeVerdict, stretchCounts } from '../lib/report.js'
@@ -16,10 +16,8 @@ const layer = routes.layer
 const shown = computed(() => routes.shown)
 const rows = computed(() => shown.value.map((r) => ({ ...routeRow(layer, r), km: formatKm(r.length_m), minutes: r.minutes })))
 const pct = (x) => `${Math.round(x * 100)}%`
-const title = computed(() => {
-  const t = keyTitle(layer, routes.info)
-  return t.when ? `${t.name}, ${t.when}` : t.name
-})
+/** What the routes' colours and the bars show, as the app's legend names it: "Overall comfort · summer, 15:00". */
+const key = computed(() => keyTitle(layer, routes.info))
 const verdict = computed(() => routeVerdict(layer, shown.value, routes.verdict))
 const coverage = computed(() => routeCoverage(layer, shown.value))
 const LEGEND = [{ id: 'easy', label: 'Easy' }, { id: 'mixed', label: 'Mixed' }, { id: 'hard', label: 'Hard' },
@@ -46,7 +44,16 @@ onMounted(async () => {
     <div v-if="map || !drawn" class="map" data-testid="report-route-map">
       <img v-if="map" :src="map" alt="Map of the two routes: A solid, B dashed, coloured stretch by stretch." />
       <p v-else class="muted waiting">Drawing the map…</p>
+      <!-- The legend on the map, as on the area's (Elena, 2026-11-17): the layer first. -->
+      <p class="legend" aria-hidden="true">
+        <strong data-testid="report-route-key">{{ key.name }}{{ key.when ? ` · ${key.when}` : '' }}</strong>
+        <span v-for="l in LEGEND" :key="l.id" class="key"><i :class="['sw', l.id]" />{{ l.label }}</span>
+        <span class="key"><i class="pin start" />Start</span>
+        <span class="key"><i class="pin end" />End</span>
+      </p>
     </div>
+
+    <h3 class="label rows-title">Stretches by {{ key.name.toLowerCase() }}</h3>
 
     <ul class="rows" data-testid="report-routes">
       <li v-for="r in rows" :key="r.id" :data-route="r.id">
@@ -60,12 +67,6 @@ onMounted(async () => {
         <span class="stretches muted">{{ stretchCounts(r) }}</span>
       </li>
     </ul>
-    <p class="legend">
-      <span v-for="l in LEGEND" :key="l.id" class="key"><i :class="['sw', l.id]" />{{ l.label }}</span>
-      <span class="key"><i class="pin start" />Start</span>
-      <span class="key"><i class="pin end" />End</span>
-      <span class="when muted">{{ title }}</span>
-    </p>
     <div class="verdict">
       <p><strong>{{ verdict }}</strong></p>
       <p>{{ coverage }}</p>
@@ -75,7 +76,7 @@ onMounted(async () => {
 
 <style scoped>
 .route { display: flex; flex-direction: column; gap: var(--space-3); }
-.map { height: var(--report-route-map-h); border-radius: var(--radius-btn); overflow: hidden; border: var(--hairline) solid var(--report-line); background: var(--report-soft); }
+.map { position: relative; height: var(--report-route-map-h); border-radius: var(--radius-btn); overflow: hidden; border: var(--hairline) solid var(--report-line); background: var(--report-soft); }
 .map img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .waiting { padding: var(--space-4); }
 .rows li {
@@ -96,12 +97,15 @@ onMounted(async () => {
 .none { --c: var(--report-none); }
 .share { grid-area: h; text-align: right; }
 .stretches { grid-area: c; font-size: var(--report-fs-sm); }
-.legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: var(--report-fs-sm); color: var(--report-ink-2); }
+.legend {
+  position: absolute; left: var(--space-3); bottom: var(--space-3); display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-chip); background: var(--report-bg); font-size: var(--report-fs-sm);
+}
+.rows-title { margin-bottom: calc(-1 * var(--space-2)); }
 .key { display: inline-flex; align-items: center; gap: var(--space-2); }
 .sw { display: inline-block; width: var(--report-swatch-w); height: var(--report-swatch-h); border-radius: var(--radius-pill); background: var(--c); }
 .pin { display: inline-block; width: var(--space-3); height: var(--space-3); border-radius: 50%; border: var(--report-pin-edge) solid var(--report-ink); }
 .pin.start { background: var(--report-bg); }
 .pin.end { background: var(--report-ink); }
-.when { margin-left: auto; }
 .verdict { padding: var(--space-3) var(--space-4); border-radius: var(--radius-btn); background: var(--report-soft); }
 </style>

@@ -38,6 +38,8 @@ function boundsOf(features) {
  *   width and height in CSS px (drawn at twice that, so print stays sharp)
  */
 export function snapshot({ width, height, features, setup, padding = 24, timeoutMs = 20000 }) {
+  // Room at the bottom for the legend that sits on the map, so it never covers a street or a route.
+  const pad = { top: padding, left: padding, right: padding, bottom: padding + px('--report-map-legend-h') }
   if (!features.length) return Promise.resolve(null)
   const box = document.createElement('div')
   box.setAttribute('aria-hidden', 'true')
@@ -57,7 +59,7 @@ export function snapshot({ width, height, features, setup, padding = 24, timeout
         container: box,
         style: config.mapStyles.light,
         bounds: boundsOf(features),
-        fitBoundsOptions: { padding },
+        fitBoundsOptions: { padding: pad },
         interactive: false,
         attributionControl: false,
         fadeDuration: 0,

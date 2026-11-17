@@ -102,6 +102,8 @@ test.describe('the printable report', () => {
       await expect(r.locator('[data-section="area"]')).toContainText('Streets by overall comfort')
       await expect(r.getByTestId('report-route-map').locator('img')).toBeVisible()
       await expect(r.getByTestId('report-routes').locator('li')).toHaveCount(2)
+      await expect(r.getByTestId('report-route-key')).toHaveText('Overall comfort · summer, 15:00')
+      await expect(r.locator('[data-section="route"]')).toContainText('Stretches by overall comfort')
       await expect(r.getByTestId('report-photo')).toBeVisible()
       await expect(r.locator('[data-section="place"]')).toContainText('Personal prediction: from your sensory profile')
       await expect(r.locator('.page').nth(0)).toContainText('Page 1 of 2')
