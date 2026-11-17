@@ -61,11 +61,8 @@ describe('how close SenCity is to you', () => {
     expect(c.within1).toBeCloseTo(8 / 12) // gaps within 1: 1,0,1, 0,0,0, 0,1 (not 3, 2, 2, 2)
     expect(c.enough).toBe(true)
   })
-  it('draws one line per version, a point per group of 4, oldest first', () => {
-    expect(closeness(FIXTURE).lines).toEqual({ V2: [1.25, 0.5], V0: [1.25] })
-    expect(GROUP).toBe(4)
-  })
   it('says not enough under 4 ratings with a prediction', () => {
+    expect(GROUP).toBe(4)
     expect(closeness(FIXTURE.slice(0, 3)).enough).toBe(false)
     expect(closeness([]).gap).toBe(null)
   })

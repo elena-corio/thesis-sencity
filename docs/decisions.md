@@ -2,6 +2,10 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-17 – "How close SenCity is to you": numbers only, no chart
+
+**Decided (Elena).** The chart of the gap by groups of 4 ratings (one line for personal, one for general predictions) is removed from the Profile. The three numbers stay (ratings, points off on average, within 1 point), and so does "Rate a few places…" under 4 ratings. The chart colours (`--chart-v2`, `--chart-v0`, `--chart-w`) are gone with it. This replaces the chart part of the 2026-11-16 entry.
+
 ## 2026-11-16 – About and how to use, "How this works" links and first-time tips (accepted; details marked proposed)
 
 **Context.** Elena: About following board 7, with its text brought up to date (20 elements, not 16; no database, no sign-in, no 3D view), opened from "?" (desktop) and the phone menu; seven short sections; "How this works" links to the matching section; one dismissible first-time tip per main view, "seen" kept locally and cleared by "Delete my profile", and "Show tips again" in About. Never "persona", never the school's name; keyboard and screen-reader friendly; a full-screen sheet on a phone.
