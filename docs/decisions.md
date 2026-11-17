@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-17 – The presence step's prompt gets the crowds definition (accepted)
+**Context.** Elena defined crowds for the research and the app (thesis repo D157): people **none** = no people visible; **few** = 1–4 people, or more but spread out with clear space between them; **many** = about 5 or more people close together, or people across most of the walkable space, so walking through you'd have to slow down or weave. **Crowds** is present when people = many. In the D150 check the presence step missed Crowds on 3 of 20 study photos.
+**Decision.**
+- *Prompt (Elena):* `presence_prompt.txt` is the study's strict presence prompt plus one line with the crowds definition. Every other element and its definition are unchanged, and so are the rating task, the schema and the other 10 files.
+- *Import:* `presence_prompt.txt` and `MANIFEST.md` re-exported from the thesis repo (source commit 96fefc3). All 12 files matched their sha256 in the new MANIFEST before they were added. The presence version changes (285558320484), so cached presence lists are asked again on the next rating; cached ratings stay keyed as before.
+
+**Consequences.** The thesis repo ran the new prompt once on the 20 study photos (photo data only, no participant answers; same model and images as D150): agreement with the confirmed lists 91.7% (365/398), 96% of the confirmed elements found, 83% of the model's elements confirmed (D150: 91.7%, 96%, 82%). **Crowds is still missed on the same 3 photos** (place04, place10, place19), so the definition alone does not fix the misses: the strict rule (false when far away or minor) seems to outweigh it, and in those photos most people are further away or scattered. Six other answers changed, at the level of run-to-run noise. Each photo whose presence is re-asked costs one more paid call.
+
 ## 2026-11-17 – The printable report, first version (accepted; details marked proposed)
 
 **Context.** Elena: the print icon opens a report preview for A4 portrait with "Print / Save as PDF" and Close, following boards 8 and 8b; built in the browser from what is on the device; images only those already loaded; light for print in both themes; page breaks between sections; footer "SenCity gives a prediction, not advice. Check the place yourself." with page numbers; a test of which sections appear. Asked where the task and the boards differ, Elena chose the boards' order (profile and area, then route and place), the area section included, and the boards' wording ("Your SenCity report", radar left and own words right).

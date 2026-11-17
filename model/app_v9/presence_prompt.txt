@@ -27,4 +27,6 @@ Elements:
 - drinking_fountains_toilets (Drinking fountains, toilets): Public drinking fountains, water taps or toilets.
 - steps_slopes (Steps, slopes): Stairs, steps, ramps or noticeably sloping ground on the way.
 
+Crowds: judge the people in the walkable area. Answer true only for about 5 or more people close together, or people across most of the walkable space, so that someone walking through would have to slow down or weave. Answer false for no people, for 1 to 4 people, or for more people spread out with clear space between them: a few separate people are not a crowd.
+
 Answer only with JSON that follows the schema: one true or false for every element code.
