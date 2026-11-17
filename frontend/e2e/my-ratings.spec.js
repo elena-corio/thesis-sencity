@@ -160,15 +160,12 @@ test.describe('How close SenCity is to you', () => {
     return page.getByTestId('how-close')
   }
 
-  test('the numbers on a fixture, and a line each for personal and general predictions', async ({ page }) => {
+  test('the numbers on a fixture, and no chart', async ({ page }) => {
     const hc = await open(page, FIXTURE)
     await expect(hc.getByTestId('how-close-n')).toHaveText('12') // the one without a prediction is left out
     await expect(hc.getByTestId('how-close-gap')).toHaveText('1.0')
     await expect(hc.getByTestId('how-close-within')).toHaveText('67%')
-    await expect(hc.locator('path.line')).toHaveCount(2)
-    await expect(hc.locator('circle.dot.v2')).toHaveCount(2) // groups 1–4 and 5–8
-    await expect(hc.locator('circle.dot.v0')).toHaveCount(1)
-    await expect(hc.locator('table')).toContainText('1.3') // 1.25, the first personal group
+    await expect(hc.locator('svg, table')).toHaveCount(0)
     await hc.scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'e2e/screens/profile-how-close-dark.png' })
   })

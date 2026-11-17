@@ -186,10 +186,9 @@
   --about-logo: 56px;              /* the logo in its title */
   --btn-danger-bg: var(--hard);    /* "Delete everything" */
   --btn-danger-text: #ffffff;
-  --radar-max: 540px;              /* the radar of the profile (board 5); was 460 (Elena, 2026-11-15: slightly bigger) */
+  --radar-max: 480px;              /* the radar of the profile (board 5); 460, then 540, now 480 (Elena, 2026-11-17: slightly smaller) */
   --radar-icon: 26px;              /* its sense icons */
   --radar-icon-hit: 48px;          /* their tap areas */
-  --chart-w: 600px;                /* "How close": the chart's own width (HowClose W) */
   --radar-fill-opacity: 0.22;
   --radar-line: 2.5px;
   --radar-ring: 1px;
@@ -212,8 +211,6 @@
   --hard-text: #f6a3b9;
   --no-photo: #2b4a52;           /* Thermal's "No value" swatch */
   --no-photo-grey: #44484b;      /* "No photo" / "No data" swatch on Senses and Overall: neutral, apart from a faded cyan */
-  --chart-v2: #9085e9;           /* "How close": personal predictions (violet); validated with --chart-v0 on --panel (dataviz) */
-  --chart-v0: #0ca30c;           /* general predictions (green); dashed too, so not by colour alone */
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   --backdrop: rgba(9, 18, 22, 0.55);
 
@@ -275,8 +272,6 @@
   --hard-text: #c2306a;
   --no-photo: #d6e3e6;
   --no-photo-grey: #dcdedf;
-  --chart-v2: #6250d6;
-  --chart-v0: #008300;
   --shadow: 0 12px 32px rgba(19, 35, 42, 0.12);
   --backdrop: rgba(19, 35, 42, 0.25);
 

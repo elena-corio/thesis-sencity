@@ -5,7 +5,7 @@
 // Stored under its own key: `sencity-ratings` is the cache of the model's personal predictions (lib/personalRatings.js).
 
 export const MY_RATINGS_KEY = 'sencity-my-ratings'
-export const GROUP = 4 // ratings per point on the "how close" line: the study's rounds
+export const GROUP = 4 // ratings before "how close" shows: the study's rounds
 /** "Something else?": at most this many characters, like the survey's "Other". */
 export const OTHER_MAX = 150
 const MARKS = { pleasant: ['pleasant'], unpleasant: ['unpleasant'] }
@@ -118,19 +118,11 @@ export function latestFor(photoId, storage = store()) {
 
 /**
  * How close SenCity is to you: from the ratings with a prediction only. { n, gap (mean |prediction − you|), within1
- * (share within 1 point), lines: { V2: [mean gap per group of 4], V0: [...] } } (only full groups, oldest first; a
- * version with no full group has no line). n < GROUP: not enough yet.
+ * (share within 1 point) }. n < GROUP: not enough yet.
  */
 export function closeness(entries) {
-  const withP = entries.filter((e) => e.prediction).sort((a, b) => a.at.localeCompare(b.at))
+  const withP = entries.filter((e) => e.prediction)
   const gaps = withP.map((e) => Math.abs(e.prediction.B1 - e.rating.B1))
   const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null)
-  const lines = {}
-  for (const v of ['V2', 'V0']) {
-    const g = withP.filter((e) => e.prediction.version === v).map((e) => Math.abs(e.prediction.B1 - e.rating.B1))
-    const points = []
-    for (let i = 0; i + GROUP <= g.length; i += GROUP) points.push(mean(g.slice(i, i + GROUP)))
-    if (points.length) lines[v] = points
-  }
-  return { n: withP.length, gap: mean(gaps), within1: gaps.length ? gaps.filter((x) => x <= 1).length / gaps.length : null, lines, enough: withP.length >= GROUP }
+  return { n: withP.length, gap: mean(gaps), within1: gaps.length ? gaps.filter((x) => x <= 1).length / gaps.length : null, enough: withP.length >= GROUP }
 }
