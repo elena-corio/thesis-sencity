@@ -4,8 +4,9 @@
 // panel (Settings on a phone), and the map hint says what to do.
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatKm } from '../lib/routes.js'
-import { SHOW_COST, predictionLabel, hardShare, moneyLine, sensesVerdict } from '../lib/senses.js'
-import { overallShares, overallVerdict, sharesText } from '../lib/overall.js'
+import { SHOW_COST, predictionLabel, hardShare, moneyLine } from '../lib/senses.js'
+import { overallShares, sharesText } from '../lib/overall.js'
+import { routeCoverage, routeVerdict } from '../lib/report.js'
 import { useRoutesStore } from '../stores/routes.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
@@ -72,19 +73,9 @@ const hardColour = (r) => (routeHard(r) === 0 ? 'clear' : '')
 /** The legend straight under the bars: the key (Senses, Overall), or on Thermal the full legend (Elena, 2026-11-11). */
 const thermalValues = computed(() => [...routes.segments.values()].map((f) => f.properties.utci).filter((v) => v != null))
 const NO_VALUE = [{ label: 'No value', color: 'var(--no-photo)' }]
-const verdictText = computed(() => (routes.layer === 'senses' ? sensesVerdict(routes.shown)
-  : routes.layer === 'overall' ? overallVerdict(routes.shown) : routes.verdict))
-const coverage = computed(() => {
-  const [a, b] = routes.shown
-  const each = (key) => {
-    if (!b) return `${pct(a[key])} of A`
-    return pct(a[key]) === pct(b[key]) ? `${pct(a[key])} of A and B` : `${pct(a[key])} of A and ${pct(b[key])} of B`
-  }
-  // Each layer speaks only of what it rests on; Overall rests on both.
-  if (routes.layer === 'thermal') return `Thermal along ${each('thermal_share')}.`
-  if (routes.layer === 'senses') return `Based on photos along ${each('photo_share')}.`
-  return `Thermal along ${each('thermal_share')}, photos along ${each('photo_share')}.`
-})
+// The verdict and what each layer rests on (Overall rests on both): lib/report.js, shared with the printed report.
+const verdictText = computed(() => routeVerdict(routes.layer, routes.shown, routes.verdict))
+const coverage = computed(() => routeCoverage(routes.layer, routes.shown))
 
 // Walk (boards Routes 3, P3): the main button walks the easiest way, by its letter; the other is the second choice.
 const walk = computed(() => {

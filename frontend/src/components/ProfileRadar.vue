@@ -6,7 +6,7 @@
 // answers only, so it changes as soon as an answer is edited; no model call.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import config from '../config.js'
-import { senseScores } from '../lib/profile.js'
+import { radarShape, senseScores } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
 import SenseIcon from './SenseIcon.vue'
 
@@ -25,20 +25,8 @@ const angle = (i) => -Math.PI / 2 + (2 * Math.PI * i) / N.value
 const at = (i, r) => [r * Math.cos(angle(i)), r * Math.sin(angle(i))]
 const xy = (i, v) => at(i, (v / MAX) * R).map((n) => n.toFixed(2)).join(' ')
 
-/** A shape as a path: a line between two neighbouring senses that both have answers; a sense without is a gap.
- *  Filled only when no sense is missing. */
-function shape(key) {
-  const s = scores.value
-  if (s.every((x) => x[key] != null)) return { d: `M ${s.map((x, i) => xy(i, x[key])).join(' L ')} Z`, filled: true }
-  const parts = []
-  s.forEach((x, i) => {
-    const next = s[(i + 1) % s.length]
-    if (x[key] != null && next[key] != null) parts.push(`M ${xy(i, x[key])} L ${xy((i + 1) % s.length, next[key])}`)
-  })
-  return { d: parts.join(' '), filled: false }
-}
-const good = computed(() => shape('good'))
-const bothers = computed(() => shape('bothers'))
+const good = computed(() => radarShape(scores.value, 'good', xy))
+const bothers = computed(() => radarShape(scores.value, 'bothers', xy))
 function slice(i) {
   const half = Math.PI / N.value
   const p = (b) => `${(ICON_R * Math.cos(b)).toFixed(2)} ${(ICON_R * Math.sin(b)).toFixed(2)}`

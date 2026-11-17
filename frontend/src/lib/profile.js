@@ -146,3 +146,18 @@ export function senseScores(survey, answers) {
     return { sense, elements, bothers: 6 - Math.min(...values), good: Math.max(...values) }
   })
 }
+
+/**
+ * One shape of the radar (what feels good, or what bothers) as an SVG path: a line between two neighbouring senses that
+ * both have answers; a sense without is a gap. Filled only when no sense is missing. `xy(i, value)` gives "x y".
+ * Shared by the profile's radar and the printed report.
+ */
+export function radarShape(scores, key, xy) {
+  if (scores.every((x) => x[key] != null)) return { d: `M ${scores.map((x, i) => xy(i, x[key])).join(' L ')} Z`, filled: true }
+  const parts = []
+  scores.forEach((x, i) => {
+    const next = scores[(i + 1) % scores.length]
+    if (x[key] != null && next[key] != null) parts.push(`M ${xy(i, x[key])} L ${xy((i + 1) % scores.length, next[key])}`)
+  })
+  return { d: parts.join(' '), filled: false }
+}

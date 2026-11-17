@@ -5,11 +5,18 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import AppearanceSwitch from './AppearanceSwitch.vue'
 import { useHelpStore } from '../stores/help.js'
+import { useReportStore } from '../stores/report.js'
 
 const emit = defineEmits(['close'])
 const menu = ref(null)
 const help = useHelpStore()
 /** About replaces the menu; focus goes back to the account button when About closes. */
+const report = useReportStore()
+/** Print report: the menu closes (focus back on its button), then the report opens; closing it returns there. */
+function print() {
+  emit('close')
+  report.openReport()
+}
 function about() {
   emit('close')
   help.openAbout()
@@ -51,7 +58,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown,
       <button type="button" class="item" aria-haspopup="dialog" @click="about">
         <AppIcon name="help" /> About and how to use
       </button>
-      <button type="button" class="item" aria-disabled="true" title="Coming soon">
+      <button type="button" class="item" aria-haspopup="dialog" @click="print">
         <AppIcon name="print" /> Print report
       </button>
     </div>

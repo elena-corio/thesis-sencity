@@ -27,6 +27,8 @@ import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import WalkView from '../components/WalkView.vue'
 import AboutDialog from '../components/AboutDialog.vue'
+import ReportView from '../components/ReportView.vue'
+import { useReportStore } from '../stores/report.js'
 import { useHelpStore } from '../stores/help.js'
 import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
@@ -38,6 +40,7 @@ const routes = useRoutesStore()
 const senses = useSensesStore()
 const walk = useWalkStore()
 const help = useHelpStore()
+const report = useReportStore()
 const route = useRoute()
 const sheetRef = ref(null)
 const profile = useProfileStore()
@@ -130,6 +133,8 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 
     <!-- About and how to use: from "?", the account menu and every "How this works" link. -->
     <AboutDialog v-if="help.aboutOpen" :phone="phone" />
+    <!-- The printable report: from the print icon, the account menu and Print area report. -->
+    <ReportView v-if="report.open" />
   </div>
 </template>
 

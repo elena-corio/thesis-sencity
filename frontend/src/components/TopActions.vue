@@ -1,13 +1,15 @@
 <script setup>
-// Top right (desktop): About, Print, light/dark, Ask, account. About, light/dark and the account menu work for now. The sun/moon switches the theme with one click; System is in the account menu.
+// Top right (desktop): About, Print, light/dark, Ask, account. About, Print (the report), light/dark and the account menu work for now. The sun/moon switches the theme with one click; System is in the account menu.
 import { computed, ref } from 'vue'
 import { useThemeStore } from '../stores/theme.js'
 import AccountMenu from './AccountMenu.vue'
 import AppIcon from './AppIcon.vue'
 import { useHelpStore } from '../stores/help.js'
+import { useReportStore } from '../stores/report.js'
 
 const theme = useThemeStore()
 const help = useHelpStore()
+const report = useReportStore()
 const menuOpen = ref(false)
 const accountBtn = ref(null)
 
@@ -27,7 +29,7 @@ function closeMenu() {
     <button type="button" class="icon-btn wide-only" aria-label="About and how to use" aria-haspopup="dialog" @click="help.openAbout()">
       <AppIcon name="help" />
     </button>
-    <button type="button" class="icon-btn wide-only" aria-label="Print report" aria-disabled="true" title="Coming soon">
+    <button type="button" class="icon-btn wide-only" aria-label="Print report" aria-haspopup="dialog" @click="report.openReport()">
       <AppIcon name="print" />
     </button>
     <button type="button" class="icon-btn" :aria-label="`Switch to ${nextTheme} mode`" @click="toggleTheme">
