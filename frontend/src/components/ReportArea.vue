@@ -5,7 +5,7 @@
 // if it cannot be drawn, it is left out.
 import { computed, onMounted, ref } from 'vue'
 import { formatCoords } from '../lib/geo.js'
-import { keyRows } from '../lib/legend.js'
+import { keyRows, keyTitle } from '../lib/legend.js'
 import { areaCounts, placesHere, whyHard } from '../lib/report.js'
 import { areaSnapshot, mapSize } from '../map/print.js'
 import { useAreaStore } from '../stores/area.js'
@@ -18,6 +18,8 @@ const senses = useSensesStore()
 const features = computed(() => area.rated?.features ?? [])
 const layer = area.layer
 const LAYER = { senses: 'Senses', thermal: 'Thermal', overall: 'Overall' }
+/** What the map's colours and the counts show, as the app's legend names it: "Overall comfort · summer, 15:00". */
+const key = computed(() => keyTitle(layer, area.thermalInfo))
 const counts = computed(() => areaCounts(features.value, layer))
 const noneLabel = keyRows(layer).find((r) => r.id === 'none').label
 const CELLS = [
@@ -51,12 +53,12 @@ onMounted(async () => {
   <section class="area" data-section="area" aria-labelledby="report-area-title">
     <div class="title-row">
       <h2 id="report-area-title">The area you looked at</h2>
-      <span class="muted">{{ LAYER[layer] }} layer</span>
     </div>
     <div v-if="map || !drawn" class="map" data-testid="report-area-map">
       <img v-if="map" :src="map" :alt="`Map of the area: streets coloured easy, mixed or hard on the ${LAYER[layer]} layer.`" />
       <p v-else class="muted waiting">Drawing the map…</p>
       <p class="legend" aria-hidden="true">
+        <strong data-testid="report-area-key">{{ key.name }}{{ key.when ? ` · ${key.when}` : '' }}</strong>
         <span v-for="r in LEGEND" :key="r.id"><i :class="['sw', r.id]" />{{ r.label }}</span>
       </p>
     </div>
@@ -67,6 +69,7 @@ onMounted(async () => {
       <div v-if="when"><dt class="label">Thermal for</dt><dd>{{ when }}</dd></div>
     </dl>
 
+    <h3 class="label counts-title">Streets by {{ key.name.toLowerCase() }}</h3>
     <ul class="counts" data-testid="report-area-counts">
       <li v-for="c in CELLS" :key="c.id" :class="c.id">
         <strong>{{ counts.counts[c.id] }}</strong>
@@ -107,6 +110,7 @@ onMounted(async () => {
 .sw { background: var(--c); }
 .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin: 0; }
 .facts dd { margin: 0; font-size: var(--report-fs-lead); font-weight: var(--fw-medium); }
+.counts-title { margin-bottom: calc(-1 * var(--space-2)); }
 .counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
 .counts li { display: flex; flex-direction: column; padding-top: var(--space-2); border-top: var(--report-count-rule) solid var(--c); }
 .counts strong { font-size: var(--report-fs-big); font-weight: var(--fw-semibold); line-height: 1.1; }

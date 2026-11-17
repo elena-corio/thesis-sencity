@@ -231,6 +231,7 @@
   /* The report's maps (map/print.js), in the hidden map's px */
   --report-map-line: 4;
   --report-map-circle: 1.5;
+  --report-map-circle-dash: 4 3;     /* the area's circle, dashed (Elena, 2026-11-17), in line widths */
   --report-map-fill-opacity: 0.5;
   --report-map-dash: 1.4 1.1;
   --report-map-pin: 6;

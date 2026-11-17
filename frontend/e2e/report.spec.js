@@ -98,6 +98,8 @@ test.describe('the printable report', () => {
       await expect(r.getByTestId('report-comfort')).toContainText('Comfortable for you: about 10.5 to 24.5 °C')
       await expect(r.getByTestId('report-area-map').locator('img')).toBeVisible()
       await expect(r.getByTestId('report-area-counts')).toContainText('easy')
+      await expect(r.getByTestId('report-area-key')).toHaveText('Overall comfort · summer, 15:00') // what the map and the counts show
+      await expect(r.locator('[data-section="area"]')).toContainText('Streets by overall comfort')
       await expect(r.getByTestId('report-route-map').locator('img')).toBeVisible()
       await expect(r.getByTestId('report-routes').locator('li')).toHaveCount(2)
       await expect(r.getByTestId('report-photo')).toBeVisible()

@@ -85,7 +85,7 @@ export function snapshot({ width, height, features, setup, padding = 24, timeout
   })
 }
 
-/** The area (board 8): its circle, and every street and place in the colour of its state on the report's layer. */
+/** The area (board 8): its circle (dashed, Elena 2026-11-17), and every street and place in the colour of its state on the report's layer. */
 export function areaSnapshot({ width, height, features, layer, centre, radius }) {
   const circle = { type: 'Feature', geometry: { type: 'LineString', coordinates: circleRing(centre, radius) }, properties: {} }
   const prop = `${layer}_state`
@@ -95,7 +95,8 @@ export function areaSnapshot({ width, height, features, layer, centre, radius })
       map.addSource('r-streets', { type: 'geojson', data: { type: 'FeatureCollection', features } })
       map.addSource('r-circle', { type: 'geojson', data: { type: 'FeatureCollection', features: [circle] } })
       map.addLayer({ id: 'r-circle', type: 'line', source: 'r-circle',
-        paint: { 'line-color': cssVar('--report-ink-2'), 'line-width': num('--report-map-circle') } })
+        paint: { 'line-color': cssVar('--report-ink-2'), 'line-width': num('--report-map-circle'),
+          'line-dasharray': cssVar('--report-map-circle-dash').split(/\s+/).map(Number) } })
       map.addLayer({ id: 'r-places', type: 'fill', source: 'r-streets', filter: ['==', ['geometry-type'], 'Polygon'],
         paint: { 'fill-color': stateColor(prop), 'fill-opacity': num('--report-map-fill-opacity') } })
       map.addLayer({ id: 'r-lines', type: 'line', source: 'r-streets', filter: ['==', ['geometry-type'], 'LineString'],
