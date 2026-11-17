@@ -1,15 +1,17 @@
 <script setup>
 // "This area" (board Flow 4), once the area is analysed: "<n> street stretches … hard x%" as on a route row, the
 // stretches of the selected layer as one bar by street length, the legend straight under it: the key (Senses, Overall) or
-// the full thermal legend (Thermal), places by type and Print area report (not built yet). Designed, not built yet: the
+// the full thermal legend (Thermal), places by type and Print area report (the report, ReportView). Designed, not built yet: the
 // title "This area, for you", "Why hard" and the "Area ready" banner (docs/decisions.md). On a phone it is in the Results tab of the sheet. When the left
 // panel gives way (below 1200 px), the card carries the area inputs (one row with Change), the layer
 // choice and season and time (`controls`). Change in the inputs clears the area (no "Change area" here).
 import { computed, onMounted, ref } from 'vue'
 import { keyRows, lengthShares } from '../lib/legend.js'
-import { PLACE_FILTERS, placeGroup, typeLabel } from '../lib/place.js'
+import { typeLabel } from '../lib/place.js'
+import { placesHere as placesHereOf } from '../lib/report.js'
 import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
+import { useReportStore } from '../stores/report.js'
 import AppIcon from './AppIcon.vue'
 import AreaInputs from './AreaInputs.vue'
 import ComfortKey from './ComfortKey.vue'
@@ -31,6 +33,7 @@ const props = defineProps({
 const showWindow = computed(() => props.controls && area.layer !== 'senses')
 const emit = defineEmits(['pick', 'recentre'])
 const area = useAreaStore()
+const report = useReportStore()
 const titleEl = ref(null)
 
 const features = computed(() => area.rated?.features ?? [])
@@ -54,15 +57,8 @@ const stackLabel = computed(() => {
 })
 /** Thermal: the full thermal legend at the bottom of the card, from the area's feels-like values. */
 const thermalValues = computed(() => features.value.map((f) => f.properties.utci).filter((v) => v != null))
-/** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one). */
-const PLACE_GROUPS = PLACE_FILTERS.filter((g) => g.id === 'parks' || g.id === 'squares')
-const placesHere = computed(() => PLACE_GROUPS.map((g) => {
-  const fs = features.value.filter((f) => placeGroup(f.properties, f.geometry.type) === g.id && known(f))
-  if (!fs.length) return null
-  const count = (st) => fs.filter((f) => f.properties[stateKey.value] === st).length
-  const state = ['hard', 'mixed', 'easy'].reduce((best, st) => (count(st) > count(best) ? st : best))
-  return { label: g.label, state, text: `${count(state)} of ${fs.length} ${state}` }
-}).filter(Boolean))
+/** "Parks: 2 of 3 easy": the most common state per place type (a tie goes to the worse one; lib/report.js). */
+const placesHere = computed(() => placesHereOf(features.value, area.layer))
 
 // "Likely easiest for you": the marked places, numbered as their pins (suggestions now, chat later).
 const LEVEL_LABEL = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
@@ -158,7 +154,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         <button v-if="area.thermal === 'error'" type="button" class="btn btn-primary" @click="area.retryThermal()">
           Try again
         </button>
-        <button type="button" class="btn" aria-disabled="true" title="Coming soon">
+        <button type="button" class="btn" aria-haspopup="dialog" @click="report.openReport()">
           <AppIcon name="print" /> Print area report
         </button>
       </div>

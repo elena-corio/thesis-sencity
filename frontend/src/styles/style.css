@@ -192,6 +192,64 @@
   --radar-fill-opacity: 0.22;
   --radar-line: 2.5px;
   --radar-ring: 1px;
+
+  /* The printed report (boards 8, 8b; brief §7): A4, always light whatever the app's theme, and readable in grey.
+     Its comfort colours go light to dark (lightness ≈ 85 / 72 / 37), never the screen's. */
+  --report-page-w: 210mm;
+  --report-page-h: 297mm;
+  --report-margin: 13mm;
+  --report-preview-zoom: 0.45;      /* the preview's pages below 860 px wide (an A4 page is 794 px) */
+  --report-gap: 5mm;
+  --report-radar: 56mm;
+  --report-radar-line: 2.5px;
+  --report-icon: 6mm;
+  --report-map-h: 64mm;
+  --report-route-map-h: 60mm;
+  --report-photo-w: 56mm;
+  --report-photo-h: 42mm;
+  --report-label-w: 34mm;            /* the place's row names (Thermal, Senses, …) */
+  --report-route-name-w: 22mm;       /* a route row: "A shortest" */
+  --report-route-len-w: 26mm;        /* "1.4 km, 18 min" */
+  --report-route-share-w: 18mm;      /* "27% hard" */
+  --report-logo: 13mm;
+  --report-logo-small: 8mm;
+  --report-bar-h: 2.4mm;
+  --report-gap-bar: 0.6mm;           /* between two sections of a route's bar that change state */
+  --report-swatch-w: 7mm;
+  --report-swatch-h: 2.4mm;
+  --report-count-rule: 1.2mm;        /* the coloured rule over each count */
+  --report-rule: 1mm;                /* the line beside your own words */
+  --report-sample-line: 2px;
+  --report-pin-edge: 2px;
+  --report-fs-title: 22pt;
+  --report-fs-h2: 13pt;
+  --report-fs-lead: 11pt;
+  --report-fs-big: 20pt;
+  --report-fs: 9.5pt;
+  --report-fs-sm: 8.5pt;
+  --report-fs-xs: 7.5pt;
+  /* The report's maps (map/print.js), in the hidden map's px */
+  --report-map-line: 4;
+  --report-map-circle: 1.5;
+  --report-map-legend-h: 9mm;        /* kept clear at the bottom of a report map: its legend sits there */
+  --report-map-circle-dash: 4 3;     /* the area's circle, dashed (Elena, 2026-11-17), in line widths */
+  --report-map-fill-opacity: 0.5;
+  --report-map-dash: 1.4 1.1;
+  --report-map-pin: 6;
+  --report-map-pin-edge: 2.5;
+  /* Colours */
+  --report-bg: #ffffff;
+  --report-ink: #15282c;
+  --report-ink-2: #44595d;
+  --report-muted: #6a7f83;
+  --report-line: #d3dddf;
+  --report-soft: #eef4f4;
+  --report-logo-color: #15474a;
+  --report-easy: #9fdff2;
+  --report-mixed: #e8a33a;
+  --report-hard: #a3245a;
+  --report-none: #dce3e4;
+  --report-good: #1f8fb5;            /* the radar's "what feels good" line: the easy cyan, dark enough on white */
 }
 
 :root[data-theme="dark"] {
