@@ -1,5 +1,5 @@
 {
-  "source": "config/codebook_2026-11-12.yaml (sha 91b6f48a684a)",
+  "source": "config/codebook_2026-11-12.yaml (sha 68b993d1b4f4)",
   "rules": {
     "elements": "the confirmed list: the elements the study offered for this photo (B2) and the task text lists (task_template.txt)",
     "visible_not_listed": "visible in the photo but not offered in the study: treat as not offered, not as absent (excluded from presence comparison and B2 analysis)"

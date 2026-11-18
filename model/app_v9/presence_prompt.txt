@@ -21,10 +21,12 @@ Elements:
 - open_space (Open space): A wide, open area with a long clear view and room around you, such as a square or a wide promenade.
 - heights_bridges (Heights, bridges): Places where you walk above a drop, such as bridges, raised walkways or edges with railings.
 - car_free (Car-free zones): Areas for people on foot where cars cannot drive, such as pedestrian streets or squares.
-- crowds (Crowds): Many people close together in the walkable area, enough to shape how you move.
 - narrow_shared (Narrow or shared paths): Paths that are narrow, or shared with bikes or scooters, where others pass close.
 - seats (Seats): Public benches and other free seating, wooden ones included. Chairs and tables that belong to a café or restaurant are not seats: they count as food stalls, cafés.
 - drinking_fountains_toilets (Drinking fountains, toilets): Public drinking fountains, water taps or toilets.
 - steps_slopes (Steps, slopes): Stairs, steps, ramps or noticeably sloping ground on the way.
 
-Answer only with JSON that follows the schema: one true or false for every element code.
+People: do not judge crowds. Count the people in the walkable area (streets, pavements, squares, paths) instead.
+- people_count: how many people you can make out in the walkable area, near or far, as a whole number; 0 if there is nobody.
+
+Answer only with JSON that follows the schema: one true or false for every element code, then people_count.

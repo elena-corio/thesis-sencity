@@ -6,7 +6,8 @@ a restart. Every file is first checked against its sha256 in MANIFEST.md; if one
 the request stops with ExportError: there are no defaults.
 
 Each new photo takes two calls (Elena, 2026-11-14). The presence call (presence_prompt.txt, presence_schema.json) says
-which of the 20 elements are clearly visible; it is cached per photo. The rating call then sends the study's task and
+which of the 20 elements are clearly visible, and counts the people: Crowds is listed at the export's threshold or more
+(presence_schema.json `crowds`, thesis D163); it is cached per photo. The rating call then sends the study's task and
 schema with that list. If nothing is listed, B2 takes no items and B2_none must be true. Without a profile the system
 message is system_instruction.txt alone: the study's V0. With your sensory profile (app/profile.py) it is the system
 instruction, a blank line and the profile: the study's V2. Unlike the study, no person confirms the lists.
@@ -100,8 +101,14 @@ TEMPLATE_RULES = {
     "required": ["name", "strict", "schema"],
     "properties": {"name": {"type": "string", "minLength": 1}, "strict": {"const": True}, "schema": {"type": "object"}},
 }
-PRESENCE_RULES = {**TEMPLATE_RULES, "required": [*TEMPLATE_RULES["required"], "temperature"],
-                  "properties": {**TEMPLATE_RULES["properties"], "temperature": {"type": "number"}}}
+# Crowds is not answered true or false (thesis D163): the presence call counts the people (crowds.from, an integer in
+# Crowds' place in the schema) and Crowds is listed at crowds.at_least or more.
+PRESENCE_RULES = {**TEMPLATE_RULES, "required": [*TEMPLATE_RULES["required"], "temperature", "crowds"],
+                  "properties": {**TEMPLATE_RULES["properties"], "temperature": {"type": "number"},
+                                 "crowds": {"type": "object", "required": ["from", "at_least"], "additionalProperties": False,
+                                            "properties": {"from": {"type": "string", "pattern": "^[a-z_]+$"},
+                                                           "at_least": {"type": "integer", "minimum": 1}}}}}
+COUNTED = "crowds"  # the element decided from a count
 OUTPUT_FIELDS = ("B1_comfort", "B2_marked", "B2_none", "reasoning")
 SLOT = "{ELEMENTS}"
 BOTHERS = ("unpleasant", "both")
@@ -137,7 +144,7 @@ class Export:
     anchors: tuple[str, str]  # the words of 1 and of 5, from the B1 line of the task
     template: dict            # schema_template.json: name, strict, schema
     presence_prompt: str
-    presence: dict            # presence_schema.json: name, strict, schema, temperature
+    presence: dict            # presence_schema.json: name, strict, schema, temperature, crowds {from, at_least}
     elements: dict            # code → the element as in elements.json, in its order (n)
     model: dict
     commit: str
@@ -252,9 +259,16 @@ def load_export(folder: Path = EXPORT_DIR) -> Export:
         presence_props = list(presence["schema"]["properties"])
     except (SchemaError, KeyError, TypeError) as e:
         raise ExportError(f"presence_schema.json is not the expected presence schema ({type(e).__name__}).") from None
-    if presence_props != codes or presence["schema"].get("required") != codes:
-        raise ExportError("presence_schema.json does not ask for every code of elements.json, in its order.")
-    missing = [c for c in codes if f"- {c} (" not in presence_prompt]
+    count = presence["crowds"]["from"]
+    asked = [count if c == COUNTED else c for c in codes]
+    if COUNTED not in codes or presence_props != asked or presence["schema"].get("required") != asked:
+        raise ExportError(f"presence_schema.json does not ask for every code of elements.json, in its order, with "
+                          f"{count} in place of {COUNTED}.")
+    if presence["schema"]["properties"][count] != {"type": "integer"}:
+        raise ExportError(f"presence_schema.json: {count} must be an integer.")
+    missing = [c for c in codes if c != COUNTED and f"- {c} (" not in presence_prompt]
+    if count not in presence_prompt:
+        missing.append(count)
     if missing:
         raise ExportError(f"presence_prompt.txt does not list: {', '.join(missing)}.")
     # The words of 1 and 5 in the app's style, "1 · not at all, …", as for 2 to 4.
@@ -312,8 +326,12 @@ def build_presence_request(export: Export, data_url: str) -> dict:
 
 
 def listed_from(export: Export, output: dict) -> list:
-    """The elements the presence call answered true, in elements.json order."""
-    return [c for c in export.elements if output.get(c) is True]
+    """The elements the presence call answered true, plus Crowds when its count is at least crowds.at_least, in
+    elements.json order."""
+    rule = export.presence["crowds"]
+    count = output.get(rule["from"])
+    crowded = isinstance(count, int) and not isinstance(count, bool) and count >= rule["at_least"]
+    return [c for c in export.elements if (crowded if c == COUNTED else output.get(c) is True)]
 
 
 def answer_schemas(export: Export, listed: list) -> tuple[dict, dict]:
