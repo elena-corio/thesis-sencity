@@ -2,6 +2,16 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-18 – The presence step counts people; Crowds at 8 or more (accepted; threshold proposed)
+**Context.** The crowds definition (entry below) changed nothing. Diagnosed in the thesis repo (D158): the presence cache key already holds the prompt version, and the model's raw answer is itself `false` for place04, place10 and place19, so nothing is lost in parsing. Asking for a people count and a spread instead did not help either: the counts separated the photos, but the model called 19 of 20 photos "scattered". Elena: drop the spread; change it in both repos.
+**Decision (Elena; the threshold proposed by Claude).**
+- *Presence call:* Crowds is no longer answered true or false. The prompt asks `people_count` (an integer, in Crowds' place in the schema), and Crowds is listed when it is **8 or more**. Every other element, its definition and the strict rule are unchanged.
+- *Threshold in the export:* `presence_schema.json` carries `crowds: {from: "people_count", at_least: 8}`; `app/senses.py` reads it and refuses an export without it, without the integer field in Crowds' place, or with a prompt that does not name it.
+- *Import:* `presence_prompt.txt`, `presence_schema.json`, `study_lists.json` and `MANIFEST.md` re-exported from the thesis repo (source commit 9bd81fe, D163). All 12 files matched their sha256. In `study_lists.json` only the codebook hash changed (thesis D162).
+- *The threshold is tuned on the same 20 photos it is checked on* (crowded photos 10–25 people, the others at most 6; anything from 7 to 10 scores the same), so it should be checked on fresh photos.
+
+**Consequences.** On the 20 study photos (one run, 20 calls, $0.020, photo data only): Crowds agrees with photos_meta on 20/20 (4 of 4 found, no false alarm; before 17/20, 1 of 4); agreement with the confirmed lists 92.5% (368/398), 99% found, 83% confirmed (D157: 91.7%, 96%, 83%). The presence version changes, so cached presence lists are asked again on the next rating (one more paid call per photo). The new export commit also re-rates cached general ratings as areas are opened, as with every export.
+
 ## 2026-11-17 – The presence step's prompt gets the crowds definition (accepted)
 **Context.** Elena defined crowds for the research and the app (thesis repo D157): people **none** = no people visible; **few** = 1–4 people, or more but spread out with clear space between them; **many** = about 5 or more people close together, or people across most of the walkable space, so walking through you'd have to slow down or weave. **Crowds** is present when people = many. In the D150 check the presence step missed Crowds on 3 of 20 study photos.
 **Decision.**

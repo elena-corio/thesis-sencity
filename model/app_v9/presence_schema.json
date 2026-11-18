@@ -49,8 +49,8 @@
       "car_free": {
         "type": "boolean"
       },
-      "crowds": {
-        "type": "boolean"
+      "people_count": {
+        "type": "integer"
       },
       "narrow_shared": {
         "type": "boolean"
@@ -81,7 +81,7 @@
       "open_space",
       "heights_bridges",
       "car_free",
-      "crowds",
+      "people_count",
       "narrow_shared",
       "seats",
       "drinking_fountains_toilets",
@@ -91,5 +91,9 @@
   },
   "temperature": 0,
   "call": "user message only: presence_prompt.txt, then the photo (model.json image); same model and provider settings as model.json",
-  "result": "the elements answered true are the photo's listed elements for task_template.txt and schema_template.json"
+  "crowds": {
+    "from": "people_count",
+    "at_least": 8
+  },
+  "result": "the elements answered true, plus crowds when people_count is at least crowds.at_least, are the photo's listed elements for task_template.txt and schema_template.json, in elements.json order"
 }

@@ -30,7 +30,14 @@ OLD_CODES = ["traffic_trams_crowds", "bins_stalls_exhaust", "hard_surfaces", "su
              "narrow_close", "no_seats", "greenery_water_buildings", "running_water_trees", "natural_materials",
              "open_sports", "wide_car_free", "seats_fountains_toilets", "nothing"]
 SEEN = ["greenery_trees", "traffic_trams", "shade"]  # what the fake presence call finds, unless a test says otherwise
-PRESENT = {c: c in SEEN for c in V9_CODES}
+
+
+def presence_answer(seen=(), people=0):
+    """A presence reply: true for `seen`, and the people count in Crowds' place (thesis D163)."""
+    return {("people_count" if c == "crowds" else c): (people if c == "crowds" else c in seen) for c in V9_CODES}
+
+
+PRESENT = presence_answer(SEEN)
 GOOD = {"B1_comfort": 4,
         "B2_marked": [{"element": "traffic_trams", "answer": "unpleasant"}, {"element": "shade", "answer": "pleasant"},
                       {"element": "greenery_trees", "answer": "both"}],
@@ -231,13 +238,42 @@ def test_a_task_without_its_element_slot_or_scale_is_refused(tmp_path):
 
 def test_presence_files_that_do_not_cover_every_element_are_refused(tmp_path):
     folder = copy_export(tmp_path)
-    edit_json(folder, "presence_schema.json", lambda p: p["schema"]["properties"].pop("crowds"))
+    edit_json(folder, "presence_schema.json", lambda p: p["schema"]["properties"].pop("people_count"))
     with pytest.raises(ExportError, match="presence_schema.json"):
         load_export(folder)
     folder = copy_export(tmp_path / "again")
-    edit_text(folder, "presence_prompt.txt", "- crowds (Crowds)", "- Crowds")
-    with pytest.raises(ExportError, match="presence_prompt.txt does not list: crowds"):
+    edit_text(folder, "presence_prompt.txt", "- seats (Seats)", "- Seats")
+    with pytest.raises(ExportError, match="presence_prompt.txt does not list: seats"):
         load_export(folder)
+
+
+def test_presence_files_must_count_crowds(tmp_path):
+    """Thesis D163: the people count in Crowds' place, an integer, with its threshold; no defaults."""
+    export = load_export()
+    assert export.presence["crowds"] == {"from": "people_count", "at_least": 8}
+    props = list(export.presence["schema"]["properties"])
+    assert "crowds" not in props and props[V9_CODES.index("crowds")] == "people_count"
+    for i, change in enumerate([lambda p: p.pop("crowds"),
+                                lambda p: p["crowds"].update(at_least=0),
+                                lambda p: p["crowds"].update(from_="x"),
+                                lambda p: p["schema"]["properties"].update(people_count={"type": "boolean"}),
+                                lambda p: p["crowds"].update({"from": "crowd_size"})]):
+        folder = copy_export(tmp_path / str(i))
+        edit_json(folder, "presence_schema.json", change)
+        with pytest.raises(ExportError, match="presence_schema.json"):
+            load_export(folder)
+    folder = copy_export(tmp_path / "prompt")
+    edit_text(folder, "presence_prompt.txt", "- people_count:", "- count:")
+    edit_text(folder, "presence_prompt.txt", "then people_count.", "then the count.")
+    with pytest.raises(ExportError, match="presence_prompt.txt does not list: people_count"):
+        load_export(folder)
+
+
+@pytest.mark.parametrize("people, crowds", [(0, False), (7, False), (8, True), (25, True)])
+def test_crowds_is_listed_from_the_people_count(people, crowds):
+    listed = senses_mod.listed_from(load_export(), presence_answer(SEEN, people))
+    assert ("crowds" in listed) is crowds
+    assert [c for c in listed if c != "crowds"] == SEEN and listed == [c for c in V9_CODES if c in listed]
 
 
 def test_the_scale_words_come_from_the_task_text_in_the_apps_style():
@@ -390,7 +426,7 @@ def test_a_new_photo_takes_the_presence_call_then_the_rating_call_on_its_list(ca
 
 
 def test_nothing_detected_sends_an_empty_list_and_needs_b2_none(calls, cfg):
-    calls.presence.append(reply({c: False for c in V9_CODES}))
+    calls.presence.append(reply(presence_answer()))
     calls.ratings.append(reply({"B1_comfort": 3, "B2_marked": [], "B2_none": True, "reasoning": "Plain."}))
     events, _ = run([(PANO, HEADING)], cfg)
     schema = calls.made[1]["response_format"]["json_schema"]["schema"]
