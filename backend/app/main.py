@@ -344,7 +344,7 @@ class RatingStamp(BaseModel):
     model: str = Field(..., max_length=200)
     commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
     prompt: str = Field("", max_length=20)  # how the app put the request together (senses.PROMPT_VERSION)
-    formula: str = Field("none", pattern="^(none|xhat|f)$")  # the formula paragraph it had (app/formula.py)
+    formula: str = Field("none", pattern="^(none|(xhat|f):[0-9a-f]{12})$")  # the formula it had: mode and numbers' hash
 
 
 class SensesPhoto(BaseModel):

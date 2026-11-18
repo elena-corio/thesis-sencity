@@ -16,6 +16,7 @@ from app.senses import ExportError, load_export
 from tests.test_profile import CASES, DEV
 from tests.test_senses import GOOD, HEADING, PANO, SEEN, FakeProvider, calls, cfg, copy_export, edit_json, edit_text, photo_events, reply  # noqa: F401
 
+XHAT_REF = json.loads((Path(__file__).parent / "fixtures" / "xhat_reference.json").read_text(encoding="utf-8"))
 PARITY = json.loads((Path(__file__).parent / "fixtures" / "formula_parity.json").read_text(encoding="utf-8"))["cases"]
 COEF = {"intercept": 0.4, "others": 0.65, "s": -0.123}
 
@@ -76,6 +77,20 @@ def test_xhat_is_the_formulas_prediction_kept_between_1_and_5_with_one_decimal(f
     high = formula_mod.paragraph(fe, "xhat", listed, labels, answers, 9.0, {"intercept": 2, "others": 1, "s": 0})
     low = formula_mod.paragraph(fe, "xhat", listed, labels, answers, 1.0, {"intercept": -9, "others": 0, "s": 0})
     assert "5.0" in high and "1.0" in low
+
+
+@pytest.mark.parametrize("case", XHAT_REF["cases"], ids=[c["text"] for c in XHAT_REF["cases"]])
+def test_xhat_matches_the_thesis_formula_clip_and_rounding(fe, case):
+    """The thesis's path (sklearn Ridge.predict, formula.clip, personas.fixed) on made-up fits, against the app's: the
+    formula, then 1-5, then one decimal. Clipped at both ends among the cases."""
+    assert XHAT_REF["clip"] == list(formula_mod.CLIP) and XHAT_REF["decimals"] == fe.rules["decimals"]["xhat"]
+    x = formula_mod.xhat(case["coef"], case["others"], case["s"])
+    assert x == pytest.approx(case["xhat"], abs=1e-9)
+    assert formula_mod.fixed(x, fe.rules["decimals"]["xhat"]) == case["text"]
+
+
+def test_the_references_cover_both_clips():
+    assert any(c["raw"] < 1 for c in XHAT_REF["cases"]) and any(c["raw"] > 5 for c in XHAT_REF["cases"])
 
 
 def test_fixed_rounds_halves_up_and_never_writes_minus_zero():
@@ -147,7 +162,8 @@ def test_the_rating_call_has_the_paragraph_for_its_mode_and_the_stamp_says_which
     else:
         assert para in system and system.endswith("\n\n" + base.rpartition("\n\n")[2])
     ok = photo_events(events, "ok")[0]
-    assert ok["stamp"]["formula"] == mode
+    key = ok["stamp"]["formula"]
+    assert key == "none" if mode == "none" else key == f"{mode}:{formula_mod.inputs_hash(COEF, 3.45)}"
     # The presence call never has the profile or the formula.
     assert all(m["role"] == "user" for m in calls.made[0]["messages"])
 
@@ -163,6 +179,27 @@ def test_a_kept_rating_is_asked_again_when_its_formula_mode_changes(calls, cfg):
     # The same mode with no numbers is none: the kept rating still holds.
     assert senses_mod.plan_rating([(PANO, HEADING)], cfg, base, {(PANO, HEADING): stamp},
                                   formula_mod.plan("xhat", DEV["answers"])).kept
+
+
+def test_new_numbers_alone_make_a_kept_rating_stale(calls, cfg):
+    """Same mode, same profile, same photo: a new others' average or new coefficients ask again; the same numbers keep."""
+    calls.ratings.append(reply(GOOD))
+    base = profile_mod.build(DEV["answers"], "en", profile_mod.load())
+    first = formula_mod.plan("f", DEV["answers"], Crowd(3.4), Coef(COEF))
+    stamp = photo_events(run_with([(PANO, HEADING)], cfg, base, first), "ok")[0]["stamp"]
+    kept = lambda plan: bool(senses_mod.plan_rating([(PANO, HEADING)], cfg, base, {(PANO, HEADING): stamp}, plan).kept)  # noqa: E731
+    assert kept(formula_mod.plan("f", DEV["answers"], Crowd(3.4), Coef(dict(COEF))))
+    assert not kept(formula_mod.plan("f", DEV["answers"], Crowd(3.5), Coef(COEF)))
+    assert not kept(formula_mod.plan("f", DEV["answers"], Crowd(3.4), Coef({**COEF, "s": -0.124})))
+    assert not kept(formula_mod.plan("xhat", DEV["answers"], Crowd(3.4), Coef(COEF)))  # same numbers, other mode
+
+
+def test_the_endpoint_accepts_the_stamp_it_gave():
+    from app.main import RatingStamp
+    key = f"xhat:{formula_mod.inputs_hash(COEF, 3.0)}"
+    assert RatingStamp(listed=[], model="m", commit="abc1234", formula=key).formula == key
+    with pytest.raises(ValueError):
+        RatingStamp(listed=[], model="m", commit="abc1234", formula="xhat")
 
 
 def test_general_predictions_never_get_a_formula(calls, cfg):

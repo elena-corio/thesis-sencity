@@ -10,6 +10,8 @@ both sources answer None for now (NoCrowdAverage, NoCoefficients): the paragraph
 the plain V2, with nothing said about a formula. s, the mean of your own ratings of the photo's elements, is computed
 here, never by the model. Only personal predictions get the paragraph: V0 has no profile.
 """
+import hashlib
+import json
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -91,6 +93,20 @@ def s_value(answers: dict, listed: list) -> float | None:
     return sum(values) / len(values) if values else None
 
 
+def xhat(coef: dict, others: float, s: float) -> float:
+    """x̂ as the thesis computes it: the formula (intercept + others' average and s, raw scales), then clipped to 1-5.
+    Rounding to one decimal comes after, when it is written (fixed). tests/fixtures/xhat_reference.json pins it."""
+    return min(max(coef["intercept"] + coef["others"] * others + coef["s"] * s, CLIP[0]), CLIP[1])
+
+
+def inputs_hash(coef: dict, others: float) -> str:
+    """The first 12 hex digits of the sha256 of the numbers a formula paragraph is made from (the coefficients and the
+    others' average): part of a personal rating's stamp, so new numbers make a kept rating stale. s is not in it: it
+    comes from your profile, whose version already keys the rating."""
+    data = json.dumps({"coef": {k: coef[k] for k in ("intercept", "others", "s")}, "others": others}, sort_keys=True)
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()[:12]
+
+
 def _formula_text(fe: FormulaExport, coef: dict) -> str:
     d, terms = fe.rules["decimals"]["coef"], fe.rules["terms"]
 
@@ -108,8 +124,7 @@ def paragraph(fe: FormulaExport, mode: str, listed: list, labels: dict, answers:
         return None
     dec = fe.rules["decimals"]
     if mode == "xhat":
-        xhat = min(max(coef["intercept"] + coef["others"] * others + coef["s"] * s, CLIP[0]), CLIP[1])
-        return fe.texts["xhat"].replace("{XHAT}", fixed(xhat, dec["xhat"]))
+        return fe.texts["xhat"].replace("{XHAT}", fixed(xhat(coef, others, s), dec["xhat"]))
     names = "; ".join(labels[c] for c in labels if c in listed)
     return (fe.texts["f"].replace("{FORMULA}", _formula_text(fe, coef)).replace("{OTHERS}", fixed(others, dec["others"]))
             .replace("{S}", fixed(s, dec["s"])).replace("{ELEMENTS}", names))
@@ -135,21 +150,30 @@ class FormulaPlan:
 
     def mode_for(self, photo_id: str, heading: float) -> str:
         """The mode this photo gets: none whenever a number is missing (s is always there for a checked profile)."""
-        if self.mode == "none" or self.crowd.average(photo_id, heading) is None or self.coef.coefficients() is None:
+        return self.key_for(photo_id, heading).partition(":")[0]
+
+    def key_for(self, photo_id: str, heading: float) -> str:
+        """What a personal rating of this photo is made from, for its stamp: "none", or "<mode>:<inputs_hash>"."""
+        if self.mode == "none":
             return "none"
-        return self.mode
+        others, coef = self.crowd.average(photo_id, heading), self.coef.coefficients()
+        if others is None or coef is None:
+            return "none"
+        return f"{self.mode}:{inputs_hash(coef, others)}"
 
     def text(self, photo_id: str, heading: float, listed: list, labels: dict) -> tuple[str, str | None]:
-        """(the mode used, the paragraph or None) for this photo and its listed elements."""
-        if self.mode_for(photo_id, heading) == "none":
+        """(the stamp key used, the paragraph or None) for this photo and its listed elements."""
+        key = self.key_for(photo_id, heading)
+        if key == "none":
             return "none", None
         para = paragraph(self.export, self.mode, listed, labels, self.answers, self.crowd.average(photo_id, heading),
                          self.coef.coefficients())
-        return (self.mode, para) if para else ("none", None)
+        return (key, para) if para else ("none", None)
 
     def profile_for(self, profile_text: str, photo_id: str, heading: float, listed: list,
                     labels: dict) -> tuple[str, str]:
-        """(the mode used, the profile text for this photo): with the paragraph before the closing line, or unchanged."""
+        """(the stamp key used, the profile text for this photo): with the paragraph before the closing line, or
+        unchanged."""
         mode, para = self.text(photo_id, heading, listed, labels)
         return mode, with_paragraph(profile_text, para)
 

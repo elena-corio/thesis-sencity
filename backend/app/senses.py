@@ -587,7 +587,8 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
     """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError.
     General (profile None): the server cache answers what it has. Personal: nothing is looked up in it; a photo whose
     browser stamp ({listed, model, commit}, in `stamps` by (photo_id, heading)) still matches its presence list, the
-    model and the export (and the formula mode this photo gets now) is kept by the browser, every other one is new."""
+    model and the export (and the formula this photo gets now: its mode and a hash of its numbers) is kept by the
+    browser, every other one is new."""
     export = load_export()
     model = export.model["model"]
     with _cache_lock:
@@ -611,7 +612,7 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
             listed = present(photo_id, heading)
             if (stamp and listed is not None and stamp.get("model") == model and stamp.get("commit") == export.commit
                     and stamp.get("prompt") == PROMPT_VERSION and list(stamp.get("listed") or []) == listed
-                    and stamp.get("formula", "none") == (formula.mode_for(photo_id, heading) if formula else "none")):
+                    and stamp.get("formula", "none") == (formula.key_for(photo_id, heading) if formula else "none")):
                 kept.append((photo_id, heading, listed))
             else:
                 new.append((photo_id, heading))
