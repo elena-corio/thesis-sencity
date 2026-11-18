@@ -1,0 +1,389 @@
+{
+ "source": "thesis-personas personas.formula_persona_v9, formula.s_value; made-up profiles and numbers",
+ "cases": [
+  {
+   "profile": 0,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "xhat",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 2.6,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 2.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 5, very pleasant\n  - Nice buildings: 4, a little pleasant\n  - Signs, ads: 2, a little unpleasant\n  - Fountains, water: 5, very pleasant\n  - Traffic, trams: 1, very unpleasant\n  - Plants, flowers: 5, very pleasant\n  - Waste containers: 2, a little unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 4, a little pleasant\n  - Asphalt, stone, concrete: 2, a little unpleasant\n  - Shade from trees or buildings: 5, very pleasant\n  - Direct sun, little shade: 1, very unpleasant\n  - Open space: 4, a little pleasant\n  - Heights, bridges: 3, neither\n  - Car-free zones: 5, very pleasant\n  - Crowds: 1, very unpleasant\n  - Narrow or shared paths: 2, a little unpleasant\n  - Seats: 5, very pleasant\n  - Drinking fountains, toilets: 4, a little pleasant\n  - Steps, slopes: 3, neither\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in English): \"Traffic noise and direct sun wear me out quickly. I like parks with shade and somewhere to sit, and I avoid places where people stand \"close\".\"\n\nA formula learned from other people's answers predicts that you would rate this place 3.3 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 0,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "f",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 2.6,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 2.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 5, very pleasant\n  - Nice buildings: 4, a little pleasant\n  - Signs, ads: 2, a little unpleasant\n  - Fountains, water: 5, very pleasant\n  - Traffic, trams: 1, very unpleasant\n  - Plants, flowers: 5, very pleasant\n  - Waste containers: 2, a little unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 4, a little pleasant\n  - Asphalt, stone, concrete: 2, a little unpleasant\n  - Shade from trees or buildings: 5, very pleasant\n  - Direct sun, little shade: 1, very unpleasant\n  - Open space: 4, a little pleasant\n  - Heights, bridges: 3, neither\n  - Car-free zones: 5, very pleasant\n  - Crowds: 1, very unpleasant\n  - Narrow or shared paths: 2, a little unpleasant\n  - Seats: 5, very pleasant\n  - Drinking fountains, toilets: 4, a little pleasant\n  - Steps, slopes: 3, neither\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in English): \"Traffic noise and direct sun wear me out quickly. I like parks with shade and somewhere to sit, and I avoid places where people stand \"close\".\"\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.40 + 0.65 × the average rating other people gave this place - 0.12 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 3.5. The mean of your ratings of the elements in this photo: 2.6. The elements in this photo: Greenery, trees; Signs, ads; Asphalt, stone, concrete; Direct sun, little shade; Steps, slopes.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 0,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "xhat",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 3.3333333333333335,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 2.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 5, very pleasant\n  - Nice buildings: 4, a little pleasant\n  - Signs, ads: 2, a little unpleasant\n  - Fountains, water: 5, very pleasant\n  - Traffic, trams: 1, very unpleasant\n  - Plants, flowers: 5, very pleasant\n  - Waste containers: 2, a little unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 4, a little pleasant\n  - Asphalt, stone, concrete: 2, a little unpleasant\n  - Shade from trees or buildings: 5, very pleasant\n  - Direct sun, little shade: 1, very unpleasant\n  - Open space: 4, a little pleasant\n  - Heights, bridges: 3, neither\n  - Car-free zones: 5, very pleasant\n  - Crowds: 1, very unpleasant\n  - Narrow or shared paths: 2, a little unpleasant\n  - Seats: 5, very pleasant\n  - Drinking fountains, toilets: 4, a little pleasant\n  - Steps, slopes: 3, neither\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in English): \"Traffic noise and direct sun wear me out quickly. I like parks with shade and somewhere to sit, and I avoid places where people stand \"close\".\"\n\nA formula learned from other people's answers predicts that you would rate this place 1.0 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 0,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "f",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 3.3333333333333335,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 2.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 5, very pleasant\n  - Nice buildings: 4, a little pleasant\n  - Signs, ads: 2, a little unpleasant\n  - Fountains, water: 5, very pleasant\n  - Traffic, trams: 1, very unpleasant\n  - Plants, flowers: 5, very pleasant\n  - Waste containers: 2, a little unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 4, a little pleasant\n  - Asphalt, stone, concrete: 2, a little unpleasant\n  - Shade from trees or buildings: 5, very pleasant\n  - Direct sun, little shade: 1, very unpleasant\n  - Open space: 4, a little pleasant\n  - Heights, bridges: 3, neither\n  - Car-free zones: 5, very pleasant\n  - Crowds: 1, very unpleasant\n  - Narrow or shared paths: 2, a little unpleasant\n  - Seats: 5, very pleasant\n  - Drinking fountains, toilets: 4, a little pleasant\n  - Steps, slopes: 3, neither\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in English): \"Traffic noise and direct sun wear me out quickly. I like parks with shade and somewhere to sit, and I avoid places where people stand \"close\".\"\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.00 + 1.01 × the average rating other people gave this place + 0.20 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 2.0. The mean of your ratings of the elements in this photo: 3.3. The elements in this photo: Nice buildings; Signs, ads; Food stalls, cafés; Asphalt, stone, concrete; Shade from trees or buildings; Open space; Car-free zones; Crowds; Drinking fountains, toilets.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 1,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "xhat",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 2.8,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 5.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 3, neither\n  - Nice buildings: 3, neither\n  - Signs, ads: 4, a little pleasant\n  - Fountains, water: 4, a little pleasant\n  - Traffic, trams: 2, a little unpleasant\n  - Plants, flowers: 4, a little pleasant\n  - Waste containers: 1, very unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 5, very pleasant\n  - Asphalt, stone, concrete: 3, neither\n  - Shade from trees or buildings: 4, a little pleasant\n  - Direct sun, little shade: 2, a little unpleasant\n  - Open space: 5, very pleasant\n  - Heights, bridges: 1, very unpleasant\n  - Car-free zones: 4, a little pleasant\n  - Crowds: 2, a little unpleasant\n  - Narrow or shared paths: 3, neither\n  - Seats: 4, a little pleasant\n  - Drinking fountains, toilets: 5, very pleasant\n  - Steps, slopes: 2, a little unpleasant\n\nA formula learned from other people's answers predicts that you would rate this place 1.0 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 1,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "f",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 2.8,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 5.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 3, neither\n  - Nice buildings: 3, neither\n  - Signs, ads: 4, a little pleasant\n  - Fountains, water: 4, a little pleasant\n  - Traffic, trams: 2, a little unpleasant\n  - Plants, flowers: 4, a little pleasant\n  - Waste containers: 1, very unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 5, very pleasant\n  - Asphalt, stone, concrete: 3, neither\n  - Shade from trees or buildings: 4, a little pleasant\n  - Direct sun, little shade: 2, a little unpleasant\n  - Open space: 5, very pleasant\n  - Heights, bridges: 1, very unpleasant\n  - Car-free zones: 4, a little pleasant\n  - Crowds: 2, a little unpleasant\n  - Narrow or shared paths: 3, neither\n  - Seats: 4, a little pleasant\n  - Drinking fountains, toilets: 5, very pleasant\n  - Steps, slopes: 2, a little unpleasant\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.00 + 1.01 × the average rating other people gave this place + 0.20 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 2.0. The mean of your ratings of the elements in this photo: 2.8. The elements in this photo: Greenery, trees; Signs, ads; Asphalt, stone, concrete; Direct sun, little shade; Steps, slopes.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 1,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "xhat",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 3.6666666666666665,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 5.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 3, neither\n  - Nice buildings: 3, neither\n  - Signs, ads: 4, a little pleasant\n  - Fountains, water: 4, a little pleasant\n  - Traffic, trams: 2, a little unpleasant\n  - Plants, flowers: 4, a little pleasant\n  - Waste containers: 1, very unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 5, very pleasant\n  - Asphalt, stone, concrete: 3, neither\n  - Shade from trees or buildings: 4, a little pleasant\n  - Direct sun, little shade: 2, a little unpleasant\n  - Open space: 5, very pleasant\n  - Heights, bridges: 1, very unpleasant\n  - Car-free zones: 4, a little pleasant\n  - Crowds: 2, a little unpleasant\n  - Narrow or shared paths: 3, neither\n  - Seats: 4, a little pleasant\n  - Drinking fountains, toilets: 5, very pleasant\n  - Steps, slopes: 2, a little unpleasant\n\nA formula learned from other people's answers predicts that you would rate this place 3.3 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 1,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "f",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 3.6666666666666665,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 5.\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 3, neither\n  - Nice buildings: 3, neither\n  - Signs, ads: 4, a little pleasant\n  - Fountains, water: 4, a little pleasant\n  - Traffic, trams: 2, a little unpleasant\n  - Plants, flowers: 4, a little pleasant\n  - Waste containers: 1, very unpleasant\n  - Food stalls, cafés: 3, neither\n  - Grass, soil: 5, very pleasant\n  - Asphalt, stone, concrete: 3, neither\n  - Shade from trees or buildings: 4, a little pleasant\n  - Direct sun, little shade: 2, a little unpleasant\n  - Open space: 5, very pleasant\n  - Heights, bridges: 1, very unpleasant\n  - Car-free zones: 4, a little pleasant\n  - Crowds: 2, a little unpleasant\n  - Narrow or shared paths: 3, neither\n  - Seats: 4, a little pleasant\n  - Drinking fountains, toilets: 5, very pleasant\n  - Steps, slopes: 2, a little unpleasant\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.40 + 0.65 × the average rating other people gave this place - 0.12 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 3.5. The mean of your ratings of the elements in this photo: 3.7. The elements in this photo: Nice buildings; Signs, ads; Food stalls, cafés; Asphalt, stone, concrete; Shade from trees or buildings; Open space; Car-free zones; Crowds; Drinking fountains, toilets.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 2,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "xhat",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 1.0,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 1, very unpleasant\n  - Traffic, trams: 5, very pleasant\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in Italian): \"Città piena di rumore, è così.\"\n\nA formula learned from other people's answers predicts that you would rate this place 3.3 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 2,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "f",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": 1.0,
+   "s_fallback": false,
+   "expected": "How you experience public spaces, in your own answers:\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 1, very unpleasant\n  - Traffic, trams: 5, very pleasant\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in Italian): \"Città piena di rumore, è così.\"\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.40 + 0.65 × the average rating other people gave this place - 0.12 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 3.5. The mean of your ratings of the elements in this photo: 1.0. The elements in this photo: Greenery, trees; Signs, ads; Asphalt, stone, concrete; Direct sun, little shade; Steps, slopes.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 2,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "xhat",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 3.0,
+   "s_fallback": true,
+   "expected": "How you experience public spaces, in your own answers:\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 1, very unpleasant\n  - Traffic, trams: 5, very pleasant\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in Italian): \"Città piena di rumore, è così.\"\n\nA formula learned from other people's answers predicts that you would rate this place 1.0 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 2,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "f",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": 3.0,
+   "s_fallback": true,
+   "expected": "How you experience public spaces, in your own answers:\n- How pleasant or unpleasant to your senses each of these elements is in outdoor public spaces (1 = very unpleasant … 5 = very pleasant):\n  - Greenery, trees: 1, very unpleasant\n  - Traffic, trams: 5, very pleasant\n- Anything else in public spaces that pleases or bothers your senses, in your own words (quoted exactly as you wrote it, in Italian): \"Città piena di rumore, è così.\"\n\nA formula learned from other people's answers predicts how you would rate a place: rating = 0.00 + 1.01 × the average rating other people gave this place + 0.20 × the mean of your ratings of the elements in this photo, kept between 1 and 5. The average rating other people gave this place: 2.0. The mean of your ratings of the elements in this photo: 3.0. The elements in this photo: Nice buildings; Signs, ads; Food stalls, cafés; Asphalt, stone, concrete; Shade from trees or buildings; Open space; Car-free zones; Crowds; Drinking fountains, toilets.\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 3,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "xhat",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": null,
+   "s_fallback": true,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 3.\n\nA formula learned from other people's answers predicts that you would rate this place 1.0 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 3,
+   "photo": 1,
+   "listed": [
+    "greenery_trees",
+    "signs_ads",
+    "asphalt_stone_concrete",
+    "direct_sun",
+    "steps_slopes"
+   ],
+   "mode": "f",
+   "xhat": 1.04,
+   "coef": {
+    "intercept": -0.004,
+    "others": 1.005,
+    "s": 0.2
+   },
+   "others": 2.0,
+   "s": null,
+   "s_fallback": true,
+   "expected": null
+  },
+  {
+   "profile": 3,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "xhat",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": null,
+   "s_fallback": true,
+   "expected": "How you experience public spaces, in your own answers:\n- How sensory-comfortable you feel spending time in outdoor public spaces in general (1 = not at all … 5 = very much): 3.\n\nA formula learned from other people's answers predicts that you would rate this place 3.3 (on the 1 to 5 scale).\n\nYour general answers are above. Now rate this specific place: it may be easier or harder for you than public spaces in general."
+  },
+  {
+   "profile": 3,
+   "photo": 9,
+   "listed": [
+    "nice_buildings",
+    "signs_ads",
+    "food_stalls_cafes",
+    "asphalt_stone_concrete",
+    "shade",
+    "open_space",
+    "car_free",
+    "crowds",
+    "drinking_fountains_toilets"
+   ],
+   "mode": "f",
+   "xhat": 3.25,
+   "coef": {
+    "intercept": 0.4,
+    "others": 0.65,
+    "s": -0.123
+   },
+   "others": 3.45,
+   "s": null,
+   "s_fallback": true,
+   "expected": null
+  }
+ ]
+}

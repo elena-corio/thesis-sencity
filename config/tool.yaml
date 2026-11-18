@@ -222,3 +222,6 @@ api:
     estimate_call_usd: 0.001     # one model call, only for that estimate (a new photo takes two: presence + rating)
     max_photos_per_request: 3000 # a longer list is refused
     runs_per_hour: 30            # runs with new photos, per IP
+    formula_mode: none           # none | xhat | f: the study's V2, V2 + x̂ or V2 + f (app/formula.py). Both formula modes
+                                 # need others' averages and fitted coefficients, which the app does not have: until
+                                 # then every prediction falls back to none

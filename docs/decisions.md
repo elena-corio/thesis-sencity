@@ -2,6 +2,17 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-18 – The prediction follows the thesis versions; formula_mode none | xhat | f (accepted)
+**Context.** Elena: bring the app's prediction method in line with the thesis: no rounds; the profile, the photo and an optional formula (thesis D159, D161). Phase 0 found the prompt already the study's V0/V2 from the export (system instruction, V2 profile block with its closing line, the v9 task text), and no rounds code: your ratings were never put in a prompt.
+**Decision (Elena).**
+- *Rounds:* nothing to archive. `GROUP` in `lib/myRatings.js` is renamed `MIN_RATINGS` (the ratings needed before "How close" shows); your ratings only show the gap between you and the prediction, never go into a prompt.
+- *Formula texts:* `formula_xhat.txt`, `formula_f.txt` and `formula_rules.json` come with the export (thesis D164, source commit 86491d3), the thesis wording and placement as they are: before the profile's closing line, x̂ to one decimal, halves up. Not retyped here.
+- *Switch:* `senses.formula_mode` in `config/tool.yaml`: none (default), xhat or f; personal predictions only.
+- *Numbers:* the others' average and the formula's coefficients come from two sources (`NoCrowdAverage`, `NoCoefficients` in `app/formula.py`) that return None: the app holds no participant data. With either missing, the mode falls back to none and nothing is said about a formula. x̂ is computed in code from the coefficients, the others' average and s, kept between 1 and 5 (proposed: as the thesis clips the formula's predictions; the thesis gives x̂ itself).
+- *s:* computed in code, never by the model: the unweighted mean of your A12/A13 answers for the photo's listed elements (the presence list); if none of them is answered, the mean of all your answers (as the thesis).
+- *Stamp:* a personal rating's stamp carries the mode it had, so the browser's kept rating is asked again if the mode it would get changes (proposed). If a source ever gives numbers, a change in the numbers alone does not yet make a kept rating stale.
+- *Tests:* the x̂ and f texts against the thesis's own code (`formula_persona_v9`, `s_value`) for the made-up test profiles and made-up numbers (`backend/tests/fixtures/formula_parity.json`); s by hand; the fallback; the request for each mode.
+
 ## 2026-11-18 – The presence step counts people; Crowds at 8 or more (accepted; threshold proposed)
 **Context.** The crowds definition (entry below) changed nothing. Diagnosed in the thesis repo (D158): the presence cache key already holds the prompt version, and the model's raw answer is itself `false` for place04, place10 and place19, so nothing is lost in parsing. Asking for a people count and a spread instead did not help either: the counts separated the photos, but the model called 19 of 20 photos "scattered". Elena: drop the spread; change it in both repos.
 **Decision (Elena; the threshold proposed by Claude).**

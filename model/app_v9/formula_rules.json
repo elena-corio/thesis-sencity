@@ -1,0 +1,27 @@
+{
+  "modes": {
+    "none": null,
+    "xhat": "formula_xhat.txt",
+    "f": "formula_f.txt"
+  },
+  "placement": "V2 only: the profile text without its last paragraph (the closing line), a blank line, the filled formula text, a blank line, then the closing line. none: the profile text unchanged",
+  "decimals": {
+    "xhat": 1,
+    "coef": 2,
+    "others": 1,
+    "s": 1
+  },
+  "rounding": "fixed decimals, halves rounded up (2.25 -> 2.3); never -0.0",
+  "terms": {
+    "others": "the average rating other people gave this place",
+    "s": "the mean of your ratings of the elements in this photo"
+  },
+  "placeholders": {
+    "{XHAT}": "x-hat for this person and photo, decimals.xhat",
+    "{FORMULA}": "'<intercept> <sign> <|others|> × <terms.others> <sign> <|s|> × <terms.s>', each coefficient with decimals.coef, sign + or -",
+    "{OTHERS}": "the average rating other people gave this photo, decimals.others",
+    "{S}": "s: the unweighted mean of the person's A12/A13 answers for the photo's listed elements, decimals.s; if none of them is answered, the mean of all the person's A12/A13 answers",
+    "{ELEMENTS}": "the photo's listed elements, in elements.json order, their en names joined by '; '"
+  },
+  "inputs": "x-hat, the coefficients and the others' average are learned from participants' answers: not exported"
+}

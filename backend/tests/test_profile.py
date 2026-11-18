@@ -122,7 +122,7 @@ def test_with_a_profile_the_system_message_is_the_instruction_a_blank_line_and_t
     ok = photo_events(events, "ok")[0]
     assert events[0]["personal"] is True and ok["result"]["personal"] is True
     assert ok["stamp"] == {"listed": ok["result"]["listed"], "model": export.model["model"], "commit": export.commit,
-                           "prompt": senses_mod.PROMPT_VERSION}
+                           "prompt": senses_mod.PROMPT_VERSION, "formula": "none"}
 
 
 def test_without_a_profile_it_is_the_instruction_alone_and_marked_general(calls, cfg):
@@ -180,8 +180,10 @@ def endpoint(monkeypatch, tmp_path):
     monkeypatch.setitem(main_mod.cfg["senses"], "presence_cache_file", str(tmp_path / "p.json"))
     seen = {}
 
-    def plan(photos, cfg, text=None, stamps=None):
+    def plan(photos, cfg, text=None, stamps=None, formula=None):
         seen.update(text=text, stamps=stamps)
+        if formula is not None:
+            seen["formula"] = formula.mode
         raise senses_mod.PredictionError(418, "stop here")
     monkeypatch.setattr(senses_mod, "plan_rating", plan)
     return TestClient(main_mod.app), seen
@@ -192,13 +194,14 @@ def test_the_endpoint_builds_the_profile_from_the_answers_and_never_logs_it(monk
     body = {"photos": [{"id": PANO, "heading": HEADING}], "profile": {**DEV["answers"], "language": "en"}}
     with caplog.at_level(logging.DEBUG):
         assert client.post("/api/senses/rate", json=body).status_code == 418
-    assert seen["text"] == DEV["expected"] and seen["stamps"] == {}
+    assert seen["text"] == DEV["expected"] and seen["stamps"] == {} and seen["formula"] == "none"
     assert "Traffic noise" not in caplog.text and "greenery" not in caplog.text
+    seen.clear()
     client.post("/api/senses/rate", json={"photos": body["photos"]})
-    assert seen == {"text": None, "stamps": {}}
+    assert seen == {"text": None, "stamps": {}}  # general: no formula plan at all
     stamp = {"listed": ["shade"], "model": "google/m", "commit": "ed963d2", "prompt": "2"}
     client.post("/api/senses/rate", json={**body, "photos": [{"id": PANO, "heading": HEADING, "cached": stamp}]})
-    assert seen["stamps"] == {(PANO, HEADING): stamp}
+    assert seen["stamps"] == {(PANO, HEADING): {**stamp, "formula": "none"}}  # an older stamp: no formula
 
 
 def test_the_endpoint_refuses_answers_that_do_not_fit(monkeypatch, tmp_path):

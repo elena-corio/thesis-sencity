@@ -36,6 +36,7 @@ from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import formula as formula_mod
 from . import photos as photos_mod
 from . import profile as profile_mod
 from . import routes as routes_mod
@@ -343,6 +344,7 @@ class RatingStamp(BaseModel):
     model: str = Field(..., max_length=200)
     commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
     prompt: str = Field("", max_length=20)  # how the app put the request together (senses.PROMPT_VERSION)
+    formula: str = Field("none", pattern="^(none|xhat|f)$")  # the formula paragraph it had (app/formula.py)
 
 
 class SensesPhoto(BaseModel):
@@ -395,7 +397,8 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
             answers = profile_mod.check(body.profile.model_dump(exclude={"language"}), body.profile.language, pe)
             text = profile_mod.build(answers, body.profile.language, pe)
             stamps = {(p.id, round(p.heading, 1)): p.cached.model_dump() for p in body.photos if p.cached}
-        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps)
+        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps,
+                                      formula_mod.plan(cfg["senses"]["formula_mode"], answers) if text else None)
     except profile_mod.ProfileError as e:
         raise HTTPException(422, f"Your sensory profile could not be used: {e}") from None
     except senses_mod.ExportError as e:
