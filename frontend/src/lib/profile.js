@@ -3,6 +3,8 @@
 // The text is built as the server and the study build it (backend/app/profile.py); the tests check both against texts
 // made by the study's own code (src/dev/test-profiles.json).
 
+import { cleanPrepare } from './prepare.js'
+
 export const GRIDS = ['A12', 'A13']
 export const A16_MAX = 2000
 /** The export file: what it is and its format, so an older or foreign file is refused. */
@@ -79,8 +81,15 @@ export async function profileVersion(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 12)
 }
 
-/** What a rating request carries: the answers and the language, never the text (the server builds it). */
-export const requestProfile = (profile) => profile && ({ language: profile.language, ...profile.answers })
+/** The answers a prediction may use: Part A's profile questions only. Anything else kept with the profile (the weather,
+ *  how you prepare for new places, A15) stays on this device and never goes into the model call. */
+export const PROMPT_CODES = ['A11', 'A12', 'A13', 'A16']
+
+/** What a rating request carries: the profile answers and the language, never the text (the server builds it). */
+export const requestProfile = (profile) => profile && ({
+  language: profile.language,
+  ...Object.fromEntries(PROMPT_CODES.filter((c) => c in (profile.answers ?? {})).map((c) => [c, profile.answers[c]])),
+})
 
 /** The file "Download my data" saves. */
 export function exportFile(profile, myRatings = []) {
@@ -94,6 +103,7 @@ export function exportFile(profile, myRatings = []) {
     version: profile.version,
     weather: profile.weather ?? {}, // the Weather step: local only, never in the profile text
     thermal: profile.thermal ?? null, // the starts of hot and cold moved by hand on the profile's bar
+    prepare: profile.prepare ?? null, // how you prepare for new places (lib/prepare.js): local only, never in a prompt
     myRatings, // your own photo ratings, with the prediction shown before each (lib/myRatings.js)
   }
 }
@@ -108,7 +118,9 @@ export function readFile(survey, data) {
   const answers = clean(survey, data.answers)
   if (!complete(survey, answers)) return { error: 'The file does not answer every question the profile needs.' }
   const thermal = data.thermal && typeof data.thermal === 'object' ? data.thermal : null
-  return { answers, language: data.language, weather: data.weather ?? {}, thermal, myRatings: Array.isArray(data.myRatings) ? data.myRatings : [] }
+  const prepare = survey.prepare && data.prepare ? cleanPrepare(survey.prepare, data.prepare) : null
+  return { answers, language: data.language, weather: data.weather ?? {}, thermal, prepare,
+    myRatings: Array.isArray(data.myRatings) ? data.myRatings : [] }
 }
 
 /** The elements as bothers / feels good, strongest first (board 5, "Strongest for you"): 1–2 bother, 4–5 feel good. */

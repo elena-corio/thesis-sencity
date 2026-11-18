@@ -122,7 +122,7 @@ def test_with_a_profile_the_system_message_is_the_instruction_a_blank_line_and_t
     ok = photo_events(events, "ok")[0]
     assert events[0]["personal"] is True and ok["result"]["personal"] is True
     assert ok["stamp"] == {"listed": ok["result"]["listed"], "model": export.model["model"], "commit": export.commit,
-                           "prompt": senses_mod.PROMPT_VERSION}
+                           "prompt": senses_mod.PROMPT_VERSION, "formula": "none"}
 
 
 def test_without_a_profile_it_is_the_instruction_alone_and_marked_general(calls, cfg):
@@ -180,8 +180,10 @@ def endpoint(monkeypatch, tmp_path):
     monkeypatch.setitem(main_mod.cfg["senses"], "presence_cache_file", str(tmp_path / "p.json"))
     seen = {}
 
-    def plan(photos, cfg, text=None, stamps=None):
+    def plan(photos, cfg, text=None, stamps=None, formula=None):
         seen.update(text=text, stamps=stamps)
+        if formula is not None:
+            seen["formula"] = formula.mode
         raise senses_mod.PredictionError(418, "stop here")
     monkeypatch.setattr(senses_mod, "plan_rating", plan)
     return TestClient(main_mod.app), seen
@@ -192,13 +194,14 @@ def test_the_endpoint_builds_the_profile_from_the_answers_and_never_logs_it(monk
     body = {"photos": [{"id": PANO, "heading": HEADING}], "profile": {**DEV["answers"], "language": "en"}}
     with caplog.at_level(logging.DEBUG):
         assert client.post("/api/senses/rate", json=body).status_code == 418
-    assert seen["text"] == DEV["expected"] and seen["stamps"] == {}
+    assert seen["text"] == DEV["expected"] and seen["stamps"] == {} and seen["formula"] == "none"
     assert "Traffic noise" not in caplog.text and "greenery" not in caplog.text
+    seen.clear()
     client.post("/api/senses/rate", json={"photos": body["photos"]})
-    assert seen == {"text": None, "stamps": {}}
+    assert seen == {"text": None, "stamps": {}}  # general: no formula plan at all
     stamp = {"listed": ["shade"], "model": "google/m", "commit": "ed963d2", "prompt": "2"}
     client.post("/api/senses/rate", json={**body, "photos": [{"id": PANO, "heading": HEADING, "cached": stamp}]})
-    assert seen["stamps"] == {(PANO, HEADING): stamp}
+    assert seen["stamps"] == {(PANO, HEADING): {**stamp, "formula": "none"}}  # an older stamp: no formula
 
 
 def test_the_endpoint_refuses_answers_that_do_not_fit(monkeypatch, tmp_path):
@@ -271,3 +274,17 @@ def test_the_v2_parity_fixture_uses_the_study_list_of_its_photo():
     place = next(p for p in STUDY_LISTS["places"] if p["place"] == PARITY["photo"])
     order = list(load_export().elements)
     assert PARITY["listed"] == [c for c in order if c in place["elements"]]
+
+
+def test_a15_and_anything_else_never_reach_the_prompt(monkeypatch, tmp_path, pe):
+    """Only A11, A12, A13 and A16 make the profile text; a request with A15 (or another field) is refused, so it is
+    never put in a model call (Elena: A15 is for the app only)."""
+    client, seen = endpoint(monkeypatch, tmp_path)
+    photos = [{"id": PANO, "heading": HEADING}]
+    for extra in ({"A15": 4}, {"prepare": {"route_alternatives": 5}}, {"weather": {"hot": 2}}):
+        res = client.post("/api/senses/rate", json={"photos": photos, "profile": {**DEV["answers"], **extra, "language": "en"}})
+        assert res.status_code == 422
+    assert seen == {}
+    # The text is built from the four questions only, whatever else the answers hold.
+    assert profile_mod.build({**DEV["answers"], "A15": 4}, "en", pe) == DEV["expected"]
+    assert "A15" not in DEV["expected"] and "unknown place" not in DEV["expected"]

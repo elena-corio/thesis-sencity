@@ -177,6 +177,7 @@
   --score-h: 40px;
   --score-h-phone: 44px;
   --progress-h: 6px;               /* the onboarding progress bar */
+  --checkbox-size: 20px;           /* a tick box or radio in a list of options (How you prepare for new places) */
   --answer-text-h: 140px;          /* the open answer (A16) */
   --profile-side-w: 480px;         /* the right card of the profile */
   --profile-main-w: 640px;         /* the answers column */

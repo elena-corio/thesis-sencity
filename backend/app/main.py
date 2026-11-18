@@ -29,14 +29,16 @@ import requests
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from tool.config import load_config, photo_source
 from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import formula as formula_mod
 from . import photos as photos_mod
+from . import prepare as prepare_mod
 from . import profile as profile_mod
 from . import routes as routes_mod
 from . import search as search_mod
@@ -343,6 +345,7 @@ class RatingStamp(BaseModel):
     model: str = Field(..., max_length=200)
     commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
     prompt: str = Field("", max_length=20)  # how the app put the request together (senses.PROMPT_VERSION)
+    formula: str = Field("none", pattern="^(none|(xhat|f):[0-9a-f]{12})$")  # the formula it had: mode and numbers' hash
 
 
 class SensesPhoto(BaseModel):
@@ -352,7 +355,9 @@ class SensesPhoto(BaseModel):
 
 
 class ProfileAnswers(BaseModel):
-    """Your answers to Part A (part_a.json), checked against it in app/profile.py. Never logged or stored."""
+    """Your answers to Part A (part_a.json), checked against it in app/profile.py. Never logged or stored. Only the
+    questions the profile text uses: anything else (A15, how you prepare for new places) is refused, never prompted."""
+    model_config = ConfigDict(extra="forbid")
     language: str = Field(..., pattern="^(en|it)$")
     A11: int = Field(..., ge=1, le=5)
     A12: dict[str, int] = Field(..., max_length=20)
@@ -368,12 +373,16 @@ class SensesRateRequest(BaseModel):
 @app.get("/api/profile/survey")
 def profile_survey() -> dict:
     """The onboarding (part_a.json, each element with its sense icon) and the profile template with its fixed words,
-    so the browser builds and shows the same text as the server."""
+    so the browser builds and shows the same text as the server; and the optional step about new places
+    (config/prepare.json). Nothing personal."""
     try:
-        return profile_mod.survey(profile_mod.load())
+        return {**profile_mod.survey(profile_mod.load()), "prepare": prepare_mod.load()}
     except senses_mod.ExportError as e:
         log.warning("profile: the export cannot be used")
         raise HTTPException(503, f"The survey cannot be loaded. {e}") from None
+    except prepare_mod.PrepareError as e:
+        log.warning("profile: config/prepare.json cannot be used")
+        raise HTTPException(503, f"The questions about new places cannot be loaded. {e}") from None
 
 
 @app.post("/api/senses/rate")
@@ -395,7 +404,8 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
             answers = profile_mod.check(body.profile.model_dump(exclude={"language"}), body.profile.language, pe)
             text = profile_mod.build(answers, body.profile.language, pe)
             stamps = {(p.id, round(p.heading, 1)): p.cached.model_dump() for p in body.photos if p.cached}
-        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps)
+        plan = senses_mod.plan_rating(photos, cfg["senses"], text, stamps,
+                                      formula_mod.plan(cfg["senses"]["formula_mode"], answers) if text else None)
     except profile_mod.ProfileError as e:
         raise HTTPException(422, f"Your sensory profile could not be used: {e}") from None
     except senses_mod.ExportError as e:

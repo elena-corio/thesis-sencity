@@ -1,0 +1,1 @@
+A formula learned from other people's answers predicts how you would rate a place: rating = {FORMULA}, kept between 1 and 5. The average rating other people gave this place: {OTHERS}. The mean of your ratings of the elements in this photo: {S}. The elements in this photo: {ELEMENTS}.

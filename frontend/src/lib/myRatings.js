@@ -5,7 +5,7 @@
 // Stored under its own key: `sencity-ratings` is the cache of the model's personal predictions (lib/personalRatings.js).
 
 export const MY_RATINGS_KEY = 'sencity-my-ratings'
-export const GROUP = 4 // ratings before "how close" shows: the study's rounds
+export const MIN_RATINGS = 4 // ratings with a prediction before "how close" shows (how far predictions can be trusted for you)
 /** "Something else?": at most this many characters, like the survey's "Other". */
 export const OTHER_MAX = 150
 const MARKS = { pleasant: ['pleasant'], unpleasant: ['unpleasant'] }
@@ -71,7 +71,7 @@ export function addRating({ photo, B1, prediction, from, at = new Date().toISOSt
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     photo: { id: String(photo.id), heading: photo.heading ?? null, source: photo.source ?? null }, // the ID only, never the image
     // B2: the chips ticked after rating, as the study stores B2; B2_other: "Something else?", in this browser only, never
-    // sent to a model (the study's "Other" is not shown in its examples either).
+    // sent to a model (as the study's "Other"). Your ratings are never put in a prompt: they only show the gap to the prediction.
     rating: { B1, B2: null, B2_other: null },
     prediction: prediction ?? null,
     at,
@@ -118,11 +118,11 @@ export function latestFor(photoId, storage = store()) {
 
 /**
  * How close SenCity is to you: from the ratings with a prediction only. { n, gap (mean |prediction − you|), within1
- * (share within 1 point) }. n < GROUP: not enough yet.
+ * (share within 1 point) }. n < MIN_RATINGS: not enough yet.
  */
 export function closeness(entries) {
   const withP = entries.filter((e) => e.prediction)
   const gaps = withP.map((e) => Math.abs(e.prediction.B1 - e.rating.B1))
   const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null)
-  return { n: withP.length, gap: mean(gaps), within1: gaps.length ? gaps.filter((x) => x <= 1).length / gaps.length : null, enough: withP.length >= GROUP }
+  return { n: withP.length, gap: mean(gaps), within1: gaps.length ? gaps.filter((x) => x <= 1).length / gaps.length : null, enough: withP.length >= MIN_RATINGS }
 }

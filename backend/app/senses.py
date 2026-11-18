@@ -579,13 +579,16 @@ class Plan:
     api_key: str | None
     profile: str | None = None  # the filled profile text (V2), or None (V0); never logged or stored
     kept: tuple = ()  # personal: [(photo_id, heading, listed)] the browser already has, still valid ("keep")
+    formula: object = None  # personal: app/formula.FormulaPlan (the optional V2 + x̂ / V2 + f paragraph), else None
 
 
-def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dict | None = None) -> Plan:
+def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dict | None = None,
+                formula=None) -> Plan:
     """Split the photos into cached and new. Nothing is paid for here. Raises ExportError or PredictionError.
     General (profile None): the server cache answers what it has. Personal: nothing is looked up in it; a photo whose
     browser stamp ({listed, model, commit}, in `stamps` by (photo_id, heading)) still matches its presence list, the
-    model and the export is kept by the browser, every other one is new."""
+    model and the export (and the formula this photo gets now: its mode and a hash of its numbers) is kept by the
+    browser, every other one is new."""
     export = load_export()
     model = export.model["model"]
     with _cache_lock:
@@ -608,7 +611,8 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
             stamp = (stamps or {}).get((photo_id, heading))
             listed = present(photo_id, heading)
             if (stamp and listed is not None and stamp.get("model") == model and stamp.get("commit") == export.commit
-                    and stamp.get("prompt") == PROMPT_VERSION and list(stamp.get("listed") or []) == listed):
+                    and stamp.get("prompt") == PROMPT_VERSION and list(stamp.get("listed") or []) == listed
+                    and stamp.get("formula", "none") == (formula.key_for(photo_id, heading) if formula else "none")):
                 kept.append((photo_id, heading, listed))
             else:
                 new.append((photo_id, heading))
@@ -627,7 +631,7 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
         if listed is not None:
             known[photo] = listed
     return Plan(export, cached, to_rate, max(0, len(new) - cap), known, _api_key() if new else None, profile or None,
-                tuple(kept))
+                tuple(kept), formula if profile else None)
 
 
 def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
@@ -678,14 +682,19 @@ def rate_one(plan: Plan, photo_id: str, heading: float, cfg: dict, provider) -> 
                      "latency_ms": round((time.perf_counter() - presence_started) * 1000),
                      "cost_usd": sum(costs) if costs else None})
 
+    profile, mode = plan.profile, "none"
+    if profile and plan.formula is not None:  # V2 + x̂ / V2 + f when its numbers exist (app/formula.py), else plain V2
+        labels = {c: e["en"] for c, e in export.elements.items()}
+        mode, profile = plan.formula.profile_for(profile, photo_id, heading, listed, labels)
     try:
-        output = _ask(build_request(export, data_url, listed, plan.profile), plan.api_key, cfg,
+        output = _ask(build_request(export, data_url, listed, profile), plan.api_key, cfg,
                       lambda t: parse_reply(export, listed, t), costs, "rating")
     except PredictionError as e:
         e.cost = sum(costs)
         raise
-    return {"output": output, "listed": listed, "model": model, "prompt": PROMPT_VERSION,
-            "latency_ms": round((time.perf_counter() - started) * 1000), "cost_usd": sum(costs) if costs else None}
+    entry = {"output": output, "listed": listed, "model": model, "prompt": PROMPT_VERSION,
+             "latency_ms": round((time.perf_counter() - started) * 1000), "cost_usd": sum(costs) if costs else None}
+    return {**entry, "formula": mode} if plan.profile else entry  # personal only: relayed, never cached
 
 
 def rate_events(plan: Plan, cfg: dict, provider):
@@ -736,7 +745,7 @@ def rate_events(plan: Plan, cfg: dict, provider):
             if personal:  # relayed, never kept: the stamp lets the browser keep it and ask for "keep" next time
                 yield {**base, **image, "status": "ok", "result": result, "cost_usd": entry["cost_usd"],
                        "stamp": {"listed": list(entry["listed"]), "model": model, "commit": export.commit,
-                                 "prompt": PROMPT_VERSION}}
+                                 "prompt": PROMPT_VERSION, "formula": entry.get("formula", "none")}}
                 continue
             _save_cache(path, cache_key(photo_id, heading, model, export.commit), entry)
             yield {**base, **image, "status": "ok", "result": result, "cost_usd": entry["cost_usd"]}

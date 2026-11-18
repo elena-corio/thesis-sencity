@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GROUP, MY_RATINGS_KEY, OTHER_MAX, addRating, allRatings, b2From, clearRatings, closeness, latestFor, nextTick, predictionOf, setRatings, tickOf, updateRating } from './myRatings.js'
+import { MIN_RATINGS, MY_RATINGS_KEY, OTHER_MAX, addRating, allRatings, b2From, clearRatings, closeness, latestFor, nextTick, predictionOf, setRatings, tickOf, updateRating } from './myRatings.js'
 
 function fakeStorage() {
   const m = new Map()
@@ -62,7 +62,7 @@ describe('how close SenCity is to you', () => {
     expect(c.enough).toBe(true)
   })
   it('says not enough under 4 ratings with a prediction', () => {
-    expect(GROUP).toBe(4)
+    expect(MIN_RATINGS).toBe(4)
     expect(closeness(FIXTURE.slice(0, 3)).enough).toBe(false)
     expect(closeness([]).gap).toBe(null)
   })
