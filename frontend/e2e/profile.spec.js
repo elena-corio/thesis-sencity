@@ -138,6 +138,9 @@ test.describe('your sensory profile', () => {
     await choose(page, 'weather-wind', 2)
     await page.screenshot({ path: 'e2e/screens/profile-weather-dark.png' })
     await ob.getByRole('button', { name: 'Save your profile' }).click()
+    // Then the optional step about new places (its own test is on a phone): skipped here.
+    await expect(page.getByTestId('prepare-step')).toHaveText('Question 1 of 4 · optional')
+    await page.getByRole('button', { name: 'Skip these questions' }).click()
 
     // 5: the profile. Its text is the study's, word for word; the version is the server's.
     const summary = page.locator('[data-panel="profile-summary"]')
@@ -495,7 +498,39 @@ test.describe('your sensory profile on a phone', () => {
     }
     const text = titles.join(' ').toLowerCase()
     for (const word of ['age', 'gender', 'health', 'diagnos', 'condition', 'education', 'district', 'persona'])
-      expect(text).not.toMatch(new RegExp(`\b${word}`))
+      expect(text).not.toMatch(new RegExp(`\\b${word}`))
+    // How you prepare for new places: optional, one question per screen, kept with the profile at once.
+    const pstep = page.getByTestId('prepare-step')
+    const tick = (code) => page.locator(`[data-option="${code}"]`).click()
+    await expect(pstep).toHaveText('Question 1 of 4 · optional')
+    await expect(page.locator('[data-panel="prepare"] h2')).toHaveText("How comfortable do you feel going to a place you don't know?")
+    await shot('11-prepare-q1')
+    await choose(page, 'prepare-Q1', 2)
+    await page.getByRole('button', { name: 'Next' }).click()
+    await tick('look_at_photos')
+    await tick('calmer_route')
+    await tick('dont_prepare') // exclusive: clears the others
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))).prepare.Q2.ticked).toEqual(['dont_prepare'])
+    await tick('look_at_photos') // and another clears it
+    await tick('rest_places')
+    await tick('other')
+    await page.getByTestId('prepare-other').fill('I check the toilets')
+    expect(Math.min(...await page.locator('[data-panel="prepare"] .option').evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().height)))).toBeGreaterThanOrEqual(44)
+    expect(await layoutProblems(page)).toEqual([])
+    await shot('12-prepare-q2')
+    await page.getByRole('button', { name: 'Next' }).click()
+    await tick('often')
+    await shot('13-prepare-q3')
+    await page.getByRole('button', { name: 'Next' }).click() // Q4 left out: every question is optional
+    await shot('14-prepare-q4')
+    await page.getByRole('button', { name: 'Done' }).click()
+    const prep = (await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))).prepare
+    expect(prep).toEqual({ Q1: 2, Q2: { ticked: ['look_at_photos', 'rest_places', 'other'], other: 'I check the toilets' },
+      Q3: 'often', Q4: { ticked: [], other: '' } })
+    await expect(page.getByTestId('answer-prepare-Q2')).toContainText('Look at photos of the place; Know where I can rest or step away; Other: I check the toilets')
+    await expect(page.getByTestId('answer-prepare-Q4')).toContainText('Not answered')
+
     // "Your profile": view, edit and delete.
     await expect(page.getByRole('button', { name: 'Edit answers' })).toBeVisible()
     await shot('8-your-profile')

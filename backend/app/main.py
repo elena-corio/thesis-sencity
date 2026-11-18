@@ -38,6 +38,7 @@ from tool.infrared import km_between
 from . import area as area_mod
 from . import formula as formula_mod
 from . import photos as photos_mod
+from . import prepare as prepare_mod
 from . import profile as profile_mod
 from . import routes as routes_mod
 from . import search as search_mod
@@ -372,12 +373,16 @@ class SensesRateRequest(BaseModel):
 @app.get("/api/profile/survey")
 def profile_survey() -> dict:
     """The onboarding (part_a.json, each element with its sense icon) and the profile template with its fixed words,
-    so the browser builds and shows the same text as the server."""
+    so the browser builds and shows the same text as the server; and the optional step about new places
+    (config/prepare.json). Nothing personal."""
     try:
-        return profile_mod.survey(profile_mod.load())
+        return {**profile_mod.survey(profile_mod.load()), "prepare": prepare_mod.load()}
     except senses_mod.ExportError as e:
         log.warning("profile: the export cannot be used")
         raise HTTPException(503, f"The survey cannot be loaded. {e}") from None
+    except prepare_mod.PrepareError as e:
+        log.warning("profile: config/prepare.json cannot be used")
+        raise HTTPException(503, f"The questions about new places cannot be loaded. {e}") from None
 
 
 @app.post("/api/senses/rate")

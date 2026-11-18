@@ -18,6 +18,7 @@ const SURVEY = {
     scale_words_en: rules.scale_words_en,
     languages: { en: 'English', it: 'Italian' },
   },
+  prepare: JSON.parse(readFileSync(new URL('../../../config/prepare.json', import.meta.url), 'utf-8')),
 }
 vi.mock('../lib/api.js', () => ({ loadSurvey: async () => SURVEY }))
 
@@ -109,6 +110,54 @@ describe('your profile on this device', () => {
     expect(store.personal).toBe(false)
     expect(globalThis.localStorage.length).toBe(0)
     expect(fresh().profile).toBe(null)
+  })
+})
+
+describe('how you prepare for new places', () => {
+  it('opens after a new profile, keeps each answer at once, and closes', async () => {
+    const store = fresh()
+    await onboard(store, DEV.answers)
+    expect(store.preparing).toEqual({ step: 0 })
+    store.setPrepare('Q1', 2)
+    store.setPrepare('Q3', 'often')
+    expect(stored(SAVED_KEY).prepare).toMatchObject({ Q1: 2, Q3: 'often' })
+    expect(store.profile.text).toBe(DEV.expected) // not part of the profile text
+    store.endPrepare()
+    expect(store.preparing).toBe(null)
+    expect(fresh().profile.prepare.Q3).toBe('often') // kept for the next visit
+  })
+
+  it('does not open after an edit, and stays when the profile is built again', async () => {
+    const store = fresh()
+    await onboard(store, DEV.answers)
+    store.setPrepare('Q1', 4)
+    store.endPrepare()
+    store.begin(2)
+    store.answer('A12', 1, 'greenery_trees')
+    await store.finish()
+    expect(store.preparing).toBe(null)
+    expect(store.profile.prepare.Q1).toBe(4)
+  })
+
+  it('goes with download and import, and with delete', async () => {
+    const store = fresh()
+    await onboard(store, DEV.answers)
+    store.setPrepare('Q2', { ticked: ['calmer_route'], other: '' })
+    const file = JSON.parse(JSON.stringify(store.fileData()))
+    expect(file.prepare.Q2.ticked).toEqual(['calmer_route'])
+    store.deleteAll()
+    expect(globalThis.localStorage.length).toBe(0)
+    expect(await store.importData(file)).toBe('')
+    expect(store.profile.prepare.Q2.ticked).toEqual(['calmer_route'])
+  })
+
+  it('never goes into a prediction', async () => {
+    const store = fresh()
+    await onboard(store, DEV.answers)
+    store.setPrepare('Q1', 1)
+    store.setPrepare('Q4', { ticked: ['leave_earlier'], other: '' })
+    const sent = JSON.stringify(requestProfile(store.profile))
+    expect(sent).not.toMatch(/Q1|Q4|prepare|leave_earlier/)
   })
 })
 

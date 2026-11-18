@@ -16,6 +16,7 @@ import { standardLimits } from '../lib/thermal.js'
 import { WEATHER } from '../lib/weather.js'
 import SenseIcon from './SenseIcon.vue'
 import HowLink from './HowLink.vue'
+import { anyAnswered, answerText } from '../lib/prepare.js'
 
 defineProps({ error: { type: String, default: '' } })
 const emit = defineEmits(['map', 'download', 'import', 'delete'])
@@ -32,6 +33,9 @@ const saved = computed(() => new Date(p.value.saved).toLocaleDateString('en-GB',
 const edit = (code) => store.begin(STEPS.indexOf(code))
 const limits = computed(() => store.limits ?? standardLimits())
 const moved = computed(() => !!p.value.thermal)
+// How you prepare for new places (config/prepare.json): optional, kept with the profile, never sent to the model.
+const prep = computed(() => survey.value.prepare ?? null)
+const prepStarted = computed(() => anyAnswered(prep.value, p.value.prepare))
 
 // The overall comfort bar can be dragged too (Elena, 2026-11-15): it snaps to 1–5 and saves A11 when let go (or on
 // each arrow key); the profile is built again, so ratings made with it before become "from your earlier profile".
@@ -149,6 +153,21 @@ function a11Key(e) {
       </ul>
       <p v-else class="muted">Nothing stands out: every element is in the middle.</p>
 
+      <template v-if="prep">
+        <div class="card-head">
+          <h3>{{ prep.title.en }}</h3>
+          <button type="button" class="edit" :aria-label="`${prepStarted ? 'Edit' : 'Answer'}: ${prep.title.en}`"
+                  @click="store.startPrepare(0)">{{ prepStarted ? 'Edit' : 'Answer' }}</button>
+        </div>
+        <ul v-if="prepStarted" class="prepare" data-testid="answers-prepare">
+          <li v-for="pq in prep.questions" :key="pq.code" :data-testid="`answer-prepare-${pq.code}`">
+            <span class="muted">{{ pq.title.en }}</span>
+            <span>{{ answerText(prep, p.prepare, pq.code) || 'Not answered' }}</span>
+          </li>
+        </ul>
+        <p v-else class="muted" data-testid="answers-prepare-empty">Optional, four short questions. Never sent to the model.</p>
+      </template>
+
       <div class="buttons">
         <button type="button" class="btn" @click="store.begin(1)">Edit answers</button>
         <button type="button" class="btn btn-primary" @click="emit('map')">Go to map</button>
@@ -221,6 +240,8 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .side { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
 .words { padding: var(--space-3) var(--space-4); border-radius: var(--radius-btn); background: var(--ground); white-space: pre-wrap; overflow-wrap: anywhere; }
 .muted { color: var(--text-muted); font-size: var(--fs-sm); }
+.prepare { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+.prepare li { display: flex; flex-direction: column; gap: var(--space-1); }
 .top li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
 .dot { width: var(--space-3); height: var(--space-3); border-radius: 50%; }
 .dot.bothers { background: var(--hard); }

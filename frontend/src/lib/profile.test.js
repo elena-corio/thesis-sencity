@@ -80,7 +80,7 @@ describe('the export file', () => {
   it('round-trips', () => {
     const file = JSON.parse(JSON.stringify(exportFile(profile)))
     expect(file.profile).toBe(DEV.expected)
-    expect(readFile(survey, file)).toEqual({ answers: clean(survey, DEV.answers), language: 'en', weather: {}, thermal: null, myRatings: [] })
+    expect(readFile(survey, file)).toEqual({ answers: clean(survey, DEV.answers), language: 'en', weather: {}, thermal: null, prepare: null, myRatings: [] })
   })
 
   it('refuses other files and incomplete answers', () => {

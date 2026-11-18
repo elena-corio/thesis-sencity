@@ -344,6 +344,8 @@ export const SURVEY = {
     scale_words_en: surveyRules.scale_words_en,
     languages: { en: 'English', it: 'Italian' },
   },
+  // How you prepare for new places: the optional step after the profile (config/prepare.json).
+  prepare: JSON.parse(readFileSync(new URL('../../config/prepare.json', import.meta.url), 'utf-8')),
 }
 /** The made-up profiles of the tests, with the study's own texts (src/dev/test-profiles.json). */
 export const TEST_PROFILES = JSON.parse(readFileSync(new URL('../src/dev/test-profiles.json', import.meta.url), 'utf-8'))

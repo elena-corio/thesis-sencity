@@ -6,6 +6,7 @@ import * as personalRatings from '../lib/personalRatings.js'
 import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile } from '../lib/profile.js'
 import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '../lib/thermal.js'
 import { cleanWeather } from '../lib/weather.js'
+import { cleanPrepare, emptyPrepare } from '../lib/prepare.js'
 import { allRatings, clearRatings, setRatings } from '../lib/myRatings.js'
 import { useHelpStore } from './help.js'
 
@@ -101,14 +102,15 @@ export const useProfileStore = defineStore('profile', () => {
     return loading
   }
 
-  async function save(answers, language, weather = profile.value?.weather ?? {}, thermal = profile.value?.thermal ?? null) {
+  async function save(answers, language, weather = profile.value?.weather ?? {}, thermal = profile.value?.thermal ?? null,
+    prepare = profile.value?.prepare ?? null) {
     const s = await ensureSurvey()
     if (!s) return false
     const a = clean(s, answers)
     if (!complete(s, a)) return false
     const text = buildProfile(s, a, language)
     profile.value = { language, answers: a, text, version: await profileVersion(text), saved: new Date().toISOString(),
-      weather: cleanWeather(weather), thermal: cleanThermal(thermal) }
+      weather: cleanWeather(weather), thermal: cleanThermal(thermal), prepare: prepare ? cleanPrepare(s.prepare, prepare) : null }
     write(SAVED_KEY, profile.value)
     personalRatings.keepOnly(profile.value.version) // ratings made with an earlier version are not used again
     return true
@@ -174,15 +176,40 @@ export const useProfileStore = defineStore('profile', () => {
     else draft.value.answers[code] = value
     write(DRAFT_KEY, draft.value)
   }
-  /** Finish the onboarding (or an edit): build and save the profile. */
+  // How you prepare for new places (optional, after the profile; lib/prepare.js): each answer is kept at once with the
+  // profile, so leaving halfway loses nothing. `preparing`: the question shown ({ step }), or null when the step is closed.
+  const preparing = ref(null)
+  function startPrepare(step = 0) {
+    if (!profile.value) return
+    preparing.value = { step }
+    ensureSurvey()
+  }
+  function prepareStep(step) {
+    if (preparing.value) preparing.value = { step }
+  }
+  function endPrepare() {
+    preparing.value = null
+  }
+  /** One answer of the step (Q1–Q4), saved with the profile. */
+  function setPrepare(code, value) {
+    const p = profile.value
+    if (!p || !survey.value?.prepare) return
+    const next = cleanPrepare(survey.value.prepare, { ...(p.prepare ?? emptyPrepare()), [code]: value })
+    profile.value = { ...p, prepare: next }
+    write(SAVED_KEY, profile.value)
+  }
+
+  /** Finish the onboarding (or an edit): build and save the profile. A new profile goes on to the optional step. */
   async function finish() {
     if (!draft.value) return false
     const before = profile.value
+    const isNew = !draft.value.editing
     const weather = cleanWeather(draft.value.weather)
     // New weather answers: the bar follows them again (a start moved by hand goes back to the answers).
     const sameWeather = before && JSON.stringify(cleanWeather(before.weather)) === JSON.stringify(weather)
     const ok = await save(draft.value.answers, config.language, weather, sameWeather ? before.thermal : null)
     if (ok) discardDraft()
+    if (ok && isNew && survey.value?.prepare) startPrepare(0)
     return ok
   }
   function discardDraft() {
@@ -192,6 +219,7 @@ export const useProfileStore = defineStore('profile', () => {
 
   /** "Delete my profile": answers, text, draft, consent and the personal ratings; "not personalised yet" again. */
   function deleteAll() {
+    preparing.value = null
     profile.value = null
     draft.value = null
     consent.value = null
@@ -211,7 +239,7 @@ export const useProfileStore = defineStore('profile', () => {
     if (!s) return surveyError.value
     const read = readFile(s, data)
     if (read.error) return read.error
-    await save(read.answers, read.language, read.weather ?? {}, read.thermal ?? null)
+    await save(read.answers, read.language, read.weather ?? {}, read.thermal ?? null, read.prepare ?? null)
     setRatings(read.myRatings) // the file's own ratings replace this browser's
     discardDraft()
     return ''
@@ -228,5 +256,6 @@ export const useProfileStore = defineStore('profile', () => {
 
   return { survey, surveyStatus, surveyError, profile, draft, personal, version, consented, consentFor, askingConsent, agree,
     decline, ensureSurvey, begin, setStep, answer, limits, setStart, resetStarts, setAnswer,
-    finish, discardDraft, deleteAll, fileData, importData, loadTestProfile }
+    finish, discardDraft, deleteAll, fileData, importData, loadTestProfile,
+    preparing, startPrepare, prepareStep, endPrepare, setPrepare }
 })

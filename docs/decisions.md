@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-18 – How you prepare for new places: an optional step after the profile (accepted; details proposed)
+**Context.** Elena: after the profile, an optional step with A15 (comfort going to a place you don't know) and the coping and preparation questions, stored with the profile, able to shape what the app shows, never in the prediction prompt. The search found A15 in the current thesis codebook (tool-only) and older coping items in the pilot 1 and 2 codebooks, but not the v3.1 preparation question; Elena then gave the wording.
+**Decision (Elena).**
+- *Questions (English only):* Q1 = A15, title and 1/5 labels word for word from the thesis codebook (its help line, "This question is not about the photos", left out: there are no photos in this step; proposed). Q2 "How do you usually prepare before going somewhere new?" (tick any), Q3 "How often do places feel too much for your senses?" (one of six), Q4 "When a place feels too much, what helps you?" (tick any; "Nothing really helps" exclusive). "I don't usually prepare" is exclusive too (proposed). "Other" opens a short text (150 characters), kept only with Other ticked.
+- *File (Elena):* `config/prepare.json`, app-owned, not in the thesis export: the questions and, per Q2 option, what the app or a chatbot can offer (place card photo; crowds and traffic and quieter alternatives; best time of day if known; the Senses route comparison; nearby seats, shade, toilets, drinking fountains; a take-with-you tip; share the place card; a short summary only). The API serves it with the survey; `app/prepare.py` checks it and has `offers_for` for a chatbot.
+- *Flow (proposed):* it opens right after a new profile is saved (not after an edit), one question per screen, "Question n of 4 · optional", Back, Next, Done and "Skip these questions"; every question can be left out. "Your profile" lists the answers with Edit (or Answer).
+- *Storage:* `profile.prepare` beside the weather, saved at each answer; in download and import; gone with "Delete my profile". Never in a rating request: the browser sends only A11, A12, A13 and A16, and the API refuses any other field.
+- Nothing uses the offers yet: what the app shows first from them is a later step.
+
 ## 2026-11-18 – Your profile checked against the onboarding list; only the four profile questions reach a prediction (accepted)
 **Context.** Elena (phase 2): the onboarding from Part A (A11; A12 and A13, one grid per screen; A16 optional), no attention-check rows, no background or health questions, phone first; "Your profile" to view, edit and delete; stored on the device; editing changes the next predictions; A15 never in the prompt.
 **Found.** All of it was already built (2026-11-15). The onboarding also has the app's own Weather step (for the personal Thermal limits, kept apart from the answers) and a consent screen first.

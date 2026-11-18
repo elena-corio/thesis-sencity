@@ -1,0 +1,72 @@
+{
+  "about": "The optional onboarding step after the profile (Elena, 2026-11-18): how you prepare for new places. English only. Stored with your profile on this device; it may shape what the app shows first, and is never sent to the model or put in a prompt. Q1 is A15 of the thesis codebook (config/codebook_2026-11-12.yaml in thesis-personas, a tool-only question), title and labels word for word; Q2-Q4 are Elena's. `offers` maps each Q2 option to what the app (or a chatbot) can offer.",
+  "title": { "en": "How you prepare for new places" },
+  "note": { "en": "Optional. Kept on this device with your profile, so SenCity can show first what helps you. Never sent to the model." },
+  "other_max": 150,
+  "questions": [
+    {
+      "code": "Q1",
+      "source": "A15",
+      "type": "scale_1_5",
+      "title": { "en": "How comfortable do you feel going to a place you don't know?" },
+      "labels": { "1": { "en": "Not at all" }, "5": { "en": "Very much" } }
+    },
+    {
+      "code": "Q2",
+      "type": "multi",
+      "title": { "en": "How do you usually prepare before going somewhere new?" },
+      "help": { "en": "Tick any." },
+      "options": [
+        { "code": "look_at_photos", "en": "Look at photos of the place", "offers": ["place_photo"] },
+        { "code": "check_busy", "en": "Check how busy it usually is", "offers": ["crowds_quieter"] },
+        { "code": "quieter_time", "en": "Choose a quieter time to go", "offers": ["best_time"] },
+        { "code": "calmer_route", "en": "Plan a calmer route", "offers": ["route_senses"] },
+        { "code": "rest_places", "en": "Know where I can rest or step away", "offers": ["rest_places"] },
+        { "code": "bring_something", "en": "Bring something that helps (headphones, sunglasses, water)", "offers": ["take_with_you"] },
+        { "code": "go_with_someone", "en": "Go with someone", "offers": ["share_card"] },
+        { "code": "dont_prepare", "en": "I don't usually prepare", "exclusive": true, "offers": ["short_summary"] },
+        { "code": "other", "en": "Other", "other": true, "offers": [] }
+      ]
+    },
+    {
+      "code": "Q3",
+      "type": "single",
+      "title": { "en": "How often do places feel too much for your senses?" },
+      "options": [
+        { "code": "never", "en": "Never" },
+        { "code": "rarely", "en": "Rarely" },
+        { "code": "sometimes", "en": "Sometimes" },
+        { "code": "often", "en": "Often" },
+        { "code": "very_often", "en": "Very often" },
+        { "code": "prefer_not_to_say", "en": "Prefer not to say" }
+      ]
+    },
+    {
+      "code": "Q4",
+      "type": "multi",
+      "title": { "en": "When a place feels too much, what helps you?" },
+      "help": { "en": "Tick any." },
+      "options": [
+        { "code": "quieter_spot", "en": "Stepping away to a quieter spot" },
+        { "code": "sit_rest", "en": "Sitting down to rest" },
+        { "code": "drink_eat", "en": "Drinking or eating something" },
+        { "code": "headphones_earplugs", "en": "Headphones or earplugs" },
+        { "code": "sunglasses_hat", "en": "Sunglasses or a hat" },
+        { "code": "leave_earlier", "en": "Leaving earlier than planned" },
+        { "code": "trusted_person", "en": "Being with someone I trust" },
+        { "code": "nothing_helps", "en": "Nothing really helps", "exclusive": true },
+        { "code": "other", "en": "Other", "other": true }
+      ]
+    }
+  ],
+  "offers": {
+    "place_photo": { "en": "The place card's photo" },
+    "crowds_quieter": { "en": "Crowds and traffic, and quieter alternatives" },
+    "best_time": { "en": "The best time of day, if known" },
+    "route_senses": { "en": "The route comparison on the Senses layer" },
+    "rest_places": { "en": "Nearby seats, shade, toilets and drinking fountains" },
+    "take_with_you": { "en": "A \"take with you\" tip" },
+    "share_card": { "en": "Share the place card" },
+    "short_summary": { "en": "A short summary only" }
+  }
+}
