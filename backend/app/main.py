@@ -29,7 +29,7 @@ import requests
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from tool.config import load_config, photo_source
 from tool.photos import mapillary as mapillary_mod
@@ -354,7 +354,9 @@ class SensesPhoto(BaseModel):
 
 
 class ProfileAnswers(BaseModel):
-    """Your answers to Part A (part_a.json), checked against it in app/profile.py. Never logged or stored."""
+    """Your answers to Part A (part_a.json), checked against it in app/profile.py. Never logged or stored. Only the
+    questions the profile text uses: anything else (A15, how you prepare for new places) is refused, never prompted."""
+    model_config = ConfigDict(extra="forbid")
     language: str = Field(..., pattern="^(en|it)$")
     A11: int = Field(..., ge=1, le=5)
     A12: dict[str, int] = Field(..., max_length=20)

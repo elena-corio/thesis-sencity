@@ -79,8 +79,15 @@ export async function profileVersion(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 12)
 }
 
-/** What a rating request carries: the answers and the language, never the text (the server builds it). */
-export const requestProfile = (profile) => profile && ({ language: profile.language, ...profile.answers })
+/** The answers a prediction may use: Part A's profile questions only. Anything else kept with the profile (the weather,
+ *  how you prepare for new places, A15) stays on this device and never goes into the model call. */
+export const PROMPT_CODES = ['A11', 'A12', 'A13', 'A16']
+
+/** What a rating request carries: the profile answers and the language, never the text (the server builds it). */
+export const requestProfile = (profile) => profile && ({
+  language: profile.language,
+  ...Object.fromEntries(PROMPT_CODES.filter((c) => c in (profile.answers ?? {})).map((c) => [c, profile.answers[c]])),
+})
 
 /** The file "Download my data" saves. */
 export function exportFile(profile, myRatings = []) {

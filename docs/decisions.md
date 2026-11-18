@@ -2,6 +2,13 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-18 – Your profile checked against the onboarding list; only the four profile questions reach a prediction (accepted)
+**Context.** Elena (phase 2): the onboarding from Part A (A11; A12 and A13, one grid per screen; A16 optional), no attention-check rows, no background or health questions, phone first; "Your profile" to view, edit and delete; stored on the device; editing changes the next predictions; A15 never in the prompt.
+**Found.** All of it was already built (2026-11-15). The onboarding also has the app's own Weather step (for the personal Thermal limits, kept apart from the answers) and a consent screen first.
+**Decision.**
+- *Tests added:* the profile store (`stores/profile.test.js`): save, not saved while incomplete, load on the next visit, edit (a new text and version), delete (every key it kept); what a prediction gets. A phone e2e test walks every screen: six steps with progress, only Part A's A11, A12, A13 and A16 plus the weather, ten rows per grid, 44 px targets, A16 left empty, no background or health words; view, edit, delete.
+- *Only the four questions reach a prediction (proposed hardening):* the browser sends A11, A12, A13 and A16 by name (`PROMPT_CODES` in `lib/profile.js`), not every stored answer; the API refuses any other field in a profile (`extra="forbid"`), so A15 or the coming "How you prepare for new places" answers can never reach a model call by mistake.
+
 ## 2026-11-18 – The prediction follows the thesis versions; formula_mode none | xhat | f (accepted)
 **Context.** Elena: bring the app's prediction method in line with the thesis: no rounds; the profile, the photo and an optional formula (thesis D159, D161). Phase 0 found the prompt already the study's V0/V2 from the export (system instruction, V2 profile block with its closing line, the v9 task text), and no rounds code: your ratings were never put in a prompt.
 **Decision (Elena).**

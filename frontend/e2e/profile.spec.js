@@ -455,6 +455,65 @@ test.describe('your sensory profile on a phone', () => {
     expect(await page.locator('[data-panel="onboarding"]').evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0)
     await page.screenshot({ path: 'e2e/screens/profile-onboarding-phone-dark.png' })
   })
+
+  test('every screen against the list: Part A only, one grid per screen, big targets, progress, A16 skippable; view, edit, delete', async ({ page }) => {
+    const shot = (name) => page.screenshot({ path: `e2e/screens/profile-phone/${name}.png`, fullPage: true })
+    await mockSurvey(page)
+    await openMap(page, 'light', { layer: null })
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
+    await shot('0-empty')
+    await page.getByRole('button', { name: 'Create your profile' }).click()
+    await shot('1-consent')
+    await page.getByText('I have read this and agree').click()
+    await page.getByRole('button', { name: 'Agree and start' }).click()
+    const step = page.getByTestId('onboarding-step')
+    const titles = []
+    const progress = page.getByRole('progressbar', { name: 'Your sensory profile' })
+    // The steps: the intro, A11, A12, A13, A16 from part_a.json, and the app's own weather step. Nothing else.
+    for (let i = 1; i <= 6; i++) {
+      await expect(step).toHaveText(`Step ${i} of 6`)
+      await expect(progress).toHaveAttribute('aria-valuenow', String(i))
+      titles.push(await page.locator('[data-panel="onboarding"] h2').innerText())
+      const rows = page.locator('[data-panel="onboarding"] [data-row]')
+      if (i === 2) await choose(page, 'A11', 3)
+      if (i === 3 || i === 4) {
+        const grid = i === 3 ? 'A12' : 'A13'
+        const codes = SURVEY.questions.find((q) => q.code === grid).rows.map((r) => r.code)
+        expect(codes).toHaveLength(10)
+        await expect(rows).toHaveCount(10) // one grid per screen, its ten elements: no attention-check rows
+        expect(await rows.evaluateAll((els) => els.map((e) => e.dataset.row))).toEqual(codes.map((c) => `${grid}-${c}`))
+        for (const c of codes) await choose(page, `${grid}-${c}`, 4)
+        const sizes = await page.locator('[data-panel="onboarding"] [data-row] label').evaluateAll((els) =>
+          els.map((e) => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height) }))
+        expect(Math.min(...sizes)).toBeGreaterThanOrEqual(44) // tap targets on a phone (--touch-phone)
+      }
+      if (i === 5) await expect(page.locator('#a16')).toHaveValue('') // left empty: the step is optional
+      if (i === 6) for (const r of ['hot', 'cold', 'wind']) await choose(page, `weather-${r}`, 3)
+      expect(await layoutProblems(page)).toEqual([])
+      await shot(`${i + 1}-step-${i}`)
+      await page.getByRole('button', { name: i === 6 ? 'Save your profile' : 'Next' }).click()
+    }
+    const text = titles.join(' ').toLowerCase()
+    for (const word of ['age', 'gender', 'health', 'diagnos', 'condition', 'education', 'district', 'persona'])
+      expect(text).not.toMatch(new RegExp(`\b${word}`))
+    // "Your profile": view, edit and delete.
+    await expect(page.getByRole('button', { name: 'Edit answers' })).toBeVisible()
+    await shot('8-your-profile')
+    expect(await layoutProblems(page)).toEqual([])
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))
+    expect(saved.answers.A16).toBe('')
+    expect(Object.keys(saved.answers).sort()).toEqual(['A11', 'A12', 'A13', 'A16'])
+    await page.getByRole('button', { name: 'Edit answers' }).click()
+    await expect(step).toHaveText('Step 2 of 6')
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await shot('9-edit')
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await page.getByRole('button', { name: 'Delete my profile' }).click()
+    await shot('10-delete')
+    await page.getByRole('button', { name: 'Delete everything' }).click()
+    await expect(page.getByRole('button', { name: 'Create your profile' })).toBeVisible()
+    expect(await page.evaluate(() => localStorage.getItem('sencity-profile'))).toBe(null)
+  })
 })
 
 test.describe('your sensory profile, a start kept from before', () => {

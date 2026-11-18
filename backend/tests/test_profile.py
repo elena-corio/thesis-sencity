@@ -274,3 +274,17 @@ def test_the_v2_parity_fixture_uses_the_study_list_of_its_photo():
     place = next(p for p in STUDY_LISTS["places"] if p["place"] == PARITY["photo"])
     order = list(load_export().elements)
     assert PARITY["listed"] == [c for c in order if c in place["elements"]]
+
+
+def test_a15_and_anything_else_never_reach_the_prompt(monkeypatch, tmp_path, pe):
+    """Only A11, A12, A13 and A16 make the profile text; a request with A15 (or another field) is refused, so it is
+    never put in a model call (Elena: A15 is for the app only)."""
+    client, seen = endpoint(monkeypatch, tmp_path)
+    photos = [{"id": PANO, "heading": HEADING}]
+    for extra in ({"A15": 4}, {"prepare": {"route_alternatives": 5}}, {"weather": {"hot": 2}}):
+        res = client.post("/api/senses/rate", json={"photos": photos, "profile": {**DEV["answers"], **extra, "language": "en"}})
+        assert res.status_code == 422
+    assert seen == {}
+    # The text is built from the four questions only, whatever else the answers hold.
+    assert profile_mod.build({**DEV["answers"], "A15": 4}, "en", pe) == DEV["expected"]
+    assert "A15" not in DEV["expected"] and "unknown place" not in DEV["expected"]
