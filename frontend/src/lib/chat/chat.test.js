@@ -113,7 +113,8 @@ describe('summarise_profile', () => {
 describe('prepare_cope', () => {
   it('facts about the whole area: photo ratings from–to, thermal levels and why, elements in the photos', () => {
     const f = placeFacts(FEATURES, { listedOf, layer: 'senses', coldOf: (t) => t < 0 })
-    expect(f).toMatchObject({ scope: 'area', comfort: [2, 5], rated: 5, looked: 5, easy: ['a', 'b', 'far'] })
+    expect(f).toMatchObject({ scope: 'area', comfort: [2, 5], rated: 5, looked: 5 })
+    expect(f.easy).toEqual([{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'far', name: 'far' }])
     expect(f.thermal).toMatchObject({ levels: ['easy', 'mixed', 'hard'], heat: true, cold: false })
     expect(f.elements).toMatchObject({ shade: 4, seats: 1, crowds: 2, traffic_trams: 2 })
   })
@@ -171,10 +172,12 @@ describe('templates', () => {
   })
 
   it('cope reply: facts the photos give, a calmer street, and nothing for answers not ticked', () => {
-    const facts = { scope: 'place', comfort: [2, 2], rated: 1, looked: 1, easy: [], easier: { name: 'Quiet Lane', d: 137 },
+    const facts = { scope: 'place', comfort: [2, 2], rated: 1, looked: 1, easy: [], easier: { id: 'q', name: 'Quiet Lane', d: 137 },
       thermal: null, elements: { seats: 1, drinking_fountains_toilets: 1, crowds: 1 } }
     const p = prepareCope({ prepare: { Q2: { ticked: ['check_busy'] }, Q4: { ticked: ['quieter_spot', 'sit_rest', 'drink_eat'] } } })
-    const t = T.copeReply(facts, p, { name, personal: true, when: '', place: 'Graben' }).text
+    const r = T.copeReply(facts, p, { name, personal: true, when: '', place: 'Graben', placeId: 'g' })
+    const t = r.text
+    expect(r.links).toEqual([{ text: 'Graben', id: 'g' }, { text: 'Quiet Lane', id: 'q' }]) // both names open their place
     expect(t).toBe('Graben is 2 of 5 for your senses. Drinking fountains or toilets show in its photos. Seats show in its photos: plan ' +
       'time to rest there. If it gets too much, Quiet Lane about 140 m away may be easier for you. Crowds show in its photos; the app ' +
       'does not know the busy hours.')
@@ -187,6 +190,27 @@ describe('templates', () => {
     expect(T.copeReply(blind, p, { name, personal: true }).text).toBe('The photos of this area are not rated yet. Bring water with you: ' +
       'the photos are not rated yet, so the app cannot tell whether there are drinking fountains.')
     expect(T.copeReply(blind, prepareCope({ prepare: null }), { name, personal: true }).text).toMatch(/Answer “How you prepare for new places”/)
+  })
+
+  it('cope reply for an area names easy places as links', () => {
+    const facts = { scope: 'area', comfort: [3, 5], rated: 3, looked: 3, easier: null, thermal: null, elements: {},
+      easy: [{ id: 'a', name: 'Am Hof' }, { id: 'b', name: 'Freyung' }, { id: 'c', name: 'Graben' }] }
+    const r = T.copeReply(facts, prepareCope({ prepare: { Q4: { ticked: ['quieter_spot'] } } }), { name, personal: true })
+    expect(r.text).toContain('If it gets too much, 3 places here are easy for you, such as Am Hof and Freyung.')
+    expect(r.links).toEqual([{ text: 'Am Hof', id: 'a' }, { text: 'Freyung', id: 'b' }])
+  })
+
+  it('explain reply links the place’s name', () => {
+    const e = { id: 'g', name: 'Graben', layer: 'senses', level: 'hard', sensesLevel: 'hard', comfort: 2, inPhotos: [], bothersYou: [], goodForYou: [], reason: null, status: 'rated' }
+    expect(T.explainReply(e, { name, personal: true }).links).toEqual([{ text: 'Graben', id: 'g' }])
+  })
+
+  it('linkParts cuts the text into words and links, in order; a name not in the text is no link', () => {
+    expect(T.linkParts('Try Am Hof or Freyung.', [{ text: 'Am Hof', id: 'a' }, { text: 'Freyung', id: 'b' }, { text: 'Nowhere', id: 'n' }]))
+      .toEqual([{ text: 'Try ' }, { text: 'Am Hof', id: 'a' }, { text: ' or ' }, { text: 'Freyung', id: 'b' }, { text: '.' }])
+    expect(T.linkParts('Plain text.', [])).toEqual([{ text: 'Plain text.' }])
+    // The same name twice in the links: each finds the next occurrence.
+    expect(T.linkParts('Graben is hard. Graben has crowds.', [{ text: 'Graben', id: 'g' }]).filter((x) => x.id)).toHaveLength(1)
   })
 
   it('route, view and out-of-scope replies; the Italian note', () => {

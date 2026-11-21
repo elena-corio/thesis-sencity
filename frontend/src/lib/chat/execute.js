@@ -58,6 +58,7 @@ export function explainPlace({ f, place, layer, answers }) {
   const listed = place?.status === 'rated' ? place.listed ?? [] : []
   const score = (c) => answerFor(answers, c)
   return {
+    id: f.properties.id,
     name: f.properties.name || null,
     layer,
     level: levelOn(f, layer),
@@ -91,7 +92,7 @@ export function summariseProfile(survey, answers, count = 3) {
  * What the app knows about where the person is going (Elena, 2026-11-21): one place, or every place of the area.
  * → { scope, count, comfort: [min, max] | null (photo ratings 1–5), rated, thermal: { levels: ['mixed', 'hard'],
  *   heat, cold, max, min } | null, elements: { code: places listing it }, looked (places with listed elements),
- *   easy: [names of places easy on the layer], easier: { name, d } | null (a calmer street near one place) }
+ *   easy: [{ id, name } of places easy on the layer], easier: { id, name, d } | null (a calmer street near one place) }
  */
 export function placeFacts(features, { listedOf, layer, scope = 'area', easier = null, coldOf = () => false }) {
   const list = features ?? []
@@ -120,7 +121,7 @@ export function placeFacts(features, { listedOf, layer, scope = 'area', easier =
     } : null,
     elements,
     looked,
-    easy: scope === 'area' ? list.filter((f) => levelOn(f, layer) === 'easy').map((f) => f.properties.name).filter(Boolean) : [],
+    easy: scope === 'area' ? list.filter((f) => levelOn(f, layer) === 'easy' && f.properties.name).map((f) => ({ id: f.properties.id, name: f.properties.name })) : [],
     easier,
   }
 }

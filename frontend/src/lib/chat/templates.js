@@ -1,5 +1,6 @@
 // The chat's replies, built from the results of lib/chat/execute.js with fixed words (Elena, 2026-11-21): the model
-// never writes them. English only for now; an Italian message gets ITALIAN_NOTE first. Never the word "persona".
+// never writes them. A reply may carry `links`: [{ text, id }], the names in its text of places of the area, in order,
+// which the panel shows as buttons that open the place. English only for now; an Italian message gets ITALIAN_NOTE first. Never the word "persona".
 
 import { LAYER_NAMES } from './intent.js'
 
@@ -70,7 +71,8 @@ export function explainReply(e, { name, personal }) {
   if (e.inPhotos.length) parts.push(`The photos show: ${list(e.inPhotos, name)}.`)
   if (e.bothersYou.length) parts.push(`You said ${e.bothersYou.length === 1 ? 'this bothers' : 'these bother'} you: ${list(e.bothersYou, name)}.`)
   if (e.goodForYou.length) parts.push(`You said ${e.goodForYou.length === 1 ? 'this feels' : 'these feel'} good: ${list(e.goodForYou, name)}.`)
-  return { text: parts.join(' '), quote: e.reason ? { label: 'The model’s words, a prediction, not a reason:', text: e.reason } : null }
+  return { text: parts.join(' '), quote: e.reason ? { label: 'The model’s words, a prediction, not a reason:', text: e.reason } : null,
+    links: e.name && e.id != null ? [{ text: e.name, id: e.id }] : [] }
 }
 
 /** summarise_profile. s: execute.summariseProfile; words(n): the A11 words. */
@@ -124,9 +126,10 @@ export function factsText(f, { name, personal, when }) {
  * prepare_cope: the facts, then tips that follow only what the person said helps (Q4) or how they prepare (Q2), each
  * with what the photos show. Never medical; nothing the app does not know. p: execute.prepareCope.
  */
-export function copeReply(f, p, { name, personal, when, place = null }) {
+export function copeReply(f, p, { name, personal, when, place = null, placeId = null }) {
   const facts = factsText(f, { name: place, personal, when })
-  if (!p.answered) return { text: `${facts} Answer “How you prepare for new places” in your profile, and the tips will follow what helps you.` }
+  const links = place && placeId != null ? [{ text: place, id: placeId }] : []
+  if (!p.answered) return { text: `${facts} Answer “How you prepare for new places” in your profile, and the tips will follow what helps you.`, links }
   const here = f.scope === 'place' ? ' there' : ' in this area'
   const at = (n) => (f.scope === 'place' ? 'in its photos' : `in the photos of ${places(n)}`)
   const n = (code) => f.elements[code] ?? 0
@@ -143,8 +146,14 @@ export function copeReply(f, p, { name, personal, when, place = null }) {
     else tips.push(`Seats show ${at(n('seats'))}: plan time to rest there.`)
   }
   if (has('quieter_spot')) {
-    if (f.scope === 'place') tips.push(f.easier ? `If it gets too much, ${f.easier.name || 'a street'} about ${Math.round(f.easier.d / 10) * 10} m away may be easier for you.` : 'The map shows no easier street close by to step away to.')
-    else if (f.easy.length) tips.push(`If it gets too much, ${places(f.easy.length)} here ${f.easy.length === 1 ? 'is' : 'are'} easy for you, such as ${f.easy.slice(0, 2).join(' and ')}.`)
+    if (f.scope === 'place') {
+      tips.push(f.easier ? `If it gets too much, ${f.easier.name || 'a street'} about ${Math.round(f.easier.d / 10) * 10} m away may be easier for you.` : 'The map shows no easier street close by to step away to.')
+      if (f.easier?.name && f.easier.id != null) links.push({ text: f.easier.name, id: f.easier.id })
+    } else if (f.easy.length) {
+      const shown = f.easy.slice(0, 2)
+      tips.push(`If it gets too much, ${places(f.easy.length)} here ${f.easy.length === 1 ? 'is' : 'are'} easy for you, such as ${shown.map((x) => x.name).join(' and ')}.`)
+      links.push(...shown.map((x) => ({ text: x.name, id: x.id })))
+    }
     else tips.push('The map shows no easy place here to step away to.')
   }
   if (has('headphones_earplugs') && !blind) {
@@ -161,5 +170,23 @@ export function copeReply(f, p, { name, personal, when, place = null }) {
   if (p.prepares.includes('look_at_photos')) tips.push(f.scope === 'place' ? 'Its photos are on its card.' : 'Open the places on the map to see their photos.')
   if (has('nothing_helps')) tips.push('You said nothing really helps: the place cards show what might bother you, so you can decide before you go.')
   if (p.other) tips.push(`You also wrote: “${p.other}”.`)
-  return { text: [facts, ...tips].join(' ') }
+  return { text: [facts, ...tips].join(' '), links }
+}
+
+/**
+ * A reply's text cut into plain parts and links, in order: [{ text }, { text, id }, …]. A link is found after the
+ * previous one; a name not found in the text stays out (never a link to the wrong words).
+ */
+export function linkParts(text, links = []) {
+  const out = []
+  let at = 0
+  for (const l of links ?? []) {
+    const i = l.text ? text.indexOf(l.text, at) : -1
+    if (i < 0) continue
+    if (i > at) out.push({ text: text.slice(at, i) })
+    out.push({ text: l.text, id: l.id })
+    at = i + l.text.length
+  }
+  if (at < text.length) out.push({ text: text.slice(at) })
+  return out
 }

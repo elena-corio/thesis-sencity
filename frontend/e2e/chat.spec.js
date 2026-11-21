@@ -152,7 +152,7 @@ test.describe('Prepare for an area', () => {
   test('the area’s facts first, then tips from what the person said helps', async ({ page }) => {
     const DEV = TEST_PROFILES[0]
     await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z',
-      weather: {}, thermal: null, prepare: { Q1: 3, Q2: { ticked: [], other: '' }, Q3: 4, Q4: { ticked: ['drink_eat', 'sit_rest'], other: '' } } })
+      weather: {}, thermal: null, prepare: { Q1: 3, Q2: { ticked: [], other: '' }, Q3: 4, Q4: { ticked: ['drink_eat', 'sit_rest', 'quieter_spot'], other: '' } } })
     await mockChat(page)
     await openArea(page)
     await page.getByRole('button', { name: 'Ask about places' }).click()
@@ -163,6 +163,14 @@ test.describe('Prepare for an area', () => {
     await expect(t).toContainText('Bring water with you')
     await expect(t).toContainText('Plan time to rest')
     await expect(t).not.toContainText('open the place')
+    // The easy places it names are links: one opens that place's card, selected.
+    const link = t.locator('[data-place-link]').first()
+    await expect(link).toBeVisible()
+    const id = await link.getAttribute('data-place-link')
+    await link.click()
+    await expect(panel(page)).toHaveCount(0)
+    await expect(page.locator('[data-panel="place-card"]')).toBeVisible()
+    expect(await store(page, 'area', 'selectedId')).toBe(id)
   })
 })
 

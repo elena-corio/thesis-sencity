@@ -4,7 +4,7 @@
 // ready-made prompts and a removed pill need no model call. Replies are the app's own templates, shown as plain text.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { PRESETS } from '../lib/chat/intent.js'
-import { EXAMPLES, INTRO, PLACEHOLDERS } from '../lib/chat/templates.js'
+import { EXAMPLES, INTRO, PLACEHOLDERS, linkParts } from '../lib/chat/templates.js'
 import { useChatStore } from '../stores/chat.js'
 import AppIcon from './AppIcon.vue'
 
@@ -50,7 +50,10 @@ watch(() => chat.messages.length, () => nextTick(() => { if (list.value) list.va
       <template v-for="(m, i) in chat.messages" :key="i">
         <p v-if="m.role === 'you'" class="you">{{ m.text }}</p>
         <div v-else class="app" data-testid="chat-reply">
-          <p>{{ m.text }}</p>
+          <!-- Names of places in the area are buttons that open the place, as the result cards do. -->
+          <p><template v-for="(part, j) in linkParts(m.text, m.links)" :key="j"><button v-if="part.id != null" type="button"
+            class="place-link" lang="de" :data-place-link="part.id" @click="chat.openPlace(part.id, $event.detail === 0)">{{ part.text }}</button><template
+            v-else>{{ part.text }}</template></template></p>
           <blockquote v-if="m.quote" class="quote"><span class="muted">{{ m.quote.label }}</span> {{ m.quote.text }}</blockquote>
           <ol v-if="m.items?.length" class="items">
             <li v-for="it in m.items" :key="it.id">
@@ -125,6 +128,11 @@ h2 { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .pills { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pill { display: inline-flex; align-items: center; gap: var(--space-1); border-color: var(--text-muted); }
 .pill :deep(svg) { width: var(--fs-sm); height: var(--fs-sm); }
+.place-link {
+  display: inline; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: var(--fw-semibold);
+  text-decoration: underline; text-underline-offset: var(--focus-offset); cursor: pointer;
+}
+.place-link:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
 .link { align-self: flex-start; border: 0; background: none; padding: var(--space-1) 0; color: var(--text-2); text-decoration: underline; font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .help { display: grid; gap: var(--space-2); max-height: 40%; overflow-y: auto; }
 .help h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); }

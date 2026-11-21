@@ -212,14 +212,14 @@ export const useChatStore = defineStore('chat', () => {
       if (f) {
         if (area.selectedId !== f.properties.id) area.select(f.properties.id, midpoint(f.geometry))
         const best = easierNearby(f, area.segments.features, { levelOf: (g) => LEVEL[levelOn(g, layer)] ?? null })
-        easier = best ? { name: best.f.properties.name, d: best.d } : null
+        easier = best ? { id: best.f.properties.id, name: best.f.properties.name, d: best.d } : null
       }
       const features = f ? [f] : (area.visibleSegments?.features ?? [])
       const facts = placeFacts(features, { listedOf, layer, scope: f ? 'place' : 'area', easier, coldOf: (t) => isCold(t, limits) })
       const info = area.thermalInfo
       const when = info ? `${info.season} at ${info.time}` : ''
       say(T.copeReply(facts, prepareCope({ prepare: profile.profile?.prepare }), { name, personal: profile.personal, when,
-        place: f?.properties.name || null }), intent, pillsOf(intent, { name }))
+        place: f?.properties.name || null, placeId: f?.properties.id ?? null }), intent, pillsOf(intent, { name }))
     },
 
     async out_of_scope(intent) {
