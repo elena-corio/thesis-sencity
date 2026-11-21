@@ -157,7 +157,7 @@ function a11Key(e) {
         <div class="card-head">
           <h3>{{ prep.title.en }}</h3>
           <button type="button" class="edit" :aria-label="`${prepStarted ? 'Edit' : 'Answer'}: ${prep.title.en}`"
-                  @click="store.startPrepare(0)">{{ prepStarted ? 'Edit' : 'Answer' }}</button>
+                  @click="edit('Q1')">{{ prepStarted ? 'Edit' : 'Answer' }}</button>
         </div>
         <ul v-if="prepStarted" class="prepare" data-testid="answers-prepare">
           <li v-for="pq in prep.questions" :key="pq.code" :data-testid="`answer-prepare-${pq.code}`">

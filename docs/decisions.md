@@ -2,6 +2,18 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-21 – One save at the end of the onboarding; Q3 on a 1–5 scale (accepted; details proposed)
+**Context.** Elena: "Save profile" moves to the very end, after the questions about new places; answers stay a draft while moving through the steps, nothing is saved until that button, and editing works the same way. Q3 becomes a 1–5 scale; an answer saved in the old form is asked again, never converted. These answers stay out of the prompt.
+**Decision.**
+- *One onboarding (Elena):* the steps are intro, A11, A12, A13, A16, Weather, then Q1–Q4 (`STEPS` in `stores/profile.js`), all in one draft (`sencity-profile-draft`, now with `prepare`). The Weather step's button is Next; the button after Q4 is "Save your profile" (new) or "Save changes" (edit), the only save. Back from Q1 goes to Weather. The profile part still shows "Step n of 6" and the new-places part "Question n of 4 · optional" (proposed: two titles, one flow).
+- *Edits (Elena):* the halfway "Save changes" button is gone; an edit opens at its question and is saved after Q4. Edit (or Answer) for new places opens the onboarding at Q1. Cancel drops the draft. The overall comfort bar and the Thermal starts on "Your profile" still save at once (they are not the onboarding).
+- *Skip (proposed):* "Skip these questions" is gone, since it would be a second save; every question about new places can be left out with Next. A new profile keeps "Skip for now" (the draft stays, nothing saved).
+- *An answer missing at the save (proposed):* only possible with a draft from before; the save goes back to that step and says "A few answers are missing here."
+- *Q3 (Elena):* "How often does a place feel like too much for your senses?", 1–5, 1 = Never, 5 = Very often, words on both ends. English only, like the rest of `config/prepare.json` (Elena's later message left Italian out). "Prefer not to say" is gone: the question is optional.
+- *Old answers (Elena):* a Q3 saved as a word (e.g. "often") counts as unanswered (`lib/prepare.js` `isAnswered` checks the type), shows "Not answered", and is dropped at the next save.
+- *Draft text (proposed):* the "Other" text is kept as typed in the draft and trimmed only at the save, so a space typed at the end is not removed while typing.
+**Consequences.** Leaving halfway (new profile) keeps everything as a draft but gives no profile, also when only the questions about new places are left. Supersedes the 2026-11-18 flow (opens after a new profile, saved at each answer, Done, Skip these questions).
+
 ## 2026-11-18 – How you prepare for new places: an optional step after the profile (accepted; details proposed)
 **Context.** Elena: after the profile, an optional step with A15 (comfort going to a place you don't know) and the coping and preparation questions, stored with the profile, able to shape what the app shows, never in the prediction prompt. The search found A15 in the current thesis codebook (tool-only) and older coping items in the pilot 1 and 2 codebooks, but not the v3.1 preparation question; Elena then gave the wording.
 **Decision (Elena).**

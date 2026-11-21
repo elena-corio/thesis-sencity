@@ -12,7 +12,6 @@ from tool.config import REPO_ROOT
 
 PATH = REPO_ROOT / "config" / "prepare.json"
 TYPES = ("scale_1_5", "single", "multi")
-Q3_CODES = ("never", "rarely", "sometimes", "often", "very_often", "prefer_not_to_say")
 
 
 class PrepareError(Exception):
@@ -34,6 +33,8 @@ def load(path: Path = PATH) -> dict:
     for q in questions:
         if q.get("type") not in TYPES or not (q.get("title") or {}).get("en"):
             raise PrepareError(f"{q['code']}: a type ({', '.join(TYPES)}) and an English title are needed.")
+        if q["type"] == "scale_1_5" and not all(((q.get("labels") or {}).get(k) or {}).get("en") for k in ("1", "5")):
+            raise PrepareError(f"{q['code']}: a 1-5 scale needs English words for 1 and 5.")
         options = q.get("options", [])
         codes = [o.get("code") for o in options]
         if q["type"] != "scale_1_5" and (not codes or len(set(codes)) != len(codes) or not all(o.get("en") for o in options)):

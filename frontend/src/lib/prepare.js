@@ -2,7 +2,9 @@
 // GET /api/profile/survey as `prepare`; no words are written here). The answers stay on this device with the profile,
 // like the weather: never in a rating request (lib/profile.js PROMPT_CODES) and never in a prompt.
 //
-// Answers: { Q1: 1–5 | null, Q2: { ticked: [code], other: '' }, Q3: code | null, Q4: { ticked: [code], other: '' } }.
+// Answers: { Q1: 1–5 | null, Q2: { ticked: [code], other: '' }, Q3: 1–5 | null, Q4: { ticked: [code], other: '' } }.
+// An answer in an older form (Q3 was a word such as 'often' before 2026-11-21) counts as unanswered, so it is asked
+// again; it is never converted.
 
 const isScore = (v) => Number.isInteger(v) && v >= 1 && v <= 5
 const question = (def, code) => def?.questions?.find((q) => q.code === code) ?? null
@@ -47,19 +49,23 @@ export function toggle(def, code, answer, option) {
   return { ticked: list, other: other && list.includes(other.code) ? (answer?.other ?? '') : '' }
 }
 
-/** Has this question an answer? */
+/** Has this question an answer of its own type? */
 export function isAnswered(def, answers, code) {
   const q = question(def, code)
   const a = answers?.[code]
   if (!q) return false
   if (q.type === 'multi') return (a?.ticked?.length ?? 0) > 0
-  return a != null
+  if (q.type === 'scale_1_5') return isScore(a)
+  return q.options.some((o) => o.code === a)
 }
+
+/** The value a 1–5 question shows: the score, or null (no answer, or one in an older form). */
+export const scoreOf = (answers, code) => (isScore(answers?.[code]) ? answers[code] : null)
 
 /** Any answer at all: the step was started. */
 export const anyAnswered = (def, answers) => !!def && def.questions.some((q) => isAnswered(def, answers, q.code))
 
-/** The words of an answer, for "Your profile": "Very much (5)", "Often", "Plan a calmer route; Other: …". */
+/** The words of an answer, for "Your profile": "Very much (5)", "3", "Plan a calmer route; Other: …". */
 export function answerText(def, answers, code) {
   const q = question(def, code)
   const a = answers?.[code]
