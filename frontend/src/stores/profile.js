@@ -9,6 +9,7 @@ import { cleanWeather } from '../lib/weather.js'
 import { cleanPrepare, emptyPrepare } from '../lib/prepare.js'
 import { allRatings, clearRatings, setRatings } from '../lib/myRatings.js'
 import { useHelpStore } from './help.js'
+import { useAdjustStore } from './adjust.js'
 
 // On this device only (phase 1, brief §12): no server, no sign-in. "Delete my profile" removes both keys and the
 // personal ratings (lib/personalRatings.js).
@@ -221,6 +222,7 @@ export const useProfileStore = defineStore('profile', () => {
     write(CONSENT_KEY, null)
     personalRatings.clearAll()
     clearRatings() // your own photo ratings too
+    useAdjustStore().reset() // and "Adjust to my own ratings", back to off
     useHelpStore().clearSeen() // and which tips were seen: they show again
   }
 
@@ -234,6 +236,7 @@ export const useProfileStore = defineStore('profile', () => {
     if (read.error) return read.error
     await save(read.answers, read.language, read.weather ?? {}, read.thermal ?? null, read.prepare ?? null)
     setRatings(read.myRatings) // the file's own ratings replace this browser's
+    useAdjustStore().refresh() // the gap follows them; the setting itself is not in the file
     discardDraft()
     return ''
   }

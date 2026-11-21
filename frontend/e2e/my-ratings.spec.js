@@ -6,15 +6,15 @@ import { TEST_PROFILES, WITH_3, analyseCentre, markRatingMocked, mockArea, mockR
 const result = { comfort: 3, anchors: ['not at all', 'very much'], bothers: [], feels_good: [], listed: ['traffic_trams', 'shade'],
   reason: 'r', model: 'google/gemini-3.1-flash-lite', latency_ms: 1, cost_usd: 0, cached: false, personal: false, commit: 'ed963d2', prompt: '2' }
 
-/** The rating API, mocked; hold() keeps the answer back until release(). */
-function mockRatings(page) {
+/** The rating API, mocked; hold() keeps the answer back until release(). `over` changes the result (e.g. personal). */
+function mockRatings(page, over = {}) {
   const ctl = { held: false, release: null }
   markRatingMocked(page)
   return page.route('**/api/senses/rate', async (route) => {
     const { photos } = route.request().postDataJSON()
     if (ctl.held) await new Promise((r) => { ctl.release = r })
     const lines = [{ type: 'start', model: result.model, cached: 0, to_rate: photos.length, remaining: 0 },
-      ...photos.map((p) => ({ type: 'photo', ...p, status: 'ok', cached: false, cost_usd: 0, result })),
+      ...photos.map((p) => ({ type: 'photo', ...p, status: 'ok', cached: false, cost_usd: 0, result: { ...result, ...over } })),
       { type: 'done', seconds: 1, failed: 0, remaining: 0, estimate_usd: 0 }]
     await route.fulfill({ contentType: 'application/x-ndjson', body: lines.map((l) => JSON.stringify(l)).join('\n') + '\n' })
   }).then(() => ctl)
@@ -42,6 +42,7 @@ test.describe('Rate this place', () => {
     const rate = page.locator('[data-panel="place-card"]').getByTestId('rate-this-place')
     await rate.getByRole('button', { name: 'Rate 2 of 5' }).click()
     await expect(rate.getByTestId('rate-compare')).toHaveText(/You:\s*2\s*·\s*SenCity:\s*3/)
+    await expect(rate).toContainText('From the photo. Kept on this device; never sent to the model.')
     let list = await mine(page)
     expect(list).toHaveLength(1)
     expect(list[0]).toMatchObject({ rating: { B1: 2 }, from: 'map',
@@ -166,6 +167,10 @@ test.describe('How close SenCity is to you', () => {
     await expect(hc.getByTestId('how-close-gap')).toHaveText('1.0')
     await expect(hc.getByTestId('how-close-within')).toHaveText('67%')
     await expect(hc.locator('svg, table')).toHaveCount(0)
+    // "Adjust to my own ratings" is disabled (config.js ENABLE_ADJUST): only the predicted figures, no setting.
+    await expect(hc.getByTestId('adjust')).toHaveCount(0)
+    await expect(hc.getByTestId('adjust-toggle')).toHaveCount(0)
+    await expect(hc).not.toContainText('adjusted')
     await hc.scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'e2e/screens/profile-how-close-dark.png' })
   })
@@ -173,5 +178,59 @@ test.describe('How close SenCity is to you', () => {
   test('under 4 ratings with a prediction it asks for more', async ({ page }) => {
     const hc = await open(page, FIXTURE.slice(0, 3))
     await expect(hc.getByTestId('how-close-empty')).toHaveText('Rate a few places to see how close SenCity is to you.')
+  })
+})
+
+test.describe('Adjust to my own ratings (experimental)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const DEV = TEST_PROFILES[0]
+  // You rate personal predictions of 3 as 4, four times: the gap is +1.
+  const STEADY = [1, 2, 3, 4].map((i) => ({ photo: { id: `q${i}`, heading: 0, source: 'streetview' }, rating: { B1: 4, B2: null, B2_other: null },
+    from: 'map', at: `2026-11-20T10:0${i}:00Z`, prediction: { level: 'mixed', B1: 3, version: 'V2', profileHash: 'x', elements: [], prompt: '2', model: 'm', commit: 'c' } }))
+  const stateOf = (page, id) => page.evaluate((sid) => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area')
+    .segments.features.find((f) => f.properties.id === sid).properties.senses_state, id)
+
+  test('disabled for now: nothing shifts and nothing shows, even with the setting kept on and enough ratings', async ({ page }) => {
+    await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z', weather: {}, thermal: null })
+    await page.addInitScript((list) => {
+      localStorage.setItem('sencity-my-ratings', JSON.stringify(list))
+      localStorage.setItem('sencity-adjust', '{"on":true}')
+    }, STEADY)
+    await mockArea(page)
+    await mockRatings(page, { personal: true })
+    await mockSurvey(page)
+    await openMap(page, 'dark', { layer: null })
+    await analyseCentre(page)
+    await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })
+    expect(await stateOf(page, WITH_3.properties.id)).toBe('mixed') // the model's 3, not 3 + 1
+    await openSegment(page, WITH_3.properties.id)
+    const card = page.locator('[data-panel="place-card"]')
+    await expect(card.getByTestId('overall-senses')).toContainText('Mixed · 3 of 5')
+    await page.getByRole('radiogroup', { name: 'Layer' }).getByRole('radio', { name: 'Senses' }).click()
+    await expect(card.getByTestId('senses-result')).toContainText('3 · somewhat comfortable')
+    await expect(page.getByTestId('adjust-note')).toHaveCount(0)
+    await card.getByTestId('rate-this-place').getByRole('button', { name: 'Rate 4 of 5' }).click()
+    expect((await mine(page)).at(-1).prediction).not.toHaveProperty('shown')
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
+    await expect(page.getByTestId('how-close')).toBeVisible()
+    await expect(page.getByTestId('adjust-toggle')).toHaveCount(0)
+    await expect(page.getByTestId('adjust-compare')).toHaveCount(0)
+  })
+
+  test('general predictions (not personalised yet) are never adjusted, even with the setting kept on', async ({ page }) => {
+    await page.addInitScript((list) => {
+      localStorage.setItem('sencity-my-ratings', JSON.stringify(list))
+      localStorage.setItem('sencity-adjust', '{"on":true}')
+    }, STEADY)
+    await mockArea(page)
+    await mockRatings(page) // personal: false
+    await openMap(page, 'dark', { layer: null })
+    await analyseCentre(page)
+    await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })
+    expect(await stateOf(page, WITH_3.properties.id)).toBe('mixed')
+    await openSegment(page, WITH_3.properties.id)
+    const card = page.locator('[data-panel="place-card"]')
+    await expect(card.getByTestId('senses-result')).toContainText('3 · somewhat comfortable')
+    await expect(page.getByTestId('adjust-note')).toHaveCount(0)
   })
 })

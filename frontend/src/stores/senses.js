@@ -4,7 +4,9 @@ import { rateSenses } from '../lib/api.js'
 import { haversine, midpoint } from '../lib/geo.js'
 import * as personalRatings from '../lib/personalRatings.js'
 import { requestProfile } from '../lib/profile.js'
+import { adjustRating } from '../lib/adjust.js'
 import { combinePlace, photoKey } from '../lib/senses.js'
+import { useAdjustStore } from './adjust.js'
 import { useAreaStore } from './area.js'
 import { useProfileStore } from './profile.js'
 import { useRoutesStore } from './routes.js'
@@ -33,7 +35,10 @@ export const useSensesStore = defineStore('senses', () => {
   const controllers = {}
   const counted = { area: new Set(), routes: new Set() }
 
-  const ratingOf = (photo) => ratings.get(photoKey(photo))
+  const adjustments = useAdjustStore()
+  /** A photo's rating as shown: a personal one shifted by "Adjust to my own ratings" when it is on (lib/adjust.js);
+   *  `ratings` keeps the model's own, so turning it on or off costs nothing and asks nothing again. */
+  const ratingOf = (photo) => adjustRating(ratings.get(photoKey(photo)), adjustments.gap)
   /** One place from its photos (lib/senses.js). */
   const placeFor = (photos) => combinePlace(photos ?? [], ratingOf)
 

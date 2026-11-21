@@ -1,6 +1,7 @@
 // Your own photo ratings ("Rate this place"), in this browser only (Elena, 2026-11-16). Each rating is kept with the
 // prediction that was on screen before you rated it, so the profile can show how close SenCity is to you. Never sent to
-// the server, never in a model call (feeding them back comes later, if at all). "Delete my profile" clears them;
+// the server, never in a model call. With "Adjust to my own ratings" on, they shift personal predictions on this device
+// (lib/adjust.js); the prediction kept here is always the model's own. "Delete my profile" clears them;
 // "Download my data" and "Import a file" carry them.
 // Stored under its own key: `sencity-ratings` is the cache of the model's personal predictions (lib/personalRatings.js).
 
@@ -46,15 +47,18 @@ function valid(e) {
 
 /**
  * The prediction on screen, as kept with a rating: { level, B1, version 'V2' | 'V0', profileHash, elements, prompt,
- * model, commit }; null when none was shown (not rated yet, or "Couldn't rate this photo"). From the photo's own rating
- * already in the app: nothing is asked again.
+ * model, commit, shown? }; null when none was shown (not rated yet, or "Couldn't rate this photo"). From the photo's own
+ * rating already in the app: nothing is asked again. B1 and level are the model's own value; `shown` is the adjusted
+ * value on screen, only when "Adjust to my own ratings" moved it (lib/adjust.js), so the correction never feeds on itself.
  */
 export function predictionOf(result, profileVersion = null) {
-  if (!result || !isScore(result.comfort)) return null
+  const model = result?.adjusted?.from ?? result?.comfort
+  if (!result || !isScore(model)) return null
   const personal = !!result.personal
   return {
-    level: result.comfort >= 4 ? 'easy' : result.comfort === 3 ? 'mixed' : 'hard',
-    B1: result.comfort,
+    level: model >= 4 ? 'easy' : model === 3 ? 'mixed' : 'hard',
+    B1: model,
+    ...(result.adjusted && result.comfort !== model ? { shown: result.comfort } : {}),
     version: personal ? 'V2' : 'V0',
     profileHash: personal ? profileVersion : null,
     elements: [...(result.listed ?? [])],
