@@ -39,8 +39,20 @@ export const useChatStore = defineStore('chat', () => {
   const pending = ref(null)
   let controller = null
 
-  function show() { open.value = true; profile.ensureSurvey() }
-  function close() { open.value = false }
+  /** The places of the last reply that marks any (Elena, 2026-11-21): on the map only while the chat is open, so the area's
+   *  own recommendations are back when it closes, and these come back when it opens again. */
+  const marked = ref([])
+  function mark() {
+    if (open.value && marked.value.length) area.showChatResults(marked.value)
+    else if (area.markerKind === 'chat') {
+      area.clearChatResults()
+      // A place opened from the chat stays the selected one; the area's pins stay hidden until "Back to area", as
+      // after any selection.
+      if (area.selectedId) area.markersCollapsed = true
+    }
+  }
+  function show() { open.value = true; profile.ensureSurvey(); mark() }
+  function close() { open.value = false; mark() }
 
   const name = (code) => {
     const row = profile.survey?.questions.flatMap((q) => q.rows ?? []).find((r) => r.code === code)
@@ -146,11 +158,10 @@ export const useChatStore = defineStore('chat', () => {
       if (area.step !== 'analysed' || !area.segments) return say(T.needArea(), intent, pills)
       const around = intent.radius_m ? area.analysed : null
       const r = filterPlaces(intent, { features: area.visibleSegments?.features ?? [], layer, listedOf, around, radius: intent.radius_m })
-      const marked = r.matches.slice(0, MARKED).map((m) => ({ f: m.f, mid: midpoint(m.f.geometry), type: placeGroup(m.f.properties, m.f.geometry.type), level: m.level }))
-      if (marked.length) area.showChatResults(marked)
-      else area.clearChatResults()
-      const reply = T.filterReply(r, { pills, layer, level: intent.level, rating: senses.runs.area.status === 'rating', shown: marked.length })
-      say({ ...reply, items: marked.map((m, i) => ({ n: i + 1, id: m.f.properties.id, name: m.f.properties.name || 'Unnamed place', level: m.level })) }, intent, pills)
+      const list = r.matches.slice(0, MARKED).map((m) => ({ f: m.f, mid: midpoint(m.f.geometry), type: placeGroup(m.f.properties, m.f.geometry.type), level: m.level }))
+      chatMarked(list)
+      const reply = T.filterReply(r, { pills, layer, level: intent.level, rating: senses.runs.area.status === 'rating', shown: list.length })
+      say({ ...reply, items: list.map((m, i) => ({ n: i + 1, id: m.f.properties.id, name: m.f.properties.name || 'Unnamed place', level: m.level })) }, intent, pills)
     },
 
     async explain_place(intent) {
@@ -259,10 +270,16 @@ export const useChatStore = defineStore('chat', () => {
     show()
   }
 
+  function chatMarked(list) {
+    marked.value = list
+    mark()
+  }
+
   function clear() {
     messages.value = []
     pending.value = null
-    area.clearChatResults()
+    marked.value = []
+    mark()
   }
 
   return { open, messages, busy, error, pending, returnTo, show, close, send, preset, removePill, run, openPlace, backToChat, clear, name }

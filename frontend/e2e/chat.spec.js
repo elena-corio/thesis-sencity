@@ -58,6 +58,14 @@ test.describe('Ask about places', () => {
     expect(sent).toHaveLength(0) // no model call
     await page.screenshot({ path: 'e2e/screens/chat-preset-dark.png' })
 
+    // The chat's places are on the map only while the chat is open: closed, the area's own recommendations are back.
+    await panel(page).getByRole('button', { name: 'Close the chat' }).click()
+    expect(await store(page, 'area', 'markerKind')).toBe('suggestions')
+    await expect(page.locator('[data-panel="area-card"]')).not.toContainText('From your question')
+    await expect(page.locator('[data-panel="area-card"]').getByTestId('suggestions')).toContainText('Likely easiest for you') // Thermal's own
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    expect(await store(page, 'area', 'markerKind')).toBe('chat') // open again: the chat's places again
+
     await panel(page).getByRole('button', { name: 'Remove easy · Thermal' }).click()
     await expect(panel(page).getByTestId('chat-reply').last()).toContainText(/places? match/)
     expect(sent).toHaveLength(0)
@@ -78,9 +86,12 @@ test.describe('Ask about places', () => {
     await expect(card).toBeVisible()
     expect(await store(page, 'area', 'selectedId')).toBe(id)
     await page.screenshot({ path: 'e2e/screens/chat-open-place-dark.png' })
-    // Back to the conversation, as it was.
+    expect(await store(page, 'area', 'markerKind')).toBe('suggestions') // the chat is closed: its places are not on the map
+    // Back to the conversation, as it was, with its places on the map again.
     await card.getByTestId('back-to-chat').click()
     await expect(panel(page).getByTestId('chat-pills')).toContainText('easy · Thermal')
+    expect(await store(page, 'area', 'markerKind')).toBe('chat')
+    expect(await store(page, 'area', 'markersCollapsed')).toBe(false)
   })
 
   test('a typed message: only its text is sent; the intent is carried out by the app', async ({ page }) => {
