@@ -87,38 +87,50 @@ export function summariseProfile(survey, answers, count = 3) {
   }
 }
 
-// What each answer about preparing or coping can be paired with, among the facts the app has (the elements in the
-// photos, a calmer street nearby). Only answers the person ticked are used.
-const HELPS = ['quieter_spot', 'sit_rest', 'drink_eat', 'headphones_earplugs', 'sunglasses_hat', 'leave_earlier', 'trusted_person', 'nothing_helps', 'other']
-const PREPARES = ['look_at_photos', 'check_busy', 'calmer_route', 'rest_places']
+/**
+ * What the app knows about where the person is going (Elena, 2026-11-21): one place, or every place of the area.
+ * → { scope, count, comfort: [min, max] | null (photo ratings 1–5), rated, thermal: { levels: ['mixed', 'hard'],
+ *   heat, cold, max, min } | null, elements: { code: places listing it }, looked (places with listed elements),
+ *   easy: [names of places easy on the layer], easier: { name, d } | null (a calmer street near one place) }
+ */
+export function placeFacts(features, { listedOf, layer, scope = 'area', easier = null, coldOf = () => false }) {
+  const list = features ?? []
+  const comforts = list.map((f) => f.properties.senses_comfort).filter(Number.isInteger)
+  const thermal = list.filter((f) => level(f.properties.thermal_state) && Number.isFinite(f.properties.utci))
+  const hardish = thermal.filter((f) => f.properties.thermal_state !== 'easy')
+  const elements = {}
+  let looked = 0
+  for (const f of list) {
+    const listed = listedOf(f)
+    if (!listed) continue
+    looked++
+    for (const c of listed) elements[c] = (elements[c] ?? 0) + 1
+  }
+  return {
+    scope,
+    count: list.length,
+    comfort: comforts.length ? [Math.min(...comforts), Math.max(...comforts)] : null,
+    rated: comforts.length,
+    thermal: thermal.length ? {
+      levels: LEVELS.filter((l) => thermal.some((f) => f.properties.thermal_state === l)),
+      heat: hardish.some((f) => !coldOf(f.properties.utci)),
+      cold: hardish.some((f) => coldOf(f.properties.utci)),
+      max: Math.max(...thermal.map((f) => f.properties.utci)),
+      min: Math.min(...thermal.map((f) => f.properties.utci)),
+    } : null,
+    elements,
+    looked,
+    easy: scope === 'area' ? list.filter((f) => levelOn(f, layer) === 'easy').map((f) => f.properties.name).filter(Boolean) : [],
+    easier,
+  }
+}
 
 /**
- * prepare_cope: the person's own answers (Q2: how they prepare, Q4: what helps) with the facts about the place.
- * → { answered, place, tips: [{ kind, code, facts }] } — one tip per ticked answer the app can say something true
- * about; `facts` are element codes found in the photos, or { easier } for a calmer street nearby.
+ * prepare_cope: the person's own answers (Q2: how they prepare, Q4: what helps) and the facts. Only ticked answers are
+ * used; none is invented. → { answered, helps: [codes], prepares: [codes], other: '' }
  */
-export function prepareCope({ prepare, listed = null, easier = null, name = null }) {
-  const q2 = prepare?.Q2?.ticked ?? []
-  const q4 = prepare?.Q4?.ticked ?? []
-  const has = (codes) => (listed ?? []).filter((c) => codes.includes(c))
-  const tips = []
-  for (const code of HELPS.filter((c) => q4.includes(c))) {
-    const facts = {
-      quieter_spot: { easier },
-      sit_rest: { found: has(['seats']), looked: listed != null },
-      drink_eat: { found: has(['drinking_fountains_toilets', 'food_stalls_cafes']), looked: listed != null },
-      headphones_earplugs: { found: has(['traffic_trams', 'crowds']), looked: listed != null },
-      sunglasses_hat: { found: has(['direct_sun', 'shade']), looked: listed != null },
-      other: { text: prepare?.Q4?.other || '' },
-    }[code] ?? {}
-    tips.push({ kind: 'helps', code, facts })
-  }
-  for (const code of PREPARES.filter((c) => q2.includes(c))) {
-    const facts = {
-      check_busy: { found: has(['crowds']), looked: listed != null },
-      rest_places: { found: has(['seats', 'drinking_fountains_toilets', 'shade']), looked: listed != null },
-    }[code] ?? {}
-    tips.push({ kind: 'prepares', code, facts })
-  }
-  return { answered: q2.length + q4.length > 0, place: name, tips }
+export function prepareCope({ prepare }) {
+  const helps = prepare?.Q4?.ticked ?? []
+  const prepares = prepare?.Q2?.ticked ?? []
+  return { answered: helps.length + prepares.length > 0, helps, prepares, other: helps.includes('other') ? prepare?.Q4?.other || '' : '' }
 }

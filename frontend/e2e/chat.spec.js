@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { AREA, THERMAL, analyseCentre, layoutProblems, mockArea, mockSurvey, openMap, openSegment } from './helpers.js'
+import { AREA, TEST_PROFILES, THERMAL, analyseCentre, layoutProblems, mockArea, mockSurvey, openMap, openSegment, withSavedProfile } from './helpers.js'
 
 // The chat (Elena, 2026-11-21). POST /api/chat is mocked: it answers each message with a fixed intent, as the parser
 // would. The app carries the intent out on the loaded area (Thermal here: no rating calls) and writes the reply itself.
@@ -10,6 +10,7 @@ const INTENTS = {
   'mostra il livello termico': blank('set_view', { language: 'it', layer: 'thermal' }),
   'tell me a joke': blank('out_of_scope'),
   'hard places here': blank('filter_places', { level: 'hard' }),
+  'how to prepare for this area?': blank('prepare_cope', { near: 'this area' }),
 }
 async function mockChat(page, { fail = false } = {}) {
   await mockSurvey(page) // the element names (nothing personal)
@@ -142,6 +143,26 @@ test.describe('Ask about places', () => {
     await expect(panel(page).getByTestId('chat-reply').last()).toContainText('feels like 36 °C')
     expect(sent).toHaveLength(0)
     expect(HARD).toBeGreaterThan(0)
+  })
+})
+
+test.describe('Prepare for an area', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('the area’s facts first, then tips from what the person said helps', async ({ page }) => {
+    const DEV = TEST_PROFILES[0]
+    await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z',
+      weather: {}, thermal: null, prepare: { Q1: 3, Q2: { ticked: [], other: '' }, Q3: 4, Q4: { ticked: ['drink_eat', 'sit_rest'], other: '' } } })
+    await mockChat(page)
+    await openArea(page)
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'how to prepare for this area?')
+    const t = lastText(page)
+    // Thermal layer, photos not rated here: the thermal facts (22 / 29 / 36 °C → easy to hard, heat), then the tips.
+    await expect(t).toContainText('Thermal comfort is easy to hard for you, because of high temperatures (feels like up to 36 °C), summer at 15:00.')
+    await expect(t).toContainText('Bring water with you')
+    await expect(t).toContainText('Plan time to rest')
+    await expect(t).not.toContainText('open the place')
   })
 })
 

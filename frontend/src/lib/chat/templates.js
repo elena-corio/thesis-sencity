@@ -93,34 +93,73 @@ export function viewReply({ layer, season, time }) {
   return { text: `Showing ${LAYER_NAMES[layer]}${when}.` }
 }
 
-// What helps, as the person ticked it (config/prepare.json Q4), with its verb.
-const HELP_WORDS = {
-  quieter_spot: 'stepping away to a quieter spot helps', sit_rest: 'sitting down to rest helps',
-  drink_eat: 'drinking or eating something helps', headphones_earplugs: 'headphones or earplugs help',
-  sunglasses_hat: 'sunglasses or a hat help', leave_earlier: 'leaving earlier than planned helps',
-  trusted_person: 'being with someone you trust helps',
+const places = (n) => `${n} ${n === 1 ? 'place' : 'places'}`
+const degrees = (t) => `${Math.round(t).toString().replace('-', '−')} °C`
+
+/** What the app knows about the area or the place: photo ratings, thermal comfort and why. f: execute.placeFacts. */
+export function factsText(f, { name, personal, when }) {
+  const who = personal ? ' for you' : ''
+  const out = []
+  if (f.scope === 'place') {
+    const title = name || 'This place'
+    if (f.comfort) out.push(`${title} is ${f.comfort[0]} of 5 for your senses${personal ? '' : ' (not personalised yet)'}.`)
+    else out.push(`${title} has no photo rating yet.`)
+  } else if (f.comfort) {
+    out.push(f.comfort[0] === f.comfort[1]
+      ? `Every rated place in this area is ${f.comfort[0]} of 5 for your senses${personal ? '' : ' (not personalised yet)'}.`
+      : `This area has a mix of sensory comfort, from ${f.comfort[0]} to ${f.comfort[1]} of 5${who}.`)
+  } else out.push('The photos of this area are not rated yet.')
+  const t = f.thermal
+  if (t) {
+    const range = t.levels.length > 1 ? `${t.levels[0]} to ${t.levels.at(-1)}` : t.levels[0]
+    const cause = t.heat && t.cold ? ', with both heat and cold'
+      : t.heat ? `, because of high temperatures (feels like up to ${degrees(t.max)})`
+        : t.cold ? `, because of low temperatures (feels like down to ${degrees(t.min)})` : ''
+    out.push(`Thermal comfort ${f.scope === 'place' ? 'there ' : ''}is ${range}${who}${cause}${when ? `, ${when}` : ''}.`)
+  }
+  return out.join(' ')
 }
 
-/** prepare_cope. p: execute.prepareCope. Only what the person said helps, with facts the app has; nothing else. */
-export function copeReply(p, { name }) {
-  if (!p.answered) return { text: 'Answer “How you prepare for new places” in your profile, and the tips will follow what you said helps.' }
-  const at = p.place ? ` at ${p.place}` : ' here'
-  const photos = (f) => (f.found?.length ? `the photos${at} show ${list(f.found, name)}` : f.looked ? `the photos${at} show none` : 'open the place to see what its photos show')
+/**
+ * prepare_cope: the facts, then tips that follow only what the person said helps (Q4) or how they prepare (Q2), each
+ * with what the photos show. Never medical; nothing the app does not know. p: execute.prepareCope.
+ */
+export function copeReply(f, p, { name, personal, when, place = null }) {
+  const facts = factsText(f, { name: place, personal, when })
+  if (!p.answered) return { text: `${facts} Answer “How you prepare for new places” in your profile, and the tips will follow what helps you.` }
+  const here = f.scope === 'place' ? ' there' : ' in this area'
+  const at = (n) => (f.scope === 'place' ? 'in its photos' : `in the photos of ${places(n)}`)
+  const n = (code) => f.elements[code] ?? 0
+  const blind = f.looked === 0 // no photo of it is rated yet: the app cannot say what is there
   const tips = []
-  for (const t of p.tips) {
-    const f = t.facts
-    if (t.kind === 'helps') {
-      if (t.code === 'nothing_helps') tips.push('You said nothing really helps. The place card shows what might bother you, so you can decide before you go.')
-      else if (t.code === 'other') { if (f.text) tips.push(`You also wrote what helps: “${f.text}”.`) }
-      else if (t.code === 'quieter_spot') tips.push(f.easier ? `You said ${HELP_WORDS.quieter_spot}: ${f.easier.name || 'a street'} about ${Math.round(f.easier.d / 10) * 10} m away may be easier for you.` : `You said ${HELP_WORDS.quieter_spot}; the map shows no easier street close by.`)
-      else if (['leave_earlier', 'trusted_person'].includes(t.code)) tips.push(`You said ${HELP_WORDS[t.code]}.`)
-      else tips.push(`You said ${HELP_WORDS[t.code]}: ${photos(f)}.`)
-    } else {
-      if (t.code === 'look_at_photos') tips.push('You like to look at photos first: the place card shows the photos of each street.')
-      if (t.code === 'check_busy') tips.push(`You check how busy a place is: ${f.found?.length ? `the photos${at} show crowds` : f.looked ? `the photos${at} show no crowds` : 'open the place to see its photos'}. The app does not know the busy hours.`)
-      if (t.code === 'calmer_route') tips.push(`You plan calmer routes: ask “a calmer way to ${p.place || 'this place'}”.`)
-      if (t.code === 'rest_places') tips.push(`You like to know where to rest: ${photos(f)}.`)
-    }
+  const has = (c) => p.helps.includes(c)
+  if (has('drink_eat') || (p.prepares.includes('rest_places') && !has('sit_rest'))) {
+    if (blind) tips.push('Bring water with you: the photos are not rated yet, so the app cannot tell whether there are drinking fountains.')
+    else if (n('drinking_fountains_toilets')) tips.push(`Drinking fountains or toilets show ${at(n('drinking_fountains_toilets'))}.`)
+    else tips.push(`Bring water with you: no drinking fountain shows in the photos${here}${n('food_stalls_cafes') ? ', though there are cafés or food stalls' : ''}.`)
   }
-  return { text: tips.length ? tips.join(' ') : 'Your answers name nothing the map can show here.' }
+  if (has('sit_rest') || p.prepares.includes('rest_places')) {
+    if (blind || !n('seats')) tips.push(`Plan time to rest${blind ? '' : `: no seats show in the photos${here}`}.`)
+    else tips.push(`Seats show ${at(n('seats'))}: plan time to rest there.`)
+  }
+  if (has('quieter_spot')) {
+    if (f.scope === 'place') tips.push(f.easier ? `If it gets too much, ${f.easier.name || 'a street'} about ${Math.round(f.easier.d / 10) * 10} m away may be easier for you.` : 'The map shows no easier street close by to step away to.')
+    else if (f.easy.length) tips.push(`If it gets too much, ${places(f.easy.length)} here ${f.easy.length === 1 ? 'is' : 'are'} easy for you, such as ${f.easy.slice(0, 2).join(' and ')}.`)
+    else tips.push('The map shows no easy place here to step away to.')
+  }
+  if (has('headphones_earplugs') && !blind) {
+    const parts = [n('traffic_trams') && `traffic${f.scope === 'area' ? ` at ${places(n('traffic_trams'))}` : ''}`, n('crowds') && `crowds${f.scope === 'area' ? ` at ${places(n('crowds'))}` : ''}`].filter(Boolean)
+    if (parts.length) tips.push(`Bring headphones or earplugs: the photos show ${parts.join(' and ')}.`)
+  }
+  if (has('sunglasses_hat') && (f.thermal?.heat || n('direct_sun'))) {
+    tips.push(`Bring sunglasses or a hat${n('direct_sun') ? `: direct sun shows ${at(n('direct_sun'))}` : ': it may feel hot'}.`)
+  }
+  if (p.prepares.includes('check_busy') && !blind) tips.push(n('crowds') ? `Crowds show ${at(n('crowds'))}; the app does not know the busy hours.` : `No crowds show in the photos${here}; the app does not know the busy hours.`)
+  if (has('leave_earlier')) tips.push('Plan when you could leave early, as you said that helps.')
+  if (has('trusted_person')) tips.push('You said being with someone you trust helps.')
+  if (p.prepares.includes('calmer_route')) tips.push(`To get there, ask for “a calmer way to ${place || 'this area'}”.`)
+  if (p.prepares.includes('look_at_photos')) tips.push(f.scope === 'place' ? 'Its photos are on its card.' : 'Open the places on the map to see their photos.')
+  if (has('nothing_helps')) tips.push('You said nothing really helps: the place cards show what might bother you, so you can decide before you go.')
+  if (p.other) tips.push(`You also wrote: “${p.other}”.`)
+  return { text: [facts, ...tips].join(' ') }
 }

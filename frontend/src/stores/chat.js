@@ -6,7 +6,8 @@ import { askChat, searchPlaces } from '../lib/api.js'
 import { midpoint } from '../lib/geo.js'
 import { LEVEL, easierNearby } from '../lib/nearby.js'
 import { placeGroup } from '../lib/place.js'
-import { explainPlace, filterPlaces, levelOn, prepareCope, summariseProfile } from '../lib/chat/execute.js'
+import { explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from '../lib/chat/execute.js'
+import { isCold, thermalLimits } from '../lib/thermal.js'
 import { clean, isThis, pillsOf, withoutPill } from '../lib/chat/intent.js'
 import * as T from '../lib/chat/templates.js'
 import { useAreaStore } from './area.js'
@@ -198,18 +199,27 @@ export const useChatStore = defineStore('chat', () => {
     },
 
     async prepare_cope(intent) {
-      if (!profile.profile) return say(T.needProfile(), intent)
-      const f = placeNamed(intent.near)
+      // The open place ("this street"), a place of the area by name, or else the whole area ("this area", nothing named).
+      const wantsArea = !intent.near || /(area|zona|zone|neighbou?rhood|quartiere)/i.test(intent.near)
+      const f = wantsArea ? null : placeNamed(intent.near)
+      if (!f && intent.near && !isThis(intent.near) && !wantsArea) {
+        return say({ text: `${intent.near} is not in the loaded area. Load an area around it first, such as “places near ${intent.near}”.` }, intent)
+      }
+      if (area.step !== 'analysed' || !area.segments) return say(T.needArea(), intent)
       const layer = area.layer
+      const limits = thermalLimits()
       let easier = null
       if (f) {
         if (area.selectedId !== f.properties.id) area.select(f.properties.id, midpoint(f.geometry))
-        const best = easierNearby(f, area.segments?.features ?? [], { levelOf: (g) => LEVEL[levelOn(g, layer)] ?? null })
+        const best = easierNearby(f, area.segments.features, { levelOf: (g) => LEVEL[levelOn(g, layer)] ?? null })
         easier = best ? { name: best.f.properties.name, d: best.d } : null
       }
-      const p = prepareCope({ prepare: profile.profile.prepare, listed: f ? listedOf(f) : null, easier,
-        name: f?.properties.name || (intent.near && !isThis(intent.near) ? intent.near : null) })
-      say(T.copeReply(p, { name }), intent, pillsOf(intent, { name }))
+      const features = f ? [f] : (area.visibleSegments?.features ?? [])
+      const facts = placeFacts(features, { listedOf, layer, scope: f ? 'place' : 'area', easier, coldOf: (t) => isCold(t, limits) })
+      const info = area.thermalInfo
+      const when = info ? `${info.season} at ${info.time}` : ''
+      say(T.copeReply(facts, prepareCope({ prepare: profile.profile?.prepare }), { name, personal: profile.personal, when,
+        place: f?.properties.name || null }), intent, pillsOf(intent, { name }))
     },
 
     async out_of_scope(intent) {

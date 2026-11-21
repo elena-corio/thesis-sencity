@@ -1,7 +1,7 @@
 // The chat in the browser: intents and pills, each action carried out on made-up data, and the reply templates.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { explainPlace, filterPlaces, levelOn, prepareCope, summariseProfile } from './execute.js'
+import { explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from './execute.js'
 import { PRESETS, WHY_PRESET, blank, clean, isThis, pillsOf, withoutPill } from './intent.js'
 import * as T from './templates.js'
 
@@ -111,15 +111,21 @@ describe('summarise_profile', () => {
 })
 
 describe('prepare_cope', () => {
-  const prepare = { Q1: 3, Q2: { ticked: ['check_busy', 'rest_places'], other: '' }, Q3: 4, Q4: { ticked: ['sit_rest', 'headphones_earplugs', 'quieter_spot'], other: '' } }
-  it('only what the person ticked, with the facts the photos give', () => {
-    const p = prepareCope({ prepare, listed: ['traffic_trams', 'crowds'], easier: { name: 'Quiet Lane', d: 140 }, name: 'Graben' })
-    expect(p.answered).toBe(true)
-    expect(p.tips.map((t) => t.code)).toEqual(['quieter_spot', 'sit_rest', 'headphones_earplugs', 'check_busy', 'rest_places'])
-    expect(p.tips.find((t) => t.code === 'sit_rest').facts).toEqual({ found: [], looked: true })
-    expect(p.tips.find((t) => t.code === 'headphones_earplugs').facts.found).toEqual(['traffic_trams', 'crowds'])
+  it('facts about the whole area: photo ratings from–to, thermal levels and why, elements in the photos', () => {
+    const f = placeFacts(FEATURES, { listedOf, layer: 'senses', coldOf: (t) => t < 0 })
+    expect(f).toMatchObject({ scope: 'area', comfort: [2, 5], rated: 5, looked: 5, easy: ['a', 'b', 'far'] })
+    expect(f.thermal).toMatchObject({ levels: ['easy', 'mixed', 'hard'], heat: true, cold: false })
+    expect(f.elements).toMatchObject({ shade: 4, seats: 1, crowds: 2, traffic_trams: 2 })
   })
-  it('nothing ticked: nothing to say', () => {
+
+  it('facts about one place, with a calmer street nearby', () => {
+    const f = placeFacts([FEATURES[3]], { listedOf, layer: 'senses', scope: 'place', easier: { name: 'Quiet Lane', d: 140 } })
+    expect(f).toMatchObject({ scope: 'place', comfort: [2, 2], easy: [], easier: { name: 'Quiet Lane', d: 140 } })
+  })
+
+  it('only the answers the person ticked', () => {
+    const p = prepareCope({ prepare: { Q2: { ticked: ['check_busy'] }, Q4: { ticked: ['sit_rest', 'other'], other: 'a quiet corner' } } })
+    expect(p).toEqual({ answered: true, helps: ['sit_rest', 'other'], prepares: ['check_busy'], other: 'a quiet corner' })
     expect(prepareCope({ prepare: null }).answered).toBe(false)
   })
 })
@@ -153,12 +159,34 @@ describe('templates', () => {
     expect(T.profileReply(s, 'overall', words).text).toBe('In general you feel not very comfortable in outdoor public spaces (2 of 5). Bothers you most: Crowds (1). Feels good: Shade from trees or buildings (5).')
   })
 
-  it('cope reply: only what the person said helps, facts from the photos, nothing medical', () => {
-    const prepare = { Q2: { ticked: [] }, Q4: { ticked: ['sit_rest', 'quieter_spot', 'leave_earlier'], other: '' } }
-    const t = T.copeReply(prepareCope({ prepare, listed: ['seats'], easier: null, name: 'Graben' }), { name }).text
-    expect(t).toBe('You said stepping away to a quieter spot helps; the map shows no easier street close by. You said sitting down to rest helps: the photos at Graben show seats. You said leaving earlier than planned helps.')
+  it('cope reply for an area: the facts, then tips from what helps the person (Elena’s example)', () => {
+    const facts = { scope: 'area', comfort: [2, 4], rated: 12, looked: 12, easy: [], easier: null,
+      thermal: { levels: ['mixed', 'hard'], heat: true, cold: false, max: 36.2, min: 27 }, elements: { traffic_trams: 4 } }
+    const p = prepareCope({ prepare: { Q2: { ticked: [] }, Q4: { ticked: ['drink_eat', 'sit_rest'] } } })
+    const t = T.copeReply(facts, p, { name, personal: true, when: 'summer at 15:00' }).text
+    expect(t).toBe('This area has a mix of sensory comfort, from 2 to 4 of 5 for you. Thermal comfort is mixed to hard for you, ' +
+      'because of high temperatures (feels like up to 36 °C), summer at 15:00. Bring water with you: no drinking fountain shows in ' +
+      'the photos in this area. Plan time to rest: no seats show in the photos in this area.')
     expect(t).not.toMatch(/medic|doctor|therap|diagnos|persona/i)
-    expect(T.copeReply(prepareCope({ prepare: null }), { name }).text).toMatch(/^Answer “How you prepare for new places”/)
+  })
+
+  it('cope reply: facts the photos give, a calmer street, and nothing for answers not ticked', () => {
+    const facts = { scope: 'place', comfort: [2, 2], rated: 1, looked: 1, easy: [], easier: { name: 'Quiet Lane', d: 137 },
+      thermal: null, elements: { seats: 1, drinking_fountains_toilets: 1, crowds: 1 } }
+    const p = prepareCope({ prepare: { Q2: { ticked: ['check_busy'] }, Q4: { ticked: ['quieter_spot', 'sit_rest', 'drink_eat'] } } })
+    const t = T.copeReply(facts, p, { name, personal: true, when: '', place: 'Graben' }).text
+    expect(t).toBe('Graben is 2 of 5 for your senses. Drinking fountains or toilets show in its photos. Seats show in its photos: plan ' +
+      'time to rest there. If it gets too much, Quiet Lane about 140 m away may be easier for you. Crowds show in its photos; the app ' +
+      'does not know the busy hours.')
+    expect(t).not.toMatch(/headphones|sunglasses/) // not ticked: not said
+  })
+
+  it('cope reply when the photos are not rated yet, or nothing is answered', () => {
+    const blind = { scope: 'area', comfort: null, rated: 0, looked: 0, easy: [], easier: null, thermal: null, elements: {} }
+    const p = prepareCope({ prepare: { Q2: { ticked: [] }, Q4: { ticked: ['drink_eat'] } } })
+    expect(T.copeReply(blind, p, { name, personal: true }).text).toBe('The photos of this area are not rated yet. Bring water with you: ' +
+      'the photos are not rated yet, so the app cannot tell whether there are drinking fountains.')
+    expect(T.copeReply(blind, prepareCope({ prepare: null }), { name, personal: true }).text).toMatch(/Answer “How you prepare for new places”/)
   })
 
   it('route, view and out-of-scope replies; the Italian note', () => {
