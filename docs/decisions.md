@@ -2,6 +2,11 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-21 – No "Strongest for you" on the profile (accepted)
+**Context.** Elena asked to remove "Strongest for you" from the profile. The brief (§ screens, 2) lists "strongest items" in the profile's right panel.
+**Decision (Elena).** The section is gone from "Your profile" (`ProfileSummary.vue`). The print report keeps its "strongest" section (`ReportProfile.vue`, brief §7) until Elena says otherwise; `strongest` in `lib/profile.js` stays for it.
+**Consequences.** Every answer is still on the profile, in the folded list and on the radar.
+
 ## 2026-11-21 – One save at the end of the onboarding; Q3 on a 1–5 scale (accepted; details proposed)
 **Context.** Elena: "Save profile" moves to the very end, after the questions about new places; answers stay a draft while moving through the steps, nothing is saved until that button, and editing works the same way. Q3 becomes a 1–5 scale; an answer saved in the old form is asked again, never converted. These answers stay out of the prompt.
 **Decision.**

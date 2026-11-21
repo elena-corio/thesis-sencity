@@ -1,11 +1,11 @@
 <script setup>
 // Your sensory profile (board 5): every answer, each group with Edit (editing builds the profile again); on the right,
-// your own words, the strongest elements, and the device-only actions: download,
+// your own words (no "Strongest for you": Elena, 2026-11-21), and the device-only actions: download,
 // import, delete. The radar (ProfileRadar) under the title; under the overall comfort, the temperature that feels
 // comfortable (ThermalComfortBar, from the Weather step). "Places that may suit you" comes later.
 import { computed, ref } from 'vue'
 import config from '../config.js'
-import { GRIDS, gridRows, strongest } from '../lib/profile.js'
+import { GRIDS, gridRows } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
 import { STEPS, useProfileStore } from '../stores/profile.js'
 import AppIcon from './AppIcon.vue'
@@ -28,7 +28,6 @@ const question = (code) => survey.value.questions.find((q) => q.code === code)
 const a11 = computed(() => question('A11'))
 const words = (code) => question(code).scale[lang]
 const kind = (v) => (v <= 2 ? 'bothers' : v >= 4 ? 'good' : 'neither')
-const top = computed(() => strongest(survey.value, p.value.answers))
 const saved = computed(() => new Date(p.value.saved).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))
 const edit = (code) => store.begin(STEPS.indexOf(code))
 const limits = computed(() => store.limits ?? standardLimits())
@@ -143,16 +142,6 @@ function a11Key(e) {
       <blockquote v-if="p.answers.A16" class="words" data-testid="answer-A16">“{{ p.answers.A16 }}”</blockquote>
       <p v-else class="muted">Nothing written.</p>
 
-      <div class="card-head"><h3>Strongest for you</h3></div>
-      <ul v-if="top.length" class="top">
-        <li v-for="t in top" :key="t.row.code">
-          <span class="dot" :class="t.kind" aria-hidden="true" />
-          <span class="name">{{ t.row[lang] }}</span>
-          <span class="score" :class="kind(t.score)">{{ t.score }} · {{ words('A12')[t.score - 1] }}</span>
-        </li>
-      </ul>
-      <p v-else class="muted">Nothing stands out: every element is in the middle.</p>
-
       <template v-if="prep">
         <div class="card-head">
           <h3>{{ prep.title.en }}</h3>
@@ -242,10 +231,6 @@ h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text
 .muted { color: var(--text-muted); font-size: var(--fs-sm); }
 .prepare { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
 .prepare li { display: flex; flex-direction: column; gap: var(--space-1); }
-.top li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
-.dot { width: var(--space-3); height: var(--space-3); border-radius: 50%; }
-.dot.bothers { background: var(--hard); }
-.dot.good { background: var(--easy); }
 .text[open] .chev { transform: rotate(180deg); }
 .buttons { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); margin-top: var(--space-2); }
 .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2) var(--space-4); }

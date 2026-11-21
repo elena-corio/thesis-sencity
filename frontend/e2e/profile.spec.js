@@ -234,7 +234,7 @@ test.describe('your sensory profile', () => {
     await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
-    await expect(summary.locator('aside .top li').first()).toHaveText(/Traffic, trams\s*1 · very unpleasant/) // the answers' words
+    await expect(summary.getByRole('heading', { name: 'Strongest for you' })).toHaveCount(0) // removed (Elena, 2026-11-21)
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
     // At the top of the right card, above "In your words" (Elena, 2026-11-15).
     const side = summary.locator('aside')

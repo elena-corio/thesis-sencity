@@ -123,7 +123,7 @@ export function readFile(survey, data) {
     myRatings: Array.isArray(data.myRatings) ? data.myRatings : [] }
 }
 
-/** The elements as bothers / feels good, strongest first (board 5, "Strongest for you"): 1–2 bother, 4–5 feel good. */
+/** The elements as bothers / feels good, strongest first (the print report): 1–2 bother, 4–5 feel good. */
 export function strongest(survey, answers, count = 4) {
   const rows = GRIDS.flatMap((g) => gridRows(survey, g))
   const score = (r) => answers[GRIDS.find((g) => r.code in (answers[g] ?? {}))]?.[r.code]
