@@ -26,6 +26,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *prepare_cope:* only answers the person ticked in "How you prepare for new places", each paired with what the photos show (seats, drinking fountains/toilets, shade, traffic, crowds, sun) or a calmer street nearby (`easierNearby`); never medical, nothing the photos do not show; "the app does not know the busy hours" where that matters. Route facts are not used yet.
 - *No memory:* each request stands alone; only "this" refers to what is open.
 - *Desktop:* the chat takes the right card's place while open; a phone shows it full screen, the rest hidden.
+- *A place from the list (Elena, 2026-11-21):* clicking it closes the chat and opens that place's card at once, the place selected on the map as from its pin; the card has "Back to the chat", and the conversation is kept.
 **Consequences.** Replaces the brief's `POST /chat` with a profile id. The prompt (`config/chat_prompt.txt`) can be changed without code; re-run `python -m app.chat_eval test` after any change and record the new accuracy here.
 
 ## 2026-11-21 – "Adjust to my own ratings" is built but disabled: it is untested (accepted)

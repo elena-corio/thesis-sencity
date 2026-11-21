@@ -226,11 +226,27 @@ export const useChatStore = defineStore('chat', () => {
     ACTIONS.filter_places(intent)
   })
 
-  /** Open a place from a result card. */
-  function openPlace(id) {
+  /** The place opened from a result card: its card offers "Back to the chat" while it is the one selected. */
+  const returnTo = ref(null)
+  /** Open a place from a result card (Elena, 2026-11-21): the chat gives way to the place's card, and the street is
+   *  selected on the map, as from its pin. The conversation stays; "Back to the chat" (or Ask) brings it back. */
+  function openPlace(id, keyboard = false) {
     const m = area.markers.find((x) => x.f.properties.id === id)
-    if (m) area.selectMarker(m)
-    if (window.matchMedia?.('(max-width: 767px)').matches) close()
+    if (m) area.selectMarker(m, keyboard)
+    else {
+      // An earlier reply's place, no longer marked: select it from the area itself.
+      const f = area.segments?.features.find((x) => x.properties.id === id)
+      if (!f) return
+      area.byKeyboard = keyboard
+      area.select(id, midpoint(f.geometry))
+    }
+    returnTo.value = id
+    close()
+  }
+  /** "Back to the chat" on the place's card. */
+  function backToChat() {
+    returnTo.value = null
+    show()
   }
 
   function clear() {
@@ -239,5 +255,5 @@ export const useChatStore = defineStore('chat', () => {
     area.clearChatResults()
   }
 
-  return { open, messages, busy, error, pending, show, close, send, preset, removePill, run, openPlace, clear, name }
+  return { open, messages, busy, error, pending, returnTo, show, close, send, preset, removePill, run, openPlace, backToChat, clear, name }
 })

@@ -63,6 +63,25 @@ test.describe('Ask about places', () => {
     expect(await layoutProblems(page)).toEqual([])
   })
 
+  test('a street from the list opens its card at once, selected on the map; "Back to the chat" returns', async ({ page }) => {
+    await mockChat(page)
+    await openArea(page)
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await panel(page).locator('[data-preset="easy"]').click()
+    const first = panel(page).getByTestId('chat-reply').last().locator('.item').first()
+    const id = await first.getAttribute('data-place')
+    await first.click()
+    // The chat gives way to the street's card; the street is the selected one.
+    await expect(panel(page)).toHaveCount(0)
+    const card = page.locator('[data-panel="place-card"]')
+    await expect(card).toBeVisible()
+    expect(await store(page, 'area', 'selectedId')).toBe(id)
+    await page.screenshot({ path: 'e2e/screens/chat-open-place-dark.png' })
+    // Back to the conversation, as it was.
+    await card.getByTestId('back-to-chat').click()
+    await expect(panel(page).getByTestId('chat-pills')).toContainText('easy · Thermal')
+  })
+
   test('a typed message: only its text is sent; the intent is carried out by the app', async ({ page }) => {
     const sent = await mockChat(page)
     await openArea(page)

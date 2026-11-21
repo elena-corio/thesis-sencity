@@ -54,7 +54,7 @@ watch(() => chat.messages.length, () => nextTick(() => { if (list.value) list.va
           <blockquote v-if="m.quote" class="quote"><span class="muted">{{ m.quote.label }}</span> {{ m.quote.text }}</blockquote>
           <ol v-if="m.items?.length" class="items">
             <li v-for="it in m.items" :key="it.id">
-              <button type="button" class="item" :data-place="it.id" @click="chat.openPlace(it.id)">
+              <button type="button" class="item" :data-place="it.id" @click="chat.openPlace(it.id, $event.detail === 0)">
                 <span class="n" :class="it.level">{{ it.n }}</span>
                 <span class="name">{{ it.name }}</span>
                 <span class="muted">{{ it.level ?? 'not rated' }}</span>

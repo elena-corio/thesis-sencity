@@ -155,6 +155,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <button ref="backBtn" type="button" class="back" @click="src.back($event.detail === 0)">
       <AppIcon name="chevronLeft" /> {{ src.backLabel }}
     </button>
+    <!-- Opened from a chat reply (Elena, 2026-11-21): back to the conversation, which is kept. -->
+    <button v-if="!props.source && chat.returnTo && chat.returnTo === area.selectedId" type="button" class="back from"
+            data-testid="back-to-chat" @click="chat.backToChat()">
+      <AppIcon name="chat" /> Back to the chat
+    </button>
     <button v-if="cameFrom" ref="fromBtn" type="button" class="back from" @click="area.goBack($event.detail === 0)">
       <AppIcon name="chevronLeft" /> <span>Back to <span lang="de">{{ cameFrom.name }}</span></span>
     </button>
