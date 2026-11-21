@@ -1,5 +1,10 @@
 // Frontend settings that are not visual. Colours, fonts and sizes live in styles/style.css.
 
+/** "Adjust to my own ratings (experimental)" (lib/adjust.js, stores/adjust.js): built, but off until it is tested with
+ *  people (Elena, 2026-11-21). false: no setting, no adjusted figures in "How close", no notes, nothing shifted, even if
+ *  `sencity-adjust` was kept on in this browser. */
+export const ENABLE_ADJUST = false
+
 export default {
   radius: {
     min: 50, // a smaller circle snaps to this (m)

@@ -9,6 +9,7 @@ import { senseName } from '../lib/senses.js'
 import config from '../config.js'
 import SenseIcon from './SenseIcon.vue'
 import { useProfileStore } from '../stores/profile.js'
+import { useAdjustStore } from '../stores/adjust.js'
 
 const props = defineProps({
   /** The photo on screen: { id, heading, source }. */
@@ -21,6 +22,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['rated'])
 const profile = useProfileStore()
+const adjustments = useAdjustStore()
 
 const key = computed(() => (props.photo ? `${props.photo.id}|${props.photo.heading}` : null))
 /** The prediction on screen for this photo, kept for the rating. */
@@ -68,6 +70,7 @@ function rate(n) {
   if (!props.photo) return
   ratedHere = true
   last.value = addRating({ photo: props.photo, B1: n, prediction: shown.value, from: props.from })
+  adjustments.refresh() // the gap and "How close" follow the new rating
   profile.ensureSurvey() // the chips' names (part_a.json, nothing personal)
   emit('rated', last.value)
 }
@@ -86,7 +89,7 @@ const titleId = `rate-title-${Math.random().toString(36).slice(2, 8)}`
     <p v-if="last" class="compare" aria-live="polite" data-testid="rate-compare">
       <span><span class="who">You:</span> <strong>{{ last.rating.B1 }}</strong></span>
       <span class="sep" aria-hidden="true">·</span>
-      <span><span class="who">SenCity:</span> <strong>{{ last.prediction ? last.prediction.B1 : '–' }}</strong></span>
+      <span><span class="who">SenCity:</span> <strong>{{ last.prediction ? (last.prediction.shown ?? last.prediction.B1) : '–' }}</strong></span>
       <span v-if="!last.prediction" class="muted">(no prediction was shown)</span>
     </p>
     <div v-if="last?.id" class="why" data-testid="rate-why">
@@ -108,7 +111,7 @@ const titleId = `rate-title-${Math.random().toString(36).slice(2, 8)}`
         <input v-model="other" type="text" :maxlength="OTHER_MAX" data-testid="rate-other" @change="saveOther" @blur="saveOther">
       </label>
     </div>
-    <p class="rate-foot">From the photo. Kept on this device; not used by the model yet.</p>
+    <p class="rate-foot">From the photo. Kept on this device; never sent to the model.</p>
   </div>
 </template>
 

@@ -2,6 +2,45 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-21 – "Adjust to my own ratings" is built but disabled: it is untested (accepted)
+**Context.** Elena, after the entry below was built: keep the code, but hide the feature until it is tested.
+**Decision (Elena).** `ENABLE_ADJUST = false` in `frontend/src/config.js`. With it off: no checkbox, no adjusted figures in "How close SenCity is to you" (only the predicted figures: ratings, points off on average, within 1 point), no "Adjusted to your own ratings" notes, and no prediction is shifted, even if `sencity-adjust` was kept on in a browser. The card text ("never sent to the model") and the rewrite of brief §5b and the design notes stay.
+**Why.** The correction has not been tested with people: whether a mean shift brings predictions closer for a real person, and from how many ratings, is not known yet.
+**Consequences.** `lib/adjust.js` and `stores/adjust.js` stay, with their unit tests (the store tests switch the flag on to check the code as built, and off to check that nothing shifts); a unit test pins `ENABLE_ADJUST` to false, and a browser test checks that nothing shows or shifts. Turning it on is the one-line flag change, after testing; record that here when it happens.
+
+## 2026-11-21 – Own ratings never reach the model; "Adjust to my own ratings" on the device (accepted; details proposed; disabled, see above)
+**Context.** The brief (§5b) and the design notes ("Calibration (H3)") still described the study's rounds: up to 5 of your own ratings added to the prompt as examples. The code never did this (2026-11-18 entry), but the card said "not used by the model yet". Elena: keep learning from your ratings, as a simple correction on the device instead of prompt examples, and say plainly that ratings are never sent to the model.
+**Decision (Elena).**
+- *Text:* the card reads "From the photo. Kept on this device; never sent to the model." §5b of the brief and "Calibration (H3)" of the design notes are rewritten (marked with the date); this entry replaces their prompt-examples rule.
+- *The correction:* an opt-in setting "Adjust to my own ratings (experimental)", off by default, in "How close SenCity is to you". Available after `MIN_RATINGS` (4) of your ratings of **personalised** predictions (V2). The gap = mean(your rating − prediction) over those only. When on, it shifts **personalised** predictions only; general ("not personalised yet", V0) predictions never count and are never adjusted.
+- *The note:* "Adjusted to your own ratings (+0.6)" under an adjusted prediction (place card on Senses and Overall, Senses footer); when |gap| < 0.5, "Adjusted to your own ratings (+0.3, too small to change the level)".
+- *"How close SenCity is to you":* the three numbers as before, then for personalised predictions the points off on average as predicted and as adjusted, with the share within 1 point for each.
+- *Download:* the setting is not in the export file (proposed by Claude, accepted); your ratings are, so the gap follows them after an import.
+**Proposed (Claude).**
+- *Rounding:* predictions are whole points (levels, words, colours), so the shift is the gap rounded to whole points the same way up and down (+0.5 → +1, −0.5 → −1, under 0.5 → 0), then clipped to 1–5. This is what makes "too small to change the level" exact under half a point. Under half a point the note cuts the shown value to one decimal (−0.49 → "−0.4"), so it never reads "0.5, too small".
+- *Where:* applied when a photo's rating is read (`stores/senses.js` `ratingOf`), so the map, cards, routes, walk, Overall and the report all show the same adjusted value. The stored ratings and the API cache keep the model's value: turning it on or off costs nothing and asks nothing again.
+- *No feedback loop:* a rating made while adjusted keeps the model's value as `prediction.B1` and the adjusted one as `prediction.shown` ("You: 4 · SenCity: 4" shows what was on screen); the gap is always computed from `B1`.
+- *Adjusted gap is fair:* each rating is shifted by the gap of the *other* ratings (leave one out), as a new rating would be; the same ratings would otherwise flatter the correction.
+- *Which personal ratings:* every rating of a personalised prediction counts, also from an earlier profile version (simplest; the profile hash is kept with each rating if this should change).
+**Consequences.** The prompt and the API are unchanged; nothing about the correction leaves the device. The report prints adjusted values when the setting is on, without its own note (the place card and footer carry it).
+
+## 2026-11-21 – No "Strongest for you" on the profile (accepted)
+**Context.** Elena asked to remove "Strongest for you" from the profile. The brief (§ screens, 2) lists "strongest items" in the profile's right panel.
+**Decision (Elena).** The section is gone from "Your profile" (`ProfileSummary.vue`). The print report keeps its "strongest" section (`ReportProfile.vue`, brief §7) until Elena says otherwise; `strongest` in `lib/profile.js` stays for it.
+**Consequences.** Every answer is still on the profile, in the folded list and on the radar.
+
+## 2026-11-21 – One save at the end of the onboarding; Q3 on a 1–5 scale (accepted; details proposed)
+**Context.** Elena: "Save profile" moves to the very end, after the questions about new places; answers stay a draft while moving through the steps, nothing is saved until that button, and editing works the same way. Q3 becomes a 1–5 scale; an answer saved in the old form is asked again, never converted. These answers stay out of the prompt.
+**Decision.**
+- *One onboarding (Elena):* the steps are intro, A11, A12, A13, A16, Weather, then Q1–Q4 (`STEPS` in `stores/profile.js`), all in one draft (`sencity-profile-draft`, now with `prepare`). The Weather step's button is Next; the button after Q4 is "Save your profile" (new) or "Save changes" (edit), the only save. Back from Q1 goes to Weather. The profile part still shows "Step n of 6" and the new-places part "Question n of 4 · optional" (proposed: two titles, one flow).
+- *Edits (Elena):* the halfway "Save changes" button is gone; an edit opens at its question and is saved after Q4. Edit (or Answer) for new places opens the onboarding at Q1. Cancel drops the draft. The overall comfort bar and the Thermal starts on "Your profile" still save at once (they are not the onboarding).
+- *Skip (proposed):* "Skip these questions" is gone, since it would be a second save; every question about new places can be left out with Next. A new profile keeps "Skip for now" (the draft stays, nothing saved).
+- *An answer missing at the save (proposed):* only possible with a draft from before; the save goes back to that step and says "A few answers are missing here."
+- *Q3 (Elena):* "How often does a place feel like too much for your senses?", 1–5, 1 = Never, 5 = Very often, words on both ends. English only, like the rest of `config/prepare.json` (Elena's later message left Italian out). "Prefer not to say" is gone: the question is optional.
+- *Old answers (Elena):* a Q3 saved as a word (e.g. "often") counts as unanswered (`lib/prepare.js` `isAnswered` checks the type), shows "Not answered", and is dropped at the next save.
+- *Draft text (proposed):* the "Other" text is kept as typed in the draft and trimmed only at the save, so a space typed at the end is not removed while typing.
+**Consequences.** Leaving halfway (new profile) keeps everything as a draft but gives no profile, also when only the questions about new places are left. Supersedes the 2026-11-18 flow (opens after a new profile, saved at each answer, Done, Skip these questions).
+
 ## 2026-11-18 – How you prepare for new places: an optional step after the profile (accepted; details proposed)
 **Context.** Elena: after the profile, an optional step with A15 (comfort going to a place you don't know) and the coping and preparation questions, stored with the profile, able to shape what the app shows, never in the prediction prompt. The search found A15 in the current thesis codebook (tool-only) and older coping items in the pilot 1 and 2 codebooks, but not the v3.1 preparation question; Elena then gave the wording.
 **Decision (Elena).**

@@ -7,6 +7,8 @@ import { overallOf, overallReason } from '../lib/overall.js'
 import { bySense } from '../lib/senses.js'
 import { formatDegrees, isCold } from '../lib/thermal.js'
 import SenseItem from './SenseItem.vue'
+import { adjustNote } from '../lib/adjust.js'
+import { useAdjustStore } from '../stores/adjust.js'
 
 const props = defineProps({
   /** The street's properties: senses_state, senses_comfort, thermal_state, utci, photos. */
@@ -19,6 +21,9 @@ const props = defineProps({
   personal: Boolean,
 })
 const WORD = { easy: 'Easy', mixed: 'Mixed', hard: 'Hard' }
+const adjustments = useAdjustStore()
+// "Adjust to my own ratings": the senses part of a personal prediction only (lib/adjust.js).
+const note = computed(() => (props.personal && props.place?.status === 'rated' ? adjustNote(adjustments.gap) : ''))
 const o = computed(() => overallOf(props.street.senses_state, props.street.thermal_state))
 const reason = computed(() => overallReason(o.value, {
   utci: props.street.utci, hot: props.street.utci == null || !isCold(props.street.utci), place: props.place,
@@ -57,6 +62,7 @@ const lists = computed(() => (props.place?.status === 'rated' ? [
         <span class="part-name">Senses ·</span>
         <span :class="['part-value', sensesRow.state]">{{ sensesRow.text }}</span>
         <span v-if="!personal && sensesRow.state" class="muted">not personalised yet</span>
+        <span v-if="note" class="muted" data-testid="adjust-note">{{ note }}</span>
       </li>
       <li data-testid="overall-thermal">
         <span class="part-name">Thermal ·</span>

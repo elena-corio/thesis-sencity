@@ -29,7 +29,6 @@ function focusHeading() {
 }
 // The onboarding closed (saved, or an edit cancelled): focus moves to the heading of what shows now.
 watch(() => !!store.draft, (open, was) => { if (was && !open) focusHeading() })
-watch(() => !!store.preparing, (open, was) => { if (was && !open) focusHeading() })
 
 function download() {
   const data = store.fileData()
@@ -98,8 +97,8 @@ async function loadTest() {
 <template>
   <div ref="page" class="profile-page" data-panel="profile" data-scrollable>
     <ConsentScreen v-if="store.askingConsent && store.survey" :phone="phone" @agree="onAgree" @decline="onDecline" />
+    <PrepareOnboarding v-else-if="store.draft && store.inPrepare && store.survey?.prepare" :phone="phone" />
     <ProfileOnboarding v-else-if="store.draft && store.survey" :phone="phone" />
-    <PrepareOnboarding v-else-if="store.preparing && store.profile && store.survey?.prepare" :phone="phone" />
     <template v-else>
       <FirstHint v-if="store.survey && store.profile" id="profile" :phone="phone" class="first-hint" />
       <div v-if="store.surveyStatus === 'error'" class="state" role="alert">

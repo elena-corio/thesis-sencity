@@ -19,6 +19,12 @@ async function openProfile(page, theme = 'dark') {
 
 /** Answer one 1–5 row by clicking its box. */
 const choose = (page, row, value) => page.locator(`[data-row="${row}"] label`).nth(value - 1).click()
+/** An edit has one save, after the last question (Elena, 2026-11-21): Next through the rest, then Save changes. */
+async function saveEdit(page) {
+  const save = page.getByRole('button', { name: 'Save changes' })
+  for (let i = 0; i < 10 && !(await save.isVisible()); i++) await page.getByRole('button', { name: 'Next' }).click()
+  await save.click()
+}
 
 async function answerGrid(page, grid, answers) {
   for (const [code, v] of Object.entries(answers)) await choose(page, `${grid}-${code}`, v)
@@ -137,10 +143,19 @@ test.describe('your sensory profile', () => {
     await choose(page, 'weather-cold', 3)
     await choose(page, 'weather-wind', 2)
     await page.screenshot({ path: 'e2e/screens/profile-weather-dark.png' })
-    await ob.getByRole('button', { name: 'Save your profile' }).click()
-    // Then the optional step about new places (its own test is on a phone): skipped here.
+    await ob.getByRole('button', { name: 'Next' }).click()
+    // Then the optional questions about new places (their own test is on a phone). Nothing is saved yet: going back
+    // keeps every answer, and only the button after the last question saves the profile (Elena, 2026-11-21).
     await expect(page.getByTestId('prepare-step')).toHaveText('Question 1 of 4 · optional')
-    await page.getByRole('button', { name: 'Skip these questions' }).click()
+    expect(await saved(page)).toBe(null)
+    await page.getByRole('button', { name: 'Back' }).click()
+    await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 6 of 6')
+    await expect(page.locator('[data-row="weather-hot"] input[value="1"]')).toBeChecked()
+    await ob.getByRole('button', { name: 'Next' }).click()
+    for (let i = 1; i < 4; i++) await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByTestId('prepare-step')).toHaveText('Question 4 of 4 · optional')
+    expect(await saved(page)).toBe(null)
+    await page.getByRole('button', { name: 'Save your profile' }).click()
 
     // 5: the profile. Its text is the study's, word for word; the version is the server's.
     const summary = page.locator('[data-panel="profile-summary"]')
@@ -219,7 +234,7 @@ test.describe('your sensory profile', () => {
     await tc.getByRole('button', { name: 'Reset' }).click()
     expect((await page.locator('body').innerText()).toLowerCase()).not.toContain('persona')
     // Overall sensory comfort (A11) as the comfort bar, in the right card; the answers fold, closed at first.
-    await expect(summary.locator('aside .top li').first()).toHaveText(/Traffic, trams\s*1 · very unpleasant/) // the answers' words
+    await expect(summary.getByRole('heading', { name: 'Strongest for you' })).toHaveCount(0) // removed (Elena, 2026-11-21)
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
     // At the top of the right card, above "In your words" (Elena, 2026-11-15).
     const side = summary.locator('aside')
@@ -272,13 +287,14 @@ test.describe('your sensory profile', () => {
     const summary = page.locator('[data-panel="profile-summary"]')
     await expect(summary.getByTestId('overall-comfort')).toContainText('2 of 5')
 
-    // Edit one answer: the onboarding opens at that question, with Cancel and Save changes.
+    // Edit one answer: the onboarding opens at that question, with Cancel; Save changes after the last question.
     await summary.getByRole('button', { name: /^Edit: In general/ }).click()
     const ob = page.locator('[data-panel="onboarding"]')
     await expect(ob.getByTestId('onboarding-step')).toHaveText('Step 2 of 6')
     await expect(page.locator('[data-row="A11"] input[value="2"]')).toBeChecked()
     await choose(page, 'A11', 4)
-    await ob.getByRole('button', { name: 'Save changes' }).click()
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0) // not halfway
+    await saveEdit(page)
     await expect(summary.getByTestId('overall-comfort')).toContainText('4 of 5')
     const edited = await saved(page)
     expect(edited.text).toBe(DEV.expected.replace('(1 = not at all … 5 = very much): 2.', '(1 = not at all … 5 = very much): 4.'))
@@ -306,12 +322,12 @@ test.describe('your sensory profile', () => {
     await summary.getByText('Your answers, element by element').click()
     await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
     await choose(page, 'A12-traffic_trams', 3)
-    await ob.getByRole('button', { name: 'Save changes' }).click()
+    await saveEdit(page)
     await expect(summary.locator('button[data-sense="hearing"]')).toHaveAttribute('aria-label', 'Hearing: bothers you 3, feels good 5')
     await summary.getByText('Your answers, element by element').click()
     await summary.getByRole('button', { name: 'Edit the elements, part 1 of 2' }).click()
     await choose(page, 'A12-traffic_trams', 1)
-    await ob.getByRole('button', { name: 'Save changes' }).click()
+    await saveEdit(page)
 
     // Cancel an edit: nothing changes.
     await summary.getByRole('button', { name: 'Edit answers' }).click()
@@ -396,7 +412,7 @@ test.describe('your sensory profile', () => {
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     await page.getByRole('button', { name: /^Edit: In general/ }).click()
     await choose(page, 'A11', 4)
-    await page.getByRole('button', { name: 'Save changes' }).click()
+    await saveEdit(page)
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Area' }).click()
     await expect(foot.getByTestId('senses-stale')).toContainText('Your profile changed')
     await expect(foot).toContainText('Personal prediction: from your earlier profile')
@@ -494,12 +510,12 @@ test.describe('your sensory profile on a phone', () => {
       if (i === 6) for (const r of ['hot', 'cold', 'wind']) await choose(page, `weather-${r}`, 3)
       expect(await layoutProblems(page)).toEqual([])
       await shot(`${i + 1}-step-${i}`)
-      await page.getByRole('button', { name: i === 6 ? 'Save your profile' : 'Next' }).click()
+      await page.getByRole('button', { name: 'Next' }).click()
     }
     const text = titles.join(' ').toLowerCase()
     for (const word of ['age', 'gender', 'health', 'diagnos', 'condition', 'education', 'district', 'persona'])
       expect(text).not.toMatch(new RegExp(`\\b${word}`))
-    // How you prepare for new places: optional, one question per screen, kept with the profile at once.
+    // How you prepare for new places: optional, one question per screen, in the draft until the save at the end.
     const pstep = page.getByTestId('prepare-step')
     const tick = (code) => page.locator(`[data-option="${code}"]`).click()
     await expect(pstep).toHaveText('Question 1 of 4 · optional')
@@ -510,7 +526,8 @@ test.describe('your sensory profile on a phone', () => {
     await tick('look_at_photos')
     await tick('calmer_route')
     await tick('dont_prepare') // exclusive: clears the others
-    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))).prepare.Q2.ticked).toEqual(['dont_prepare'])
+    expect((await draft(page)).prepare.Q2.ticked).toEqual(['dont_prepare'])
+    expect(await saved(page)).toBe(null)
     await tick('look_at_photos') // and another clears it
     await tick('rest_places')
     await tick('other')
@@ -520,14 +537,21 @@ test.describe('your sensory profile on a phone', () => {
     expect(await layoutProblems(page)).toEqual([])
     await shot('12-prepare-q2')
     await page.getByRole('button', { name: 'Next' }).click()
-    await tick('often')
+    // Q3 on a 1–5 scale (Elena, 2026-11-21), words on both ends.
+    await expect(page.locator('[data-panel="prepare"] h2')).toHaveText('How often does a place feel like too much for your senses?')
+    await expect(page.locator('[data-panel="prepare"]')).toContainText('1 = Never, 5 = Very often')
+    await choose(page, 'prepare-Q3', 4)
     await shot('13-prepare-q3')
     await page.getByRole('button', { name: 'Next' }).click() // Q4 left out: every question is optional
+    await page.getByRole('button', { name: 'Back' }).click() // back and forth loses nothing
+    await expect(page.locator('[data-row="prepare-Q3"] input[value="4"]')).toBeChecked()
+    await page.getByRole('button', { name: 'Next' }).click()
     await shot('14-prepare-q4')
-    await page.getByRole('button', { name: 'Done' }).click()
+    expect(await saved(page)).toBe(null)
+    await page.getByRole('button', { name: 'Save your profile' }).click()
     const prep = (await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))).prepare
     expect(prep).toEqual({ Q1: 2, Q2: { ticked: ['look_at_photos', 'rest_places', 'other'], other: 'I check the toilets' },
-      Q3: 'often', Q4: { ticked: [], other: '' } })
+      Q3: 4, Q4: { ticked: [], other: '' } })
     await expect(page.getByTestId('answer-prepare-Q2')).toContainText('Look at photos of the place; Know where I can rest or step away; Other: I check the toilets')
     await expect(page.getByTestId('answer-prepare-Q4')).toContainText('Not answered')
 
@@ -535,9 +559,9 @@ test.describe('your sensory profile on a phone', () => {
     await expect(page.getByRole('button', { name: 'Edit answers' })).toBeVisible()
     await shot('8-your-profile')
     expect(await layoutProblems(page)).toEqual([])
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sencity-profile')))
-    expect(saved.answers.A16).toBe('')
-    expect(Object.keys(saved.answers).sort()).toEqual(['A11', 'A12', 'A13', 'A16'])
+    const kept = await saved(page)
+    expect(kept.answers.A16).toBe('')
+    expect(Object.keys(kept.answers).sort()).toEqual(['A11', 'A12', 'A13', 'A16'])
     await page.getByRole('button', { name: 'Edit answers' }).click()
     await expect(step).toHaveText('Step 2 of 6')
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()

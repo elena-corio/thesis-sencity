@@ -1,24 +1,29 @@
 <script setup>
-// How you prepare for new places (Elena, 2026-11-18): the optional step after the profile, one question per screen:
-// Q1 comfort going to a place you don't know (the thesis's A15, 1–5), Q2 how you prepare (tick any), Q3 how often
-// places feel too much (one), Q4 what helps (tick any). Words from config/prepare.json (survey.prepare). Every question
-// is optional and every answer is kept at once with your profile on this device; nothing here goes to the model.
+// How you prepare for new places (Elena, 2026-11-18): the optional last part of the onboarding, after the sensory
+// profile, one question per screen: Q1 comfort going to a place you don't know (the thesis's A15, 1–5), Q2 how you
+// prepare (tick any), Q3 how often a place feels like too much for your senses (1 never … 5 very often), Q4 what helps
+// (tick any). Words from config/prepare.json (survey.prepare). Every question is optional. The answers go into the same
+// draft as the profile, and the last screen's button saves it all (Elena, 2026-11-21); nothing here goes to the model.
 import { computed, nextTick, ref, watch } from 'vue'
-import { isAnswered, toggle } from '../lib/prepare.js'
-import { useProfileStore } from '../stores/profile.js'
+import { useRouter } from 'vue-router'
+import { complete, answered } from '../lib/profile.js'
+import { isAnswered, scoreOf, toggle } from '../lib/prepare.js'
+import { PROFILE_STEPS, useProfileStore } from '../stores/profile.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
 
 defineProps({ phone: Boolean })
 const store = useProfileStore()
+const router = useRouter()
 const card = ref(null)
 
 const def = computed(() => store.survey.prepare)
-const answers = computed(() => store.profile?.prepare ?? {})
-const step = computed(() => store.preparing?.step ?? 0)
-const q = computed(() => def.value.questions[step.value])
+const answers = computed(() => store.draft?.prepare ?? {})
+const editing = computed(() => !!store.draft?.editing)
+const step = computed(() => Math.max(0, (store.draft?.step ?? PROFILE_STEPS.length) - PROFILE_STEPS.length))
+const q = computed(() => def.value.questions[Math.min(step.value, def.value.questions.length - 1)])
 const count = computed(() => def.value.questions.length)
-const last = computed(() => step.value === count.value - 1)
+const last = computed(() => step.value >= count.value - 1)
 const words = computed(() => (q.value.type === 'scale_1_5' ? [q.value.labels['1'].en, '', '', '', q.value.labels['5'].en] : []))
 const otherOption = computed(() => q.value.options?.find((o) => o.other) ?? null)
 const ticked = (code) => answers.value[q.value.code]?.ticked?.includes(code) ?? false
@@ -29,12 +34,23 @@ function tick(code) {
 function setOther(text) {
   store.setPrepare(q.value.code, { ...answers.value[q.value.code], other: text })
 }
-function next() {
-  if (last.value) store.endPrepare()
-  else store.prepareStep(step.value + 1)
+async function next() {
+  if (!last.value) return store.setStep(store.draft.step + 1)
+  // The one save of the onboarding. A profile answer missing (a draft from before): back to it, saying so.
+  if (!complete(store.survey, store.draft.answers)) {
+    store.notice = 'A few answers are missing here.'
+    store.setStep(PROFILE_STEPS.findIndex((c) => !answered(store.survey, store.draft.answers, c)))
+    return
+  }
+  await store.finish()
 }
+/** Back: the previous question, or from the first one the profile's last step (Weather). */
 function back() {
-  if (step.value > 0) store.prepareStep(step.value - 1)
+  store.setStep(store.draft.step - 1)
+}
+/** Skip for now (a new profile): nothing is saved yet; the draft stays on this device for later. */
+function skip() {
+  router.push('/area')
 }
 watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
 </script>
@@ -45,7 +61,8 @@ watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
       <AppLogo class="logo" />
       <span v-if="phone" class="head-title">{{ def.title.en }}</span>
       <span class="spacer" />
-      <button type="button" class="link" @click="store.endPrepare()">Skip these questions</button>
+      <button v-if="editing" type="button" class="link" @click="store.discardDraft()">Cancel</button>
+      <button v-else type="button" class="link" @click="skip">Skip for now</button>
     </header>
 
     <div class="body">
@@ -65,7 +82,7 @@ watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
         <template v-if="q.type === 'scale_1_5'">
           <p class="help">1 = {{ q.labels['1'].en }}, 5 = {{ q.labels['5'].en }}</p>
           <div class="cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
-          <ScoreChoice :name="`prepare-${q.code}`" :label="q.title.en" bare :words="words" :model-value="answers[q.code] ?? null"
+          <ScoreChoice :name="`prepare-${q.code}`" :label="q.title.en" bare :words="words" :model-value="scoreOf(answers, q.code)"
                        @update:model-value="store.setPrepare(q.code, $event)" />
         </template>
 
@@ -88,9 +105,11 @@ watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
         </div>
 
         <footer class="foot">
-          <button type="button" class="btn" :disabled="step === 0" @click="back">Back</button>
+          <button type="button" class="btn" @click="back">Back</button>
           <span class="count" aria-live="polite">{{ isAnswered(def, answers, q.code) ? 'Answered' : 'You can leave this out' }}</span>
-          <button type="button" class="btn btn-primary" @click="next">{{ last ? 'Done' : 'Next' }}</button>
+          <button type="button" class="btn btn-primary" @click="next">
+            {{ last ? (editing ? 'Save changes' : 'Save your profile') : 'Next' }}
+          </button>
         </footer>
       </section>
 

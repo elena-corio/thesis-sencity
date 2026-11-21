@@ -5,7 +5,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import cases from '../dev/test-profiles.json'
 import { PROMPT_CODES, requestProfile } from '../lib/profile.js'
-import { DRAFT_KEY, SAVED_KEY, useProfileStore } from './profile.js'
+import { isAnswered } from '../lib/prepare.js'
+import { DRAFT_KEY, SAVED_KEY, STEPS, useProfileStore } from './profile.js'
 
 const dir = new URL('../../../model/app_v9/', import.meta.url)
 const read = (name) => readFileSync(new URL(name, dir), 'utf-8')
@@ -113,36 +114,77 @@ describe('your profile on this device', () => {
   })
 })
 
-describe('how you prepare for new places', () => {
-  it('opens after a new profile, keeps each answer at once, and closes', async () => {
+describe('one save at the end of the onboarding', () => {
+  /** A new profile's onboarding up to its last question (Q4), nothing saved yet. */
+  function walk(store) {
+    store.agree()
+    store.begin()
+    for (const [code, v] of Object.entries(DEV.answers)) {
+      if (v && typeof v === 'object') for (const [row, x] of Object.entries(v)) store.answer(code, x, row)
+      else store.answer(code, v)
+    }
+    store.setStep(STEPS.indexOf('Q1'))
+  }
+
+  it('keeps every answer as a draft, back and forth, and saves nothing before the last button', async () => {
     const store = fresh()
-    await onboard(store, DEV.answers)
-    expect(store.preparing).toEqual({ step: 0 })
+    walk(store)
+    expect(store.inPrepare).toBe(true)
     store.setPrepare('Q1', 2)
-    store.setPrepare('Q3', 'often')
-    expect(stored(SAVED_KEY).prepare).toMatchObject({ Q1: 2, Q3: 'often' })
+    store.setPrepare('Q3', 4)
+    store.setStep(STEPS.indexOf('A12')) // back into the profile part
+    expect(store.inPrepare).toBe(false)
+    store.setStep(STEPS.indexOf('Q4'))
+    expect(store.draft.prepare).toMatchObject({ Q1: 2, Q3: 4 })
+    expect(store.draft.answers.A11).toBe(DEV.answers.A11)
+    expect(stored(SAVED_KEY)).toBe(null)
+    expect(store.profile).toBe(null)
+    expect(fresh().draft.prepare.Q3).toBe(4) // the draft is kept for the next visit
+    expect(await store.finish()).toBe(true)
+    expect(stored(SAVED_KEY).prepare).toMatchObject({ Q1: 2, Q3: 4 })
     expect(store.profile.text).toBe(DEV.expected) // not part of the profile text
-    store.endPrepare()
-    expect(store.preparing).toBe(null)
-    expect(fresh().profile.prepare.Q3).toBe('often') // kept for the next visit
+    expect(stored(DRAFT_KEY)).toBe(null)
   })
 
-  it('does not open after an edit, and stays when the profile is built again', async () => {
+  it('edits the same way: nothing changes until the save, Cancel keeps the saved profile', async () => {
     const store = fresh()
-    await onboard(store, DEV.answers)
+    walk(store)
     store.setPrepare('Q1', 4)
-    store.endPrepare()
-    store.begin(2)
-    store.answer('A12', 1, 'greenery_trees')
     await store.finish()
-    expect(store.preparing).toBe(null)
-    expect(store.profile.prepare.Q1).toBe(4)
+    store.begin(STEPS.indexOf('A12'))
+    store.answer('A12', 1, 'greenery_trees')
+    store.setStep(STEPS.indexOf('Q3'))
+    store.setPrepare('Q3', 5)
+    expect(store.profile.answers.A12.greenery_trees).toBe(DEV.answers.A12.greenery_trees)
+    expect(store.profile.prepare.Q3).toBe(null)
+    store.discardDraft()
+    expect(store.profile.prepare).toMatchObject({ Q1: 4, Q3: null })
+    store.begin(STEPS.indexOf('Q3'))
+    expect(store.draft.prepare.Q1).toBe(4) // an edit starts from the saved answers
+    store.setPrepare('Q3', 5)
+    await store.finish()
+    expect(store.profile.prepare).toMatchObject({ Q1: 4, Q3: 5 })
+  })
+
+  it('asks again a Q3 saved in the old form (a word), without converting it', async () => {
+    const store = fresh()
+    walk(store)
+    await store.finish()
+    globalThis.localStorage.setItem(SAVED_KEY, JSON.stringify({ ...store.profile, prepare: { ...store.profile.prepare, Q1: 3, Q3: 'often' } }))
+    const again = fresh()
+    await again.ensureSurvey()
+    expect(isAnswered(SURVEY.prepare, again.profile.prepare, 'Q3')).toBe(false)
+    expect(isAnswered(SURVEY.prepare, again.profile.prepare, 'Q1')).toBe(true)
+    again.begin(STEPS.indexOf('Q3'))
+    await again.finish()
+    expect(again.profile.prepare).toMatchObject({ Q1: 3, Q3: null })
   })
 
   it('goes with download and import, and with delete', async () => {
     const store = fresh()
-    await onboard(store, DEV.answers)
+    walk(store)
     store.setPrepare('Q2', { ticked: ['calmer_route'], other: '' })
+    await store.finish()
     const file = JSON.parse(JSON.stringify(store.fileData()))
     expect(file.prepare.Q2.ticked).toEqual(['calmer_route'])
     store.deleteAll()
@@ -151,13 +193,15 @@ describe('how you prepare for new places', () => {
     expect(store.profile.prepare.Q2.ticked).toEqual(['calmer_route'])
   })
 
-  it('never goes into a prediction', async () => {
+  it('never puts how you prepare into a prediction', async () => {
     const store = fresh()
-    await onboard(store, DEV.answers)
+    walk(store)
     store.setPrepare('Q1', 1)
+    store.setPrepare('Q3', 5)
     store.setPrepare('Q4', { ticked: ['leave_earlier'], other: '' })
+    await store.finish()
     const sent = JSON.stringify(requestProfile(store.profile))
-    expect(sent).not.toMatch(/Q1|Q4|prepare|leave_earlier/)
+    expect(sent).not.toMatch(/Q1|Q3|Q4|prepare|leave_earlier/)
   })
 })
 

@@ -29,10 +29,12 @@ Returning user: Welcome → Sign in → Map. Profile tab with no profile yet →
 8. **Print report (A4, light).** Dark-teal logo, radar + own words + strongest, one place with photo and ratings, route comparison, "How this was made". Must work in grayscale (dashed / striped).
 
 ## Calibration (H3)
-- Place card: "Rate this place" 1–5 from the photo, then (optional) what bothers / feels good. Hint: "From the photo. It tunes your profile." (UI never says "persona": use "your profile" or "your predictions")
-- Own ratings are added to the persona prompt as examples (V2+: up to 5, one per place type, never the photo being predicted). They also feed "how reliable the persona has been for you".
-- Without a profile, ratings are kept and used once the profile exists.
-- If H3 is not supported, ratings only update the reliability line.
+*Rewritten 2026-11-21 (Elena): no prompt examples; an opt-in correction on the device (built, disabled until tested: `ENABLE_ADJUST = false`).*
+- Place card: "Rate this place" 1–5 from the photo, then (optional) what bothers / feels good. Card text: "From the photo. Kept on this device; never sent to the model." (UI never says "persona": use "your profile" or "your predictions")
+- Own ratings stay on the device and are never sent to the model. They feed "How close SenCity is to you".
+- "Adjust to my own ratings (experimental)" in "How close SenCity is to you": off by default; after at least MIN_RATINGS ratings of personalised predictions it can shift personalised predictions by the mean gap (own rating − prediction), clipped to 1–5. General predictions are never adjusted.
+- An adjusted prediction carries a note: "Adjusted to your own ratings (+0.6)", or "(+0.3, too small to change the level)" under half a point.
+- "How close SenCity is to you" shows the raw and the adjusted gap for personalised predictions.
 
 ## Layers (one at a time)
 - **Thermal** (formerly Heat; covers hot and cold) – Infrared.city UTCI ("feels like" °C), chosen season/time, as three levels (brief §4; no 1–5 score): 9–26 °C easy, 26–32 or −13–9 mixed (0–9 °C is mixed), above 32 or below −13 hard; the card shows a temperature bar. Personal limits: heat limits 3 °C lower if direct sun and heat bother a lot (A13), cold limits 3 °C higher if cold bothers a lot (tool-only item); sliders in the profile; untested. Legend: "Feels like, hot or cold".

@@ -9,6 +9,8 @@ import SenseItem from './SenseItem.vue'
 import { useProfileStore } from '../stores/profile.js'
 import { useSensesStore } from '../stores/senses.js'
 import HowLink from './HowLink.vue'
+import { useAdjustStore } from '../stores/adjust.js'
+import { adjustNote } from '../lib/adjust.js'
 
 const props = defineProps({
   /** The place, combined from its photos (lib/senses.js). */
@@ -36,6 +38,9 @@ const showPhotoLine = computed(() => props.place.nPhotos > 1 && props.shown?.sta
 const profileStore = useProfileStore()
 const senses = useSensesStore()
 const stale = computed(() => senses.runs.area.stale || senses.runs.routes.stale)
+const adjustments = useAdjustStore()
+// "Adjust to my own ratings": personal predictions only (general ones are never adjusted; lib/adjust.js).
+const note = computed(() => (profileStore.personal ? adjustNote(adjustments.gap) : ''))
 </script>
 
 <template>
@@ -61,6 +66,7 @@ const stale = computed(() => senses.runs.area.stale || senses.runs.routes.stale)
       </div>
       <div class="ticks" aria-hidden="true"><span v-for="n in 5" :key="n">{{ n }}</span></div>
       <p class="general">{{ predictionLabel(profileStore.personal, stale) }}</p>
+      <p v-if="note" class="adjust-note" data-testid="adjust-note">{{ note }}</p>
     </div>
     <p class="based muted" data-testid="senses-based">{{ basedOn }}</p>
 
@@ -129,4 +135,5 @@ p { margin: 0; }
 .list ul { display: flex; flex-direction: column; gap: var(--space-1); }
 .reason { margin-top: var(--space-2); overflow-wrap: anywhere; }
 .general { margin-top: var(--space-3); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.adjust-note { margin-top: var(--space-1); font-size: var(--fs-sm); color: var(--text-2); }
 </style>

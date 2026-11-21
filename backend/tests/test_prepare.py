@@ -16,7 +16,8 @@ def test_the_file_has_the_four_questions_and_every_q2_option_its_offers():
     assert q1["source"] == "A15" and q1["title"]["en"] == "How comfortable do you feel going to a place you don't know?"
     assert q1["labels"] == {"1": {"en": "Not at all"}, "5": {"en": "Very much"}}  # A15's, word for word
     assert q2["title"]["en"] == "How do you usually prepare before going somewhere new?"
-    assert [o["code"] for o in q3["options"]] == list(prepare_mod.Q3_CODES)
+    assert q3["type"] == "scale_1_5" and q3["title"]["en"] == "How often does a place feel like too much for your senses?"
+    assert q3["labels"] == {"1": {"en": "Never"}, "5": {"en": "Very often"}} and "options" not in q3
     assert q4["title"]["en"] == "When a place feels too much, what helps you?"
     assert [o["code"] for o in q2["options"] if o.get("exclusive")] == ["dont_prepare"]
     assert [o["code"] for o in q4["options"] if o.get("exclusive")] == ["nothing_helps"]
@@ -37,6 +38,7 @@ def test_offers_for_a_chatbot():
     (lambda d: d["questions"][1]["options"][0].update(offers=["teleport"]), "unknown offer"),
     (lambda d: d["questions"][1]["options"][0].pop("offers"), "offers"),
     (lambda d: d["questions"][2].update(type="dropdown"), "a type"),
+    (lambda d: d["questions"][2]["labels"].pop("5"), "words for 1 and 5"),
     (lambda d: d["questions"][3]["options"].append({"code": "sit_rest", "en": "again"}), "its own code"),
 ])
 def test_a_broken_file_is_refused(tmp_path, change, match):
