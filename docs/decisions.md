@@ -2,6 +2,12 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-21 – Overall recommends places too, as Senses does (accepted; rule proposed)
+**Context.** Elena: in Area, show recommendations on Overall as on Senses. Until now Overall marked no places.
+**Decision (Elena).** On Overall the area card shows "Most comfortable nearby" with numbered pins, once the rating has ended and thermal is there, as on Senses.
+**Proposed (Claude).** The rule (`overallMarkers` in `lib/senses.js`): up to 3 places whose overall level is easy or mixed, with both layers known (a partial place, one layer only, is not an overall verdict); easy first, then the better photo rating, ties to the place nearer the centre; picks at least the Senses distance apart (`config.sensesRecommend`). A hard place is never listed. Each row shows the photo rating and the feels-like temperature ("Street · photo 4 · feels like 24 °C"), the level on the right. The Places filter applies, as on the other layers; a new season or time changes the thermal part, so the list may change with it.
+**Consequences.** The same Senses panel now shows on Overall too, so its rating messages (the question above the cap, stopped, failed) appear there as well.
+
 ## 2026-11-21 – The chat assistant: one parse, the app carries it out, templated replies (accepted; details proposed)
 **Context.** Elena: build the chat. The brief (§9) had `POST /chat` with "question + profile id → answer"; Elena replaced it: the server gets only the message text, the model only turns it into an intent, the app carries it out on its own data and writes the reply from templates, so the model never writes facts.
 **Decision (Elena).**

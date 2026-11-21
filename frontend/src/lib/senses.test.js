@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bySense, combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, moneyLine, pickWays, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
+import { bySense, combinePlace, comfortLabel, comfortLevel, elementLabel, hardShare, moneyLine, pickWays, overallMarkers, runStatusLine, sensesMarkers, sensesVerdict, withSenses } from './senses.js'
 
 const anchors = ['not at all, too much for my senses', 'very much']
 const el = (code) => ({ code, n: 1, en: code, it: code, icon_key: 'sight', also: [] })
@@ -89,6 +89,28 @@ describe('the markers', () => {
 
   it('keeps picks apart, so one street does not fill the list', () => {
     expect(ids(sensesMarkers([at('a', 16.37, 5), at('b', 16.3701, 5), at('c', 16.375, 4)], centre))).toEqual(['a', 'c'])
+  })})
+
+describe('the Overall markers', () => {
+  const centre = { lat: 48.2, lon: 16.37 }
+  const ids = (ms) => ms.map((m) => m.f.properties.id)
+  /** A place with its photo rating and overall level (as lib/overall.js puts it on the street). */
+  const o = (id, lon, comfort, overall, partial = false) => {
+    const f = at(id, lon, comfort)
+    return { ...f, properties: { ...f.properties, overall_state: overall, overall_partial: partial } }
+  }
+
+  it('easy before mixed, then the better photo rating; never hard, never partial', () => {
+    const fs = [o('a', 16.37, 5, 'mixed'), o('b', 16.372, 4, 'easy'), o('c', 16.374, 5, 'easy'), o('d', 16.376, 5, 'hard'),
+      o('e', 16.378, 5, 'easy', true), o('f', 16.38, null, 'easy', true)]
+    const ms = overallMarkers(fs, centre)
+    expect(ids(ms)).toEqual(['c', 'b', 'a'])
+    expect(ms.map((m) => m.level)).toEqual(['easy', 'easy', 'mixed'])
+    expect(ms.map((m) => m.n)).toEqual([1, 2, 3])
+  })
+
+  it('keeps picks apart, as on Senses', () => {
+    expect(ids(overallMarkers([o('a', 16.37, 5, 'easy'), o('b', 16.3701, 5, 'easy'), o('c', 16.375, 4, 'easy')], centre))).toEqual(['a', 'c'])
   })
 })
 

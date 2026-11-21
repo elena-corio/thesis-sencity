@@ -127,6 +127,21 @@ export function sensesMarkers(features, centre) {
     .map((s) => ({ ...s, level: comfortLevel(comfort(s.f)) }))
 }
 
+/**
+ * What to recommend on Overall, as on Senses (Elena, 2026-11-21): up to 3 places whose overall level (the worse of
+ * Senses and Thermal, lib/overall.js) is easy or mixed, with both parts known (a partial place, one layer only, is not
+ * an overall verdict). Easy first, then the better photo rating; ties to the place nearer the centre; picks keep the
+ * Senses distance from each other. Only positive: a hard place is never listed.
+ * @returns {{n:number, f:object, mid:object, type:string, level:string}[]}
+ */
+export function overallMarkers(features, centre) {
+  const { count, minApartM } = config.sensesRecommend
+  const ok = (f) => ['easy', 'mixed'].includes(f.properties.overall_state) && !f.properties.overall_partial && f.properties.senses_comfort
+  const value = (f) => (f.properties.overall_state === 'easy' ? 10 : 0) + f.properties.senses_comfort
+  return pickSuggestions(features.filter(ok), { keep: () => true, value, centre, n: count, minApartM, margin: 0 })
+    .map((s) => ({ ...s, level: s.f.properties.overall_state }))
+}
+
 /** The share of a route's length rated hard, 0 to 1 (board Routes 3). */
 export function hardShare(stretches) {
   const total = stretches.reduce((n, s) => n + s.length_m, 0)
