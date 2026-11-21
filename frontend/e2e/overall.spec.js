@@ -89,6 +89,20 @@ test.describe('Overall', () => {
     await expect(place.getByTestId('overall-senses')).toContainText('No photo')
   })
 
+  test('while the photos are rated, the loading card shows the Overall key, not the thermal °C bands', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await mockRatings(page, { delay: 8000 }) // the rating stays in progress
+    await openMap(page, 'dark', { layer: null })
+    await chooseLayer(page, 'overall')
+    await analyseCentre(page)
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByTestId('rating-step')).toBeVisible({ timeout: 20_000 })
+    await expect(loading.getByTestId('comfort-key')).toBeVisible({ timeout: 20_000 }) // once thermal is ready
+    await expect(loading.getByTestId('comfort-key')).toContainText('Partial (one layer only)')
+    await expect(loading).not.toContainText('°C')
+    await page.screenshot({ path: 'e2e/screens/overall-loading-key-dark.png' })
+  })
+
   test('changing the season updates only the thermal part; no new rating is asked', async ({ page }) => {
     await mockArea(page, { thermal: true })
     const asked = await mockRatings(page)
