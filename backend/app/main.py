@@ -11,6 +11,8 @@
                           With "profile" (your answers, from the browser) they are personal (V2), else general (V0);
                           personal ones are relayed, never kept here: the browser keeps them
 - GET  /api/profile/survey   the onboarding questions and the profile template, from model/app_v9/ (nothing personal)
+- POST /api/chat     one chat message → one intent (app/chat.py): the message text only, one model call at temperature 0;
+                     the browser carries the intent out and writes the reply. Never stored or logged
 
 The photos come from one source, PHOTO_SOURCE (app/photos.py, Elena 2026-11-16): Street View in the local prototype
 (Mapillary where it has none), Mapillary in any public version. The photo shown is the photo rated.
@@ -36,6 +38,7 @@ from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import chat as chat_mod
 from . import formula as formula_mod
 from . import photos as photos_mod
 from . import prepare as prepare_mod
@@ -383,6 +386,33 @@ def profile_survey() -> dict:
     except prepare_mod.PrepareError as e:
         log.warning("profile: config/prepare.json cannot be used")
         raise HTTPException(503, f"The questions about new places cannot be loaded. {e}") from None
+
+
+# Chat (Elena, 2026-11-21): the message only. extra="forbid": a profile, ratings or anything else is refused, so they
+# can never reach the model by mistake.
+class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(..., min_length=1, max_length=cfg["chat"]["max_chars"])
+
+
+@app.post("/api/chat")
+def chat(body: ChatRequest, request: Request) -> dict:
+    """One message → one intent. The message is sent to the model and never stored or logged."""
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(422, "Write a question first.")
+    if _rate_limited("chat", _ip(request), cfg["chat"]["per_hour"], 3600):
+        raise HTTPException(429, "Too many questions in a short time. Wait a while, then ask again.")
+    try:
+        intent, _cost = chat_mod.parse(message, cfg["senses"])
+    except chat_mod.ChatError as e:
+        raise HTTPException(e.status, e.message) from None
+    except senses_mod.ExportError:
+        log.warning("chat: the export cannot be used")
+        raise HTTPException(503, "The model settings cannot be used.") from None
+    except senses_mod.PredictionError as e:
+        raise HTTPException(e.status, e.message) from None
+    return {"intent": intent}
 
 
 @app.post("/api/senses/rate")

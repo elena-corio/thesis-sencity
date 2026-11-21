@@ -2,6 +2,26 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-21 – The chat assistant: one parse, the app carries it out, templated replies (accepted; details proposed)
+**Context.** Elena: build the chat. The brief (§9) had `POST /chat` with "question + profile id → answer"; Elena replaced it: the server gets only the message text, the model only turns it into an intent, the app carries it out on its own data and writes the reply from templates, so the model never writes facts.
+**Decision (Elena).**
+- *One call, no agent:* each message → one model call at temperature 0 on the export's model and pinned EU endpoint with zero data retention (the ratings' `model.json`), server side; a strict JSON schema; parsed once, then carried out. The key never reaches the browser. The server receives only the message (plus the fixed element and layer names in the prompt); never the profile or ratings. Messages are not stored or logged.
+- *Intent:* `action` (filter_places, explain_place, plan_route, set_view, summarise_profile, prepare_cope, out_of_scope) and its parameters (level, with, without, near, radius_m, start, end, calmer, layer, season, time, topic, language).
+- *Levels follow the current layer,* named in the pill ("easy · Overall"); a layer named in the request is used and the map switches to it.
+- *Italian:* understood; the reply starts "I understood your request; replies are in English for now."
+- *Interface:* ready-made prompts with no model call ("Easy for me", "Shade", "Fewer people", "Quiet streets", "Places to sit", "Why is this hard?" on a hard place card); a rotating example in the input; one opening sentence; removable pills; "What can I ask?" by the six tasks.
+- *Accuracy:* a frozen test set of 30 requests (24 English, 6 Italian, every action, 3 out of scope), written and committed before the prompt and never used to tune it (its sha256 is checked); the prompt is tuned on a separate dev set of 15. Pass mark 90% (27/30). **Result: 29/30 = 96.7%** (one run, $0.022). The miss: t12 "perché questa strada è difficile per me?" gave `near: "questo posto"` instead of `"this"`. Dev set: 14/15 (d02 "anywhere without cars and crowds?" read "without cars" as `with: car_free`; one prompt clarification did not change it, and tuning stopped there).
+**Proposed (Claude).**
+- *Words without an element of their own* map to the nearest element, and the help list shows them that way: quiet → without traffic, trams (the app has no noise data); fewer people → without crowds; places to sit → with seats.
+- *"This":* the browser treats "this", "this street", "questo posto", "questa strada", "here" as the open place card, whatever words the parser kept (so t12's miss still finds the place; the accuracy above is the parser's alone).
+- *Elements of a place* = those listed in enough of its photos (the place card's rule); a place without a rating cannot match an element or level filter and is counted, not guessed.
+- *Near a new place:* the area is centred there (the radius asked, else the current one) and loaded as usual (with its cost cap); the request is carried out when the area is ready on its layer.
+- *Results:* the first 5 marked on the map with the existing chat markers (`showChatResults`), also listed as cards in the reply.
+- *prepare_cope:* only answers the person ticked in "How you prepare for new places", each paired with what the photos show (seats, drinking fountains/toilets, shade, traffic, crowds, sun) or a calmer street nearby (`easierNearby`); never medical, nothing the photos do not show; "the app does not know the busy hours" where that matters. Route facts are not used yet.
+- *No memory:* each request stands alone; only "this" refers to what is open.
+- *Desktop:* the chat takes the right card's place while open; a phone shows it full screen, the rest hidden.
+**Consequences.** Replaces the brief's `POST /chat` with a profile id. The prompt (`config/chat_prompt.txt`) can be changed without code; re-run `python -m app.chat_eval test` after any change and record the new accuracy here.
+
 ## 2026-11-21 – "Adjust to my own ratings" is built but disabled: it is untested (accepted)
 **Context.** Elena, after the entry below was built: keep the code, but hide the feature until it is tested.
 **Decision (Elena).** `ENABLE_ADJUST = false` in `frontend/src/config.js`. With it off: no checkbox, no adjusted figures in "How close SenCity is to you" (only the predicted figures: ratings, points off on average, within 1 point), no "Adjusted to your own ratings" notes, and no prediction is shifted, even if `sencity-adjust` was kept on in a browser. The card text ("never sent to the model") and the rewrite of brief §5b and the design notes stay.

@@ -34,6 +34,8 @@ import StepHint from '../components/StepHint.vue'
 import TopActions from '../components/TopActions.vue'
 import TopSearch from '../components/TopSearch.vue'
 import ViewTabs from '../components/ViewTabs.vue'
+import ChatPanel from '../components/ChatPanel.vue'
+import { useChatStore } from '../stores/chat.js'
 
 const area = useAreaStore()
 const routes = useRoutesStore()
@@ -44,6 +46,7 @@ const report = useReportStore()
 const route = useRoute()
 const sheetRef = ref(null)
 const profile = useProfileStore()
+const chat = useChatStore()
 const profileMode = computed(() => route.params.mode === 'profile')
 // The map's own mode: Area or Routes, kept while Profile is open.
 const mapMode = ref(route.params.mode === 'routes' ? 'routes' : 'area')
@@ -103,7 +106,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
       </div>
       <div v-if="showHint" class="slot s-hint"><StepHint :routes-mode="routesMode" /></div>
       <div v-if="walk.active" class="slot s-walk"><WalkView /></div>
-      <div v-if="routesMode && !walk.active" class="slot s-card">
+      <!-- The chat (board 2) takes the right card's place while it is open. -->
+      <div v-if="chat.open && !walk.active" class="slot s-card s-chat"><ChatPanel /></div>
+      <div v-else-if="routesMode && !walk.active" class="slot s-card">
         <StretchCard v-if="routes.selectedStretch" />
         <RouteCard v-else-if="hasCard" />
       </div>
@@ -121,14 +126,17 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
 
     <template v-else>
       <!-- Area and Routes alike: the search only moves the map; Start and End are typed in the sheet. -->
-      <div class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
-      <div v-if="walk.active" class="slot s-p-walk"><WalkView phone /></div>
-      <div v-else class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
-      <div v-show="!walk.active" class="slot s-p-sheet">
+      <!-- While the chat is open it is the whole screen: the rest stays mounted, out of sight. -->
+      <div v-show="!chat.open" class="slot s-p-top"><TopSearch phone :get-centre="getCentre" @pick="onPick" /></div>
+      <div v-if="walk.active" v-show="!chat.open" class="slot s-p-walk"><WalkView phone /></div>
+      <div v-else v-show="!chat.open" class="slot s-p-hint"><StepHint phone :routes-mode="routesMode" /></div>
+      <div v-show="!walk.active && !chat.open" class="slot s-p-sheet">
         <PhoneSheet ref="sheetRef" :routes-mode="routesMode" :get-centre="getCentre" @pick="onPick" @recentre="mapRef?.recentre()"
                     @settled="mapRef?.reveal()" />
       </div>
-      <div class="slot s-p-tabs"><ViewTabs phone /></div>
+      <div v-show="!chat.open" class="slot s-p-tabs"><ViewTabs phone /></div>
+      <!-- The chat on a phone: the whole screen (brief §3). -->
+      <div v-if="chat.open" class="slot s-p-chat"><ChatPanel phone /></div>
     </template>
 
     <!-- About and how to use: from "?", the account menu and every "How this works" link. -->
@@ -209,6 +217,9 @@ const onPick = (place) => mapRef.value?.flyToPlace(place)
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
 }
 .s-p-tabs { left: 0; right: 0; bottom: 0; }
+.s-p-chat { inset: 0; background: var(--ground); }
+.s-p-chat > * { height: 100%; }
+.s-chat { height: calc(100dvh - var(--row-main) - var(--row-bottom) - var(--controls-h) - var(--gap)); }
 
 /* Profile (ProfilePage): under the top bar (on a phone, above the tab bar); the onboarding on the whole screen. */
 .s-profile { inset: 0; padding-top: calc(var(--row-main) - var(--space-2)); background: var(--ground); }

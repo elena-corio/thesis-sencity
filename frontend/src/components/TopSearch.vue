@@ -6,6 +6,7 @@ import AccountMenu from './AccountMenu.vue'
 import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
 import PlaceSearch from './PlaceSearch.vue'
+import { useChatStore } from '../stores/chat.js'
 
 const props = defineProps({
   phone: Boolean,
@@ -22,6 +23,7 @@ function closeMenu() {
 }
 
 const fieldId = computed(() => (props.phone ? 'search-results-phone-input' : 'search-results-input'))
+const chat = useChatStore()
 </script>
 
 <template>
@@ -33,7 +35,7 @@ const fieldId = computed(() => (props.phone ? 'search-results-phone-input' : 'se
     </template>
     <PlaceSearch :field-id="fieldId" label="Search a street or place" placeholder="Search a street or place"
                  with-icon :get-centre="getCentre" @pick="emit('pick', $event)" />
-    <button v-if="phone" type="button" class="btn btn-primary ask" aria-label="Ask" aria-disabled="true" title="Coming soon">
+    <button v-if="phone" type="button" class="btn btn-primary ask" aria-label="Ask about places" :aria-expanded="chat.open" @click="chat.open ? chat.close() : chat.show()">
       <AppIcon name="chat" />
     </button>
     <div v-if="phone" class="account">

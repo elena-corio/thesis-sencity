@@ -1,11 +1,12 @@
 <script setup>
-// Top right (desktop): About, Print, light/dark, Ask, account. About, Print (the report), light/dark and the account menu work for now. The sun/moon switches the theme with one click; System is in the account menu.
+// Top right (desktop): About, Print, light/dark, Ask (opens the chat), account. The sun/moon switches the theme with one click; System is in the account menu.
 import { computed, ref } from 'vue'
 import { useThemeStore } from '../stores/theme.js'
 import AccountMenu from './AccountMenu.vue'
 import AppIcon from './AppIcon.vue'
 import { useHelpStore } from '../stores/help.js'
 import { useReportStore } from '../stores/report.js'
+import { useChatStore } from '../stores/chat.js'
 
 const theme = useThemeStore()
 const help = useHelpStore()
@@ -22,6 +23,7 @@ function closeMenu() {
   menuOpen.value = false
   accountBtn.value?.focus()
 }
+const chat = useChatStore()
 </script>
 
 <template>
@@ -35,7 +37,7 @@ function closeMenu() {
     <button type="button" class="icon-btn" :aria-label="`Switch to ${nextTheme} mode`" @click="toggleTheme">
       <AppIcon :name="theme.resolved === 'dark' ? 'sun' : 'moon'" />
     </button>
-    <button type="button" class="btn btn-primary ask" aria-label="Ask" aria-disabled="true" title="Coming soon">
+    <button type="button" class="btn btn-primary ask" aria-label="Ask about places" :aria-expanded="chat.open" @click="chat.open ? chat.close() : chat.show()">
       <AppIcon name="chat" /><span class="ask-label">Ask</span>
     </button>
     <button ref="accountBtn" type="button" class="avatar" data-menu-button

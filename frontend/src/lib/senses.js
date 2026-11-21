@@ -94,6 +94,8 @@ export function combinePlace(photos, ratingOf) {
   return {
     status: 'rated', comfort, level: comfortLevel(comfort), anchors: rated[0].anchors, bothers,
     feelsGood: shared(rated.map((r) => r.feels_good)),
+    // The element codes in enough of the photos (the same rule), for the chat's filters and explanations.
+    listed: shared(rated.map((r) => (r.listed ?? []).map((code) => ({ code })))).map((e) => e.code),
     rep: rep.i, reason: rep.reason, ...counts,
   }
 }
