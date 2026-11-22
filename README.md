@@ -154,6 +154,17 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests/test_profile.py --rootdir backend  # only your sensory profile (text, checks, V0/V2)
 ```
 
+**Chat intent accuracy (paid).** The chat parser is checked on two fixed sets of requests. Each request is one model call (about $0.00075):
+
+```bash
+cd backend
+../.venv/Scripts/python -m app.chat_eval dev     # the development set (15 requests, about $0.011): the only one used to tune config/chat_prompt.txt
+../.venv/Scripts/python -m app.chat_eval test    # the frozen test set (30 requests, about $0.022): the accuracy reported
+CHAT_LIVE=1 ../.venv/Scripts/python -m pytest tests/test_chat_live.py -s   # the same test set as a test: passes at 90% (27/30)
+```
+
+Without `CHAT_LIVE=1` the live test is skipped, so the normal test run makes no paid call. The test set (`backend/tests/fixtures/chat_intents_test.json`) is frozen: `test_chat.py` checks its sha256.
+
 These test segment splitting, the selection rule, the route finder, and the API: search (with a fake Photon), areas (from a fixed cached sample), routes (with made-up streets and temperatures), photos (the key never in the answer, nothing written to disk), and Senses (the hash check of `model/app_v9/`, the presence and rating requests built from it, the empty list, validated replies, the retry, both caches, the stale marks, the cap, at most 4 at a time). They make no API calls.
 
 ## Frontend

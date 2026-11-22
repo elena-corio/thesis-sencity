@@ -2,15 +2,21 @@
 // The background rating and, once it has ended, what comes of it: progress and running cost, the question above the cap,
 // and for an area the most comfortable places. On a route the card itself shows the result (board Routes 3); the label
 // and status line close either card (SensesFoot). Clicking a place opens its detail from the ratings already here: no new call.
+// On Overall the same list holds the Overall recommendations (Elena, 2026-11-21), each with its photo rating and feels-like.
 import { computed } from 'vue'
 import { typeLabel } from '../lib/place.js'
 import { SHOW_COST, comfortLabel, levelWord, moneyLine } from '../lib/senses.js'
+import { formatDegrees } from '../lib/thermal.js'
 import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import MarkerPin from './MarkerPin.vue'
 
-const props = defineProps({ scope: { type: String, required: true } })
+const props = defineProps({
+  scope: { type: String, required: true },
+  /** The layer of the list: 'senses', or 'overall' (the worse of both). */
+  layer: { type: String, default: 'senses' },
+})
 const senses = useSensesStore()
 const area = useAreaStore()
 
@@ -28,7 +34,11 @@ const rows = computed(() => (props.scope === 'area' ? area.suggestions : []).map
   m, id: m.f.properties.id, name: m.f.properties.name, type: typeLabel(m.f.properties, m.f.geometry.type),
   place: senses.placeFor(m.f.properties.photos), seen: area.seenIds.has(m.f.properties.id),
 })))
-const rowLabel = (r) => `${r.m.n}. ${r.name}, ${r.type}, ${comfortLabel(r.place)}, ${levelWord(r.m.level)}${r.seen ? ', seen' : ''}`
+/** "Street · 4 · fairly comfortable", and on Overall the feels-like too: "Street · photo 4 · feels like 24 °C". */
+const detail = (r) => (props.layer === 'overall'
+  ? `${r.type} · photo ${r.place.comfort ?? '–'} · feels like ${formatDegrees(r.m.f.properties.utci)}`
+  : `${r.type} · ${comfortLabel(r.place)}`)
+const rowLabel = (r) => `${r.m.n}. ${r.name}, ${detail(r).replaceAll(' · ', ', ')}, ${levelWord(r.m.level)}${r.seen ? ', seen' : ''}`
 
 const rated = computed(() => run.value.status !== 'idle' && run.value.status !== 'rating')
 </script>
@@ -78,14 +88,14 @@ const rated = computed(() => run.value.status !== 'idle' && run.value.status !==
               <MarkerPin :n="r.m.n" :level="r.m.level" />
               <span class="text">
                 <span class="name" lang="de">{{ r.name }}</span>
-                <span class="muted small">{{ r.type }} · {{ comfortLabel(r.place) }}</span>
+                <span class="muted small">{{ detail(r) }}</span>
               </span>
               <span :class="['state', 'side', r.m.level]">{{ levelWord(r.m.level) }}</span>
               <AppIcon v-if="r.seen" name="check" class="seen" />
             </button>
           </li>
         </ol>
-        <p v-else class="muted small">No place here is rated comfortable.</p>
+        <p v-else class="muted small">{{ layer === 'overall' ? 'No place here is comfortable on both layers.' : 'No place here is rated comfortable.' }}</p>
       </section>
 
     </template>

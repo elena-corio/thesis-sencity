@@ -211,6 +211,10 @@ api:
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
     rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)
+  chat:                          # POST /api/chat: one message → one intent (app/chat.py); the model of model/app_v9/,
+                                 # temperature 0, prompt config/chat_prompt.txt. Messages are never stored or logged
+    max_chars: 300               # a longer message is refused
+    per_hour: 20                 # messages per IP
   senses:                        # model settings are NOT here: they come only from model/app_v9/
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60

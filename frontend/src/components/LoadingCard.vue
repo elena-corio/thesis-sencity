@@ -8,6 +8,7 @@ import { useAreaStore } from '../stores/area.js'
 import { useSensesStore } from '../stores/senses.js'
 import AppIcon from './AppIcon.vue'
 import ThermalLegend from './ThermalLegend.vue'
+import ComfortKey from './ComfortKey.vue'
 import { useProfileStore } from '../stores/profile.js'
 
 defineProps({ phone: Boolean })
@@ -44,9 +45,11 @@ const profileStore = useProfileStore()
       </button>
     </div>
 
-    <!-- Thermal ready, rating in progress (board Flow 3): no bar here, so the full thermal legend is at the top (Elena,
-         2026-11-11). -->
-    <div v-if="area.thermal === 'ready' && area.layer !== 'senses'" class="thermal-block" role="group" aria-label="Legend">
+    <!-- Thermal ready, rating in progress (board Flow 3): no bar here, so the legend is at the top (Elena, 2026-11-11),
+         the one of the layer on the map: on Overall its key (streets with only thermal so far are partial), never the
+         °C bands, which are Thermal's (2026-11-21). -->
+    <ComfortKey v-if="area.thermal === 'ready' && area.layer === 'overall'" layer="overall" :window="area.thermalInfo" />
+    <div v-else-if="area.thermal === 'ready' && area.layer === 'thermal'" class="thermal-block" role="group" aria-label="Legend">
       <ThermalLegend :values="thermalValues" :window="area.thermalInfo" :extra="[{ label: 'No value', color: 'var(--no-photo)' }]" />
     </div>
     <ul class="steps">

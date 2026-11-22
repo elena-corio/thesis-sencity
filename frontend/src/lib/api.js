@@ -147,3 +147,19 @@ export async function loadSurvey(signal) {
   if (!res.ok) throw new ApiError(res.status, await errorText(res))
   return res.json()
 }
+
+/**
+ * One chat message → its intent (backend app/chat.py). Only the message text is sent: never the profile or ratings.
+ * @param {string} message
+ * @param {AbortSignal} [signal]
+ */
+export async function askChat(message, signal) {
+  const res = await fetch(`${config.apiBase}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+    signal,
+  })
+  if (!res.ok) throw new ApiError(res.status, await errorText(res))
+  return (await res.json()).intent
+}

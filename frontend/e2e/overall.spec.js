@@ -89,6 +89,50 @@ test.describe('Overall', () => {
     await expect(place.getByTestId('overall-senses')).toContainText('No photo')
   })
 
+  test('once the rating ends, the most comfortable places are recommended, as on Senses', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await mockRatings(page)
+    await openMap(page, 'dark', { layer: null })
+    await chooseLayer(page, 'overall')
+    await analyseCentre(page)
+    const card = page.locator('[data-panel="area-card"]')
+    const best = card.getByTestId('senses-best')
+    await expect(best).toBeVisible({ timeout: 20_000 })
+    await expect(best.locator('h3')).toHaveText('Most comfortable nearby')
+    const rows = best.locator('li')
+    await expect(rows.first()).toBeVisible()
+    const n = await rows.count()
+    expect(n).toBeGreaterThan(0)
+    expect(n).toBeLessThanOrEqual(3)
+    await expect(rows.first()).toContainText(/photo \d · feels like/)
+    // Pins on the map with the same numbers; only easy or mixed overall, both layers known (never partial or hard).
+    const markers = await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').markers
+      .map((m) => ({ n: m.n, level: m.level, o: m.f.properties.overall_state, p: m.f.properties.overall_partial })))
+    expect(markers.map((m) => m.n)).toEqual([...Array(n)].map((_, i) => i + 1))
+    for (const m of markers) {
+      expect(['easy', 'mixed']).toContain(m.level)
+      expect(m.o).toBe(m.level)
+      expect(m.p).toBe(false)
+    }
+    await rows.first().getByRole('button').click()
+    await expect(page.locator('[data-panel="place-card"]')).toBeVisible()
+    await page.screenshot({ path: 'e2e/screens/overall-recommended-dark.png' })
+  })
+
+  test('while the photos are rated, the loading card shows the Overall key, not the thermal °C bands', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await mockRatings(page, { delay: 8000 }) // the rating stays in progress
+    await openMap(page, 'dark', { layer: null })
+    await chooseLayer(page, 'overall')
+    await analyseCentre(page)
+    const loading = page.locator('[data-panel="loading-card"]')
+    await expect(loading.getByTestId('rating-step')).toBeVisible({ timeout: 20_000 })
+    await expect(loading.getByTestId('comfort-key')).toBeVisible({ timeout: 20_000 }) // once thermal is ready
+    await expect(loading.getByTestId('comfort-key')).toContainText('Partial (one layer only)')
+    await expect(loading).not.toContainText('°C')
+    await page.screenshot({ path: 'e2e/screens/overall-loading-key-dark.png' })
+  })
+
   test('changing the season updates only the thermal part; no new rating is asked', async ({ page }) => {
     await mockArea(page, { thermal: true })
     const asked = await mockRatings(page)

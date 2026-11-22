@@ -22,6 +22,9 @@ import OverallSummary from './OverallSummary.vue'
 import { useProfileStore } from '../stores/profile.js'
 import RateThisPlace from './RateThisPlace.vue'
 import FirstHint from './FirstHint.vue'
+import { useChatStore } from '../stores/chat.js'
+import { WHY_PRESET } from '../lib/chat/intent.js'
+import { levelOn } from '../lib/chat/execute.js'
 
 const props = defineProps({
   phone: Boolean,
@@ -116,6 +119,9 @@ const shownResult = computed(() => {
 // The photo on the card is the one rated.
 const shownRating = computed(() => (sensesOn.value && photo.value ? senses.ratingOf(photo.value) ?? null : null))
 const retryRating = () => senses.retry(props.source ? 'routes' : 'area')
+// "Why is this hard?": a place of the area that is hard on the layer shown.
+const chat = useChatStore()
+const whyOn = computed(() => !props.source && !!feature.value && levelOn(feature.value, src.value.layer) === 'hard')
 
 const walk = useWalkStore()
 /** The enlarged photo is the walk's view: a stretch opens its route there, paused; a place opens on its own. */
@@ -149,6 +155,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
     <button ref="backBtn" type="button" class="back" @click="src.back($event.detail === 0)">
       <AppIcon name="chevronLeft" /> {{ src.backLabel }}
     </button>
+    <!-- Opened from a chat reply (Elena, 2026-11-21): back to the conversation, which is kept. -->
+    <button v-if="!props.source && chat.returnTo && chat.returnTo === area.selectedId" type="button" class="back from"
+            data-testid="back-to-chat" @click="chat.backToChat()">
+      <AppIcon name="chat" /> Back to the chat
+    </button>
     <button v-if="cameFrom" ref="fromBtn" type="button" class="back from" @click="area.goBack($event.detail === 0)">
       <AppIcon name="chevronLeft" /> <span>Back to <span lang="de">{{ cameFrom.name }}</span></span>
     </button>
@@ -180,6 +191,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
         <p class="type">{{ src.subtitle ?? `${type} · ${sizeLabel(p)}` }}</p>
       </div>
     </div>
+
+    <!-- "Why is this hard?" (Elena, 2026-11-21): the chat explains this place from its stored rating, no model call. -->
+    <button v-if="whyOn" type="button" class="why-hard" data-testid="why-hard" @click="chat.preset(WHY_PRESET)">
+      <AppIcon name="chat" /> {{ WHY_PRESET.label }}
+    </button>
 
     <OverallSummary v-if="overallOn" :street="p" :place="overallPlace" :info="src.info" :personal="profileStore.personal" />
     <RateThisPlace v-if="rateOn && overallOn" :photo="photo" :result="shownResult" from="map" />
@@ -256,6 +272,11 @@ watch(() => src.value.key, () => { if (src.value.byKeyboard && !props.source) ne
 </template>
 
 <style scoped>
+.why-hard {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--touch-phone);
+  margin-top: var(--space-2); padding: var(--space-1) var(--space-3); border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-pill); background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+}
 .t-meta { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
 .temp { margin: var(--space-4) 0 0; color: var(--text-2); }
 .temp strong { font-size: var(--fs-xl); font-weight: var(--fw-semibold); color: var(--text); margin-right: var(--space-2); }

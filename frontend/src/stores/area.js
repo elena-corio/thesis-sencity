@@ -4,7 +4,7 @@ import config from '../config.js'
 import { ApiError, loadArea, pointName } from '../lib/api.js'
 import { POINT_LABEL, haversine, limitRadius } from '../lib/geo.js'
 import { placeGroup } from '../lib/place.js'
-import { sensesMarkers, withSenses } from '../lib/senses.js'
+import { overallMarkers, sensesMarkers, withSenses } from '../lib/senses.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 import { withOverall } from '../lib/overall.js'
@@ -121,11 +121,13 @@ export const useAreaStore = defineStore('area', () => {
   const sensesFinished = ref(false)
 
   // Markers: numbered places on the map and in the area card (brief §3, "Likely easiest for you").
-  // Suggestions follow the area and the Places filter: on Thermal the values for the season and time, on Senses
-  // once the rating has ended. Each: { n, f, mid, type, level }.
+  // Suggestions follow the area and the Places filter: on Thermal the values for the season and time, on Senses and
+  // Overall once the rating has ended. Each: { n, f, mid, type, level }.
   const suggestions = computed(() => {
     if (!visibleSegments.value) return []
     if (mapLayer.value === 'senses') return sensesFinished.value ? sensesMarkers(visibleSegments.value.features, analysed.value) : []
+    // Overall, as Senses (Elena, 2026-11-21): once the rating has ended and thermal is there.
+    if (mapLayer.value === 'overall') return sensesFinished.value && thermal.value === 'ready' ? overallMarkers(visibleSegments.value.features, analysed.value) : []
     if (mapLayer.value !== 'thermal') return []
     return thermalSuggestions(visibleSegments.value.features,
       { limits: thermalLimits(), filter: placeFilter.value, centre: analysed.value })

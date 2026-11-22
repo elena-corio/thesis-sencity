@@ -108,7 +108,7 @@ onMounted(() => { if (area.byKeyboard && area.step === 'analysed') titleEl.value
         </div>
         <p class="muted small">{{ area.counts.withPhotos }} of {{ area.counts.all }} have street photos.</p>
         <p v-if="area.thermalError" class="thermal-error" role="status">{{ area.thermalError }}</p>
-        <SensesPanel v-if="sensesView" scope="area" />
+        <SensesPanel v-if="sensesView || overallView" scope="area" :layer="overallView ? 'overall' : 'senses'" />
 
         <section v-if="showMarkers" class="sub" data-testid="suggestions">
           <div class="sub-head">

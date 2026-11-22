@@ -94,6 +94,8 @@ export function combinePlace(photos, ratingOf) {
   return {
     status: 'rated', comfort, level: comfortLevel(comfort), anchors: rated[0].anchors, bothers,
     feelsGood: shared(rated.map((r) => r.feels_good)),
+    // The element codes in enough of the photos (the same rule), for the chat's filters and explanations.
+    listed: shared(rated.map((r) => (r.listed ?? []).map((code) => ({ code })))).map((e) => e.code),
     rep: rep.i, reason: rep.reason, ...counts,
   }
 }
@@ -123,6 +125,21 @@ export function sensesMarkers(features, centre) {
   const comfort = (f) => f.properties.senses_comfort
   return pickSuggestions(features.filter((f) => comfort(f)), { keep: (f) => comfort(f) >= 3, value: comfort, centre, n: count, minApartM, margin: 0 })
     .map((s) => ({ ...s, level: comfortLevel(comfort(s.f)) }))
+}
+
+/**
+ * What to recommend on Overall, as on Senses (Elena, 2026-11-21): up to 3 places whose overall level (the worse of
+ * Senses and Thermal, lib/overall.js) is easy or mixed, with both parts known (a partial place, one layer only, is not
+ * an overall verdict). Easy first, then the better photo rating; ties to the place nearer the centre; picks keep the
+ * Senses distance from each other. Only positive: a hard place is never listed.
+ * @returns {{n:number, f:object, mid:object, type:string, level:string}[]}
+ */
+export function overallMarkers(features, centre) {
+  const { count, minApartM } = config.sensesRecommend
+  const ok = (f) => ['easy', 'mixed'].includes(f.properties.overall_state) && !f.properties.overall_partial && f.properties.senses_comfort
+  const value = (f) => (f.properties.overall_state === 'easy' ? 10 : 0) + f.properties.senses_comfort
+  return pickSuggestions(features.filter(ok), { keep: () => true, value, centre, n: count, minApartM, margin: 0 })
+    .map((s) => ({ ...s, level: s.f.properties.overall_state }))
 }
 
 /** The share of a route's length rated hard, 0 to 1 (board Routes 3). */
