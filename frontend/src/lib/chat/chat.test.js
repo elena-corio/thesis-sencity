@@ -213,6 +213,22 @@ describe('templates', () => {
     expect(T.linkParts('Graben is hard. Graben has crowds.', [{ text: 'Graben', id: 'g' }]).filter((x) => x.id)).toHaveLength(1)
   })
 
+  it('compares the two routes on the map from what is loaded, with the route card’s verdict', () => {
+    const list = [{ id: 'A', length_m: 1240, minutes: 16, stretches: [] }, { id: 'B', length_m: 1480, minutes: 19, stretches: [] }]
+    const hard = { A: 0.4, B: 0.05 }
+    const t = T.compareReply(list, { layer: 'senses', verdict: 'B is easier for your senses.', hardOf: (r) => hard[r.id] }).text
+    expect(t).toBe('The two routes on the map: Route A: 1.2 km, 16 min, 40% hard on Senses. Route B: 1.5 km, 19 min, 5% hard on Senses. B is easier for your senses.')
+  })
+
+  it('prepare for a route: the facts along it, then the tips', () => {
+    const facts = placeFacts(FEATURES.slice(0, 4), { listedOf, layer: 'senses', scope: 'route', coldOf: () => false })
+    expect(facts.easy.map((x) => x.id)).toEqual(['a', 'b'])
+    const r = T.copeReply(facts, prepareCope({ prepare: { Q4: { ticked: ['sit_rest', 'quieter_spot'] } } }), { name, personal: true, when: 'summer at 15:00' })
+    expect(r.text).toMatch(/^This route has a mix of sensory comfort, from 2 to 5 of 5 for you\. Thermal comfort along this route is easy to hard for you/)
+    expect(r.text).toContain('Seats show in the photos of 1 place along it: plan time to rest there.')
+    expect(r.text).toContain('If it gets too much, 2 places along it are easy for you, such as a and b.')
+  })
+
   it('route, view and out-of-scope replies; the Italian note', () => {
     expect(T.routeReply({ from: 'Stephansplatz', to: 'Naschmarkt', layer: 'senses' }).text).toBe('Comparing two routes from Stephansplatz to Naschmarkt on Senses.')
     expect(T.viewReply({ layer: 'thermal', season: 'summer', time: '15:00' }).text).toBe('Showing Thermal (summer at 15:00).')

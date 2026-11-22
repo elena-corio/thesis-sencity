@@ -139,7 +139,8 @@ export const useWalkStore = defineStore('walk', () => {
   }
 
   /** The enlarged photo of a place of an area: the same view, one stretch, nothing to walk (Elena, 2026-11-14). */
-  function openPlace(feature, mapLayer, window_, keyboard = false) {
+  /** `shown`: the photo the card had on screen (Elena, 2026-11-22: Enlarge opens that one, not the card's first). */
+  function openPlace(feature, mapLayer, window_, keyboard = false, shown = null) {
     const g = feature.geometry
     const coordinates = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates
     pause()
@@ -151,7 +152,9 @@ export const useWalkStore = defineStore('walk', () => {
     index.value = 0
     layer.value = walkLayer(mapLayer)
     info.value = window_
-    sub.value = repStep() // the photo the card showed; the arrows go through the place's other photos
+    // The photo the card showed; the arrows go through the place's other photos.
+    const at = shown ? photos.value.findIndex((p) => p.id === shown.id && p.heading === shown.heading) : -1
+    sub.value = at >= 0 ? at : repStep()
     byKeyboard.value = keyboard
     active.value = true
   }

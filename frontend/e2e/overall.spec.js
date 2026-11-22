@@ -89,6 +89,21 @@ test.describe('Overall', () => {
     await expect(place.getByTestId('overall-senses')).toContainText('No photo')
   })
 
+  test('Enlarge opens the photo the card shows (on Overall the card shows the first, not the rated representative)', async ({ page }) => {
+    await mockArea(page, { thermal: true })
+    await mockRatings(page)
+    await openMap(page, 'dark', { layer: null })
+    await chooseLayer(page, 'overall')
+    await analyseCentre(page)
+    await expect(page.locator('[data-panel="area-card"]').getByTestId('senses-best')).toBeVisible({ timeout: 20_000 })
+    const W3 = AREA.features.find((f) => f.properties.photos.length === 3)
+    await openSegment(page, W3.properties.id)
+    const card = page.locator('[data-panel="place-card"]')
+    const shown = await card.locator('.photo img').getAttribute('src')
+    await card.getByRole('button', { name: 'Enlarge photo', exact: true }).click()
+    await expect(page.locator('[data-panel="walk-view"]').getByTestId('walk-photo').locator('img')).toHaveAttribute('src', shown)
+  })
+
   test('once the rating ends, the most comfortable places are recommended, as on Senses', async ({ page }) => {
     await mockArea(page, { thermal: true })
     await mockRatings(page)

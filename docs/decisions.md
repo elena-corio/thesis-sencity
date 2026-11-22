@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-22 – Three fixes before the merge: Enlarge, map clicks with the chat open, route requests in the chat (accepted; details proposed)
+**Decision (Elena).**
+- *Enlarge* opens the photo the place card shows. On Overall (and Thermal) the card shows the place's first photo, but the enlarged view opened on the rated representative photo; it now opens on the card's photo (`walk.openPlace(…, shown)`).
+- *With the chat open, a place clicked on the map* (street, park, square or pin) opens its card, as one clicked in a reply does: the chat closes, the card has "Back to the chat". The chat's own selections (the place it explains or gives tips for) keep it open. A route stretch clicked on the map opens its card too.
+- *Route requests in the chat:* "compare these two routes" (a route request with no start and no end: the routes on the map, compared from what is loaded: length, minutes, share hard on the layer, and the route card's own verdict); "the easiest route from Karlsplatz to Stadtpark" (calmer); "how to prepare for this route" (the facts along the route on the map, the selected one or else B, then the tips from the person's own answers).
+**Proposed (Claude).** No new action: plan_route with start and end null means "compare"; prepare_cope with near "this route". *Calmer or easiest* keeps the current layer when it is Senses or Overall (Overall counts heat too) and uses Senses when the map is on Thermal (before: always Senses).
+**Accuracy re-run** after the prompt change (route words; dev set +4 route requests, d16–d19): dev 18/19 (the same d02 miss), **frozen test set 30/30 = 100%** (was 29/30; the test set is unchanged and not quoted by the prompt; one run at temperature 0). Cost $0.037.
+
 ## 2026-11-22 – Before the merge: Clerk development instance on Render, Clerk's location in the notice, person icon, per-address limits (accepted)
 **Decision (Elena).**
 - *Clerk:* the deployed app keeps Clerk's **development** instance (the same `pk_test_`/`sk_test_` keys), as a production instance needs our own domain; `CLERK_AUTHORIZED_PARTIES` is the Render address; invitations come from the development instance. A production instance with our own domain is a later step.

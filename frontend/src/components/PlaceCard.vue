@@ -129,7 +129,7 @@ function openViewer(e) {
   if (!photo.value || !showsPhotos()) return
   const keyboard = e?.detail === 0
   if (src.value.enlarge) src.value.enlarge(keyboard)
-  else walk.openPlace(feature.value, src.value.layer, src.value.info, keyboard)
+  else walk.openPlace(feature.value, src.value.layer, src.value.info, keyboard, photo.value)
 }
 
 function goNearest() {

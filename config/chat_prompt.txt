@@ -5,10 +5,10 @@ The message may be in English or Italian. Set "language" to "it" for Italian, el
 Choose exactly one "action":
 - filter_places: find or show places, streets or squares by how easy they are, by what is there or not there, near a place, within a distance, on a layer, in a season or at a time. Example: "green places near Schottentor".
 - explain_place: why a place, street or square is rated as it is, or open one and explain it. Example: "why is this square mixed?".
-- plan_route: a way or route to somewhere, or between two places. Example: "a quieter route to the Rathaus".
+- plan_route: a way or route to somewhere, or between two places, or comparing the routes already on the map (then "start" and "end" are null). Examples: "a quieter route to the Rathaus", "which of the two routes is better?".
 - set_view: only change what the map shows: the layer, the season or the time, with no search for places. Example: "show the overall layer in spring".
 - summarise_profile: what the person's own sensory profile says: what bothers them, what feels good, or how they feel in general. Example: "what is unpleasant for me?".
-- prepare_cope: how to prepare for a place, or what could help there when it feels like too much. Example: "how can I prepare for Hauptbahnhof?".
+- prepare_cope: how to prepare for a place or a route, or what could help there when it feels like too much. Example: "how can I prepare for Hauptbahnhof?".
 - out_of_scope: anything else: general chat, weather forecasts, news, writing, safety or crime, health or medication questions, facts about places that are not how they may feel. Example: "tell me a joke".
 
 Fields (use null or [] when the message does not say it; never guess):
@@ -17,10 +17,10 @@ Fields (use null or [] when the message does not say it; never guess):
 {ELEMENTS}
   Words that mean an element: quiet, calm, no traffic, no cars, without cars, avoiding busy streets → "without": ["traffic_trams"] (only the words "car-free" or "pedestrian zone" → "with": ["car_free"]); fewer people, not crowded, no crowds → "without": ["crowds"]; somewhere to sit, benches, seats → "with": ["seats"]; trees, green → "with": ["greenery_trees"]; shade, shady → "with": ["shade"]; sunny → "with": ["direct_sun"]; water, fountain → "with": ["fountains_water"]; toilets, drinking water → "with": ["drinking_fountains_toilets"].
   For filter_places only. For other actions leave both empty.
-- "near": the place name the message is about, as written, without "the" ("Schottentor", "Mariahilfer Straße"). Use "this" when the message points at the place already open ("this street", "this place", "here" in a question about one place, "the place I opened", "questo posto"). For filter_places, "here" or "around here" means the current area: null.
+- "near": the place name the message is about, as written, without "the" ("Schottentor", "Mariahilfer Straße"). Use "this" when the message points at the place already open ("this street", "this place", "here" in a question about one place, "the place I opened", "questo posto"). Use "this route" when it points at the route on the map ("this route", "my route", "questo percorso"). For filter_places, "here" or "around here" means the current area: null.
 - "radius_m": a distance in metres, 50 to 500, only if the message gives one ("within 300 m", "500 metres").
 - "start", "end": for plan_route, the start and the end as written. "To X" alone: "start" null, "end" "X".
-- "calmer": for plan_route, true when the way should be calmer, quieter, easier or avoid busy streets; else false.
+- "calmer": for plan_route, true when the way should be calmer, quieter, easier, the easiest, the most comfortable or avoid busy streets; else false.
 - "layer": "senses", "thermal" or "overall" only if the message names one ("thermal", "heat", "temperature", "termico" → "thermal"; "senses", "sensory" → "senses"; "overall", "both" → "overall").
 - "season": "spring", "summer", "autumn" or "winter" if named.
 - "time": a whole hour from 09:00 to 21:00 as "HH:00" if named ("at 10" or "in the morning at 10" → "10:00", "noon" → "12:00", "alle 17" → "17:00"). "Morning" or "evening" alone: null.
