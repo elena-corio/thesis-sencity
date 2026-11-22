@@ -163,8 +163,39 @@ def test_the_built_frontend_is_served_with_the_app_routes(client, tmp_path, monk
     assert "SenCity" in client.get("/../../.env").text  # never a file outside dist
 
 
+def test_requests_arriving_together_after_sign_in_share_one_account():
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(8) as pool:
+        ids = set(pool.map(lambda _: db.ensure_account("user_together")["id"], range(16)))
+    assert len(ids) == 1
+
+
+def test_database_errors_never_carry_row_values():
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy import insert
+    e = db.create_engine("sqlite://", hide_parameters=True)
+    db.migrate(e)
+    with e.begin() as c:
+        c.execute(insert(db.accounts).values(id="a", clerk_user_id="secret_user", created_at=db.now()))
+    with pytest.raises(IntegrityError) as err:
+        with e.begin() as c:
+            c.execute(insert(db.accounts).values(id="b", clerk_user_id="secret_user", created_at=db.now()))
+    assert "secret_user" not in str(err.value)
+    import inspect
+    assert "hide_parameters=True" in inspect.getsource(db.engine)
+
+
 def test_database_url_from_render_is_read_as_postgres(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/sencity")
     assert db.url() == "postgresql+psycopg://u:p@host:5432/sencity"
     monkeypatch.delenv("DATABASE_URL")
     assert db.url().startswith("sqlite:///")
+
+
+def test_a_photo_sphere_id_with_a_dot_is_a_photo_id():
+    """Contributed Street View photo spheres ("CAoS…") can end in "."; refusing it refused a whole rating run."""
+    from app import photos as photos_mod
+    from app.main import SensesPhoto
+    assert photos_mod.PANO_ID.match("CAoSFkNJSE0wb2dLRUlDQWdJQ1ZuNUx0SlE.")
+    assert SensesPhoto(id="sv:CAoSFkNJSE0wb2dLRUlDQWdJQ1ZuNUx0SlE.", heading=10).id.endswith(".")
+    assert not photos_mod.PANO_ID.match("../../etc/passwd")

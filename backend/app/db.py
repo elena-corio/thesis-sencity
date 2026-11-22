@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (JSON, Column, DateTime, ForeignKey, Integer, MetaData, String, Table, create_engine, delete,
                         insert, select, update)
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
 from tool.config import REPO_ROOT
 
@@ -67,7 +68,8 @@ def url() -> str:
 def engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = create_engine(url(), pool_pre_ping=True, future=True)
+        # hide_parameters: an error never carries row values (a profile, an id) into the logs.
+        _engine = create_engine(url(), pool_pre_ping=True, future=True, hide_parameters=True)
     return _engine
 
 
@@ -103,8 +105,15 @@ def ensure_account(clerk_user_id: str) -> dict:
     if found:
         return found
     row = {"id": str(uuid.uuid4()), "clerk_user_id": clerk_user_id, "consented_at": None, "created_at": now()}
-    with engine().begin() as c:
-        c.execute(insert(accounts).values(**row))
+    try:
+        with engine().begin() as c:
+            c.execute(insert(accounts).values(**row))
+    except IntegrityError:
+        # The first requests after sign-in arrive together: another one created it a moment ago.
+        found = account_for(clerk_user_id)
+        if found:
+            return found
+        raise
     return row
 
 

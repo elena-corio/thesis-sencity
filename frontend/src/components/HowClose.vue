@@ -1,4 +1,5 @@
 <script setup>
+import { KEPT } from '../lib/auth.js'
 // "How close SenCity is to you" (Elena, 2026-11-16): from your own ratings that had a prediction on screen
 // (lib/myRatings.js), no model call. Three numbers: how many, the average gap |prediction − you|, the share within 1
 // point. Then, for personal predictions, the same gap as predicted and as adjusted, and the opt-in "Adjust to my own
@@ -30,7 +31,7 @@ const pct = (x) => `${Math.round(x * 100)}%`
         <p class="tile"><strong data-testid="how-close-gap">{{ fmt(c.gap) }}</strong><span>points off on average</span></p>
         <p class="tile"><strong data-testid="how-close-within">{{ pct(c.within1) }}</strong><span>within 1 point</span></p>
       </div>
-      <p class="muted small">Only ratings with a prediction on screen count. Kept on this device.</p>
+      <p class="muted small">Only ratings with a prediction on screen count. Kept {{ KEPT }}.</p>
     </template>
 
     <div v-if="adjustments.enabled" class="adjust" data-testid="adjust">

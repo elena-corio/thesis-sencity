@@ -36,7 +36,7 @@ from tool.selection import Candidate, select
 log = logging.getLogger("sencity.api")
 
 SV = "sv:"
-PANO_ID = re.compile(r"^[A-Za-z0-9_\-]{10,120}$")
+PANO_ID = re.compile(r"^[A-Za-z0-9_.\-]{10,120}$")  # contributed photo spheres ("CAoS…") may contain "." (2026-11-22)
 # The settings that change which photos a street gets (and so a cached area or route).
 MAPILLARY_SETTINGS = ("radius_m", "max_turn_deg", "max_age_years", "search_limit")
 STREETVIEW_SETTINGS = ("source", "metadata_radius_m", "official_copyright", "retry_radius_m", "retry_offsets_m",

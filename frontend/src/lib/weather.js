@@ -1,3 +1,4 @@
+import { AUTH_ON } from './auth.js'
 // The Weather step of the onboarding (Elena, 2026-11-15): hot, cold and windy weather outdoors, each on the Part A scale
 // (1 very unpleasant … 5 very pleasant). Not part of the survey export, so the words live here, in English and Italian.
 // The answers stay on this device with the profile; they set the personal Thermal limits (lib/thermal.js) and never
@@ -10,7 +11,7 @@ export const WEATHER = {
     it: 'All’aperto, quanto è piacevole o spiacevole per te questo tempo?',
   },
   note: {
-    en: 'Used only for the Thermal layer, on this device. It is not sent to the model.',
+    en: AUTH_ON ? 'Used only for the Thermal layer. It is not sent to the model.' : 'Used only for the Thermal layer, on this device. It is not sent to the model.',
     it: 'Usato solo per il livello termico, su questo dispositivo. Non viene inviato al modello.',
   },
   rows: [

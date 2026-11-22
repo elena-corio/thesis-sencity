@@ -20,6 +20,7 @@ One entry per decision, newest at the top. **(proposed)** marks a choice Claude 
 - *Bundle check:* `npm run check:bundle` after every build (also on Render) looks for the value of every secret in `.env` or the environment and for key patterns in the built app.
 - *Invite-only:* the brief's Clerk allowlist stays; it is a Clerk dashboard setting.
 **Consequences.** Replaces the brief's phase 1 "profile only in the browser" for any deployed version. The per-IP limits stay as a second guard.
+**Found in the live run with Clerk (2026-11-22).** (1) The first requests after sign-in arrive together and each created the account: the second now reads the one just made. (2) Database errors no longer carry row values into logs (`hide_parameters`). (3) A contributed Street View photo sphere's ID can end in "." (`CAoS…`); the photo ID check refused it and with it the whole rating run (422) and its image (404): "." is now allowed (local Street View mode only; Render uses Mapillary). This is likely why ratings stopped working on 2026-11-21. (4) "Delete my account and data" from the account menu now opens its confirmation also when Profile is already open. (5) Words that said "on this device" say "in your account" with sign-in (the tip, About, Rate this place, How close, the onboarding note, the weather note); the "How you prepare" note is neutral.
 
 ## 2026-11-21 – Overall recommends places too, as Senses does (accepted; rule proposed)
 **Context.** Elena: in Area, show recommendations on Overall as on Senses. Until now Overall marked no places.

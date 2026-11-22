@@ -6,8 +6,12 @@
 // phase 1). `npm run build` refuses it (vite.config.js), so no public build can run without sign-in.
 import { getToken } from '@clerk/vue'
 
-export const AUTH_ON = import.meta.env.VITE_AUTH !== 'off'
-export const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ?? ''
+// Outside Vite (the browser tests import some app files in Node) there is no import.meta.env: sign-in off there.
+const env = import.meta.env ?? { VITE_AUTH: 'off' }
+export const AUTH_ON = env.VITE_AUTH !== 'off'
+export const PUBLISHABLE_KEY = env.VITE_CLERK_PUBLISHABLE_KEY ?? ''
+/** Where the person's things are kept, for the words on screen. */
+export const KEPT = AUTH_ON ? 'in your account' : 'on this device'
 
 const clerk = () => (typeof window !== 'undefined' ? window.Clerk : null)
 

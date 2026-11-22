@@ -390,7 +390,7 @@ class RatingStamp(BaseModel):
 
 
 class SensesPhoto(BaseModel):
-    id: str = Field(..., pattern=r"^([0-9]{1,20}|sv:[A-Za-z0-9_\-]{10,120})$")  # a Mapillary image ID, or "sv:<pano ID>"
+    id: str = Field(..., pattern=r"^([0-9]{1,20}|sv:[A-Za-z0-9_.\-]{10,120})$")  # a Mapillary image ID, or "sv:<pano ID>" (a photo sphere\'s may end in ".")
     heading: float = Field(..., ge=0, lt=360)
     cached: RatingStamp | None = None  # with a profile: the browser has a rating of this photo; "keep" if still valid
 

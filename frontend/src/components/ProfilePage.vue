@@ -23,11 +23,13 @@ const error = ref('')
 const deleting = ref(false)
 let deleteOpener = null
 
-onMounted(() => {
-  store.ensureSurvey()
-  // From the account menu's "Delete my account and data": the confirmation opens here.
-  if (route.query.delete === '1') { askDelete(); router.replace({ query: {} }) }
-})
+onMounted(() => store.ensureSurvey())
+// From the account menu's "Delete my account and data": the confirmation opens here, also when Profile is already open.
+watch(() => route.query.delete, (v) => {
+  if (v !== '1') return
+  askDelete()
+  router.replace({ query: {} })
+}, { immediate: true })
 
 function focusHeading() {
   nextTick(() => page.value?.querySelector('h2')?.focus())

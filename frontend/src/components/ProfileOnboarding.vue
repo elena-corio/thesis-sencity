@@ -1,4 +1,5 @@
 <script setup>
+import { AUTH_ON } from '../lib/auth.js'
 // The onboarding (boards 4, P4): Part A of the survey, one question group per screen: the eight-senses intro, A11,
 // A12, A13, A16 (part_a.json, in the app's language; no attention-check rows, no health or background questions).
 // A11 and every grid row are required, as in the survey; A16 is optional. Every answer is kept in a draft on this device
@@ -147,7 +148,8 @@ function cancelEdit() {
         </footer>
       </section>
 
-      <p class="note">Your answers stay on this device. They leave it only with a rating, to a model that keeps nothing.</p>
+      <p class="note">{{ AUTH_ON ? 'Your answers are saved in your account when you save your profile. For a rating they go to a model that keeps nothing.'
+        : 'Your answers stay on this device. They leave it only with a rating, to a model that keeps nothing.' }}</p>
     </div>
   </div>
 </template>
