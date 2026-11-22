@@ -2,6 +2,14 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-22 – Before the merge: Clerk development instance on Render, Clerk's location in the notice, person icon, per-address limits (accepted)
+**Decision (Elena).**
+- *Clerk:* the deployed app keeps Clerk's **development** instance (the same `pk_test_`/`sk_test_` keys), as a production instance needs our own domain; `CLERK_AUTHORIZED_PARTIES` is the Render address; invitations come from the development instance. A production instance with our own domain is a later step.
+- *Privacy notice (and About):* "Sign-in is handled by Clerk, Inc. (USA), which stores your email address in the US under the EU–US Data Privacy Framework; everything else is stored in our database in Frankfurt (EU)."
+- *Account button:* a plain person icon instead of the hard-coded initials (the menu header too).
+- *Per-address limits:* env vars (`IP_LIMIT_…`) with defaults raised so a class on one network is not blocked: 100 rating runs an hour per address (was 30); per-user limits unchanged.
+**Proposed (Claude).** The other per-address defaults, scaled the same way: chat 600/h (20 people × 30), areas 100/h, routes 50/h, thermal 50/h (each run is billed by Infrared.city and has no per-user limit, so it stays the lowest), search and reverse 120/min (the server still asks Photon's reverse at most once a second), photos 600/min.
+
 ## 2026-11-22 – Accounts with Clerk, profiles in our database, one Render service in Frankfurt (accepted)
 **Context.** Elena: add sign-in with Clerk and prepare the deploy on Render (not deploy). The brief's phase 2 (Clerk `@clerk/vue`, passwordless email, FastAPI checks the session, Postgres in Frankfurt keyed by a random id, invite-only allowlist) applies; Elena decided the open points.
 **Decision (Elena).**

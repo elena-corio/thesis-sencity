@@ -58,7 +58,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown,
   <Teleport to="body"><div class="backdrop" aria-hidden="true" /></Teleport>
   <div ref="menu" class="menu panel" role="dialog" aria-label="Your account" data-popover @keydown="onKey">
     <div class="head">
-      <span class="avatar" aria-hidden="true">EC</span>
+      <span class="avatar" aria-hidden="true"><AppIcon name="user" /></span>
       <div>
         <div class="name">Your account</div>
         <div class="sub">Profile and settings</div>

@@ -29,6 +29,7 @@ keeps it and sends it in the body of a rating request, where it is used for the 
 the body, not the URL, so they do not appear in access logs or the browser history either.
 """
 import json
+import os
 from contextlib import asynccontextmanager
 import logging
 import threading
@@ -111,6 +112,14 @@ def _rate_limited(bucket: str, ip: str, limit: int, window_s: float) -> bool:
     return False
 
 
+def ip_limit(env: str, default: int) -> int:
+    """A per-address limit: the environment variable `env` if it is a whole number, else the config's default
+    (Elena, 2026-11-22: env vars, defaults raised so a class on one network is not blocked; per-user limits:
+    app/limits.py)."""
+    raw = os.environ.get(env, "").strip()
+    return int(raw) if raw.isdigit() else default
+
+
 def _ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
@@ -161,7 +170,7 @@ def search(body: SearchRequest, request: Request, user: auth.User = SignedIn) ->
     query = body.q.strip()
     if len(query) < s["min_chars"]:
         return {"results": []}
-    if _rate_limited("search", _ip(request), s["rate_per_minute"], 60):
+    if _rate_limited("search", _ip(request), ip_limit("IP_LIMIT_SEARCH_PER_MINUTE", s["rate_per_minute"]), 60):
         raise HTTPException(429, "Too many searches. Wait a moment and try again.")
     try:
         return {"results": search_mod.search(query, body.lat, body.lon, s)}
@@ -180,7 +189,7 @@ class ReverseRequest(BaseModel):
 def reverse(body: ReverseRequest, request: Request, user: auth.User = SignedIn) -> dict:
     """The name of a point clicked on the map: {"name": "Mariahilfer Straße"}, or null when there is none."""
     s = cfg["search"]
-    if _rate_limited("reverse", _ip(request), s["reverse_rate_per_minute"], 60):
+    if _rate_limited("reverse", _ip(request), ip_limit("IP_LIMIT_REVERSE_PER_MINUTE", s["reverse_rate_per_minute"]), 60):
         raise HTTPException(429, "Too many points in a short time. Wait a moment and try again.")
     try:
         return {"name": search_mod.reverse(body.lat, body.lon, s)}
@@ -221,13 +230,13 @@ def area(body: AreaRequest, request: Request, user: auth.User = SignedIn) -> Str
     cached = area_mod.load_cached(key, full_cfg)
     # Going on from a failed try is not a new area (its finished steps are kept, app/steps.py).
     resuming = cached is None and steps.exists(area_mod.cache_dir(full_cfg), key)
-    if cached is None and not resuming and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
+    if cached is None and not resuming and _rate_limited("area", ip, ip_limit("IP_LIMIT_AREA_PER_HOUR", cfg["area"]["rate_per_hour"]), 3600):
         raise HTTPException(429, "Too many new areas in a short time. Wait a while and try again.")
 
     def thermal(fc):
         if not needs_thermal:
             return
-        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        allowed = lambda: not _rate_limited("thermal", ip, ip_limit("IP_LIMIT_THERMAL_PER_HOUR", full_cfg["thermal"]["rate_per_hour"]), 3600)  # noqa: E731
         for event in area_mod.thermal_events(thermal_key, fc, body.lat, body.lon,
                                              area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),
                                              body.season, body.time, full_cfg, allowed):
@@ -298,7 +307,7 @@ def routes(body: RoutesRequest, request: Request, user: auth.User = SignedIn) ->
     ip = _ip(request)
     cached = routes_mod.load_cached(corridor_key, full_cfg)
     resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), corridor_key)
-    if cached is None and not resuming and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
+    if cached is None and not resuming and _rate_limited("routes", ip, ip_limit("IP_LIMIT_ROUTES_PER_HOUR", r["rate_per_hour"]), 3600):
         raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
     limits = body.limits.model_dump()
     # A corridor may bill more tiles than one circle, up to its own limit.
@@ -326,7 +335,7 @@ def routes(body: RoutesRequest, request: Request, user: auth.User = SignedIn) ->
         fc, zone = corridor["area"], corridor["zone"]
         _known_photos.update(photos_mod.known_photos(fc))
         lat, lon = routes_mod.middle(start, end)
-        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        allowed = lambda: not _rate_limited("thermal", ip, ip_limit("IP_LIMIT_THERMAL_PER_HOUR", full_cfg["thermal"]["rate_per_hour"]), 3600)  # noqa: E731
         thermal = None
         if body.layer != "senses":
             for event in area_mod.thermal_events(key, fc, lat, lon, zone, body.season, body.time, thermal_cfg, allowed):
@@ -362,7 +371,7 @@ def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=3
     call, counted against the daily cap; the browser is told not to keep it."""
     if not photos_mod.PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in _known_photos:
         raise HTTPException(404, "Not a photo of a loaded area or route.")
-    if _rate_limited("photo", _ip(request), cfg["photo"]["rate_per_minute"], 60):
+    if _rate_limited("photo", _ip(request), ip_limit("IP_LIMIT_PHOTO_PER_MINUTE", cfg["photo"]["rate_per_minute"]), 60):
         raise HTTPException(429, "Too many photos in a short time. Wait a moment.")
     try:
         content = streetview().fetch(pano_id, heading)
@@ -439,7 +448,7 @@ def chat(body: ChatRequest, request: Request, user: auth.User = SignedIn) -> dic
     message = body.message.strip()
     if not message:
         raise HTTPException(422, "Write a question first.")
-    if _rate_limited("chat", _ip(request), cfg["chat"]["per_hour"], 3600):
+    if _rate_limited("chat", _ip(request), ip_limit("IP_LIMIT_CHAT_PER_HOUR", cfg["chat"]["per_hour"]), 3600):
         raise HTTPException(429, "Too many questions in a short time. Wait a while, then ask again.")
     limits.chat(user.account_id)  # per user, and the global daily cap
     try:
@@ -483,7 +492,7 @@ def senses_rate(body: SensesRateRequest, request: Request, user: auth.User = Sig
         raise HTTPException(503, f"The model settings cannot be used. {e}") from None
     except senses_mod.PredictionError as e:
         raise HTTPException(e.status, e.message) from None
-    if plan.to_rate and _rate_limited("senses", _ip(request), cfg["senses"]["runs_per_hour"], 3600):
+    if plan.to_rate and _rate_limited("senses", _ip(request), ip_limit("IP_LIMIT_SENSES_PER_HOUR", cfg["senses"]["runs_per_hour"]), 3600):
         raise HTTPException(429, "Too many rating runs in a short time. Wait a while, then retry.")
     if plan.to_rate:
         limits.rating_run(user.account_id)  # per user, and the global daily cap (each call is counted in app/senses.py)

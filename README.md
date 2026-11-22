@@ -251,10 +251,32 @@ Render dashboard, New > Blueprint, pick this repo, then fill in the secret value
 - **Postgres: Basic 256 MB** (paid). The free Postgres **expires 30 days after it is created** and is then deleted,
   with the profiles in it, so it is not used.
 
-**Environment variables** (names only; values in the dashboard): `OPENROUTER_API_KEY`, `INFRARED_API_KEY`,
-`MAPILLARY_ACCESS_TOKEN`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_AUTHORIZED_PARTIES` (the site's
-https address), and, set by the blueprint, `DATABASE_URL`, `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`, `NODE_VERSION`,
-`LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`, `LIMIT_RUNS_PER_DAY`, `LIMIT_MODEL_CALLS_PER_DAY`.
+**Clerk: the development instance, also on Render.** A Clerk production instance needs a domain of our own, so for now
+the deployed app uses the same Clerk **development** instance as local work: the same `pk_test_…` and `sk_test_…` keys.
+Clerk shows a small "Development mode" badge, and development instances have usage limits (see Clerk's docs).
+Moving to a production instance with our own domain is a later step (new `pk_live_…`/`sk_live_…` keys, the domain's
+DNS records in Clerk, then the same env vars with the new values).
+
+**Environment variables** (names only; values in the dashboard):
+- you set: `OPENROUTER_API_KEY`, `INFRARED_API_KEY`, `MAPILLARY_ACCESS_TOKEN`, `CLERK_SECRET_KEY` (the dev instance's
+  `sk_test_…`), `VITE_CLERK_PUBLISHABLE_KEY` (its `pk_test_…`), `CLERK_AUTHORIZED_PARTIES` (the Render address, e.g.
+  `https://sencity.onrender.com`);
+- set by the blueprint: `DATABASE_URL`, `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`, `NODE_VERSION`, and the per-user
+  limits `LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`, `LIMIT_RUNS_PER_DAY`,
+  `LIMIT_MODEL_CALLS_PER_DAY`;
+- optional, per address (defaults in `config/tool.yaml`, sized for a class on one network):
+  `IP_LIMIT_SENSES_PER_HOUR` (100), `IP_LIMIT_CHAT_PER_HOUR` (600), `IP_LIMIT_AREA_PER_HOUR` (100),
+  `IP_LIMIT_ROUTES_PER_HOUR` (50), `IP_LIMIT_THERMAL_PER_HOUR` (50, each run billed), `IP_LIMIT_SEARCH_PER_MINUTE`
+  (120), `IP_LIMIT_REVERSE_PER_MINUTE` (120), `IP_LIMIT_PHOTO_PER_MINUTE` (600).
+
+**By hand, once:**
+1. Merge into `main` (the blueprint deploys `main`).
+2. Render: New > Blueprint, pick this repo; enter the values above (the Clerk ones from the **development** instance).
+   The web service, the database and the disk are all created in Frankfurt.
+3. After the first deploy, set `CLERK_AUTHORIZED_PARTIES` to the service's address and redeploy.
+4. Clerk dashboard (development instance): keep email code as the only sign-in method and the invite-only access mode;
+   invite people from **Users > Invite**, with the redirect URL `<Render address>/sign-in`.
+5. Open the site, accept an invitation, and check sign-in, a profile save and "Delete my account and data".
 
 Build: `pip install -r backend/requirements.txt && cd frontend && npm ci && npm run build && npm run check:bundle`.
 Start: `cd backend && python -m app.db migrate && uvicorn app.main:app --host 0.0.0.0 --port $PORT`.

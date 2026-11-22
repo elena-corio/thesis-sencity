@@ -46,6 +46,7 @@ services:
         sync: false
       - key: MAPILLARY_ACCESS_TOKEN
         sync: false
+      # Clerk's development instance for now (production needs our own domain): its sk_test_/pk_test_ keys.
       - key: CLERK_SECRET_KEY
         sync: false
       # Public, but needed when the frontend is built: the Clerk publishable key.

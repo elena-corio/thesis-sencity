@@ -133,8 +133,19 @@ def test_the_message_is_never_logged(client, monkeypatch, caplog):
     assert secret not in caplog.text
 
 
-def test_the_rate_limit(client, monkeypatch):
+def test_the_rate_limit_per_address_is_an_env_var(client, monkeypatch):
     monkeypatch.setattr(senses_mod, "post_openrouter", lambda *a: reply(full(action="out_of_scope")))
-    limit = main_mod.cfg["chat"]["per_hour"]
-    codes = [client.post("/api/chat", json={"message": "hi"}).status_code for _ in range(limit + 1)]
-    assert codes[:limit] == [200] * limit and codes[-1] == 429
+    assert main_mod.cfg["chat"]["per_hour"] == 600  # a class on one network (per user: 30 an hour)
+    monkeypatch.setenv("IP_LIMIT_CHAT_PER_HOUR", "3")
+    codes = [client.post("/api/chat", json={"message": "hi"}).status_code for _ in range(4)]
+    assert codes == [200, 200, 200, 429]
+
+
+def test_per_address_defaults_fit_a_class(monkeypatch):
+    for name in ("IP_LIMIT_SENSES_PER_HOUR", "IP_LIMIT_CHAT_PER_HOUR"):
+        monkeypatch.delenv(name, raising=False)
+    assert main_mod.ip_limit("IP_LIMIT_SENSES_PER_HOUR", main_mod.cfg["senses"]["runs_per_hour"]) == 100
+    monkeypatch.setenv("IP_LIMIT_SENSES_PER_HOUR", "250")
+    assert main_mod.ip_limit("IP_LIMIT_SENSES_PER_HOUR", 100) == 250
+    monkeypatch.setenv("IP_LIMIT_SENSES_PER_HOUR", "lots")
+    assert main_mod.ip_limit("IP_LIMIT_SENSES_PER_HOUR", 100) == 100

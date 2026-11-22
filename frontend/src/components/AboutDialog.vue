@@ -91,8 +91,9 @@ function showTipsAgain() {
 
           <section id="about-data" aria-labelledby="about-data-h">
             <h3 id="about-data-h" tabindex="-1">Your profile and data</h3>
-            <p v-if="AUTH_ON">Your profile and your own ratings are saved in your account, in our database in Frankfurt (EU);
-              signing in is handled by Clerk. Download your data or delete your account under Profile. For a personal rating,
+            <p v-if="AUTH_ON">Your profile and your own ratings are saved in your account, in our database in Frankfurt (EU).
+              Sign-in is handled by Clerk, Inc. (USA), which stores your email address in the US under the EU–US Data Privacy
+              Framework. Download your data or delete your account under Profile. For a personal rating,
               your answers (with your own words) and the photo go to an AI model in the EU and are not kept. Chats are not saved.</p>
             <p v-else>Your profile lives only in this browser: no account, no server. Download, import or delete it under Profile.
               For a personal rating, your answers (with your own words) and the photo go to an AI model in the EU and are

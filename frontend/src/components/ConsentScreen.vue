@@ -23,7 +23,7 @@ const DEVICE = [
 const ACCOUNT = [
   { icon: 'chat', text: 'You’ll answer a few questions about what feels pleasant or unpleasant to your senses in public spaces: 20 visible elements, about 5 minutes. No health questions.' },
   { icon: 'lock', text: 'What is stored: your email address, for signing in; your sensory profile (your answers, your weather and comfort settings, how you prepare for new places); and your own ratings of street photos. Chats are not saved.' },
-  { icon: 'area', text: 'Where: your profile and ratings are kept in our database in Frankfurt, in the EU. Signing in is handled by Clerk, a login service, which keeps your email address and sign-in details.' },
+  { icon: 'area', text: 'Where: sign-in is handled by Clerk, Inc. (USA), which stores your email address in the US under the EU–US Data Privacy Framework; everything else is stored in our database in Frankfurt (EU).' },
   { icon: 'send', text: 'For a personal rating or a chat question, what is needed (your answers, or your question) is sent to an AI model on an EU endpoint that keeps nothing.' },
   { icon: 'trash', text: 'How long: until you delete your account. Under Profile, “Delete my account and data” removes your profile, your ratings and your sign-in at once. You can download your data first.' },
 ]
