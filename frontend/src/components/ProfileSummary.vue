@@ -1,4 +1,5 @@
 <script setup>
+import { AUTH_ON } from '../lib/auth.js'
 // Your sensory profile (board 5): every answer, each group with Edit (editing builds the profile again); on the right,
 // your own words (no "Strongest for you": Elena, 2026-11-21), and the device-only actions: download,
 // import, delete. The radar (ProfileRadar) under the title; under the overall comfort, the temperature that feels
@@ -164,7 +165,7 @@ function a11Key(e) {
       <div class="links">
         <button type="button" class="link" @click="emit('download')">Download my data</button>
         <button type="button" class="link" @click="emit('import')">Import a file</button>
-        <button type="button" class="link" @click="emit('delete')">Delete my profile</button>
+        <button type="button" class="link" @click="emit('delete')">{{ AUTH_ON ? 'Delete my account and data' : 'Delete my profile' }}</button>
       </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </aside>

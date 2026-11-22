@@ -2,6 +2,25 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-22 – Accounts with Clerk, profiles in our database, one Render service in Frankfurt (accepted)
+**Context.** Elena: add sign-in with Clerk and prepare the deploy on Render (not deploy). The brief's phase 2 (Clerk `@clerk/vue`, passwordless email, FastAPI checks the session, Postgres in Frankfurt keyed by a random id, invite-only allowlist) applies; Elena decided the open points.
+**Decision (Elena).**
+- *Sign-in required:* every page after the welcome page and the privacy notice needs a signed-in user; the brief's "continue without an account" is dropped. Email code only (set in Clerk), no social logins.
+- *Server-side checks:* every /api route but `GET /api/health` checks the Clerk session on the server, including the billed area, thermal, Street View photo and route routes.
+- *Data:* the sensory profile and own photo ratings in our database, under our own random account id linked to the Clerk user id; Clerk holds only the email and login. Chats are not saved. Nothing is saved before the privacy notice is agreed (its date is stored). "Delete my account and data" deletes our rows, then the Clerk user, then signs out.
+- *Hosting:* one Render web service in Frankfurt; FastAPI serves the built frontend (the brief's static site would be served from Render's global CDN, not Frankfurt). Render Postgres in Frankfurt. A 1 GB disk for the `runs/` caches. `render.yaml` has the blueprint; nothing is deployed or created from here.
+- *Database locally:* SQLite (`.local/`, not committed) locally and in tests, Postgres on Render, same code (SQLAlchemy Core).
+- *Limits (env vars):* per user 30 chat messages an hour and 100 a day, 10 rating runs an hour and 30 a day (each run already capped at 250 new photos); a global cap of **2,000 model calls a day** for everyone. A friendly message when reached; logs hold counts and errors only.
+**Proposed (Claude).**
+- *Plans:* web service Starter (a disk needs a paid instance), Postgres Basic 256 MB (the free one expires after 30 days and would delete the profiles).
+- *Photos:* `/api/photo` is protected too; an `<img>` cannot send a header, so the server also accepts Clerk's `__session` cookie (same site, as the frontend is served by the API).
+- *Model calls:* unchanged route (OpenRouter, the export's pinned EU endpoint, zero retention, data collection denied, no fallbacks); each rating call is checked against the global cap before it is made, and a run stops with a message when it is used up.
+- *Tests:* the browser tests and the existing unit tests run without Clerk (`VITE_AUTH=off`, the profile in the browser as in phase 1); a build refuses that mode. `stores/account.test.js` and `backend/tests/test_auth.py` check the account path (every route but /api/health refuses without a session; consent first; delete order; limits; the served frontend).
+- *A profile from before accounts* in the browser is offered once after sign-in ("Keep it in my account" / "Remove it from this device").
+- *Bundle check:* `npm run check:bundle` after every build (also on Render) looks for the value of every secret in `.env` or the environment and for key patterns in the built app.
+- *Invite-only:* the brief's Clerk allowlist stays; it is a Clerk dashboard setting.
+**Consequences.** Replaces the brief's phase 1 "profile only in the browser" for any deployed version. The per-IP limits stay as a second guard.
+
 ## 2026-11-21 – Overall recommends places too, as Senses does (accepted; rule proposed)
 **Context.** Elena: in Area, show recommendations on Overall as on Senses. Until now Overall marked no places.
 **Decision (Elena).** On Overall the area card shows "Most comfortable nearby" with numbered pins, once the rating has ended and thermal is there, as on Senses.

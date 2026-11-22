@@ -214,6 +214,52 @@ npm run dev                     # starts the API too, and opens http://localhost
 
 **Screenshots** from `npm run test:e2e` are saved in `frontend/e2e/screens/` (not committed).
 
+## Accounts and the database
+
+Sign-in is Clerk (email code only); profiles and your own photo ratings are in our database under a random account id
+(the email stays in Clerk). Locally the database is a SQLite file in `.local/` (not committed); on Render, Postgres.
+
+```bash
+cd backend
+../.venv/Scripts/python -m app.db migrate   # create or update the tables (the API also does it when it starts)
+```
+
+To run with sign-in locally, put the Clerk **development** keys in `.env`: `CLERK_SECRET_KEY` and
+`VITE_CLERK_PUBLISHABLE_KEY` (Clerk dashboard > API keys), then `npm run dev`. Test emails: any address with
+`+clerk_test` (for example `you+clerk_test@example.com`) signs in with the code `424242`, no email sent.
+
+The browser tests (`npm run test:e2e`) run the development server with `VITE_AUTH=off`: no Clerk, the profile stays in
+the browser as before. `npm run build` refuses `VITE_AUTH=off` and needs `VITE_CLERK_PUBLISHABLE_KEY`.
+If a development server is already running (with sign-in on), stop it before the browser tests: they reuse it.
+
+```bash
+cd frontend
+npm run build && npm run check:bundle   # the built app must not contain any secret from .env (names printed, never values)
+```
+
+## Deploy on Render
+
+`render.yaml` is the blueprint: one web service (FastAPI serves the API and the built frontend) and one Postgres
+database, both in **Frankfurt**, with a 1 GB disk for the `runs/` caches. Nothing is deployed from this repo: in the
+Render dashboard, New > Blueprint, pick this repo, then fill in the secret values it asks for.
+
+**Plan tiers this needs** (check Render's current prices):
+- **Web service: Starter** (paid). A persistent disk is not available on the free instance type, and the free one also
+  sleeps when idle.
+- **Disk: 1 GB** (the smallest), billed per GB a month. Without it the caches are lost at every deploy and ratings and
+  thermal values are paid for again.
+- **Postgres: Basic 256 MB** (paid). The free Postgres **expires 30 days after it is created** and is then deleted,
+  with the profiles in it, so it is not used.
+
+**Environment variables** (names only; values in the dashboard): `OPENROUTER_API_KEY`, `INFRARED_API_KEY`,
+`MAPILLARY_ACCESS_TOKEN`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_AUTHORIZED_PARTIES` (the site's
+https address), and, set by the blueprint, `DATABASE_URL`, `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`, `NODE_VERSION`,
+`LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`, `LIMIT_RUNS_PER_DAY`, `LIMIT_MODEL_CALLS_PER_DAY`.
+
+Build: `pip install -r backend/requirements.txt && cd frontend && npm ci && npm run build && npm run check:bundle`.
+Start: `cd backend && python -m app.db migrate && uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+Health check: `GET /api/health` (the only public route).
+
 ## Common errors
 
 | Error | What to do |

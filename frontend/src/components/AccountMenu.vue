@@ -1,11 +1,15 @@
 <script setup>
-// Account menu (board P5): header, Appearance, About (opens AboutDialog), Print. Account and Log out come in phase 2.
+// Account menu (board P5): header, Appearance, About (opens AboutDialog), Print; with accounts (Elena, 2026-11-22) Sign out
+// and "Delete my account and data" (on the Profile page, with its confirmation).
 // Esc or a click outside closes it; focus moves into the menu and back to the button.
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import AppearanceSwitch from './AppearanceSwitch.vue'
 import { useHelpStore } from '../stores/help.js'
 import { useReportStore } from '../stores/report.js'
+import { useProfileStore } from '../stores/profile.js'
+import { useRouter } from 'vue-router'
+import { AUTH_ON } from '../lib/auth.js'
 
 const emit = defineEmits(['close'])
 const menu = ref(null)
@@ -20,6 +24,16 @@ function print() {
 function about() {
   emit('close')
   help.openAbout()
+}
+const profile = useProfileStore()
+const router = useRouter()
+async function signOut() {
+  emit('close')
+  await profile.signOutAll()
+}
+function deleteAccount() {
+  emit('close')
+  router.push({ path: '/profile', query: { delete: '1' } })
 }
 
 function onKey(e) {
@@ -60,6 +74,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown,
       </button>
       <button type="button" class="item" aria-haspopup="dialog" @click="print">
         <AppIcon name="print" /> Print report
+      </button>
+    </div>
+    <div v-if="AUTH_ON" class="block items">
+      <button type="button" class="item" data-testid="sign-out" @click="signOut">
+        <AppIcon name="logout" /> Sign out
+      </button>
+      <button type="button" class="item" aria-haspopup="dialog" @click="deleteAccount">
+        <AppIcon name="trash" /> Delete my account and data
       </button>
     </div>
   </div>

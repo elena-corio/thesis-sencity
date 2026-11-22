@@ -15,6 +15,7 @@
   --fs-md: 1rem;
   --fs-lg: 1.25rem;     /* card titles */
   --fs-xl: 2rem;        /* the feels-like temperature on the place card (board 2e) */
+  --fs-display: clamp(2rem, 4vw, 3.25rem); /* the welcome page title (board 0a) */
   --lh: 1.4;
 
   /* Space and size */
