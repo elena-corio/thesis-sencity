@@ -166,6 +166,43 @@ test.describe('the printable report', () => {
   })
 })
 
+test.describe('a part that fails to draw', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  test.describe.configure({ timeout: 120_000 })
+
+  // Elena, 2026-11-23: after clicking some places Print did nothing. Now a failing section says so and the rest opens.
+  test('the place fails: the report still opens, says which part, and Print opens it again after Close', async ({ page }) => {
+    await withSavedProfile(page, PROFILE)
+    await mockSurvey(page)
+    await mockArea(page, { thermal: true })
+    await mockRatings(page)
+    await openMap(page, 'light', { layer: null })
+    await analyseCentre(page)
+    await expect(page.locator('[data-panel="area-card"]').getByTestId('area-bar')).toBeVisible({ timeout: 20_000 })
+    await openSegment(page, WITH_3.properties.id)
+    await expect(page.locator('[data-panel="place-card"]')).toBeVisible()
+    const errors = []
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+    // The photo ratings' lookup breaks (as some real data might): the area and the place use it, the profile does not.
+    await page.evaluate(() => {
+      const s = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('senses')
+      s.placeFor = () => { throw new Error('test: broken place') }
+    })
+
+    await openReport(page)
+    const r = report(page)
+    await expect(r.locator('[data-section="failed-place"]')).toHaveText('This part of the report (place) could not be drawn. The rest of the report is complete.')
+    await expect(r.locator('[data-section="failed-area"]')).toBeVisible()
+    await expect(r.locator('[data-section="profile"]')).toBeVisible()
+    await expect(r.locator('[data-section="made"]')).toBeVisible()
+    expect(errors.some((e) => e.includes('Report: the place section could not be drawn.'))).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(r).toBeHidden()
+    await openReport(page)
+    await expect(r.locator('[data-section="failed-place"]')).toBeVisible()
+  })
+})
+
 test.describe('the report on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 

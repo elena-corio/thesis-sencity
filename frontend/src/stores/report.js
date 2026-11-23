@@ -1,6 +1,6 @@
 // The printable report (ReportView, boards 8 and 8b): open or not, and where focus goes back when it closes.
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 export const useReportStore = defineStore('report', () => {
   const open = ref(false)
@@ -11,6 +11,13 @@ export const useReportStore = defineStore('report', () => {
 
   function openReport() {
     opener = document.activeElement
+    // Already open: the open report covers the buttons, so this can only be a report that failed to show; draw it
+    // again rather than doing nothing (Elena, 2026-11-23).
+    if (open.value) {
+      open.value = false
+      nextTick(() => { open.value = true })
+      return
+    }
     open.value = true
   }
   function closeReport() {

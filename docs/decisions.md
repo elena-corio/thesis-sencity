@@ -2,6 +2,10 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-23 – The report: a section that fails no longer stops it opening (accepted)
+**Problem (Elena).** After clicking some places, Print did nothing. Not reproduced on the test data (every place of the mocked area, on all three layers, opened the report), so the failing value comes from real data and is still to be found.
+**Proposed (Claude).** Whatever the cause, one failing section left the report half-open (`open` true, nothing shown), so every later click on Print did nothing until a reload. Now each section (profile, area, route, place) is guarded (`ReportSafe.vue`): if it fails, it says "This part of the report (…) could not be drawn" and the rest opens; the error goes to the browser console with the section's name. The view's own values (the place, "In short", the card's photo) are guarded the same way, and Print while the report is marked open draws it again. The console line tells us which part to fix.
+
 ## 2026-11-22 – Three fixes before the merge: Enlarge, map clicks with the chat open, route requests in the chat (accepted; details proposed)
 **Decision (Elena).**
 - *Enlarge* opens the photo the place card shows. On Overall (and Thermal) the card shows the place's first photo, but the enlarged view opened on the rated representative photo; it now opens on the card's photo (`walk.openPlace(…, shown)`).
