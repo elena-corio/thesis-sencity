@@ -7,16 +7,6 @@ import { pickWays, withSenses } from '../lib/senses.js'
 import { POINT_LABEL, haversine } from '../lib/geo.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 import { withOverall } from '../lib/overall.js'
-import { SAVED_KEY } from './profile.js'
-
-/** A saved profile on this device (read once, at start): Overall is then the default layer. */
-function hasSavedProfile() {
-  try {
-    return !!localStorage.getItem(SAVED_KEY)
-  } catch {
-    return false
-  }
-}
 
 /**
  * Routes (brief §3, boards Routes 1–4). Start and End come from a map click or search. Once both are set
@@ -46,8 +36,8 @@ export const useRoutesStore = defineStore('routes', () => {
   const thermalWindow = ref({ ...config.thermalDefault })
   /** The window and station of the routes shown. */
   const info = ref(null)
-  // The same layer Area opens on: Overall with a saved profile on this device (Elena, 2026-11-15).
-  const layer = ref(hasSavedProfile() ? 'overall' : config.layerDefault)
+  // The same layer Area opens on: Overall (Elena, 2026-11-23; before, only with a profile saved on this device).
+  const layer = ref(config.layerDefault)
   const routes = shallowRef([])
   /** Senses: the ways to rate; the two routes are chosen from them when the rating ends (stores/senses.js). */
   const candidates = shallowRef([])

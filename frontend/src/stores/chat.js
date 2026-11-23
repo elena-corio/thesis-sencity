@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import config from '../config.js'
 import router from '../router.js'
 import { askChat, searchPlaces } from '../lib/api.js'
@@ -214,10 +214,11 @@ export const useChatStore = defineStore('chat', () => {
       await router.push('/routes')
       routes.setPoint('start', from, from.name, true)
       routes.setPoint('end', to, to.name, true)
-      // Calmer or easiest: the current layer if it is Senses or Overall (Overall counts heat too), else Senses.
-      const layer = intent.layer ?? (intent.calmer && routes.layer === 'thermal' ? 'senses' : routes.layer)
+      // Calmer or easiest: the current layer if it is Senses or Overall, else the default, Overall (Elena, 2026-11-23).
+      const layer = intent.layer ?? (intent.calmer && routes.layer === 'thermal' ? config.layerDefault : routes.layer)
       if (layer !== routes.layer) routes.setLayer(layer)
       routes.analyse()
+      routePending.value = { intent, pills }
       say(T.routeReply({ from: from.name, to: to.name, layer }), intent, pills)
     },
 
@@ -264,6 +265,51 @@ export const useChatStore = defineStore('chat', () => {
       say(T.outOfScope(), intent)
     },
   }
+
+  // Loading inside the chat (Elena, 2026-11-23): while the chat is open it takes the card's place, so the area's or the
+  // routes' progress is shown here, in one line, and the reply comes when they are ready (or say they failed).
+  const progress = computed(() => {
+    if (routes.load === 'loading') {
+      const p = routes.progress
+      const what = { streets: 'finding the streets', photos: `street photos ${p.done} of ${p.total}`, thermal: 'simulating thermal comfort (this can take a few minutes)', routes: 'comparing the routes' }[p.stage] ?? 'loading'
+      return { text: `Analysing the routes: ${what}…`, share: p.stage === 'photos' && p.total ? p.done / p.total : null }
+    }
+    if (senses.routesRating) {
+      const r = senses.routesProgress ?? { done: 0, total: 0 }
+      return { text: `Rating the photos along the routes: ${r.done} of ${r.total}…`, share: r.total ? r.done / r.total : null }
+    }
+    if (area.load === 'loading') {
+      const p = area.progress
+      return p.stage === 'streets'
+        ? { text: 'Loading the area: finding the streets…', share: null }
+        : { text: `Loading the area: street photos ${p.done} of ${p.total}…`, share: p.total ? p.done / p.total : null }
+    }
+    if (area.thermal === 'loading') return { text: 'Simulating thermal comfort for the area (this can take a few minutes)…', share: null }
+    if (senses.areaRating) {
+      const r = senses.areaProgress
+      return { text: `Rating the photos: ${r.done} of ${r.total} places…`, share: r.total ? r.done / r.total : null }
+    }
+    return null
+  })
+  /** A route the chat asked for: its comparison as the reply once it is ready. */
+  const routePending = ref(null)
+  watch(() => routes.load === 'ready' && !senses.routesRating && routes.hasResult, (ready) => {
+    if (!ready || !routePending.value) return
+    const { intent, pills } = routePending.value
+    routePending.value = null
+    say(T.compareReply(routes.shown, { layer: routes.layer, verdict: routeVerdict(routes.layer, routes.shown, routes.verdict),
+      hardOf: (r) => (routes.layer === 'thermal' ? r.hard_share : hardShare(r.stretches)) }), intent, pills)
+  })
+  watch(() => routes.load, (load) => {
+    if (load !== 'error' || !routePending.value) return
+    routePending.value = null
+    say({ text: `The routes could not be analysed${routes.error ? `: ${routes.error}` : ''}. Try again in a moment.` })
+  })
+  watch(() => area.load, (load) => {
+    if (load !== 'error' || !pending.value) return
+    pending.value = null
+    say({ text: `The area could not be loaded${area.loadError ? `: ${area.loadError}` : ''}. Try again in a moment.` })
+  })
 
   // A request near a new place: carried out once that area is ready on its layer (Thermal: its values; Senses and
   // Overall: its photos rated).
@@ -323,9 +369,10 @@ export const useChatStore = defineStore('chat', () => {
   function clear() {
     messages.value = []
     pending.value = null
+    routePending.value = null
     marked.value = []
     mark()
   }
 
-  return { open, messages, busy, error, pending, returnTo, show, close, send, preset, removePill, run, openPlace, backToChat, clear, name }
+  return { open, messages, busy, error, pending, progress, returnTo, show, close, send, preset, removePill, run, openPlace, backToChat, clear, name }
 })

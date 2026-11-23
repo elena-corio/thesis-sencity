@@ -2,6 +2,13 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-23 – Overall by default, loading inside the chat, a message when something does not work (accepted)
+**Decision (Elena).**
+- *Default layer:* Area and Routes open on **Overall**, with or without a profile (before: Overall only with a profile saved on this device, so with accounts, where the profile is on the server, the map opened on Senses). The chat follows the map's layer when a request names none, so it is Overall too; a calmer route asked on Thermal now goes to Overall (was Senses). The walk keeps Senses when the map is on Overall (`walkLayerDefault`), as Overall is not built for it.
+- *Loading and the chat:* while the chat is open it takes the card's place, so the progress is shown **inside the chat** (one line and a bar, above the ready-made questions): the area's streets, photos, thermal simulation and rating, or the routes' stages and rating. A route asked in the chat gets its comparison as the reply when it is ready; an area or a route that fails gets a reply saying so.
+- *Something that does not work:* an unexpected error (a component that cannot draw, an action that throws, a promise nobody handles) shows "Something did not work. Try again; if it keeps happening, reload the page." at the bottom of the screen (closes with its button or after 10 s), instead of nothing happening. The error goes to the browser console only. Cancelled requests are not errors.
+**Proposed (Claude).** Progress inside the chat rather than closing and reopening it: the conversation stays where the person is, and nothing moves under them.
+
 ## 2026-11-23 – The report: a section that fails no longer stops it opening (accepted)
 **Problem (Elena).** After clicking some places, Print did nothing. Not reproduced on the test data (every place of the mocked area, on all three layers, opened the report), so the failing value comes from real data and is still to be found.
 **Proposed (Claude).** Whatever the cause, one failing section left the report half-open (`open` true, nothing shown), so every later click on Print did nothing until a reload. Now each section (profile, area, route, place) is guarded (`ReportSafe.vue`): if it fails, it says "This part of the report (…) could not be drawn" and the rest opens; the error goes to the browser console with the section's name. The view's own values (the place, "In short", the card's photo) are guarded the same way, and Print while the report is marked open draws it again. The console line tells us which part to fix.

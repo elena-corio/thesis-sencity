@@ -34,8 +34,10 @@ export default {
     thermal: { thermal: true },
     overall: { thermal: true },
   },
-  // The layer Area and Routes open on.
-  layerDefault: 'senses',
+  // The layer Area and Routes open on (Elena, 2026-11-23: Overall, with or without a profile; the chat follows it).
+  layerDefault: 'overall',
+  // The walk's layer when the map is on Overall (Overall is not built for the walk).
+  walkLayerDefault: 'senses',
 
   // The app's language: which label of model/app_v9/elements.json is shown ('en' or 'it').
   language: 'en',

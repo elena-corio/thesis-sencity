@@ -34,6 +34,7 @@
   --panel-left-w: 340px;
   --panel-right-w: 360px;
   --menu-w: 320px;              /* account menu (board P5) */
+  --notice-bottom: 88px;        /* the "Something did not work" message: above the map controls and the phone tab bar */
   --control-size: 44px;         /* map zoom buttons */
   --controls-h: 154px;          /* zoom +, −, re-centre stacked, with padding */
   --tabs-half: 140px;           /* half the width of the Area / Routes / Profile tabs */

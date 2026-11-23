@@ -79,6 +79,14 @@ watch(() => chat.messages.length, () => nextTick(() => { if (list.value) list.va
       <p v-if="chat.busy" class="muted" role="status">Reading your request…</p>
     </div>
 
+    <!-- Loading inside the chat (Elena, 2026-11-23): the area's or the routes' progress, the reply when they are ready. -->
+    <div v-if="chat.progress" class="progress" data-testid="chat-progress">
+      <p role="status">{{ chat.progress.text }}</p>
+      <span class="bar" :class="{ waiting: chat.progress.share == null }" aria-hidden="true">
+        <span :style="chat.progress.share == null ? null : { width: `${Math.round(chat.progress.share * 100)}%` }" />
+      </span>
+    </div>
+
     <div class="presets" role="group" aria-label="Ready-made questions">
       <button v-for="p in PRESETS" :key="p.id" type="button" class="chip" :data-preset="p.id" @click="chat.preset(p)">{{ p.label }}</button>
     </div>
@@ -145,5 +153,11 @@ h2 { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .ask input:focus-visible, .chip:focus-visible, .pill:focus-visible, .item:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
 .send:disabled { opacity: var(--inactive-opacity); }
 .error { color: var(--hard-text); font-size: var(--fs-sm); }
+.progress { display: flex; flex-direction: column; gap: var(--space-1); color: var(--text-2); font-size: var(--fs-sm); }
+.bar { height: var(--space-1); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--mixed); transition: width var(--transition); }
+.bar.waiting span { width: 35%; animation: slide var(--bar-slide-s) ease-in-out infinite alternate; }
+@keyframes slide { from { transform: translateX(0); } to { transform: translateX(186%); } }
+@media (prefers-reduced-motion: reduce) { .bar.waiting span { width: 50%; animation: none; } }
 .phone { border-radius: 0; height: 100%; }
 </style>

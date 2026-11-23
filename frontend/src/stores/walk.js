@@ -28,7 +28,7 @@ export const useWalkStore = defineStore('walk', () => {
   const index = ref(0)
   const playing = ref(false)
   /** Fixed for the walk: the layer and the window it started with. */
-  const layer = ref(config.layerDefault)
+  const layer = ref(config.walkLayerDefault)
   const info = shallowRef(null)
   /** The last step was done with the keyboard, so focus can follow (Exit walk goes back to its button). */
   const byKeyboard = ref(false)
@@ -108,7 +108,7 @@ export const useWalkStore = defineStore('walk', () => {
   const prevIs = computed(() => (sub.value > 0 ? 'photo' : 'stretch'))
 
   /** Overall is not built for the walk, so it is shown on the default layer. */
-  const walkLayer = (l) => (l === 'overall' ? config.layerDefault : l)
+  const walkLayer = (l) => (l === 'overall' ? config.walkLayerDefault : l)
 
   /**
    * Walk a route. From "Walk route" it plays from the first stretch (Elena, 2026-11-11; paused with reduced motion);

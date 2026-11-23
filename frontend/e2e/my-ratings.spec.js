@@ -35,7 +35,7 @@ test.describe('Rate this place', () => {
     await mockArea(page)
     await mockRatings(page)
     await mockSurvey(page) // the chips' names, without a local API
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await analyseCentre(page)
     await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })
     await openSegment(page, WITH_3.properties.id)
@@ -84,7 +84,7 @@ test.describe('Rate this place', () => {
     await mockArea(page)
     const ctl = await mockRatings(page)
     ctl.held = true // the model has not answered yet
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await analyseCentre(page)
     await openSegment(page, WITH_3.properties.id)
     const rate = page.locator('[data-panel="place-card"]').getByTestId('rate-this-place')
@@ -123,7 +123,7 @@ test.describe('Rate this place', () => {
         at: '2026-11-16T09:00:00Z', from: 'walk' }]))
     })
     await mockSurvey(page)
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     const summary = page.locator('[data-panel="profile-summary"]')
     const [download] = await Promise.all([page.waitForEvent('download'), summary.getByRole('button', { name: 'Download my data' }).click()])
@@ -156,7 +156,7 @@ test.describe('How close SenCity is to you', () => {
     await withSavedProfile(page, { language: 'en', answers: DEV.answers, text: DEV.expected, version: '386e888b8867', saved: '2026-11-15T10:00:00Z', weather: {}, thermal: null })
     await page.addInitScript((list) => localStorage.setItem('sencity-my-ratings', JSON.stringify(list)), ratings)
     await mockSurvey(page)
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Profile' }).click()
     return page.getByTestId('how-close')
   }
@@ -199,7 +199,7 @@ test.describe('Adjust to my own ratings (experimental)', () => {
     await mockArea(page)
     await mockRatings(page, { personal: true })
     await mockSurvey(page)
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'overall' })
     await analyseCentre(page)
     await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })
     expect(await stateOf(page, WITH_3.properties.id)).toBe('mixed') // the model's 3, not 3 + 1
@@ -224,7 +224,7 @@ test.describe('Adjust to my own ratings (experimental)', () => {
     }, STEADY)
     await mockArea(page)
     await mockRatings(page) // personal: false
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await analyseCentre(page)
     await expect(page.getByTestId('senses-status')).toBeVisible({ timeout: 20_000 })
     expect(await stateOf(page, WITH_3.properties.id)).toBe('mixed')
