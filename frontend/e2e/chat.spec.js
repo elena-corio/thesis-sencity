@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { AREA, TEST_PROFILES, THERMAL, analyseCentre, layoutProblems, mockArea, mockSurvey, openMap, openSegment, withSavedProfile } from './helpers.js'
+import { AREA, TEST_PROFILES, THERMAL, analyseCentre, layoutProblems, mockArea, mockRoutes, mockSurvey, openMap, openSegment, withSavedProfile } from './helpers.js'
 
 // The chat (Elena, 2026-11-21). POST /api/chat is mocked: it answers each message with a fixed intent, as the parser
 // would. The app carries the intent out on the loaded area (Thermal here: no rating calls) and writes the reply itself.
@@ -11,7 +11,14 @@ const INTENTS = {
   'tell me a joke': blank('out_of_scope'),
   'hard places here': blank('filter_places', { level: 'hard' }),
   'how to prepare for this area?': blank('prepare_cope', { near: 'this area' }),
+  'karlsplatz to stadtpark on thermal': blank('plan_route', { start: 'Karlsplatz', end: 'Stadtpark', layer: 'thermal' }),
 }
+const PLACES = { Karlsplatz: { lat: 48.2006, lon: 16.3700 }, Stadtpark: { lat: 48.2045, lon: 16.3795 } }
+const mockSearch = (page) => page.route('**/api/search', (route) => {
+  const q = route.request().postDataJSON()?.q ?? ''
+  const name = Object.keys(PLACES).find((n) => q.toLowerCase().includes(n.toLowerCase()))
+  return route.fulfill({ json: { results: name ? [{ name, detail: 'Wien', ...PLACES[name], kind: 'square' }] : [] } })
+})
 async function mockChat(page, { fail = false } = {}) {
   await mockSurvey(page) // the element names (nothing personal)
   const sent = []
@@ -121,6 +128,40 @@ test.describe('Ask about places', () => {
 
     await ask(page, 'hard places here')
     await expect(panel(page).getByTestId('chat-pills')).toContainText('hard · Overall') // the level follows the current layer
+  })
+
+  // Elena, 2026-11-23: while the chat is open it takes the card's place, so the loading is shown in the chat.
+  test('a route asked in the chat: its progress shows in the chat while it loads', async ({ page }) => {
+    await mockChat(page)
+    await mockSearch(page)
+    await mockRoutes(page, { hold: true })
+    await openMap(page, 'light')
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'karlsplatz to stadtpark on thermal')
+    await expect(panel(page).getByTestId('chat-progress')).toContainText('Analysing the routes')
+    await expect(panel(page)).toBeVisible() // the chat stays open while it loads
+  })
+
+  test('a route asked in the chat: when it is ready the chat says how the two compare', async ({ page }) => {
+    await mockChat(page)
+    await mockSearch(page)
+    await mockRoutes(page)
+    await openMap(page, 'light')
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'karlsplatz to stadtpark on thermal')
+    await expect(lastText(page)).toContainText('The two routes on the map: Route A:', { timeout: 20_000 })
+    await expect(panel(page).getByTestId('chat-progress')).toHaveCount(0)
+  })
+
+  test('a route that fails: the chat says so', async ({ page }) => {
+    await mockChat(page)
+    await mockSearch(page)
+    const mock = await mockRoutes(page)
+    mock.thermal = 'route-error'
+    await openMap(page, 'light')
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'karlsplatz to stadtpark on thermal')
+    await expect(lastText(page)).toContainText('The routes could not be analysed', { timeout: 20_000 })
   })
 
   test('Italian: understood, answered in English with the note first', async ({ page }) => {

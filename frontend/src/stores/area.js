@@ -8,21 +8,11 @@ import { overallMarkers, sensesMarkers, withSenses } from '../lib/senses.js'
 import { thermalSuggestions } from '../lib/suggest.js'
 import { thermalLimits, withThermal } from '../lib/thermal.js'
 import { withOverall } from '../lib/overall.js'
-import { SAVED_KEY } from './profile.js'
 
 /**
  * Two-click area selection (brief §6 "Study area", boards Flow 1, 1b, 1c).
  * step: 'centre' (Flow 1) → 'radius' (1b) → 'set' (1c) → 'analysed'.
  */
-/** A saved profile on this device (read once, at start): Overall is then the default layer. */
-function hasSavedProfile() {
-  try {
-    return !!localStorage.getItem(SAVED_KEY)
-  } catch {
-    return false
-  }
-}
-
 export const useAreaStore = defineStore('area', () => {
   const step = ref('centre')
   /** @type {import('vue').Ref<{lat:number, lon:number} | null>} */
@@ -67,9 +57,9 @@ export const useAreaStore = defineStore('area', () => {
   /** The bar can be used before analysis (the choice is free) and whenever nothing is loading. */
   const windowActive = computed(() => step.value !== 'analysed' ||
     (load.value === 'ready' && (thermal.value === 'ready' || thermal.value === 'error')))
-  /** The chosen layer, before or after Analyse: 'senses' | 'thermal' | 'overall'. Decides what is loaded. With a profile
-   *  on this device, Overall is the default (Elena, 2026-11-15). */
-  const layer = ref(hasSavedProfile() ? 'overall' : config.layerDefault)
+  /** The chosen layer, before or after Analyse: 'senses' | 'thermal' | 'overall'. Decides what is loaded. Overall is the
+   *  default (Elena, 2026-11-23). */
+  const layer = ref(config.layerDefault)
   /** What the chosen layer needs: { thermal }. */
   const needs = computed(() => config.layers[layer.value])
   /** What the map colours by: 'senses'; 'thermal' once it is known; 'overall' once the area is here (its thermal part

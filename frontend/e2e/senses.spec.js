@@ -40,7 +40,7 @@ function mockSenses(page, { comfort = (i) => (i < 12 ? 5 : 2), failId = null, re
 async function openSenses(page, options = {}, theme = 'dark') {
   const photos = await mockArea(page)
   const mock = await mockSenses(page, options)
-  await openMap(page, theme, { layer: null })
+  await openMap(page, theme, { layer: 'senses' })
   await analyseCentre(page)
   return { mock, photos }
 }
@@ -87,7 +87,7 @@ test.describe('Senses mode', () => {
     const photos = await mockArea(page)
     const mock = await mockSenses(page)
     mock.hold = true
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await analyseCentre(page)
     const loading = page.locator('[data-panel="loading-card"]')
     await expect(loading.getByTestId('rating-step')).toContainText(/Rating 0 of \d+ places…/)
@@ -120,7 +120,7 @@ test.describe('Senses mode', () => {
     await mockArea(page)
     const mock = await mockSenses(page)
     mock.hold = true
-    await openMap(page, 'dark', { layer: null })
+    await openMap(page, 'dark', { layer: 'senses' })
     await analyseCentre(page)
     const loading = page.locator('[data-panel="loading-card"]')
     await expect(loading.getByTestId('rating-step')).toBeVisible()
@@ -188,7 +188,7 @@ test.describe('Senses mode', () => {
       await page.route('**/mly-thumb/**', (r) => r.fulfill({ status: 404 }))
       return mockSenses(page, { failId: failing[0].id, comfort: () => 4 })
     })()
-    await openMap(page, 'light', { layer: null })
+    await openMap(page, 'light', { layer: 'senses' })
     await analyseCentre(page)
     const failed = page.getByTestId('senses-failed')
     await expect(failed).toContainText('1 place could not be rated')
@@ -224,7 +224,7 @@ test.describe('Senses mode', () => {
   })
 
   async function analyseRoute(page, chooseSenses) {
-    await openRoutes(page, 'dark', { layer: null })
+    await openRoutes(page, 'dark', { layer: 'senses' })
     // Routes open on Senses, as Area does.
     await expect(page.getByRole('radio', { name: 'Senses', exact: true }).first()).toHaveAttribute('aria-checked', 'true')
     if (!chooseSenses) await page.getByRole('radio', { name: 'Thermal', exact: true }).first().click()

@@ -6,6 +6,7 @@ import App from './App.vue'
 import router from './router.js'
 import { clerkPlugin } from '@clerk/vue'
 import { AUTH_ON, PUBLISHABLE_KEY } from './lib/auth.js'
+import { watchErrors } from './lib/errors.js'
 
 // Remember whether the last input was the keyboard or a pointer (for focus outlines on text fields).
 const setInput = (kind) => { document.documentElement.dataset.input = kind }
@@ -13,6 +14,8 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Tab') setInput('keybo
 window.addEventListener('pointerdown', () => setInput('pointer'), true)
 
 const app = createApp(App).use(createPinia())
+// Something that does not work shows a message instead of failing silently (Elena, 2026-11-23).
+watchErrors(app)
 // Sign-in (Elena, 2026-11-22): Clerk, email code only (set in the Clerk dashboard). The publishable key is public.
 if (AUTH_ON) {
   if (!PUBLISHABLE_KEY) console.error('VITE_CLERK_PUBLISHABLE_KEY is missing: sign-in cannot start.')
