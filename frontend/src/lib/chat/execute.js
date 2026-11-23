@@ -135,3 +135,40 @@ export function prepareCope({ prepare }) {
   const prepares = prepare?.Q2?.ticked ?? []
   return { answered: helps.length + prepares.length > 0, helps, prepares, other: helps.includes('other') ? prepare?.Q4?.other || '' : '' }
 }
+
+export const SEASONS = ['spring', 'summer', 'autumn', 'winter']
+
+/**
+ * compare_seasons (Elena, 2026-11-23: "which season is the best to go?"). Only thermal comfort changes with the season;
+ * the photo ratings stay. For each season: its feels-like values per street (`values[season]`: { id: °C }), read with the
+ * person's limits (`stateOf`), combined with the street's Senses level into Overall, the worse of both, as on the map.
+ * features: the area's streets (or the one place asked about). coldOf(°C): too cold rather than too hot.
+ * Returns { rows: [{ season, easy, mixed, hard, rated, why: 'heat' | 'cold' | null, utci }], best: [season…], photos }
+ * in the order of SEASONS; best: the seasons with the most easy places, then the fewest hard (ties all listed).
+ */
+export function compareSeasons(features, values, { stateOf, coldOf = () => false }) {
+  const photos = features.some((f) => level(f.properties.senses_state))
+  const rows = SEASONS.filter((s) => values[s]).map((season) => {
+    const n = { easy: 0, mixed: 0, hard: 0 }
+    let hot = 0
+    let cold = 0
+    const temps = []
+    for (const f of features) {
+      const utci = values[season][f.properties.id]
+      const thermal = utci == null ? null : stateOf(utci)
+      if (utci != null) temps.push(utci)
+      if (thermal === 'hard' || thermal === 'mixed') coldOf(utci) ? cold++ : hot++
+      const s = level(overallOf(f.properties.senses_state, thermal).state)
+      if (s) n[s]++
+    }
+    const rated = n.easy + n.mixed + n.hard
+    const why = hot + cold === 0 ? null : hot >= cold ? 'heat' : 'cold'
+    const utci = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null
+    return { season, ...n, rated, why, utci }
+  })
+  const score = (r) => (r.rated ? [r.easy / r.rated, -r.hard / r.rated] : [-1, 0])
+  const better = (a, b) => { const [x, y] = [score(a), score(b)]; return x[0] - y[0] || x[1] - y[1] }
+  const top = rows.reduce((m, r) => (!m || better(r, m) > 0 ? r : m), null)
+  const best = top?.rated ? rows.filter((r) => better(r, top) === 0).map((r) => r.season) : []
+  return { rows, best, photos }
+}

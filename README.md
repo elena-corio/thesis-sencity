@@ -158,8 +158,9 @@ cd ..   # repo root
 
 ```bash
 cd backend
-../.venv/Scripts/python -m app.chat_eval dev     # the development set (15 requests, about $0.011): the only one used to tune config/chat_prompt.txt
-../.venv/Scripts/python -m app.chat_eval test    # the frozen test set (30 requests, about $0.022): the accuracy reported
+../.venv/Scripts/python -m app.chat_eval dev     # the development set (28 requests, about $0.023): the only one used to tune config/chat_prompt.txt
+../.venv/Scripts/python -m app.chat_eval test    # the frozen test set (30 requests, about $0.024): the accuracy reported
+../.venv/Scripts/python -m app.chat_eval seasons # the frozen set for "which season is best?" (10 requests, about $0.008)
 CHAT_LIVE=1 ../.venv/Scripts/python -m pytest tests/test_chat_live.py -s   # the same test set as a test: passes at 90% (27/30)
 ```
 

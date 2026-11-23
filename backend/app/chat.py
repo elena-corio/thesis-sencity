@@ -16,7 +16,10 @@ from . import senses as senses_mod
 PROMPT_PATH = REPO_ROOT / "config" / "chat_prompt.txt"
 PART_A = senses_mod.EXPORT_DIR / "part_a.json"
 
-ACTIONS = ("filter_places", "explain_place", "plan_route", "set_view", "summarise_profile", "prepare_cope", "out_of_scope")
+ACTIONS = ("filter_places", "explain_place", "plan_route", "set_view", "summarise_profile", "prepare_cope", "compare_seasons",
+           "out_of_scope")
+# Added after the first test set was frozen; each has its own frozen set (chat_eval SETS).
+LATER_ACTIONS = ("compare_seasons",)
 LEVELS = ("easy", "mixed", "hard")
 LAYERS = ("senses", "thermal", "overall")
 SEASONS = ("spring", "summer", "autumn", "winter")

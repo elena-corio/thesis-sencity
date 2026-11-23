@@ -2,6 +2,7 @@
 
     python -m app.chat_eval dev     # the development set: the only one used to tune config/chat_prompt.txt
     python -m app.chat_eval test    # the frozen test set (30 requests): the accuracy reported
+    python -m app.chat_eval seasons # the frozen test set for compare_seasons (10 requests, 2026-11-23)
 
 Prints each case that is wrong (its id, the fields that differ, what was expected and what came back), the accuracy and
 what the calls cost. Writes nothing. The messages are the fixtures' own, never anyone's chat.
@@ -14,7 +15,7 @@ from tool.config import REPO_ROOT, load_config
 
 from . import chat
 
-SETS = {"dev": "chat_intents_dev.json", "test": "chat_intents_test.json"}
+SETS = {"dev": "chat_intents_dev.json", "test": "chat_intents_test.json", "seasons": "chat_intents_seasons_test.json"}
 FIXTURES = REPO_ROOT / "backend" / "tests" / "fixtures"
 
 

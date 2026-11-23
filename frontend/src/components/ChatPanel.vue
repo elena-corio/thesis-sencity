@@ -64,6 +64,11 @@ watch(() => chat.messages.length, () => nextTick(() => { if (list.value) list.va
               </button>
             </li>
           </ol>
+          <!-- Buttons that act at once, without a model call ("Run them", "Show spring"; Elena, 2026-11-23). -->
+          <div v-if="m.actions?.length" class="suggest">
+            <button v-for="a in m.actions" :key="a.id" type="button" class="btn btn-primary" :data-action="a.id"
+                    :disabled="m !== lastApp" @click="chat.act(a.id)">{{ a.label }}</button>
+          </div>
           <div v-if="m.suggestions?.length" class="suggest">
             <button v-for="s in m.suggestions" :key="s" type="button" class="chip" @click="ask(s)">{{ s }}</button>
           </div>
