@@ -121,7 +121,7 @@ export function placeFacts(features, { listedOf, layer, scope = 'area', easier =
     } : null,
     elements,
     looked,
-    easy: scope === 'area' ? list.filter((f) => levelOn(f, layer) === 'easy' && f.properties.name).map((f) => ({ id: f.properties.id, name: f.properties.name })) : [],
+    easy: scope !== 'place' ? list.filter((f) => levelOn(f, layer) === 'easy' && f.properties.name).map((f) => ({ id: f.properties.id, name: f.properties.name })) : [],
     easier,
   }
 }

@@ -21,7 +21,9 @@ export default defineConfig({
     command: 'npm run dev -- --port 5173 --strictPort',
     url: 'http://localhost:5173/area',
     reuseExistingServer: true,
-    env: { PLAYWRIGHT: '1' }, // keeps vite.config.js from opening a browser window
+    // PLAYWRIGHT keeps vite.config.js from opening a browser window; VITE_AUTH=off runs the app without Clerk (the
+    // profile in the browser, as in phase 1), for these checks only: a build refuses it.
+    env: { PLAYWRIGHT: '1', VITE_AUTH: 'off' },
     timeout: 60_000,
   },
 })

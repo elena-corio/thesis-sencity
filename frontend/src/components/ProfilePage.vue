@@ -2,7 +2,7 @@
 // The Profile view, over the map: the onboarding while one is open (also when you left it halfway), else your profile
 // (board 5) or the empty state (5b). Everything stays on this device (phase 1); the delete dialog is board 5c.
 import { nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useProfileStore } from '../stores/profile.js'
 import ConsentScreen from './ConsentScreen.vue'
 import DeleteProfileDialog from './DeleteProfileDialog.vue'
@@ -15,6 +15,7 @@ import FirstHint from './FirstHint.vue'
 defineProps({ phone: Boolean })
 const store = useProfileStore()
 const router = useRouter()
+const route = useRoute()
 const dev = import.meta.env.DEV
 const fileInput = ref(null)
 const page = ref(null)
@@ -23,6 +24,12 @@ const deleting = ref(false)
 let deleteOpener = null
 
 onMounted(() => store.ensureSurvey())
+// From the account menu's "Delete my account and data": the confirmation opens here, also when Profile is already open.
+watch(() => route.query.delete, (v) => {
+  if (v !== '1') return
+  askDelete()
+  router.replace({ query: {} })
+}, { immediate: true })
 
 function focusHeading() {
   nextTick(() => page.value?.querySelector('h2')?.focus())
@@ -83,8 +90,14 @@ function cancelDelete() {
   deleting.value = false
   nextTick(() => deleteOpener?.focus?.())
 }
-function confirmDelete() {
-  store.deleteAll()
+const deleteError = ref('')
+const deleteBusy = ref(false)
+/** Delete: with accounts our rows, then the Clerk user, then sign out (Clerk goes to the welcome page). */
+async function confirmDelete() {
+  deleteBusy.value = true
+  deleteError.value = await store.deleteAll()
+  deleteBusy.value = false
+  if (deleteError.value) return
   deleting.value = false
   focusHeading()
 }
@@ -108,11 +121,21 @@ async function loadTest() {
       <p v-else-if="!store.survey" class="state" role="status">Loading the questions…</p>
       <ProfileSummary v-else-if="store.profile" :error="error" @map="router.push('/area')" @download="download"
                       @import="pickFile" @delete="askDelete" />
+      <!-- A profile saved in this browser before accounts: offered once for the account (Elena, 2026-11-22). -->
+      <section v-else-if="store.deviceProfile" class="state device" data-testid="device-profile" aria-labelledby="device-title">
+        <h2 id="device-title" tabindex="-1">A profile is saved on this device</h2>
+        <p>It was made before accounts. Keep it in your account, or remove it from this device.</p>
+        <div class="device-actions">
+          <button type="button" class="btn btn-primary" @click="store.keepDeviceProfile()">Keep it in my account</button>
+          <button type="button" class="btn" @click="store.dropDeviceProfile()">Remove it from this device</button>
+        </div>
+      </section>
       <ProfileEmpty v-else :error="error" :dev="dev" @create="store.begin()" @import="pickFile" @test="loadTest" />
+      <p v-if="store.saveError" class="state save-error" role="alert">{{ store.saveError }}</p>
     </template>
     <input ref="fileInput" type="file" accept="application/json,.json" class="visually-hidden" tabindex="-1"
            aria-hidden="true" @change="onFile">
-    <DeleteProfileDialog v-if="deleting" @cancel="cancelDelete" @confirm="confirmDelete" @download="download" />
+    <DeleteProfileDialog v-if="deleting" :error="deleteError" :busy="deleteBusy" @cancel="cancelDelete" @confirm="confirmDelete" @download="download" />
   </div>
 </template>
 
@@ -122,6 +145,10 @@ async function loadTest() {
   width: min(calc(100% - 2 * var(--margin)), calc(var(--profile-main-w) + var(--profile-side-w) + var(--space-5)));
   margin: var(--space-4) auto 0;
 }
+.device h2 { margin: 0; font-size: var(--fs-lg); }
+.device p, .save-error { margin: 0; }
+.device-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: center; }
+.save-error { color: var(--hard-text); }
 .state { margin: var(--space-5) auto; max-width: var(--onboarding-w); text-align: center; color: var(--text-2); display: grid; gap: var(--space-3); justify-items: center; padding: var(--space-4); }
 .profile-page :deep(h2[tabindex="-1"]), .profile-page :deep(h2) { scroll-margin-top: var(--space-5); }
 </style>

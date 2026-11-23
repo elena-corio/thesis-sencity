@@ -4,8 +4,8 @@
 // Walk along a route (WalkView): its own panel over the map, under the top bar (on a phone, above the tab bar).
 // Profile (ProfilePage): over the map, which stays as it was in Area or Routes and cannot be reached meanwhile; the
 // onboarding takes the whole screen (boards 4, P4).
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useMedia } from '../composables.js'
 import { useAreaStore } from '../stores/area.js'
 import { useRoutesStore } from '../stores/routes.js'
@@ -47,6 +47,16 @@ const route = useRoute()
 const sheetRef = ref(null)
 const profile = useProfileStore()
 const chat = useChatStore()
+// With accounts (Elena, 2026-11-22): the account, its profile and ratings from the server, once per session; the
+// privacy notice first if it was never agreed.
+const router = useRouter()
+onMounted(async () => {
+  try {
+    if (await profile.syncAccount() === 'notice') router.replace({ path: '/welcome', query: { notice: '1' } })
+  } catch {
+    // The API could not be reached: the map still works; the profile loads on the next visit.
+  }
+})
 const profileMode = computed(() => route.params.mode === 'profile')
 // The map's own mode: Area or Routes, kept while Profile is open.
 const mapMode = ref(route.params.mode === 'routes' ? 'routes' : 'area')

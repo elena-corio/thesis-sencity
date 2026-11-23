@@ -1,7 +1,7 @@
 {
-  "about": "The optional onboarding step after the profile (Elena, 2026-11-18): how you prepare for new places. English only. Stored with your profile on this device; it may shape what the app shows first, and is never sent to the model or put in a prompt. Q1 is A15 of the thesis codebook (config/codebook_2026-11-12.yaml in thesis-personas, a tool-only question), title and labels word for word; Q2-Q4 are Elena's; Q3 is a 1-5 scale (Elena, 2026-11-21: 1 never, 5 very often). `offers` maps each Q2 option to what the app (or a chatbot) can offer.",
+  "about": "The optional onboarding step after the profile (Elena, 2026-11-18): how you prepare for new places. English only. Stored with your profile (in the account, or on the device without sign-in); it may shape what the app shows first, and is never sent to the model or put in a prompt. Q1 is A15 of the thesis codebook (config/codebook_2026-11-12.yaml in thesis-personas, a tool-only question), title and labels word for word; Q2-Q4 are Elena's; Q3 is a 1-5 scale (Elena, 2026-11-21: 1 never, 5 very often). `offers` maps each Q2 option to what the app (or a chatbot) can offer.",
   "title": { "en": "How you prepare for new places" },
-  "note": { "en": "Optional. Kept on this device with your profile, so SenCity can show first what helps you. Never sent to the model." },
+  "note": { "en": "Optional. Kept with your profile, so SenCity can show first what helps you. Never sent to the model." },
   "other_max": 150,
   "questions": [
     {

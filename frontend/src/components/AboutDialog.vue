@@ -1,4 +1,5 @@
 <script setup>
+import { AUTH_ON } from '../lib/auth.js'
 // About and how to use (board 7, Elena 2026-11-16): opened from "?" (desktop), the account menu (phone and narrower
 // screens) and every "How this works" link, which opens it at its section. The board's text is updated to the app as it
 // is now (20 elements, no sign-in, no database, no 3D view). A modal on desktop, a full-screen sheet on a phone. Focus
@@ -90,7 +91,11 @@ function showTipsAgain() {
 
           <section id="about-data" aria-labelledby="about-data-h">
             <h3 id="about-data-h" tabindex="-1">Your profile and data</h3>
-            <p>Your profile lives only in this browser: no account, no server. Download, import or delete it under Profile.
+            <p v-if="AUTH_ON">Your profile and your own ratings are saved in your account, in our database in Frankfurt (EU).
+              Sign-in is handled by Clerk, Inc. (USA), which stores your email address in the US under the EU–US Data Privacy
+              Framework. Download your data or delete your account under Profile. For a personal rating,
+              your answers (with your own words) and the photo go to an AI model in the EU and are not kept. Chats are not saved.</p>
+            <p v-else>Your profile lives only in this browser: no account, no server. Download, import or delete it under Profile.
               For a personal rating, your answers (with your own words) and the photo go to an AI model in the EU and are
               not kept. Your own ratings, notes and weather answers never leave this device.</p>
           </section>

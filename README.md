@@ -214,6 +214,74 @@ npm run dev                     # starts the API too, and opens http://localhost
 
 **Screenshots** from `npm run test:e2e` are saved in `frontend/e2e/screens/` (not committed).
 
+## Accounts and the database
+
+Sign-in is Clerk (email code only); profiles and your own photo ratings are in our database under a random account id
+(the email stays in Clerk). Locally the database is a SQLite file in `.local/` (not committed); on Render, Postgres.
+
+```bash
+cd backend
+../.venv/Scripts/python -m app.db migrate   # create or update the tables (the API also does it when it starts)
+```
+
+To run with sign-in locally, put the Clerk **development** keys in `.env`: `CLERK_SECRET_KEY` and
+`VITE_CLERK_PUBLISHABLE_KEY` (Clerk dashboard > API keys), then `npm run dev`. Test emails: any address with
+`+clerk_test` (for example `you+clerk_test@example.com`) signs in with the code `424242`, no email sent.
+
+The browser tests (`npm run test:e2e`) run the development server with `VITE_AUTH=off`: no Clerk, the profile stays in
+the browser as before. `npm run build` refuses `VITE_AUTH=off` and needs `VITE_CLERK_PUBLISHABLE_KEY`.
+If a development server is already running (with sign-in on), stop it before the browser tests: they reuse it.
+
+```bash
+cd frontend
+npm run build && npm run check:bundle   # the built app must not contain any secret from .env (names printed, never values)
+```
+
+## Deploy on Render
+
+`render.yaml` is the blueprint: one web service (FastAPI serves the API and the built frontend) and one Postgres
+database, both in **Frankfurt**, with a 1 GB disk for the `runs/` caches. Nothing is deployed from this repo: in the
+Render dashboard, New > Blueprint, pick this repo, then fill in the secret values it asks for.
+
+**Plan tiers this needs** (check Render's current prices):
+- **Web service: Starter** (paid). A persistent disk is not available on the free instance type, and the free one also
+  sleeps when idle.
+- **Disk: 1 GB** (the smallest), billed per GB a month. Without it the caches are lost at every deploy and ratings and
+  thermal values are paid for again.
+- **Postgres: Basic 256 MB** (paid). The free Postgres **expires 30 days after it is created** and is then deleted,
+  with the profiles in it, so it is not used.
+
+**Clerk: the development instance, also on Render.** A Clerk production instance needs a domain of our own, so for now
+the deployed app uses the same Clerk **development** instance as local work: the same `pk_test_…` and `sk_test_…` keys.
+Clerk shows a small "Development mode" badge, and development instances have usage limits (see Clerk's docs).
+Moving to a production instance with our own domain is a later step (new `pk_live_…`/`sk_live_…` keys, the domain's
+DNS records in Clerk, then the same env vars with the new values).
+
+**Environment variables** (names only; values in the dashboard):
+- you set: `OPENROUTER_API_KEY`, `INFRARED_API_KEY`, `MAPILLARY_ACCESS_TOKEN`, `CLERK_SECRET_KEY` (the dev instance's
+  `sk_test_…`), `VITE_CLERK_PUBLISHABLE_KEY` (its `pk_test_…`), `CLERK_AUTHORIZED_PARTIES` (the Render address, e.g.
+  `https://sencity.onrender.com`);
+- set by the blueprint: `DATABASE_URL`, `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`, `NODE_VERSION`, and the per-user
+  limits `LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`, `LIMIT_RUNS_PER_DAY`,
+  `LIMIT_MODEL_CALLS_PER_DAY`;
+- optional, per address (defaults in `config/tool.yaml`, sized for a class on one network):
+  `IP_LIMIT_SENSES_PER_HOUR` (100), `IP_LIMIT_CHAT_PER_HOUR` (600), `IP_LIMIT_AREA_PER_HOUR` (100),
+  `IP_LIMIT_ROUTES_PER_HOUR` (50), `IP_LIMIT_THERMAL_PER_HOUR` (50, each run billed), `IP_LIMIT_SEARCH_PER_MINUTE`
+  (120), `IP_LIMIT_REVERSE_PER_MINUTE` (120), `IP_LIMIT_PHOTO_PER_MINUTE` (600).
+
+**By hand, once:**
+1. Merge into `main` (the blueprint deploys `main`).
+2. Render: New > Blueprint, pick this repo; enter the values above (the Clerk ones from the **development** instance).
+   The web service, the database and the disk are all created in Frankfurt.
+3. After the first deploy, set `CLERK_AUTHORIZED_PARTIES` to the service's address and redeploy.
+4. Clerk dashboard (development instance): keep email code as the only sign-in method and the invite-only access mode;
+   invite people from **Users > Invite**, with the redirect URL `<Render address>/sign-in`.
+5. Open the site, accept an invitation, and check sign-in, a profile save and "Delete my account and data".
+
+Build: `pip install -r backend/requirements.txt && cd frontend && npm ci && npm run build && npm run check:bundle`.
+Start: `cd backend && python -m app.db migrate && uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+Health check: `GET /api/health` (the only public route).
+
 ## Common errors
 
 | Error | What to do |

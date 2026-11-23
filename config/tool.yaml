@@ -140,7 +140,7 @@ thermal:
   buffer_m: 4                # grid cells within this distance either side of a street line
   percentile: 75             # the hotter part, so one unshaded stretch is not averaged away
   cache_dir: runs/thermal    # per area and window: the grid (.npz) and the values per segment (.json)
-  rate_per_hour: 10          # new (not cached) thermal runs per IP; each one is billed
+  rate_per_hour: 50          # new (not cached) thermal runs per IP (env IP_LIMIT_THERMAL_PER_HOUR); each one is billed
 
 # Routes (brief §3): two walking routes between two points, on the rated street lines. Thermal only for
 # now (decisions.md, 2026-11-05). A new route is one thermal run on a narrow corridor around its candidates.
@@ -164,7 +164,7 @@ routes:
   mixed_weight: 0.25         # a mixed or no-value street counts this share of a hard one
   min_difference_share: 0.1  # a "second shortest" B differs from A along at least this share
   cache_dir: runs/routes     # one JSON per start and end: the corridor's segments and photo metadata
-  rate_per_hour: 10          # new (not cached) routes per IP
+  rate_per_hour: 50          # new (not cached) routes per IP (env IP_LIMIT_ROUTES_PER_HOUR)
 
 # The photos along a route face the way it is walked (Elena, 2026-11-16), set once the routes are found: the walking
 # direction at a photo is the route's bearing taken ahead_m further on, so near a turn it is the street ahead. A Street View
@@ -198,23 +198,23 @@ api:
     max_chars: 100
     limit: 5
     timeout_s: 5
-    rate_per_minute: 30        # per IP, keeps us within Photon's fair use
+    rate_per_minute: 120       # per IP (env IP_LIMIT_SEARCH_PER_MINUTE); a class shares one address
     # Naming a point clicked on the map (reverse geocoding, also Photon).
     reverse_url: https://photon.komoot.io/reverse
     reverse_radius_km: 0.1     # a street further than this does not name the point
     reverse_limit: 20          # things inside a park come first, so ask for enough to reach the park itself
     reverse_min_interval_s: 1  # at most one call per second from this server (fair use)
     reverse_cache_size: 1000   # points kept, in memory only
-    reverse_rate_per_minute: 30  # per IP
+    reverse_rate_per_minute: 120  # per IP (env IP_LIMIT_REVERSE_PER_MINUTE); the 1 call/s to Photon still holds
   photo:                         # GET /api/photo: a Street View image, fetched on demand and never stored
-    rate_per_minute: 60          # per IP (a walk shows one every 2 s at most)
+    rate_per_minute: 600         # per IP (env IP_LIMIT_PHOTO_PER_MINUTE; a walk shows one every 2 s at most)
   area:
     cache_dir: runs/areas        # one JSON per area: segments and chosen photo metadata (no images)
-    rate_per_hour: 20            # new (not cached) areas per IP (photo lookups: mapillary.workers at a time)
+    rate_per_hour: 100           # new (not cached) areas per IP (env IP_LIMIT_AREA_PER_HOUR; photo lookups: mapillary.workers at a time)
   chat:                          # POST /api/chat: one message → one intent (app/chat.py); the model of model/app_v9/,
                                  # temperature 0, prompt config/chat_prompt.txt. Messages are never stored or logged
     max_chars: 300               # a longer message is refused
-    per_hour: 20                 # messages per IP
+    per_hour: 600                # messages per IP (env IP_LIMIT_CHAT_PER_HOUR); per user: app/limits.py
   senses:                        # model settings are NOT here: they come only from model/app_v9/
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60
@@ -225,7 +225,7 @@ api:
     cap_photos: 250              # new photos per run; above this the app asks first, with the estimated cost
     estimate_call_usd: 0.001     # one model call, only for that estimate (a new photo takes two: presence + rating)
     max_photos_per_request: 3000 # a longer list is refused
-    runs_per_hour: 30            # runs with new photos, per IP
+    runs_per_hour: 100           # runs with new photos, per IP (env IP_LIMIT_SENSES_PER_HOUR); per user: app/limits.py
     formula_mode: none           # none | xhat | f: the study's V2, V2 + x̂ or V2 + f (app/formula.py). Both formula modes
                                  # need others' averages and fitted coefficients, which the app does not have: until
                                  # then every prediction falls back to none

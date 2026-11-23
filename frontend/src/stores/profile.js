@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
-import { loadSurvey } from '../lib/api.js'
+import { agreeConsent, deleteAccount, getAccount, getOwnRatings, getProfile, loadSurvey, putOwnRatings, putProfile } from '../lib/api.js'
+import { AUTH_ON, signOut } from '../lib/auth.js'
 import * as personalRatings from '../lib/personalRatings.js'
 import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion, readFile } from '../lib/profile.js'
 import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '../lib/thermal.js'
 import { cleanWeather } from '../lib/weather.js'
 import { cleanPrepare, emptyPrepare } from '../lib/prepare.js'
-import { allRatings, clearRatings, setRatings } from '../lib/myRatings.js'
+import { allRatings, clearRatings, forgetRemoteRatings, setRatings, useRemoteRatings } from '../lib/myRatings.js'
 import { useHelpStore } from './help.js'
 import { useAdjustStore } from './adjust.js'
 
@@ -16,6 +17,8 @@ import { useAdjustStore } from './adjust.js'
 export const SAVED_KEY = 'sencity-profile'
 export const DRAFT_KEY = 'sencity-profile-draft'
 export const CONSENT_KEY = 'sencity-consent'
+/** With accounts: the privacy notice agreed before sign-up, in this tab only, until the account exists. */
+export const PENDING_CONSENT_KEY = 'sencity-consent-pending'
 /** The sensory profile part of the onboarding, one question group per screen: the eight-senses intro, A11, A12, A13,
  *  A16 (part_a.json), then the app's own Weather step (lib/weather.js; Elena, 2026-11-15). */
 export const PROFILE_STEPS = ['intro', 'A11', 'A12', 'A13', 'A16', 'weather']
@@ -61,10 +64,21 @@ export const useProfileStore = defineStore('profile', () => {
   const survey = ref(null)
   const surveyStatus = ref('idle') // 'idle' | 'loading' | 'ready' | 'error'
   const surveyError = ref('')
-  const profile = ref(read(SAVED_KEY))
+  // With accounts (Elena, 2026-11-22) the profile is in our database, loaded after sign-in (syncAccount); without
+  // (the browser tests' development server only) it is in this browser, as in phase 1.
+  const profile = ref(AUTH_ON ? null : read(SAVED_KEY))
+  /** With accounts: a profile saved in this browser before accounts existed, offered once for the account. */
+  const deviceProfile = ref(null)
+  /** The last save did not reach the server. */
+  const saveError = ref('')
+  function persist(p) {
+    if (!AUTH_ON) return write(SAVED_KEY, p)
+    saveError.value = ''
+    putProfile(p).catch(() => { saveError.value = 'Your profile could not be saved. Check your connection and try again.' })
+  }
   const draft = ref(read(DRAFT_KEY))
   // "Before you start" (ConsentScreen): agreed once on this device, before a new profile or an import.
-  const consent = ref(read(CONSENT_KEY))
+  const consent = ref(AUTH_ON ? null : read(CONSENT_KEY))
   const consented = computed(() => !!consent.value?.agreed)
   /** An import waiting for the consent screen. */
   const consentFor = ref(null)
@@ -116,7 +130,7 @@ export const useProfileStore = defineStore('profile', () => {
     const text = buildProfile(s, a, language)
     profile.value = { language, answers: a, text, version: await profileVersion(text), saved: new Date().toISOString(),
       weather: cleanWeather(weather), thermal: cleanThermal(thermal), prepare: prepare ? cleanPrepare(s.prepare, prepare) : null }
-    write(SAVED_KEY, profile.value)
+    persist(profile.value)
     personalRatings.keepOnly(profile.value.version) // ratings made with an earlier version are not used again
     return true
   }
@@ -133,7 +147,7 @@ export const useProfileStore = defineStore('profile', () => {
     const other = side === 'heat' ? l.cold[0] : l.heat[0]
     p.thermal = { ...(p.thermal ?? {}), [side]: clampStart(side, value, other) }
     profile.value = { ...p }
-    write(SAVED_KEY, profile.value)
+    persist(profile.value)
   }
   /** One answer changed on the profile page (the overall comfort bar): the profile is built again, as after an edit. */
   async function setAnswer(code, value) {
@@ -145,7 +159,7 @@ export const useProfileStore = defineStore('profile', () => {
   function resetStarts() {
     if (!profile.value) return
     profile.value = { ...profile.value, thermal: null }
-    write(SAVED_KEY, profile.value)
+    persist(profile.value)
   }
 
   // A changed export (a new template) gives a new text: built again when the survey arrives, so the version shown is
@@ -212,18 +226,86 @@ export const useProfileStore = defineStore('profile', () => {
     write(DRAFT_KEY, null)
   }
 
-  /** "Delete my profile": answers, text, draft, consent and the personal ratings; "not personalised yet" again. */
-  function deleteAll() {
+  /** What this browser keeps for the person: the draft, consent, the personal predictions, own ratings, seen tips. */
+  function clearDevice() {
     profile.value = null
     draft.value = null
     consent.value = null
-    write(SAVED_KEY, null)
-    write(DRAFT_KEY, null)
-    write(CONSENT_KEY, null)
+    for (const k of [SAVED_KEY, DRAFT_KEY, CONSENT_KEY]) write(k, null)
+    try { sessionStorage.removeItem(PENDING_CONSENT_KEY) } catch { /* blocked */ }
     personalRatings.clearAll()
-    clearRatings() // your own photo ratings too
-    useAdjustStore().reset() // and "Adjust to my own ratings", back to off
+    forgetRemoteRatings() // never sends an empty list: the account's ratings stay on the server (or are deleted with it)
+    clearRatings() // the ratings in this browser
     useHelpStore().clearSeen() // and which tips were seen: they show again
+    useAdjustStore().reset() // and "Adjust to my own ratings", back to off
+  }
+
+  /** "Delete my account and data" (with accounts): our database rows, then the Clerk user, then sign out. Without
+   *  accounts: "Delete my profile" on this device. Returns '' or the error to show. */
+  async function deleteAll() {
+    if (AUTH_ON) {
+      try {
+        await deleteAccount()
+      } catch (err) {
+        return err.message || 'Your account could not be deleted. Try again.'
+      }
+      clearDevice()
+      await signOut()
+      return ''
+    }
+    clearDevice()
+    return ''
+  }
+
+  /** Sign out: this browser forgets the person's things, then Clerk signs out. */
+  async function signOutAll() {
+    clearDevice()
+    synced = false
+    await signOut()
+  }
+
+  // With accounts: after sign-in, the account, its profile and its own ratings from the server, once per session.
+  let synced = false
+  /** The notice agreed in this tab before the account existed. */
+  function consentPending() {
+    try { sessionStorage.setItem(PENDING_CONSENT_KEY, new Date().toISOString()) } catch { /* blocked */ }
+  }
+  function hasPendingConsent() {
+    try { return !!sessionStorage.getItem(PENDING_CONSENT_KEY) } catch { return false }
+  }
+  async function agreeOnServer() {
+    await agreeConsent()
+    try { sessionStorage.removeItem(PENDING_CONSENT_KEY) } catch { /* blocked */ }
+    consent.value = { agreed: new Date().toISOString() }
+  }
+  /** Returns 'ok', or 'notice' when the privacy notice must be agreed first. */
+  async function syncAccount() {
+    if (!AUTH_ON || synced) return 'ok'
+    const account = await getAccount()
+    if (!account.consented) {
+      if (!hasPendingConsent()) return 'notice'
+      await agreeOnServer()
+    } else consent.value = { agreed: true }
+    const [{ profile: saved }, ratings] = await Promise.all([getProfile(), getOwnRatings()])
+    profile.value = saved && saved.answers && ['en', 'it'].includes(saved.language) ? saved : null
+    useRemoteRatings(ratings, (list) => putOwnRatings(list).catch(() => { saveError.value = 'Your rating could not be saved.' }))
+    useAdjustStore().refresh()
+    const local = read(SAVED_KEY)
+    deviceProfile.value = !profile.value && local?.answers ? local : null
+    synced = true
+    return 'ok'
+  }
+  /** The profile from this browser goes to the account, then leaves the browser. */
+  async function keepDeviceProfile() {
+    const p = deviceProfile.value
+    if (!p) return false
+    const ok = await save(p.answers, p.language, p.weather ?? {}, p.thermal ?? null, p.prepare ?? null)
+    if (ok) dropDeviceProfile()
+    return ok
+  }
+  function dropDeviceProfile() {
+    deviceProfile.value = null
+    write(SAVED_KEY, null)
   }
 
   const fileData = () => (profile.value ? exportFile(profile.value, allRatings()) : null)
@@ -252,6 +334,7 @@ export const useProfileStore = defineStore('profile', () => {
 
   return { survey, surveyStatus, surveyError, profile, draft, personal, version, consented, consentFor, askingConsent, agree,
     decline, ensureSurvey, begin, setStep, answer, limits, setStart, resetStarts, setAnswer,
-    finish, discardDraft, deleteAll, fileData, importData, loadTestProfile,
+    finish, discardDraft, deleteAll, signOutAll, fileData, importData, loadTestProfile,
+    deviceProfile, saveError, syncAccount, consentPending, hasPendingConsent, agreeOnServer, keepDeviceProfile, dropDeviceProfile,
     inPrepare, setPrepare, notice }
 })

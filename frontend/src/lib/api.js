@@ -1,5 +1,7 @@
-// Calls to the SenCity API. The browser talks only to our backend (brief §10).
+// Calls to the SenCity API. The browser talks only to our backend (brief §10), with the Clerk session token
+// (lib/auth.js): the server checks it on every call.
 import config from '../config.js'
+import { authFetch } from './auth.js'
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -28,7 +30,7 @@ async function errorText(res) {
  * @returns {Promise<Array<{name:string, detail:string, lat:number, lon:number, kind:string, bbox?:number[][]}>>}
  */
 export async function searchPlaces(q, near, signal) {
-  const res = await fetch(`${config.apiBase}/api/search`, {
+  const res = await authFetch(`${config.apiBase}/api/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ q, lat: near?.lat ?? null, lon: near?.lon ?? null }),
@@ -44,7 +46,7 @@ export async function searchPlaces(q, near, signal) {
  *  sent, in the body, and to our own API. */
 export async function pointName({ lat, lon }) {
   try {
-    const res = await fetch(`${config.apiBase}/api/reverse`, {
+    const res = await authFetch(`${config.apiBase}/api/reverse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat, lon }),
@@ -100,7 +102,7 @@ export function loadRoutes(request, onEvent, signal) {
 }
 
 async function streamEvents(path, body, onEvent, signal) {
-  const res = await fetch(`${config.apiBase}${path}`, {
+  const res = await authFetch(`${config.apiBase}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -143,7 +145,7 @@ export function rateSenses(photos, onEvent, signal, profile = null) {
 
 /** The onboarding questions and the profile template (GET /api/profile/survey), from model/app_v9/. Nothing personal. */
 export async function loadSurvey(signal) {
-  const res = await fetch(`${config.apiBase}/api/profile/survey`, { signal })
+  const res = await authFetch(`${config.apiBase}/api/profile/survey`, { signal })
   if (!res.ok) throw new ApiError(res.status, await errorText(res))
   return res.json()
 }
@@ -154,7 +156,7 @@ export async function loadSurvey(signal) {
  * @param {AbortSignal} [signal]
  */
 export async function askChat(message, signal) {
-  const res = await fetch(`${config.apiBase}/api/chat`, {
+  const res = await authFetch(`${config.apiBase}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
@@ -163,3 +165,26 @@ export async function askChat(message, signal) {
   if (!res.ok) throw new ApiError(res.status, await errorText(res))
   return (await res.json()).intent
 }
+
+async function json(method, path, body) {
+  const res = await authFetch(`${config.apiBase}${path}`, {
+    method,
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) throw new ApiError(res.status, await errorText(res))
+  return res.json()
+}
+/** Your account: { consented }. */
+export const getAccount = () => json('GET', '/api/account')
+/** The privacy notice agreed (before anything is saved). */
+export const agreeConsent = () => json('POST', '/api/account/consent', { agreed: true })
+/** "Delete my account and data": our rows, then the Clerk user. */
+export const deleteAccount = () => json('DELETE', '/api/account')
+/** Your saved profile, or null: { profile, consented }. */
+export const getProfile = () => json('GET', '/api/profile')
+export const putProfile = (profile) => json('PUT', '/api/profile', profile)
+export const deleteProfileData = () => json('DELETE', '/api/profile')
+/** Your own photo ratings (the whole list). */
+export const getOwnRatings = async () => (await json('GET', '/api/ratings/own')).ratings ?? []
+export const putOwnRatings = (list) => json('PUT', '/api/ratings/own', list)

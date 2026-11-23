@@ -1,4 +1,5 @@
 <script setup>
+import { KEPT } from '../lib/auth.js'
 // "Rate this place" (boards 2c, Routes 5; Elena, 2026-11-16): your own 1–5 for the photo on screen, kept in this browser
 // with the prediction that was shown before you rated (lib/myRatings.js). The prediction is taken from what is on
 // screen when the buttons appear, and kept up to date only while it changes before you rate (it can arrive while they
@@ -107,11 +108,11 @@ const titleId = `rate-title-${Math.random().toString(36).slice(2, 8)}`
       </template>
       <button v-if="!otherOpen" type="button" class="link" :aria-expanded="false" @click="otherOpen = true">Something else?</button>
       <label v-else class="other">
-        <span class="muted">Something else (optional, kept on this device only)</span>
+        <span class="muted">Something else (optional, kept {{ KEPT }} only)</span>
         <input v-model="other" type="text" :maxlength="OTHER_MAX" data-testid="rate-other" @change="saveOther" @blur="saveOther">
       </label>
     </div>
-    <p class="rate-foot">From the photo. Kept on this device; never sent to the model.</p>
+    <p class="rate-foot">From the photo. Kept {{ KEPT }}; never sent to the model.</p>
   </div>
 </template>
 

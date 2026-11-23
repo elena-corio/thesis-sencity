@@ -53,3 +53,29 @@ def no_street_view(tmp_path, monkeypatch):
         raise AssertionError("Street View must not be called in tests")
 
     monkeypatch.setattr(streetview_tool.StreetViewProvider, "_get", refuse)  # every call to Google goes through it
+
+
+@pytest.fixture(autouse=True)
+def database_and_user(tmp_path, monkeypatch):
+    """Each test: its own SQLite database, and a signed-in test user unless a test signs out (tests/test_auth.py).
+    No test reaches Clerk: CLERK_SECRET_KEY is empty, so a real session check would refuse."""
+    from sqlalchemy import create_engine
+    from app import auth, db
+    monkeypatch.setenv("CLERK_SECRET_KEY", "")
+    for name in ("LIMIT_CHAT_PER_HOUR", "LIMIT_CHAT_PER_DAY", "LIMIT_RUNS_PER_HOUR", "LIMIT_RUNS_PER_DAY", "LIMIT_MODEL_CALLS_PER_DAY"):
+        monkeypatch.delenv(name, raising=False)
+    engine = create_engine(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
+    db.use(engine)
+    db.migrate(engine)
+    account = db.ensure_account("user_test")
+    db.set_consent(account["id"], db.now())
+    try:
+        from app import main as main_mod
+        main_mod.app.dependency_overrides[auth.signed_in] = lambda: auth.User("user_test", account["id"], True)
+        yield account
+    finally:
+        try:
+            main_mod.app.dependency_overrides.clear()
+        except NameError:
+            pass
+        engine.dispose()

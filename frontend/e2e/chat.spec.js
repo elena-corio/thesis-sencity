@@ -94,6 +94,21 @@ test.describe('Ask about places', () => {
     expect(await store(page, 'area', 'markersCollapsed')).toBe(false)
   })
 
+  test('with the chat open, a place clicked on the map opens its card; "Back to the chat" returns', async ({ page }) => {
+    await mockChat(page)
+    await openArea(page)
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await panel(page).locator('[data-preset="easy"]').click()
+    const id = AREA.features.find((f) => THERMAL[f.properties.id] === 22).properties.id
+    await openSegment(page, id) // as a click on the street
+    await expect(panel(page)).toHaveCount(0)
+    const card = page.locator('[data-panel="place-card"]')
+    await expect(card).toBeVisible()
+    expect(await store(page, 'area', 'selectedId')).toBe(id)
+    await card.getByTestId('back-to-chat').click()
+    await expect(panel(page).getByTestId('chat-pills')).toContainText('easy · Thermal')
+  })
+
   test('a typed message: only its text is sent; the intent is carried out by the app', async ({ page }) => {
     const sent = await mockChat(page)
     await openArea(page)

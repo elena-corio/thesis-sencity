@@ -42,7 +42,7 @@ const chat = useChatStore()
     </button>
     <button ref="accountBtn" type="button" class="avatar" data-menu-button
             aria-label="Your account" aria-haspopup="dialog" :aria-expanded="menuOpen"
-            @click="menuOpen = !menuOpen">EC</button>
+            @click="menuOpen = !menuOpen"><AppIcon name="user" /></button>
 
     <!-- The account menu opens under the bar, aligned with its right edge. -->
     <AccountMenu v-if="menuOpen" @close="closeMenu" />
@@ -60,6 +60,7 @@ const chat = useChatStore()
   width: var(--touch); height: var(--touch);
   border-radius: 50%; border: var(--hairline) solid var(--line);
   background: var(--btn-selected-bg); font-weight: var(--fw-semibold);
+  display: grid; place-items: center; padding: 0; color: var(--text);
 }
 /* Below 1024 px About and Print are reached through the account menu. */
 @media (max-width: 1023px) {

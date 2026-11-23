@@ -2,6 +2,46 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-23 – The report: a section that fails no longer stops it opening (accepted)
+**Problem (Elena).** After clicking some places, Print did nothing. Not reproduced on the test data (every place of the mocked area, on all three layers, opened the report), so the failing value comes from real data and is still to be found.
+**Proposed (Claude).** Whatever the cause, one failing section left the report half-open (`open` true, nothing shown), so every later click on Print did nothing until a reload. Now each section (profile, area, route, place) is guarded (`ReportSafe.vue`): if it fails, it says "This part of the report (…) could not be drawn" and the rest opens; the error goes to the browser console with the section's name. The view's own values (the place, "In short", the card's photo) are guarded the same way, and Print while the report is marked open draws it again. The console line tells us which part to fix.
+
+## 2026-11-22 – Three fixes before the merge: Enlarge, map clicks with the chat open, route requests in the chat (accepted; details proposed)
+**Decision (Elena).**
+- *Enlarge* opens the photo the place card shows. On Overall (and Thermal) the card shows the place's first photo, but the enlarged view opened on the rated representative photo; it now opens on the card's photo (`walk.openPlace(…, shown)`).
+- *With the chat open, a place clicked on the map* (street, park, square or pin) opens its card, as one clicked in a reply does: the chat closes, the card has "Back to the chat". The chat's own selections (the place it explains or gives tips for) keep it open. A route stretch clicked on the map opens its card too.
+- *Route requests in the chat:* "compare these two routes" (a route request with no start and no end: the routes on the map, compared from what is loaded: length, minutes, share hard on the layer, and the route card's own verdict); "the easiest route from Karlsplatz to Stadtpark" (calmer); "how to prepare for this route" (the facts along the route on the map, the selected one or else B, then the tips from the person's own answers).
+**Proposed (Claude).** No new action: plan_route with start and end null means "compare"; prepare_cope with near "this route". *Calmer or easiest* keeps the current layer when it is Senses or Overall (Overall counts heat too) and uses Senses when the map is on Thermal (before: always Senses).
+**Accuracy re-run** after the prompt change (route words; dev set +4 route requests, d16–d19): dev 18/19 (the same d02 miss), **frozen test set 30/30 = 100%** (was 29/30; the test set is unchanged and not quoted by the prompt; one run at temperature 0). Cost $0.037.
+
+## 2026-11-22 – Before the merge: Clerk development instance on Render, Clerk's location in the notice, person icon, per-address limits (accepted)
+**Decision (Elena).**
+- *Clerk:* the deployed app keeps Clerk's **development** instance (the same `pk_test_`/`sk_test_` keys), as a production instance needs our own domain; `CLERK_AUTHORIZED_PARTIES` is the Render address; invitations come from the development instance. A production instance with our own domain is a later step.
+- *Privacy notice (and About):* "Sign-in is handled by Clerk, Inc. (USA), which stores your email address in the US under the EU–US Data Privacy Framework; everything else is stored in our database in Frankfurt (EU)."
+- *Account button:* a plain person icon instead of the hard-coded initials (the menu header too).
+- *Per-address limits:* env vars (`IP_LIMIT_…`) with defaults raised so a class on one network is not blocked: 100 rating runs an hour per address (was 30); per-user limits unchanged.
+**Proposed (Claude).** The other per-address defaults, scaled the same way: chat 600/h (20 people × 30), areas 100/h, routes 50/h, thermal 50/h (each run is billed by Infrared.city and has no per-user limit, so it stays the lowest), search and reverse 120/min (the server still asks Photon's reverse at most once a second), photos 600/min.
+
+## 2026-11-22 – Accounts with Clerk, profiles in our database, one Render service in Frankfurt (accepted)
+**Context.** Elena: add sign-in with Clerk and prepare the deploy on Render (not deploy). The brief's phase 2 (Clerk `@clerk/vue`, passwordless email, FastAPI checks the session, Postgres in Frankfurt keyed by a random id, invite-only allowlist) applies; Elena decided the open points.
+**Decision (Elena).**
+- *Sign-in required:* every page after the welcome page and the privacy notice needs a signed-in user; the brief's "continue without an account" is dropped. Email code only (set in Clerk), no social logins.
+- *Server-side checks:* every /api route but `GET /api/health` checks the Clerk session on the server, including the billed area, thermal, Street View photo and route routes.
+- *Data:* the sensory profile and own photo ratings in our database, under our own random account id linked to the Clerk user id; Clerk holds only the email and login. Chats are not saved. Nothing is saved before the privacy notice is agreed (its date is stored). "Delete my account and data" deletes our rows, then the Clerk user, then signs out.
+- *Hosting:* one Render web service in Frankfurt; FastAPI serves the built frontend (the brief's static site would be served from Render's global CDN, not Frankfurt). Render Postgres in Frankfurt. A 1 GB disk for the `runs/` caches. `render.yaml` has the blueprint; nothing is deployed or created from here.
+- *Database locally:* SQLite (`.local/`, not committed) locally and in tests, Postgres on Render, same code (SQLAlchemy Core).
+- *Limits (env vars):* per user 30 chat messages an hour and 100 a day, 10 rating runs an hour and 30 a day (each run already capped at 250 new photos); a global cap of **2,000 model calls a day** for everyone. A friendly message when reached; logs hold counts and errors only.
+**Proposed (Claude).**
+- *Plans:* web service Starter (a disk needs a paid instance), Postgres Basic 256 MB (the free one expires after 30 days and would delete the profiles).
+- *Photos:* `/api/photo` is protected too; an `<img>` cannot send a header, so the server also accepts Clerk's `__session` cookie (same site, as the frontend is served by the API).
+- *Model calls:* unchanged route (OpenRouter, the export's pinned EU endpoint, zero retention, data collection denied, no fallbacks); each rating call is checked against the global cap before it is made, and a run stops with a message when it is used up.
+- *Tests:* the browser tests and the existing unit tests run without Clerk (`VITE_AUTH=off`, the profile in the browser as in phase 1); a build refuses that mode. `stores/account.test.js` and `backend/tests/test_auth.py` check the account path (every route but /api/health refuses without a session; consent first; delete order; limits; the served frontend).
+- *A profile from before accounts* in the browser is offered once after sign-in ("Keep it in my account" / "Remove it from this device").
+- *Bundle check:* `npm run check:bundle` after every build (also on Render) looks for the value of every secret in `.env` or the environment and for key patterns in the built app.
+- *Invite-only:* the brief's Clerk allowlist stays; it is a Clerk dashboard setting.
+**Consequences.** Replaces the brief's phase 1 "profile only in the browser" for any deployed version. The per-IP limits stay as a second guard.
+**Found in the live run with Clerk (2026-11-22).** (1) The first requests after sign-in arrive together and each created the account: the second now reads the one just made. (2) Database errors no longer carry row values into logs (`hide_parameters`). (3) A contributed Street View photo sphere's ID can end in "." (`CAoS…`); the photo ID check refused it and with it the whole rating run (422) and its image (404): "." is now allowed (local Street View mode only; Render uses Mapillary). This is likely why ratings stopped working on 2026-11-21. (4) "Delete my account and data" from the account menu now opens its confirmation also when Profile is already open. (5) Words that said "on this device" say "in your account" with sign-in (the tip, About, Rate this place, How close, the onboarding note, the weather note); the "How you prepare" note is neutral.
+
 ## 2026-11-21 – Overall recommends places too, as Senses does (accepted; rule proposed)
 **Context.** Elena: in Area, show recommendations on Overall as on Senses. Until now Overall marked no places.
 **Decision (Elena).** On Overall the area card shows "Most comfortable nearby" with numbered pins, once the rating has ended and thermal is there, as on Senses.

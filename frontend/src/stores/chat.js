@@ -6,6 +6,8 @@ import { askChat, searchPlaces } from '../lib/api.js'
 import { midpoint } from '../lib/geo.js'
 import { LEVEL, easierNearby } from '../lib/nearby.js'
 import { placeGroup } from '../lib/place.js'
+import { routeVerdict } from '../lib/report.js'
+import { hardShare } from '../lib/senses.js'
 import { explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from '../lib/chat/execute.js'
 import { isCold, thermalLimits } from '../lib/thermal.js'
 import { clean, isThis, pillsOf, withoutPill } from '../lib/chat/intent.js'
@@ -141,6 +143,21 @@ export const useChatStore = defineStore('chat', () => {
     return store.layer
   }
 
+  /** How to prepare for the route on the map: its streets as the facts, the person's own answers as the tips. */
+  function prepareRoute(intent) {
+    const list = routes.shown
+    if (!list.length) return say({ text: 'Plan a route first, such as “the easiest route from Karlsplatz to Stadtpark”.' }, intent)
+    const route = routes.selectedRoute ?? list.find((r) => r.id === 'B') ?? list[0]
+    const ids = [...new Set(route.parts.map((p) => p.segment_id).filter(Boolean))]
+    const features = ids.map((id) => routes.segments.get(id)).filter(Boolean)
+    const limits = thermalLimits()
+    const facts = placeFacts(features, { listedOf, layer: routes.layer, scope: 'route', coldOf: (t) => isCold(t, limits) })
+    const info = routes.info
+    const when = info ? `${info.season} at ${info.time}` : ''
+    return say(T.copeReply(facts, prepareCope({ prepare: profile.profile?.prepare }), { name, personal: profile.personal, when,
+      place: list.length > 1 ? `route ${route.id}` : null }), intent, pillsOf(intent, { name }))
+  }
+
   const ACTIONS = {
     async filter_places(intent) {
       if (mode() !== 'area') await router.push('/area')
@@ -170,7 +187,7 @@ export const useChatStore = defineStore('chat', () => {
         return say({ text: `${intent.near} is not in the loaded area. Load an area around it first, such as “places near ${intent.near}”.` }, intent)
       }
       if (!f) return say(T.needPlace(), intent)
-      if (area.selectedId !== f.properties.id) area.select(f.properties.id, midpoint(f.geometry))
+      if (area.selectedId !== f.properties.id) selectHere(f)
       const layer = intent.layer ?? area.layer
       const e = explainPlace({ f, place: senses.placeFor(f.properties.photos), layer, answers: profile.profile?.answers ?? null })
       say(T.explainReply(e, { name, personal: profile.personal }), intent, pillsOf(intent, { layer, name }))
@@ -178,6 +195,13 @@ export const useChatStore = defineStore('chat', () => {
 
     async plan_route(intent) {
       const pills = pillsOf(intent, { name })
+      // "Compare these two routes" (Elena, 2026-11-22): no start and no end: the routes already on the map.
+      if (!intent.start && !intent.end) {
+        if (!routes.hasResult) return say({ text: 'Plan a route first, such as “the easiest route from Karlsplatz to Stadtpark”.' }, intent, pills)
+        if (mode() !== 'routes') await router.push('/routes')
+        return say(T.compareReply(routes.shown, { layer: routes.layer, verdict: routeVerdict(routes.layer, routes.shown, routes.verdict),
+          hardOf: (r) => (routes.layer === 'thermal' ? r.hard_share : hardShare(r.stretches)) }), intent, pills)
+      }
       if (!intent.end) return say({ text: 'Name where you want to go, such as “a calmer way to the Naschmarkt”.' }, intent, pills)
       const to = await find(intent.end)
       if (!to) return say(T.notFound(intent.end), intent, pills)
@@ -190,7 +214,8 @@ export const useChatStore = defineStore('chat', () => {
       await router.push('/routes')
       routes.setPoint('start', from, from.name, true)
       routes.setPoint('end', to, to.name, true)
-      const layer = intent.calmer ? 'senses' : intent.layer ?? routes.layer
+      // Calmer or easiest: the current layer if it is Senses or Overall (Overall counts heat too), else Senses.
+      const layer = intent.layer ?? (intent.calmer && routes.layer === 'thermal' ? 'senses' : routes.layer)
       if (layer !== routes.layer) routes.setLayer(layer)
       routes.analyse()
       say(T.routeReply({ from: from.name, to: to.name, layer }), intent, pills)
@@ -210,6 +235,8 @@ export const useChatStore = defineStore('chat', () => {
     },
 
     async prepare_cope(intent) {
+      // "This route" (Elena, 2026-11-22): the facts along the route on the map (the selected one, else the easier B).
+      if (/\b(route|routes|way|walk|percorso|strada per)\b/i.test(intent.near ?? '')) return prepareRoute(intent)
       // The open place ("this street"), a place of the area by name, or else the whole area ("this area", nothing named).
       const wantsArea = !intent.near || /(area|zona|zone|neighbou?rhood|quartiere)/i.test(intent.near)
       const f = wantsArea ? null : placeNamed(intent.near)
@@ -221,7 +248,7 @@ export const useChatStore = defineStore('chat', () => {
       const limits = thermalLimits()
       let easier = null
       if (f) {
-        if (area.selectedId !== f.properties.id) area.select(f.properties.id, midpoint(f.geometry))
+        if (area.selectedId !== f.properties.id) selectHere(f)
         const best = easierNearby(f, area.segments.features, { levelOf: (g) => LEVEL[levelOn(g, layer)] ?? null })
         easier = best ? { id: best.f.properties.id, name: best.f.properties.name, d: best.d } : null
       }
@@ -249,6 +276,24 @@ export const useChatStore = defineStore('chat', () => {
 
   /** The place opened from a result card: its card offers "Back to the chat" while it is the one selected. */
   const returnTo = ref(null)
+  // The chat's own selections (the place it explains) keep the chat open; a place clicked on the map opens its card
+  // (Elena, 2026-11-22), as one clicked in a reply does.
+  let selectingHere = false
+  function selectHere(f) {
+    selectingHere = true
+    area.select(f.properties.id, midpoint(f.geometry))
+    selectingHere = false
+  }
+  // flush 'sync': runs inside area.select, while selectingHere still says who selected.
+  watch(() => area.selectedId, (id) => {
+    if (!id || selectingHere || !open.value) return
+    returnTo.value = id
+    close()
+  }, { flush: 'sync' })
+  // A stretch of a route clicked on the map: its card, too.
+  watch(() => routes.selectedStretch, (stretch) => {
+    if (stretch && open.value) close()
+  })
   /** Open a place from a result card (Elena, 2026-11-21): the chat gives way to the place's card, and the street is
    *  selected on the map, as from its pin. The conversation stays; "Back to the chat" (or Ask) brings it back. */
   function openPlace(id, keyboard = false) {

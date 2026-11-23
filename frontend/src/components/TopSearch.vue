@@ -41,7 +41,7 @@ const chat = useChatStore()
     <div v-if="phone" class="account">
       <button ref="accountBtn" type="button" class="avatar" data-menu-button
               :aria-expanded="menuOpen" aria-haspopup="dialog" aria-label="Your account"
-              @click="menuOpen = !menuOpen">EC</button>
+              @click="menuOpen = !menuOpen"><AppIcon name="user" /></button>
       <AccountMenu v-if="menuOpen" @close="closeMenu" />
     </div>
 
@@ -65,5 +65,6 @@ const chat = useChatStore()
   width: var(--touch-phone); height: var(--touch-phone);
   border-radius: 50%; border: var(--hairline) solid var(--line);
   background: var(--btn-selected-bg); font-weight: var(--fw-semibold);
+  display: grid; place-items: center; padding: 0; color: var(--text);
 }
 </style>

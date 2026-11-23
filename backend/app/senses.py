@@ -634,12 +634,22 @@ def plan_rating(photos: list, cfg: dict, profile: str | None = None, stamps: dic
                 tuple(kept), formula if profile else None)
 
 
+# The global daily cap on model calls (app/limits.py, Elena 2026-11-22), set by the API: `allow()` before each call,
+# `called()` after it. None (scripts, tests): no cap.
+model_guard = None
+CAP_MESSAGE = "SenCity has reached its daily limit for predictions. What is rated stays; please try again tomorrow."
+
+
 def _ask(body: dict, key: str, cfg: dict, parse, costs: list, what: str):
     """One call, retried once if the reply is not valid. Every cost goes in `costs`. The reply is shortened in the
-    error, never logged."""
+    error, never logged. With the global daily cap used up, the run stops (a fatal error)."""
     text = None
     for _ in range(2):
+        if model_guard is not None and not model_guard.allow():
+            raise PredictionError(429, CAP_MESSAGE, fatal=True, cost=sum(costs))
         data = post_openrouter(body, key, cfg)
+        if model_guard is not None:
+            model_guard.called()
         costs += [c for c in [(data.get("usage") or {}).get("cost")] if c is not None]
         text = _reply_text(data)
         output, _problem = parse(text)

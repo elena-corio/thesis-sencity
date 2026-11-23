@@ -86,6 +86,17 @@ export function profileReply(s, topic, { name, a11Words }) {
   return { text: `${overall}${bothers} ${good}` }
 }
 
+/**
+ * plan_route with no start or end: the two routes on the map, compared from what is loaded. routes: the routes store's
+ * `shown` ({ id, length_m, minutes, stretches }); verdict: the route card's own words (lib/report.js routeVerdict).
+ */
+export function compareReply(list, { layer, verdict, hardOf }) {
+  const km = (m) => `${(m / 1000).toFixed(1)} km`
+  const pct = (x) => `${Math.round((x ?? 0) * 100)}%`
+  const rows = list.map((r) => `Route ${r.id}: ${km(r.length_m)}, ${r.minutes} min, ${pct(hardOf(r))} hard on ${LAYER_NAMES[layer]}.`)
+  return { text: [list.length > 1 ? 'The two routes on the map:' : 'The route on the map:', ...rows, verdict].filter(Boolean).join(' ') }
+}
+
 /** plan_route: what was opened. */
 export const routeReply = ({ from, to, layer }) => ({ text: `Comparing two routes from ${from} to ${to} on ${LAYER_NAMES[layer]}.` })
 
@@ -107,17 +118,18 @@ export function factsText(f, { name, personal, when }) {
     if (f.comfort) out.push(`${title} is ${f.comfort[0]} of 5 for your senses${personal ? '' : ' (not personalised yet)'}.`)
     else out.push(`${title} has no photo rating yet.`)
   } else if (f.comfort) {
+    const what = f.scope === 'route' ? 'this route' : 'this area'
     out.push(f.comfort[0] === f.comfort[1]
-      ? `Every rated place in this area is ${f.comfort[0]} of 5 for your senses${personal ? '' : ' (not personalised yet)'}.`
-      : `This area has a mix of sensory comfort, from ${f.comfort[0]} to ${f.comfort[1]} of 5${who}.`)
-  } else out.push('The photos of this area are not rated yet.')
+      ? `Every rated street ${f.scope === 'route' ? 'along' : 'in'} ${what} is ${f.comfort[0]} of 5 for your senses${personal ? '' : ' (not personalised yet)'}.`
+      : `${f.scope === 'route' ? 'This route' : 'This area'} has a mix of sensory comfort, from ${f.comfort[0]} to ${f.comfort[1]} of 5${who}.`)
+  } else out.push(`The photos ${f.scope === 'route' ? 'along this route' : 'of this area'} are not rated yet.`)
   const t = f.thermal
   if (t) {
     const range = t.levels.length > 1 ? `${t.levels[0]} to ${t.levels.at(-1)}` : t.levels[0]
     const cause = t.heat && t.cold ? ', with both heat and cold'
       : t.heat ? `, because of high temperatures (feels like up to ${degrees(t.max)})`
         : t.cold ? `, because of low temperatures (feels like down to ${degrees(t.min)})` : ''
-    out.push(`Thermal comfort ${f.scope === 'place' ? 'there ' : ''}is ${range}${who}${cause}${when ? `, ${when}` : ''}.`)
+    out.push(`Thermal comfort ${f.scope === 'place' ? 'there ' : f.scope === 'route' ? 'along this route ' : ''}is ${range}${who}${cause}${when ? `, ${when}` : ''}.`)
   }
   return out.join(' ')
 }
@@ -130,8 +142,8 @@ export function copeReply(f, p, { name, personal, when, place = null, placeId = 
   const facts = factsText(f, { name: place, personal, when })
   const links = place && placeId != null ? [{ text: place, id: placeId }] : []
   if (!p.answered) return { text: `${facts} Answer “How you prepare for new places” in your profile, and the tips will follow what helps you.`, links }
-  const here = f.scope === 'place' ? ' there' : ' in this area'
-  const at = (n) => (f.scope === 'place' ? 'in its photos' : `in the photos of ${places(n)}`)
+  const here = f.scope === 'place' ? ' there' : f.scope === 'route' ? ' along this route' : ' in this area'
+  const at = (n) => (f.scope === 'place' ? 'in its photos' : `in the photos of ${places(n)}${f.scope === 'route' ? ' along it' : ''}`)
   const n = (code) => f.elements[code] ?? 0
   const blind = f.looked === 0 // no photo of it is rated yet: the app cannot say what is there
   const tips = []
@@ -151,7 +163,7 @@ export function copeReply(f, p, { name, personal, when, place = null, placeId = 
       if (f.easier?.name && f.easier.id != null) links.push({ text: f.easier.name, id: f.easier.id })
     } else if (f.easy.length) {
       const shown = f.easy.slice(0, 2)
-      tips.push(`If it gets too much, ${places(f.easy.length)} here ${f.easy.length === 1 ? 'is' : 'are'} easy for you, such as ${shown.map((x) => x.name).join(' and ')}.`)
+      tips.push(`If it gets too much, ${places(f.easy.length)} ${f.scope === 'route' ? 'along it' : 'here'} ${f.easy.length === 1 ? 'is' : 'are'} easy for you, such as ${shown.map((x) => x.name).join(' and ')}.`)
       links.push(...shown.map((x) => ({ text: x.name, id: x.id })))
     }
     else tips.push('The map shows no easy place here to step away to.')

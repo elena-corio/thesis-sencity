@@ -1,35 +1,208 @@
 {
-  "about": "Development set for the chat parser prompt (config/chat_prompt.txt). The prompt is tuned on these only; the frozen test set (chat_intents_test.json) is never used for that. Same format and comparison as the test set.",
-  "cases": [
-    {"id": "d01", "message": "green streets that are easy for me around Schönbrunn",
-     "expected": {"action": "filter_places", "language": "en", "level": "easy", "with": ["greenery_trees"], "without": [], "near": "Schönbrunn", "radius_m": null}},
-    {"id": "d02", "message": "anywhere without cars and crowds?",
-     "expected": {"action": "filter_places", "language": "en", "level": null, "with": [], "without": ["traffic_trams", "crowds"], "near": null}},
-    {"id": "d03", "message": "a fountain or water close to Rathausplatz, 200 metres",
-     "expected": {"action": "filter_places", "language": "en", "with": ["fountains_water"], "without": [], "near": "Rathausplatz", "radius_m": 200}},
-    {"id": "d04", "message": "luoghi facili con panchine",
-     "expected": {"action": "filter_places", "language": "it", "level": "easy", "with": ["seats"], "without": []}},
-    {"id": "d05", "message": "explain the place I opened",
-     "expected": {"action": "explain_place", "language": "en", "near": "this"}},
-    {"id": "d06", "message": "why is Mariahilfer Straße easy?",
-     "expected": {"action": "explain_place", "language": "en", "near": "Mariahilfer Straße"}},
-    {"id": "d07", "message": "how do I get from Praterstern to Stadtpark avoiding busy streets",
-     "expected": {"action": "plan_route", "language": "en", "start": "Praterstern", "end": "Stadtpark", "calmer": true}},
-    {"id": "d08", "message": "route to Belvedere",
-     "expected": {"action": "plan_route", "language": "en", "start": null, "end": "Belvedere", "calmer": false}},
-    {"id": "d09", "message": "spring at noon please",
-     "expected": {"action": "set_view", "language": "en", "layer": null, "season": "spring", "time": "12:00"}},
-    {"id": "d10", "message": "show me the senses layer",
-     "expected": {"action": "set_view", "language": "en", "layer": "senses", "season": null, "time": null}},
-    {"id": "d11", "message": "what feels good to me?",
-     "expected": {"action": "summarise_profile", "language": "en", "topic": "feels_good"}},
-    {"id": "d12", "message": "come mi sento in generale negli spazi pubblici?",
-     "expected": {"action": "summarise_profile", "language": "it", "topic": "overall"}},
-    {"id": "d13", "message": "I get overwhelmed at markets, what can I do at Brunnenmarkt?",
-     "expected": {"action": "prepare_cope", "language": "en", "near": "Brunnenmarkt"}},
-    {"id": "d14", "message": "who won the football match yesterday",
-     "expected": {"action": "out_of_scope", "language": "en"}},
-    {"id": "d15", "message": "is it safe to walk here at night?",
-     "expected": {"action": "out_of_scope", "language": "en"}}
-  ]
+ "about": "Development set for the chat parser prompt (config/chat_prompt.txt). The prompt is tuned on these only; the frozen test set (chat_intents_test.json) is never used for that. Same format and comparison as the test set.",
+ "cases": [
+  {
+   "id": "d01",
+   "message": "green streets that are easy for me around Schönbrunn",
+   "expected": {
+    "action": "filter_places",
+    "language": "en",
+    "level": "easy",
+    "with": [
+     "greenery_trees"
+    ],
+    "without": [],
+    "near": "Schönbrunn",
+    "radius_m": null
+   }
+  },
+  {
+   "id": "d02",
+   "message": "anywhere without cars and crowds?",
+   "expected": {
+    "action": "filter_places",
+    "language": "en",
+    "level": null,
+    "with": [],
+    "without": [
+     "traffic_trams",
+     "crowds"
+    ],
+    "near": null
+   }
+  },
+  {
+   "id": "d03",
+   "message": "a fountain or water close to Rathausplatz, 200 metres",
+   "expected": {
+    "action": "filter_places",
+    "language": "en",
+    "with": [
+     "fountains_water"
+    ],
+    "without": [],
+    "near": "Rathausplatz",
+    "radius_m": 200
+   }
+  },
+  {
+   "id": "d04",
+   "message": "luoghi facili con panchine",
+   "expected": {
+    "action": "filter_places",
+    "language": "it",
+    "level": "easy",
+    "with": [
+     "seats"
+    ],
+    "without": []
+   }
+  },
+  {
+   "id": "d05",
+   "message": "explain the place I opened",
+   "expected": {
+    "action": "explain_place",
+    "language": "en",
+    "near": "this"
+   }
+  },
+  {
+   "id": "d06",
+   "message": "why is Mariahilfer Straße easy?",
+   "expected": {
+    "action": "explain_place",
+    "language": "en",
+    "near": "Mariahilfer Straße"
+   }
+  },
+  {
+   "id": "d07",
+   "message": "how do I get from Praterstern to Stadtpark avoiding busy streets",
+   "expected": {
+    "action": "plan_route",
+    "language": "en",
+    "start": "Praterstern",
+    "end": "Stadtpark",
+    "calmer": true
+   }
+  },
+  {
+   "id": "d08",
+   "message": "route to Belvedere",
+   "expected": {
+    "action": "plan_route",
+    "language": "en",
+    "start": null,
+    "end": "Belvedere",
+    "calmer": false
+   }
+  },
+  {
+   "id": "d09",
+   "message": "spring at noon please",
+   "expected": {
+    "action": "set_view",
+    "language": "en",
+    "layer": null,
+    "season": "spring",
+    "time": "12:00"
+   }
+  },
+  {
+   "id": "d10",
+   "message": "show me the senses layer",
+   "expected": {
+    "action": "set_view",
+    "language": "en",
+    "layer": "senses",
+    "season": null,
+    "time": null
+   }
+  },
+  {
+   "id": "d11",
+   "message": "what feels good to me?",
+   "expected": {
+    "action": "summarise_profile",
+    "language": "en",
+    "topic": "feels_good"
+   }
+  },
+  {
+   "id": "d12",
+   "message": "come mi sento in generale negli spazi pubblici?",
+   "expected": {
+    "action": "summarise_profile",
+    "language": "it",
+    "topic": "overall"
+   }
+  },
+  {
+   "id": "d13",
+   "message": "I get overwhelmed at markets, what can I do at Brunnenmarkt?",
+   "expected": {
+    "action": "prepare_cope",
+    "language": "en",
+    "near": "Brunnenmarkt"
+   }
+  },
+  {
+   "id": "d14",
+   "message": "who won the football match yesterday",
+   "expected": {
+    "action": "out_of_scope",
+    "language": "en"
+   }
+  },
+  {
+   "id": "d15",
+   "message": "is it safe to walk here at night?",
+   "expected": {
+    "action": "out_of_scope",
+    "language": "en"
+   }
+  },
+  {
+   "id": "d16",
+   "message": "compare these two routes",
+   "expected": {
+    "action": "plan_route",
+    "language": "en",
+    "start": null,
+    "end": null
+   }
+  },
+  {
+   "id": "d17",
+   "message": "find the easiest route from Karlsplatz to Stadtpark",
+   "expected": {
+    "action": "plan_route",
+    "language": "en",
+    "start": "Karlsplatz",
+    "end": "Stadtpark",
+    "calmer": true
+   }
+  },
+  {
+   "id": "d18",
+   "message": "how should I prepare for this route?",
+   "expected": {
+    "action": "prepare_cope",
+    "language": "en",
+    "near": "this route"
+   }
+  },
+  {
+   "id": "d19",
+   "message": "most comfortable way from Westbahnhof to the Rathaus",
+   "expected": {
+    "action": "plan_route",
+    "language": "en",
+    "start": "Westbahnhof",
+    "end": "Rathaus",
+    "calmer": true
+   }
+  }
+ ]
 }

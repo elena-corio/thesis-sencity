@@ -33,6 +33,8 @@ frontend/e2e/screens/
 
 # Run outputs and data (never committed, CLAUDE.md)
 runs/
+# The local database (SQLite, accounts and profiles in development)
+.local/
 data/
 
 # Images: Street View images must never be stored (Google Maps Platform terms).

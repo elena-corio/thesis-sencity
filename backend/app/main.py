@@ -13,6 +13,13 @@
 - GET  /api/profile/survey   the onboarding questions and the profile template, from model/app_v9/ (nothing personal)
 - POST /api/chat     one chat message → one intent (app/chat.py): the message text only, one model call at temperature 0;
                      the browser carries the intent out and writes the reply. Never stored or logged
+- GET/PUT/DELETE /api/profile, GET/PUT /api/ratings/own   your profile and your own photo ratings, in our database
+- POST /api/account/consent, DELETE /api/account          the privacy notice agreed; delete your account and data
+- GET  /api/health   public: the API is up and the database answers
+
+Sign-in (Elena, 2026-11-22): every /api route but /api/health needs a Clerk session, checked on the server
+(app/auth.py). Per-user limits and a global daily cap on model calls: app/limits.py. Built, the frontend is served
+from here too (frontend/dist), so the app is one web service.
 
 The photos come from one source, PHOTO_SOURCE (app/photos.py, Elena 2026-11-16): Street View in the local prototype
 (Mapillary where it has none), Mapillary in any public version. The photo shown is the photo rated.
@@ -22,15 +29,17 @@ keeps it and sends it in the body of a rating request, where it is used for the 
 the body, not the URL, so they do not appear in access logs or the browser history either.
 """
 import json
+import os
+from contextlib import asynccontextmanager
 import logging
 import threading
 import time
 from collections import defaultdict, deque
 
 import requests
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from tool.config import load_config, photo_source
@@ -38,6 +47,9 @@ from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
 from . import area as area_mod
+from . import auth
+from . import db
+from . import limits
 from . import chat as chat_mod
 from . import formula as formula_mod
 from . import photos as photos_mod
@@ -53,9 +65,36 @@ cfg = full_cfg["api"]
 photo_source(full_cfg)  # refuses an unknown source, and Street View on Render, before the API starts
 log = logging.getLogger("sencity.api")
 
-app = FastAPI(title="SenCity API", docs_url=None, redoc_url=None, openapi_url=None)
-app.add_middleware(CORSMiddleware, allow_origins=cfg["cors_origins"], allow_methods=["GET", "POST"],
-                   allow_headers=["Content-Type"])
+@asynccontextmanager
+async def _lifespan(_app):
+    db.migrate()  # safe to run again: creates only what is missing
+    yield
+
+
+app = FastAPI(title="SenCity API", docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=cfg["cors_origins"], allow_methods=["GET", "POST", "PUT", "DELETE"],
+                   allow_headers=["Content-Type", "Authorization"])
+SignedIn = Depends(auth.signed_in)
+
+
+class _ModelGuard:
+    """The global daily cap on model calls, for every rating call (app/senses.py)."""
+    allow = staticmethod(lambda: limits.model_calls_left() > 0)
+    called = staticmethod(lambda: limits.model_called(1))
+
+
+senses_mod.model_guard = _ModelGuard()
+
+
+@app.get("/api/health")
+def health() -> dict:
+    """Public: for Render's health check. Says nothing about anyone."""
+    try:
+        db.count("*:health", "0")
+    except Exception as e:  # noqa: BLE001
+        log.warning("health: database not reachable: %s", type(e).__name__)
+        raise HTTPException(503, "Database not reachable.") from None
+    return {"ok": True}
 
 
 # Simple per-IP limits (in memory; enough for one Render instance).
@@ -71,6 +110,14 @@ def _rate_limited(bucket: str, ip: str, limit: int, window_s: float) -> bool:
         return True
     q.append(now)
     return False
+
+
+def ip_limit(env: str, default: int) -> int:
+    """A per-address limit: the environment variable `env` if it is a whole number, else the config's default
+    (Elena, 2026-11-22: env vars, defaults raised so a class on one network is not blocked; per-user limits:
+    app/limits.py)."""
+    raw = os.environ.get(env, "").strip()
+    return int(raw) if raw.isdigit() else default
 
 
 def _ip(request: Request) -> str:
@@ -118,12 +165,12 @@ class SearchRequest(BaseModel):
 
 
 @app.post("/api/search")
-def search(body: SearchRequest, request: Request) -> dict:
+def search(body: SearchRequest, request: Request, user: auth.User = SignedIn) -> dict:
     s = cfg["search"]
     query = body.q.strip()
     if len(query) < s["min_chars"]:
         return {"results": []}
-    if _rate_limited("search", _ip(request), s["rate_per_minute"], 60):
+    if _rate_limited("search", _ip(request), ip_limit("IP_LIMIT_SEARCH_PER_MINUTE", s["rate_per_minute"]), 60):
         raise HTTPException(429, "Too many searches. Wait a moment and try again.")
     try:
         return {"results": search_mod.search(query, body.lat, body.lon, s)}
@@ -139,10 +186,10 @@ class ReverseRequest(BaseModel):
 
 
 @app.post("/api/reverse")
-def reverse(body: ReverseRequest, request: Request) -> dict:
+def reverse(body: ReverseRequest, request: Request, user: auth.User = SignedIn) -> dict:
     """The name of a point clicked on the map: {"name": "Mariahilfer Straße"}, or null when there is none."""
     s = cfg["search"]
-    if _rate_limited("reverse", _ip(request), s["reverse_rate_per_minute"], 60):
+    if _rate_limited("reverse", _ip(request), ip_limit("IP_LIMIT_REVERSE_PER_MINUTE", s["reverse_rate_per_minute"]), 60):
         raise HTTPException(429, "Too many points in a short time. Wait a moment and try again.")
     try:
         return {"name": search_mod.reverse(body.lat, body.lon, s)}
@@ -169,7 +216,7 @@ def _ndjson(event: dict) -> bytes:
 
 
 @app.post("/api/area")
-def area(body: AreaRequest, request: Request) -> StreamingResponse:
+def area(body: AreaRequest, request: Request, user: auth.User = SignedIn) -> StreamingResponse:
     """Streams newline-separated JSON events: "segments" (all segments, photos pending), "segment"
     (one segment with its photos, with done/total), "done" with the FeatureCollection, then the
     thermal stage: "thermal" (UTCI per segment) or "thermal_error". A cached area sends "done" at
@@ -183,13 +230,13 @@ def area(body: AreaRequest, request: Request) -> StreamingResponse:
     cached = area_mod.load_cached(key, full_cfg)
     # Going on from a failed try is not a new area (its finished steps are kept, app/steps.py).
     resuming = cached is None and steps.exists(area_mod.cache_dir(full_cfg), key)
-    if cached is None and not resuming and _rate_limited("area", ip, cfg["area"]["rate_per_hour"], 3600):
+    if cached is None and not resuming and _rate_limited("area", ip, ip_limit("IP_LIMIT_AREA_PER_HOUR", cfg["area"]["rate_per_hour"]), 3600):
         raise HTTPException(429, "Too many new areas in a short time. Wait a while and try again.")
 
     def thermal(fc):
         if not needs_thermal:
             return
-        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        allowed = lambda: not _rate_limited("thermal", ip, ip_limit("IP_LIMIT_THERMAL_PER_HOUR", full_cfg["thermal"]["rate_per_hour"]), 3600)  # noqa: E731
         for event in area_mod.thermal_events(thermal_key, fc, body.lat, body.lon,
                                              area_mod.circle_polygon(body.lat, body.lon, body.radius, full_cfg),
                                              body.season, body.time, full_cfg, allowed):
@@ -243,7 +290,7 @@ class RoutesRequest(BaseModel):
 
 
 @app.post("/api/routes")
-def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
+def routes(body: RoutesRequest, request: Request, user: auth.User = SignedIn) -> StreamingResponse:
     """Streams newline-separated JSON events: "stage" (streets, thermal, routes), "segments" and "segment"
     (progress of the photo lookups, with counts only), then "routes", or "error" or "thermal_error" (the
     stream ends). Nothing is shown on the map before "routes" (brief §3, Routes 2)."""
@@ -260,7 +307,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
     ip = _ip(request)
     cached = routes_mod.load_cached(corridor_key, full_cfg)
     resuming = cached is None and steps.exists(routes_mod.cache_dir(full_cfg), corridor_key)
-    if cached is None and not resuming and _rate_limited("routes", ip, r["rate_per_hour"], 3600):
+    if cached is None and not resuming and _rate_limited("routes", ip, ip_limit("IP_LIMIT_ROUTES_PER_HOUR", r["rate_per_hour"]), 3600):
         raise HTTPException(429, "Too many new routes in a short time. Wait a while and try again.")
     limits = body.limits.model_dump()
     # A corridor may bill more tiles than one circle, up to its own limit.
@@ -288,7 +335,7 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
         fc, zone = corridor["area"], corridor["zone"]
         _known_photos.update(photos_mod.known_photos(fc))
         lat, lon = routes_mod.middle(start, end)
-        allowed = lambda: not _rate_limited("thermal", ip, full_cfg["thermal"]["rate_per_hour"], 3600)  # noqa: E731
+        allowed = lambda: not _rate_limited("thermal", ip, ip_limit("IP_LIMIT_THERMAL_PER_HOUR", full_cfg["thermal"]["rate_per_hour"]), 3600)  # noqa: E731
         thermal = None
         if body.layer != "senses":
             for event in area_mod.thermal_events(key, fc, lat, lon, zone, body.season, body.time, thermal_cfg, allowed):
@@ -319,12 +366,12 @@ def routes(body: RoutesRequest, request: Request) -> StreamingResponse:
 # Street View images: fetched on demand, in memory only, never stored (Google terms)
 
 @app.get("/api/photo/{pano_id}")
-def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=360)) -> Response:
+def photo(pano_id: str, request: Request, heading: float = Query(..., ge=0, lt=360), user: auth.User = SignedIn) -> Response:
     """The Street View image of a photo of a loaded area or route, as the cards and the walk show it. Each one is a paid
     call, counted against the daily cap; the browser is told not to keep it."""
     if not photos_mod.PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in _known_photos:
         raise HTTPException(404, "Not a photo of a loaded area or route.")
-    if _rate_limited("photo", _ip(request), cfg["photo"]["rate_per_minute"], 60):
+    if _rate_limited("photo", _ip(request), ip_limit("IP_LIMIT_PHOTO_PER_MINUTE", cfg["photo"]["rate_per_minute"]), 60):
         raise HTTPException(429, "Too many photos in a short time. Wait a moment.")
     try:
         content = streetview().fetch(pano_id, heading)
@@ -352,7 +399,7 @@ class RatingStamp(BaseModel):
 
 
 class SensesPhoto(BaseModel):
-    id: str = Field(..., pattern=r"^([0-9]{1,20}|sv:[A-Za-z0-9_\-]{10,120})$")  # a Mapillary image ID, or "sv:<pano ID>"
+    id: str = Field(..., pattern=r"^([0-9]{1,20}|sv:[A-Za-z0-9_.\-]{10,120})$")  # a Mapillary image ID, or "sv:<pano ID>" (a photo sphere\'s may end in ".")
     heading: float = Field(..., ge=0, lt=360)
     cached: RatingStamp | None = None  # with a profile: the browser has a rating of this photo; "keep" if still valid
 
@@ -374,7 +421,7 @@ class SensesRateRequest(BaseModel):
 
 
 @app.get("/api/profile/survey")
-def profile_survey() -> dict:
+def profile_survey(user: auth.User = SignedIn) -> dict:
     """The onboarding (part_a.json, each element with its sense icon) and the profile template with its fixed words,
     so the browser builds and shows the same text as the server; and the optional step about new places
     (config/prepare.json). Nothing personal."""
@@ -396,14 +443,16 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-def chat(body: ChatRequest, request: Request) -> dict:
+def chat(body: ChatRequest, request: Request, user: auth.User = SignedIn) -> dict:
     """One message → one intent. The message is sent to the model and never stored or logged."""
     message = body.message.strip()
     if not message:
         raise HTTPException(422, "Write a question first.")
-    if _rate_limited("chat", _ip(request), cfg["chat"]["per_hour"], 3600):
+    if _rate_limited("chat", _ip(request), ip_limit("IP_LIMIT_CHAT_PER_HOUR", cfg["chat"]["per_hour"]), 3600):
         raise HTTPException(429, "Too many questions in a short time. Wait a while, then ask again.")
+    limits.chat(user.account_id)  # per user, and the global daily cap
     try:
+        limits.model_called(1)
         intent, _cost = chat_mod.parse(message, cfg["senses"])
     except chat_mod.ChatError as e:
         raise HTTPException(e.status, e.message) from None
@@ -416,7 +465,7 @@ def chat(body: ChatRequest, request: Request) -> dict:
 
 
 @app.post("/api/senses/rate")
-def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
+def senses_rate(body: SensesRateRequest, request: Request, user: auth.User = SignedIn) -> StreamingResponse:
     """Rates the photos in the order given (nearest first). Cached ones answer at once and cost nothing; of the rest,
     at most cfg["senses"]["cap_photos"] are rated and "done" says how many are left. Streams newline-separated JSON
     (app/senses.py). Images are fetched here from Mapillary, kept in memory only, and never logged. A flat photo is
@@ -443,11 +492,119 @@ def senses_rate(body: SensesRateRequest, request: Request) -> StreamingResponse:
         raise HTTPException(503, f"The model settings cannot be used. {e}") from None
     except senses_mod.PredictionError as e:
         raise HTTPException(e.status, e.message) from None
-    if plan.to_rate and _rate_limited("senses", _ip(request), cfg["senses"]["runs_per_hour"], 3600):
+    if plan.to_rate and _rate_limited("senses", _ip(request), ip_limit("IP_LIMIT_SENSES_PER_HOUR", cfg["senses"]["runs_per_hour"]), 3600):
         raise HTTPException(429, "Too many rating runs in a short time. Wait a while, then retry.")
+    if plan.to_rate:
+        limits.rating_run(user.account_id)  # per user, and the global daily cap (each call is counted in app/senses.py)
     try:
         prov = images() if plan.to_rate else None
     except mapillary_mod.MapillaryError as e:
         raise HTTPException(503, str(e)) from None
     return StreamingResponse((_ndjson(e) for e in senses_mod.rate_events(plan, cfg["senses"], prov)),
                              media_type="application/x-ndjson")
+
+
+# Your profile and your own ratings (Elena, 2026-11-22): in our database, under your account; never in Clerk.
+MAX_PROFILE_BYTES = 200_000
+MAX_RATINGS = 3000
+
+
+def _consented(user: auth.User) -> None:
+    if not user.consented:
+        raise HTTPException(403, "Please read and agree to the privacy notice first.")
+
+
+class ConsentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    agreed: bool
+
+
+@app.post("/api/account/consent")
+def account_consent(body: ConsentRequest, user: auth.User = SignedIn) -> dict:
+    """The privacy notice agreed ("Agree and continue"): recorded with the date. Nothing is saved before it."""
+    if not body.agreed:
+        raise HTTPException(422, "The privacy notice was not agreed.")
+    db.set_consent(user.account_id, db.now())
+    return {"consented": True}
+
+
+@app.get("/api/account")
+def account(user: auth.User = SignedIn) -> dict:
+    """Whether the privacy notice is agreed (the email is Clerk's, not here)."""
+    return {"consented": user.consented}
+
+
+@app.delete("/api/account")
+def account_delete(user: auth.User = SignedIn) -> dict:
+    """"Delete my account and data": our rows first, then the Clerk user. The browser then signs out."""
+    db.delete_account(user.account_id)
+    auth.delete_clerk_user(user.clerk_user_id)
+    log.info("account: deleted")
+    return {"deleted": True}
+
+
+@app.get("/api/profile")
+def profile_get(user: auth.User = SignedIn) -> dict:
+    return {"profile": db.get_profile(user.account_id), "consented": user.consented}
+
+
+@app.put("/api/profile")
+async def profile_put(request: Request, user: auth.User = SignedIn) -> dict:
+    """Save the profile as the browser built it (answers, text, version, weather, thermal, prepare). Never logged."""
+    _consented(user)
+    raw = await request.body()
+    if len(raw) > MAX_PROFILE_BYTES:
+        raise HTTPException(413, "The profile is too large.")
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(422, "The profile could not be read.") from None
+    if not isinstance(data, dict) or not isinstance(data.get("answers"), dict) or data.get("language") not in ("en", "it"):
+        raise HTTPException(422, "The profile could not be read.")
+    keep = {k: data.get(k) for k in ("language", "answers", "text", "version", "saved", "weather", "thermal", "prepare")}
+    db.put_profile(user.account_id, keep)
+    return {"saved": True}
+
+
+@app.delete("/api/profile")
+def profile_delete(user: auth.User = SignedIn) -> dict:
+    """Your profile and your ratings; the account stays (sign-in, consent)."""
+    db.delete_profile(user.account_id)
+    return {"deleted": True}
+
+
+@app.get("/api/ratings/own")
+def ratings_get(user: auth.User = SignedIn) -> dict:
+    return {"ratings": db.get_ratings(user.account_id)}
+
+
+@app.put("/api/ratings/own")
+async def ratings_put(request: Request, user: auth.User = SignedIn) -> dict:
+    """Your own photo ratings, the whole list (photo IDs and your answers; never images)."""
+    _consented(user)
+    raw = await request.body()
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(422, "The ratings could not be read.") from None
+    if not isinstance(data, list) or len(data) > MAX_RATINGS or not all(isinstance(e, dict) for e in data):
+        raise HTTPException(422, "The ratings could not be read.")
+    db.put_ratings(user.account_id, data)
+    return {"saved": len(data)}
+
+
+# The built frontend (npm run build → frontend/dist), served from here in the one web service. Any path that is not
+# a file and not /api gets index.html, so the app's own routes (/area, /profile…) load on refresh.
+DIST = senses_mod.REPO_ROOT / "frontend" / "dist"
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def frontend(path: str):
+    if path.startswith("api/") or path == "api":
+        raise HTTPException(404, "Not found.")
+    if not (DIST / "index.html").is_file():
+        raise HTTPException(404, "The app is not built: run npm run build in frontend/.")
+    target = (DIST / path).resolve()
+    if path and target.is_file() and DIST.resolve() in target.parents:
+        return FileResponse(target)
+    return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})

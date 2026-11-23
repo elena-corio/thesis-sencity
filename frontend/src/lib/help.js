@@ -1,3 +1,4 @@
+import { AUTH_ON } from './auth.js'
 // Help (Elena, 2026-11-16): the About page's sections, for "How this works" links to open it at one of them, and the
 // first-time tips: one per part of the settings, in order, and one per view, each shown until dismissed. Which hints were seen is kept in this browser only
 // (`sencity-tips-seen`); "Delete my profile" clears it, and "Show tips again" in About does the same.
@@ -22,7 +23,8 @@ export const TIPS = {
   'route-layer': () => 'The two routes are compared on this layer: A is the shortest, B the easiest on it, at most 25% longer.',
   'route-season': () => 'Thermal and Overall change with the season and the time you walk.',
   walk: (verb) => `Press Play, use the arrows or ${verb.toLowerCase()} the bar. Rating a photo pauses the walk.`,
-  profile: () => 'Your profile stays in this browser. Edit any answer; download, import or delete it at the bottom.',
+  profile: () => (AUTH_ON ? 'Your profile is saved in your account. Edit any answer; download your data or delete your account at the bottom.'
+    : 'Your profile stays in this browser. Edit any answer; download, import or delete it at the bottom.'),
 }
 export const TIP_IDS = Object.keys(TIPS)
 

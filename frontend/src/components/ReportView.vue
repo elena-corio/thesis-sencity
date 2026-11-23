@@ -18,6 +18,7 @@ import ReportArea from './ReportArea.vue'
 import ReportPlace from './ReportPlace.vue'
 import ReportProfile from './ReportProfile.vue'
 import ReportRoute from './ReportRoute.vue'
+import ReportSafe from './ReportSafe.vue'
 
 const report = useReportStore()
 const profile = useProfileStore()
@@ -29,7 +30,16 @@ const hasArea = computed(() => area.step === 'analysed' && area.load === 'ready'
 const hasRoute = computed(() => routes.hasResult && routes.load !== 'loading')
 
 /** The place on the card now: a stretch of a route in Routes, else the street selected in Area. */
-const place = computed(() => {
+/** Guarded (ReportSafe guards the sections): a value that fails is left out, the report still opens. */
+function safely(what, fn, fallback) {
+  try {
+    return fn()
+  } catch (err) {
+    console.error(`Report: the ${what} could not be worked out.`, err)
+    return fallback
+  }
+}
+const place = computed(() => safely('place', () => {
   if (route.params.mode === 'routes' && routes.selectedStretch) {
     const f = routes.rated.get(routes.selectedStretch.segmentId)
     return f ? { feature: f, layer: routes.layer, info: routes.info } : null
@@ -39,7 +49,7 @@ const place = computed(() => {
     return f ? { feature: f, layer: area.layer, info: area.thermalInfo } : null
   }
   return null
-})
+}, null))
 /** The photo already on the place card, only if it has loaded: never fetched again for the report. */
 const cardPhoto = ref(null)
 function readCardPhoto() {
@@ -58,14 +68,14 @@ const personal = computed(() => !!profile.profile)
 // "In short" (board 8): the area in one sentence, then the routes' verdict as on the route card.
 const senses = useSensesStore()
 const bothersOf = (f) => (f.properties.photos?.length ? (senses.placeFor(f.properties.photos).bothers ?? []).map((e) => e.en) : [])
-const inShortText = computed(() => {
+const inShortText = computed(() => safely('summary', () => {
   const fs = area.rated?.features ?? []
   return inShort({
     area: hasArea.value ? { name: area.centreLabel || null, counts: areaCounts(fs, area.layer), why: whyHard(fs, area.layer, bothersOf) } : null,
     route: hasRoute.value ? routeVerdict(routes.layer, routes.shown, routes.verdict) : '',
     personal: personal.value,
   })
-})
+}, ''))
 
 const box = ref(null)
 const title = ref(null)
@@ -89,7 +99,7 @@ function print() {
 }
 
 onMounted(async () => {
-  readCardPhoto()
+  safely('photo on the card', readCardPhoto)
   if (profile.profile) profile.ensureSurvey() // the questions (part_a.json, nothing personal), for the radar
   await nextTick()
   title.value?.focus()
@@ -127,18 +137,20 @@ onBeforeUnmount(() => { report.pending = 0 })
 
         <div class="body">
           <template v-for="id in page" :key="id">
-            <section v-if="id === 'inShort'" class="in-short" data-section="inShort">
+            <section v-if="id === 'inShort' && inShortText" class="in-short" data-section="inShort">
               <h2 class="label">In short</h2>
               <p data-testid="report-in-short">{{ inShortText }}</p>
             </section>
-            <ReportProfile v-else-if="id === 'profile'" />
+            <ReportSafe v-else-if="id === 'profile'" name="profile"><ReportProfile /></ReportSafe>
             <section v-else-if="id === 'noProfile'" class="note" data-section="noProfile">
               <p><strong>No personal profile: results are general.</strong> Create your profile in SenCity to see how places may feel for you.</p>
             </section>
-            <ReportArea v-else-if="id === 'area'" />
-            <ReportRoute v-else-if="id === 'route'" />
-            <ReportPlace v-else-if="id === 'place'" :feature="place.feature" :layer="place.layer" :info="place.info"
-                         :photo="cardPhoto?.photo ?? null" :src="cardPhoto?.src ?? null" />
+            <ReportSafe v-else-if="id === 'area'" name="area"><ReportArea /></ReportSafe>
+            <ReportSafe v-else-if="id === 'route'" name="route"><ReportRoute /></ReportSafe>
+            <ReportSafe v-else-if="id === 'place'" name="place">
+              <ReportPlace :feature="place.feature" :layer="place.layer" :info="place.info"
+                           :photo="cardPhoto?.photo ?? null" :src="cardPhoto?.src ?? null" />
+            </ReportSafe>
             <section v-else-if="id === 'made'" class="made" data-section="made">
               <h2>How this was made</h2>
               <p>

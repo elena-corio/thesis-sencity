@@ -12,7 +12,23 @@ export const OTHER_MAX = 150
 const MARKS = { pleasant: ['pleasant'], unpleasant: ['unpleasant'] }
 const SOURCES = ['map', 'photo', 'walk']
 
-const store = () => (typeof localStorage === 'undefined' ? null : localStorage)
+// With accounts (Elena, 2026-11-22) the ratings are kept under the account (PUT /api/ratings/own, the whole list): an
+// in-memory copy here, sent to the server at each change. Without accounts (the browser tests' server) this browser.
+let remote = null
+/** Keep the ratings under the account: `list` as loaded from the server, `send(list)` after each change. */
+export function useRemoteRatings(list, send) {
+  let data = JSON.stringify(Array.isArray(list) ? list : [])
+  remote = {
+    getItem: (k) => (k === MY_RATINGS_KEY ? data : null),
+    setItem: (k, v) => { if (k === MY_RATINGS_KEY) { data = v; send(JSON.parse(v)) } },
+    removeItem: (k) => { if (k === MY_RATINGS_KEY) { data = '[]'; send([]) } },
+  }
+}
+const store = () => remote ?? (typeof localStorage === 'undefined' ? null : localStorage)
+/** Sign-out or delete: this browser forgets the account's ratings (the server keeps them, or has deleted them). */
+export function forgetRemoteRatings() {
+  remote = null
+}
 const isScore = (v) => Number.isInteger(v) && v >= 1 && v <= 5
 
 /** Every rating, oldest first. A broken or blocked store reads as none. */
