@@ -1,6 +1,7 @@
 """A local copy of OpenStreetMap for one city, so a new area or route does not wait for the public Overpass server.
 
-  python -m tool.osm_local              # downloads what is missing into data/osm/vienna/ (free, resumes)
+  python -m tool.osm_local              # downloads what is missing into runs/osm/vienna/ (free, resumes)
+  python -m tool.osm_local --limit 12   # the 12 tiles nearest the centre (on Render: the city centre, about 10 min)
   python -m tool.osm_local --limit 2    # only two tiles, to try it
   python -m tool.osm_local --refresh    # downloads every tile again
 

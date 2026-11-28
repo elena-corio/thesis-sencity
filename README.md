@@ -84,7 +84,7 @@ Example of the paid check, after reading the estimate:
 
 ### `tool.osm_local`: a local copy of Vienna's streets
 
-Downloads OpenStreetMap's streets, paths, parks, squares and buildings for Vienna into `data/osm/vienna/` (not committed), so a new area or route does not wait for the public Overpass server. Free, about one to two hours once: 112 tiles, the centre first, with a pause between them. It resumes where it stopped, so run it again after an interruption. No photos are looked up and nothing is rated.
+Downloads OpenStreetMap's streets, paths, parks, squares and buildings for Vienna into `runs/osm/vienna/` (not committed; on Render the persistent disk), so a new area or route does not wait for the public Overpass server. Free, about one to two hours once: 112 tiles, the centre first, with a pause between them. It resumes where it stopped, so run it again after an interruption. No photos are looked up and nothing is rated.
 
 ```bash
 ../.venv/Scripts/python -m tool.osm_local             # what is missing
@@ -323,6 +323,15 @@ invite-only mode), counted against `streetview.daily_image_cap`.
 
 Later deploys: Manual Deploy > Deploy latest commit (`autoDeploy` is off). The start command runs `python -m app.db
 migrate` first, so new tables (the app test's) are created in the Render database on the first start.
+
+**Vienna's streets on Render's disk (faster new areas).** Without a local copy, every new area asks the public
+Overpass servers, which is slow. Once, in Render > `sencity` > **Shell**:
+```bash
+cd backend && python -m tool.osm_local --limit 12   # the 12 tiles nearest the centre, about 10 minutes
+```
+It saves into `runs/osm/vienna/` on the persistent disk (about 3 MB a tile), so it survives deploys. Keep the Shell
+open until it prints "done"; if it stops, run it again: it goes on with the missing tiles. Without `--limit` it fetches
+all 112 tiles (about 300 MB, one to two hours). An area or route outside the downloaded tiles still asks Overpass.
 
 **Exporting the app test from Render.** The database accepts no outside connections (`ipAllowList: []`). To export:
 1. Render > `sencity-db` > Info: copy the **External Database URL** (keep it out of chats and files).

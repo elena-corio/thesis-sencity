@@ -262,7 +262,7 @@ flowchart LR
 **Route cache** (`runs/routes/<key>.json`, not committed): `{ created, lat, lon (the middle), zone (corridor polygon), area: FeatureCollection }`. The key (`corridor_key`) is a hash of the two points in their order and the settings: a street the routes walk has photos facing the way it is walked, so the way back has its own photos; the `walk_photos` settings are in it too (not in `route_key`). Thermal comfort uses `route_key`, the two points either way round, so it is never paid for twice. No start or end, and nothing about the person. Thermal comfort for it is in `runs/thermal/`, as for an area.
 
 
-**Local OpenStreetMap copy** (`data/osm/vienna/<column>_<row>.json`, not committed): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
+**Local OpenStreetMap copy** (`runs/osm/vienna/<column>_<row>.json`, not committed; on Render on the persistent disk, so it survives deploys): `{ elements: [...] }`, the raw Overpass answer (`out geom`) for one tile: walkable ways, parks, squares, buildings. OpenStreetMap data only.
 
 **Accounts** (2026-11-22): with sign-in the profile below is kept in our database (`profiles.data`, `GET/PUT /api/profile`) and the own ratings too (`own_ratings.data`, `GET/PUT /api/ratings/own`, the whole list), under `accounts.id` (random); the browser keeps only the draft, the personal predictions cache and the seen tips, all cleared at sign-out. Nothing is saved before `accounts.consented_at`. "Delete my account and data" (`DELETE /api/account`) deletes the account's rows, then the Clerk user, then signs out. The local formats below are used as they are without sign-in (`VITE_AUTH=off`, the tests).
 

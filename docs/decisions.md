@@ -2,6 +2,11 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-28 – Vienna's streets on Render's disk (proposed)
+**Context.** Elena: with the fallback servers, new areas load on Render but slowly; could at least the centre of Vienna be there already?
+**Proposed (Claude).** The local OpenStreetMap copy moves from `data/osm/vienna/` to `runs/osm/vienna/` (`osm_local.dir`), because on Render `runs/` is the persistent disk and `data/` is wiped at each deploy. It is filled on Render itself, once, from the Render Shell: `python -m tool.osm_local --limit 12` fetches the 12 tiles nearest the centre (the script already fetches the centre first, and now uses the fallback servers), about 10 minutes and 40 MB. No upload, nothing new in the repo (OpenStreetMap data only, gitignored as before). The local copy on Elena's computer was moved to the new folder (no new download). `osm_local` is outside `osm`, so no cache key changes.
+**Alternatives.** Uploading the existing 303 MB copy to the disk by SCP: more steps, and not needed now that Render reaches the fallback servers. Committing the tiles: data does not go in the repo.
+
 ## 2026-11-28 – Overpass fallback servers, and the area says which service failed (proposed)
 **Context.** On Render a new area failed with "Could not load street photos for this area" and the log said `area failed: ConnectionError`: the server could not connect. Locally the streets come from the copy of Vienna in `data/osm/vienna/` (gitignored, so not on Render); on Render every new area asks the public Overpass server, which often refuses or drops shared cloud addresses.
 **Proposed (Claude).**
