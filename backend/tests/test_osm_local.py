@@ -94,3 +94,14 @@ def test_download_fetches_only_what_is_missing_and_goes_on_after_a_failure(cfg, 
     assert osm_local.download(cfg) == 1
     assert len(calls) == 3
     assert sum(osm_local.tile_path((c, r), cfg["osm_local"]).exists() for c in range(2) for r in range(2)) == 3
+
+
+def test_the_tiles_nearest_stephansplatz_come_first_and_16_cover_the_inner_districts():
+    # 2026-11-28: ordered by the box's middle (north-east of the old town), 12 tiles missed Karlsplatz and the west.
+    from tool import osm_local as o
+    from tool.config import load_config
+    local = load_config()["osm_local"]
+    order = o.by_distance(local)
+    assert order[0] == o.tiles_for((16.3720, 48.2084, 16.3722, 48.2086), local)[0]  # Stephansplatz's own tile first
+    inner = set(o.tiles_for((16.315, 48.175, 16.415, 48.24), local))  # inside the Guertel, plus 500 m
+    assert inner <= set(order[:16])
