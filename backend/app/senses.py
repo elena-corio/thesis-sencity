@@ -45,12 +45,23 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from PIL import Image, UnidentifiedImageError
 
-from tool.config import REPO_ROOT, get_key
+from tool.config import REPO_ROOT, get_key, load_config
 from tool.photos.mapillary import NotThisPhoto
 
 from .photos import SV, CapReached
 
-EXPORT_DIR = REPO_ROOT / "model" / "app_v9"
+
+
+def export_dir(cfg: dict | None = None) -> Path:
+    """The model export the app uses for every prediction (profile, presence, rating, chat): model/<api.senses.export>,
+    one setting in config/tool.yaml (Elena, 2026-11-28), so a new export is switched to by changing that one value."""
+    name = str(((cfg or load_config()).get("api", {}).get("senses", {}) or {}).get("export", "app_v9")).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+", name) or not (REPO_ROOT / "model" / name).is_dir():
+        raise SystemExit(f"api.senses.export in config/tool.yaml must name a folder in model/, not '{name}'.")
+    return REPO_ROOT / "model" / name
+
+
+EXPORT_DIR = export_dir()
 log = logging.getLogger("sencity.api")
 
 # The files the rating reads. Each must be listed in MANIFEST.md with its sha256. Every listed file is checked; the
@@ -69,7 +80,8 @@ MODEL_RULES = {
             "type": "object",
             "required": ["zdr", "data_collection", "allow_fallbacks", "only"],
             "properties": {"zdr": {"const": True}, "data_collection": {"const": "deny"}, "allow_fallbacks": {"const": False},
-                           "only": {"type": "array", "minItems": 1, "items": {"type": "string"}}},
+                           # EU endpoints only, as in the study (e.g. google-vertex/eu), whatever export is switched to
+                           "only": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "/eu$"}}},
         },
         "zero_data_retention": {"const": True},
         "allow_fallbacks": {"const": False},

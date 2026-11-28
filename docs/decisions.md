@@ -2,6 +2,20 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-28 – Deploying the app test on Render; the model version as one setting (accepted; details proposed)
+**Context.** Elena: prepare the Render deployment for the app test (Frankfurt for the service and the database; Clerk's development instance with `CLERK_AUTHORIZED_PARTIES` set to the Render address; OpenRouter as in the study: zero data retention, the EU endpoint, no free endpoints); the app-test data in the deployed database, readable by the export script; the current model version for the estimates until Tuesday's final run, with switching as a single setting.
+**Decision (Elena).**
+- *Street View on Render, the app test only:* an exception to 2026-11-16 (Mapillary only on Render). The map stays Mapillary; the only Street View images the API fetches on Render are the app test's 8 photos, on demand, never stored, for invited testers (Clerk invite-only, as the brief allows for a private prototype). `GOOGLE_MAPS_API_KEY` goes on Render (Elena pastes it).
+- *Photo list approved:* `"approved": true` in `config/app_test.json` (Elena, 2026-11-28).
+- *Export from Render:* the database stays closed to the outside (`ipAllowList: []`); to export, Elena adds her own IP in the dashboard for the time of the export, runs the script on her computer with the database's external URL, and removes the IP.
+**Proposed (Claude).**
+- *The model version is `api.senses.export` in `config/tool.yaml`* (`app_v9` now): the one folder in `model/` every prediction reads (profile, presence, rating, chat, the app test). Switching = add the new export folder, change that value, deploy. Not an environment variable, so the version is in git with the code that uses it, and a new export needs a deploy anyway (its folder is in the repo).
+- *EU endpoint enforced:* the export check already refused no zero data retention, data collection, fallbacks and `:free` models; it now also refuses a provider endpoint that is not an EU one (`…/eu`), so a later export cannot move the calls out of the EU by mistake.
+- *How the exception is enforced:* with `PHOTO_SOURCE=mapillary` the API starts with no known Street View photo but the app test's (`street_view_at_start`), and `/api/photo` and the model's pictures fetch only known ones; the map never has Street View photos to add.
+- *App version on Render:* `RENDER_GIT_COMMIT` (set by Render), saved with each app-test answer.
+- *Nothing else changes in the blueprint:* the web service, Postgres and disk were already in Frankfurt; the start command already runs `migrate`, which creates the app test's tables in the Render database.
+**Consequences.** Street View on a deployed (invite-only) app for 8 images; the Google terms check before any public release still stands. The live checklist and the export steps are in README "Deploy on Render".
+
 ## 2026-11-28 – The in-app test: rate a few fixed places with the app's estimate (accepted; details proposed; photo list awaiting approval)
 **Context.** Elena: an optional extra for the app test, logged first in the thesis log as an amendment (**D197**, thesis repo `docs/decisions.md`): exploratory, separate from the survey study, and it decides nothing about H1/H2. This changes the brief's "the server stores nothing about the person" for this flow only, with its own consent.
 **Decision (Elena).**

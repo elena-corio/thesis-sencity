@@ -152,8 +152,7 @@ def test_free_text_is_capped(client, cfg, with_profile):
 def test_the_test_is_shut_until_the_list_is_approved(monkeypatch, cfg):
     monkeypatch.delenv("APP_TEST_ALLOW_UNAPPROVED", raising=False)
     c = TestClient(main_mod.app)
-    if cfg["approved"]:
-        pytest.skip("the list is approved")
+    monkeypatch.setattr(app_test_mod, "load", lambda path=None: {**cfg, "approved": False})
     assert c.get("/api/app-test").status_code == 503
     assert c.post("/api/app-test/start", json={"consent": True}).status_code == 503
     monkeypatch.setattr(app_test_mod, "load", lambda path=None: {**cfg, "approved": True})
@@ -175,6 +174,17 @@ def test_the_test_photos_may_be_fetched_like_an_area_s_at_their_own_pitch(cfg):
             assert key in main_mod._known_photos
             if "pitch" in p:
                 assert main_mod._photo_pitches[key] == p["pitch"]
+
+
+def test_on_render_only_the_test_photos_are_street_view(cfg, monkeypatch):
+    # PHOTO_SOURCE=mapillary: the map's cached Street View photos are never fetched, the app test's are.
+    monkeypatch.setattr(main_mod.photos_mod, "load_all_known", lambda c: {("panoOfAMapStreet", 90.0)})
+    known, pitches = main_mod.street_view_at_start("mapillary")
+    assert known == app_test_mod.known_photos(cfg)
+    assert ("panoOfAMapStreet", 90.0) not in known
+    assert set(pitches) <= known
+    known, _ = main_mod.street_view_at_start("streetview")
+    assert ("panoOfAMapStreet", 90.0) in known and app_test_mod.known_photos(cfg) <= known
 
 
 def test_a_contributor_photo_carries_its_author_s_credit(client, cfg):

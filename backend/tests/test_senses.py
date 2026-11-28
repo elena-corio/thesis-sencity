@@ -11,6 +11,8 @@ import time
 from dataclasses import replace
 
 import pytest
+
+from tool.config import load_config
 import requests
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -181,7 +183,8 @@ def test_all_twenty_elements_have_an_english_and_italian_label_and_a_sense_icon(
     assert not set(OLD_CODES) & set(elements)
 
 
-@pytest.mark.parametrize("key,value", [("zdr", False), ("data_collection", "allow"), ("allow_fallbacks", True), ("only", [])])
+@pytest.mark.parametrize("key,value", [("zdr", False), ("data_collection", "allow"), ("allow_fallbacks", True), ("only", []),
+                                       ("only", ["google-vertex"]), ("only", ["google-vertex/eu", "google-vertex/us"])])
 def test_an_export_that_breaks_a_privacy_rule_is_refused(tmp_path, key, value):
     folder = copy_export(tmp_path)
     edit_json(folder, "model.json", lambda m: m["provider"].__setitem__(key, value))
@@ -194,6 +197,16 @@ def test_a_pinned_endpoint_other_than_the_one_sent_is_refused(tmp_path):
     edit_json(folder, "model.json", lambda m: m.__setitem__("pinned_endpoint", ["google-vertex/us"]))
     with pytest.raises(ExportError, match="pinned_endpoint"):
         load_export(folder)
+
+
+def test_the_export_folder_is_one_setting(tmp_path):
+    # api.senses.export in config/tool.yaml (2026-11-28): the folder in model/ every prediction uses.
+    from app.senses import export_dir
+    assert export_dir({"api": {"senses": {"export": "app_v9"}}}).name == "app_v9"
+    assert export_dir().name == load_config()["api"]["senses"]["export"]
+    for bad in ("../secrets", "app_v99_not_there"):
+        with pytest.raises(SystemExit):
+            export_dir({"api": {"senses": {"export": bad}}})
 
 
 def test_a_free_endpoint_is_refused(tmp_path):

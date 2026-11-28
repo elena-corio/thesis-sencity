@@ -215,7 +215,11 @@ api:
                                  # temperature 0, prompt config/chat_prompt.txt. Messages are never stored or logged
     max_chars: 300               # a longer message is refused
     per_hour: 600                # messages per IP (env IP_LIMIT_CHAT_PER_HOUR); per user: app/limits.py
-  senses:                        # model settings are NOT here: they come only from model/app_v9/
+  senses:                        # model settings are NOT here: they come only from the export folder below
+    export: app_v9               # THE model version for every prediction (profile, presence, rating, chat, app test):
+                                 # the folder model/<export>/ as exported from the thesis repo (hash-checked against its
+                                 # MANIFEST). To switch: add the new folder (e.g. model/app_v10/), change this one value,
+                                 # deploy. Ratings made with the old one are not reused (their stamp holds its commit)
     url: https://openrouter.ai/api/v1/chat/completions
     timeout_s: 60
     cache_file: runs/senses/predictions.json   # JSON output, model ID, latency and cost per photo (no images)
