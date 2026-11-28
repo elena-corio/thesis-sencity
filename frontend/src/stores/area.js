@@ -214,9 +214,10 @@ export const useAreaStore = defineStore('area', () => {
         return
       }
       load.value = 'error'
+      // The server's own sentence when it sent one (which service failed); else the general one.
       loadError.value = err.status === 429
         ? 'Too many new areas in a short time. Wait a while and try again.'
-        : 'Could not load street photos for this area. Check that the API is running, then try again.'
+        : (err instanceof ApiError && err.message) || 'Could not load street photos for this area. Check that the API is running, then try again.'
     }
   }
 

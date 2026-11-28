@@ -295,6 +295,7 @@ Not built yet: the profile.
 | Service | Used for | Region | What it keeps |
 |---|---|---|---|
 | Overpass API (overpass-api.de) | OSM ways, parks, squares and buildings for one circle (the `fetch_photos` script and `/api/area`), or the streets and buildings around a route (`/api/routes`) | Germany | Request logs (the circle or polygon, from our API's address) |
+| Overpass fallbacks (overpass.private.coffee, overpass.kumi.systems) | The same OpenStreetMap queries as overpass-api.de, only when it cannot be reached or stays busy (`overpass.fallback_urls`) | Public servers (Germany / EU) | Request logs (the circle or corridor polygon, from our API's address) |
 | Google Street View metadata | Pano ID, location, date per sample point, for the step-1 tool and, with `PHOTO_SOURCE=streetview`, the app's areas and routes (free) | Google | API usage per key; it receives sample points along the streets from our API, never the user's IP |
 | Google Street View Static API | Images for the step-1 tool's image check and review page; on Render only the app test's 8 photos (exception of 2026-11-28); and with `PHOTO_SOURCE=streetview` the app's photos: each one shown and each one rated, through our API (paid, ~$7/1000, 10,000 free/month; a daily cap of 1000) | Google | API usage per key; it receives pano IDs and headings from our API, never the user's IP; the images are never stored by us |
 | OpenFreeMap | Base map tiles in the app (Positron, recoloured in dark mode) and review.html | EU | Tile request logs |

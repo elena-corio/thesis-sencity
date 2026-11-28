@@ -237,6 +237,25 @@ def _ndjson(event: dict) -> bytes:
     return (json.dumps(event, ensure_ascii=False) + "\n").encode()
 
 
+def _failed_host(e: Exception) -> str:
+    """The host a failed request went to (no path, no query), or "?"."""
+    from urllib.parse import urlparse
+    url = getattr(getattr(e, "request", None), "url", "") or ""
+    return urlparse(url).hostname or "?"
+
+
+def _area_failure(e: Exception) -> str:
+    """What the app says when an area cannot load: which service failed, and what to do."""
+    if isinstance(e, mapillary_mod.MapillaryError):
+        return str(e)
+    host = _failed_host(e)
+    if "mapillary" in host:
+        return "The street photos (Mapillary) could not be reached. Try again in a minute."
+    if host != "?":
+        return "The street map (OpenStreetMap) could not be reached: its public servers are busy. Try again in a minute."
+    return "Could not load street photos for this area. Try again."
+
+
 @app.post("/api/area")
 def area(body: AreaRequest, request: Request, user: auth.User = SignedIn) -> StreamingResponse:
     """Streams newline-separated JSON events: "segments" (all segments, photos pending), "segment"
@@ -279,9 +298,9 @@ def area(body: AreaRequest, request: Request, user: auth.User = SignedIn) -> Str
                     steps.clear(area_mod.cache_dir(full_cfg), key)
                 yield _ndjson(event)
         except (requests.RequestException, mapillary_mod.MapillaryError, SystemExit) as e:
-            # Only the type: a network error's text can hold the request URL.
-            log.warning("area failed: %s", type(e).__name__)
-            yield _ndjson({"type": "error", "message": "Could not load street photos for this area. Try again."})
+            # The type and the host only: a network error's text can hold the request URL with its query.
+            log.warning("area failed: %s (%s)", type(e).__name__, _failed_host(e))
+            yield _ndjson({"type": "error", "message": _area_failure(e)})
             return
         yield from thermal(fc)
 
