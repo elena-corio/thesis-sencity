@@ -27,7 +27,10 @@ const store = useProfileStore()
 // The in-app test (D197): offered here, after the profile, only while it is open (config/app_test.json).
 const router = useRouter()
 const appTest = useAppTestStore()
-onMounted(() => { if (AUTH_ON && appTest.status === 'idle') appTest.load() })
+onMounted(() => appTest.ensureLoaded())
+const appTestLine = computed(() => (appTest.started
+  ? `${appTest.index} of ${appTest.photos.length} done: go on where you stopped.`
+  : "About 10 minutes: the app's estimate for you, then your own rating. Optional, for a master's thesis."))
 const lang = config.language
 const survey = computed(() => store.survey)
 const p = computed(() => store.profile)
@@ -165,14 +168,11 @@ function a11Key(e) {
         <p v-else class="muted" data-testid="answers-prepare-empty">Optional, four short questions. Never sent to the model.</p>
       </template>
 
-      <div v-if="appTest.status === 'ready'" class="app-test" data-testid="app-test-offer">
-        <h3>Rate a few places (optional)</h3>
-        <p v-if="appTest.finished" class="muted">Thank you: you rated {{ appTest.rated }} {{ appTest.rated === 1 ? 'place' : 'places' }}.</p>
-        <template v-else>
-          <p class="muted">{{ appTest.photos.length }} places, about 5 minutes: see the app's estimate for you, then give your own rating.
-            For a master's thesis; you choose whether anything is saved.</p>
-          <button type="button" class="btn" @click="router.push('/app-test')">{{ appTest.consent === 'yes' ? 'Go on' : 'Start' }}</button>
-        </template>
+      <!-- "Rate 8 places" (Elena, 2026-11-28): the way back in after "Skip for now", gone once the 8 are done. -->
+      <div v-if="appTest.available" class="app-test" data-testid="app-test-offer">
+        <h3>Rate {{ appTest.photos.length }} places</h3>
+        <p class="muted">{{ appTestLine }}</p>
+        <button type="button" class="btn" @click="router.push('/app-test')">{{ appTest.started ? 'Go on' : 'Start' }}</button>
       </div>
 
       <div class="buttons">

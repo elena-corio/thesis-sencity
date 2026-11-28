@@ -673,6 +673,8 @@ def app_test_get(user: auth.User = SignedIn) -> dict:
 class AppTestStart(BaseModel):
     model_config = ConfigDict(extra="forbid")
     consent: bool
+    entry: Literal["profile", "later"] = "later"  # right after the profile questions, or from the "Rate 8 places" entry
+    skipped_first: bool = False                     # "Skip for now" was pressed before (known only in the browser until now)
 
 
 @app.post("/api/app-test/start")
@@ -686,7 +688,8 @@ def app_test_start(body: AppTestStart, user: auth.User = SignedIn) -> dict:
     if snapshot is None:
         raise HTTPException(409, "Make your profile first.")
     session = db.start_app_test(user.clerk_user_id, consented_at=db.now(), photo_set=app_test_mod.photo_set(cfg),
-                                app_version=app_test_mod.app_version(), profile=snapshot, profile_version=snapshot.get("version"))
+                                app_version=app_test_mod.app_version(), profile=snapshot, profile_version=snapshot.get("version"),
+                                entry=body.entry, skipped_first=body.skipped_first)
     return {"session": _app_test_state(session)}
 
 

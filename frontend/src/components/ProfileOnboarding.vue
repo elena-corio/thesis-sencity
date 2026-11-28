@@ -14,6 +14,7 @@ import { senseName } from '../lib/senses.js'
 import { WEATHER } from '../lib/weather.js'
 import { rowText, textOf } from '../lib/questions.js'
 import { useProfileStore } from '../stores/profile.js'
+import { useAppTestStore } from '../stores/appTest.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
 
@@ -58,7 +59,7 @@ watch(step, () => { message.value = store.notice; store.notice = ''; focusTitle(
 // Sent back here by the save at the end because an answer is missing (stores/profile.js `notice`).
 if (store.notice) { message.value = store.notice; store.notice = '' }
 
-function next() {
+async function next() {
   if (!done.value) {
     message.value = rows.value.length ? 'Please answer every row to go on.' : 'Please choose an answer to go on.'
     nextTick(() => {
@@ -69,7 +70,11 @@ function next() {
     return
   }
   // The last shown step with no question about new places after it (all hidden in the layout): the one save is here.
-  if (step.value + 1 >= store.steps.length) return store.finish()
+  if (step.value + 1 >= store.steps.length) {
+    const isNew = !editing.value
+    if (await store.finish() && isNew) await useAppTestStore().offerAfterProfile(router)
+    return
+  }
   store.setStep(step.value + 1)
 }
 function back() {

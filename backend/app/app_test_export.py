@@ -18,7 +18,7 @@ from tool.config import REPO_ROOT
 from . import app_test, db
 
 COLUMNS = [
-    "clerk_user_id", "session_id", "photo_set", "consented_at", "started_at", "finished_at",
+    "clerk_user_id", "session_id", "entry", "skipped_first", "photo_set", "consented_at", "started_at", "finished_at",
     "order_shown", "photo_id", "photo_name", "shown_at", "answered_at",
     "estimate_comfort", "estimate_level", "estimate_bothers", "estimate_feels_good", "estimate_personal",
     "rating_b1", "reasons_right", "free_text",
@@ -40,7 +40,8 @@ def rows(records: list[dict], names: dict[str, str]) -> list[dict]:
     for r in records:
         est = r["estimate"] or {}
         out.append({
-            "clerk_user_id": r["clerk_user_id"], "session_id": r["session_id"], "photo_set": r["photo_set"],
+            "clerk_user_id": r["clerk_user_id"], "session_id": r["session_id"], "entry": _cell(r["entry"]),
+            "skipped_first": _cell(r["skipped_first"]), "photo_set": r["photo_set"],
             "consented_at": _iso(r["consented_at"]), "started_at": _iso(r["started_at"]), "finished_at": _iso(r["finished_at"]),
             "order_shown": r["order_shown"], "photo_id": r["photo_id"], "photo_name": names.get(r["photo_id"], ""),
             "shown_at": _iso(r["shown_at"]), "answered_at": _iso(r["answered_at"]),

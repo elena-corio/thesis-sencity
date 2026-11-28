@@ -191,6 +191,8 @@ export const putOwnRatings = (list) => json('PUT', '/api/ratings/own', list)
 
 // The in-app test (D197): its photos and saved progress; the opt-in; one answer at a time; the end.
 export const getAppTest = () => json('GET', '/api/app-test')
-export const startAppTest = () => json('POST', '/api/app-test/start', { consent: true })
+/** The opt-in ticked: where it started ('profile' right after the profile questions, or 'later') and whether "Skip for now" came first. */
+export const startAppTest = ({ entry = 'later', skippedFirst = false } = {}) =>
+  json('POST', '/api/app-test/start', { consent: true, entry, skipped_first: skippedFirst })
 export const saveAppTestAnswer = (answer) => json('POST', '/api/app-test/answer', answer)
 export const finishAppTest = () => json('POST', '/api/app-test/finish', {})

@@ -10,6 +10,7 @@ import { useReportStore } from '../stores/report.js'
 import { useProfileStore } from '../stores/profile.js'
 import { useRouter } from 'vue-router'
 import { AUTH_ON } from '../lib/auth.js'
+import { useAppTestStore } from '../stores/appTest.js'
 
 const emit = defineEmits(['close'])
 const menu = ref(null)
@@ -27,6 +28,12 @@ function about() {
 }
 const profile = useProfileStore()
 const router = useRouter()
+// "Rate 8 places" (the app test, Elena 2026-11-28): opens its intro, or where an unfinished test stopped; gone once done.
+const appTest = useAppTestStore()
+function rate() {
+  emit('close')
+  router.push('/app-test')
+}
 async function signOut() {
   emit('close')
   await profile.signOutAll()
@@ -74,6 +81,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown,
       </button>
       <button type="button" class="item" aria-haspopup="dialog" @click="print">
         <AppIcon name="print" /> Print report
+      </button>
+      <button v-if="appTest.available && profile.profile" type="button" class="item" data-testid="menu-app-test" @click="rate">
+        <AppIcon name="image" /> {{ appTest.started ? `Rate ${appTest.photos.length} places (${appTest.index} done)` : `Rate ${appTest.photos.length} places` }}
       </button>
     </div>
     <div v-if="AUTH_ON" class="block items">
