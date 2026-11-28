@@ -2,14 +2,14 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import config from '../config.js'
 import router from '../router.js'
-import { askChat, searchPlaces } from '../lib/api.js'
+import { askChat, loadArea, searchPlaces } from '../lib/api.js'
 import { midpoint } from '../lib/geo.js'
 import { LEVEL, easierNearby } from '../lib/nearby.js'
 import { placeGroup } from '../lib/place.js'
 import { routeVerdict } from '../lib/report.js'
 import { hardShare } from '../lib/senses.js'
-import { explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from '../lib/chat/execute.js'
-import { isCold, thermalLimits } from '../lib/thermal.js'
+import { SEASONS, compareSeasons, explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from '../lib/chat/execute.js'
+import { isCold, thermalLimits, thermalState } from '../lib/thermal.js'
 import { clean, isThis, pillsOf, withoutPill } from '../lib/chat/intent.js'
 import * as T from '../lib/chat/templates.js'
 import { useAreaStore } from './area.js'
@@ -61,6 +61,8 @@ export const useChatStore = defineStore('chat', () => {
     return row?.[config.language] ?? code.replaceAll('_', ' ')
   }
   const mode = () => (router.currentRoute.value.params.mode === 'routes' ? 'routes' : 'area')
+  /** "X could not be loaded: <the server's own sentence>", or "X could not be loaded. Try again in a moment." */
+  const failedText = (what, why) => (why ? `${what}: ${why.trim().replace(/([^.!?])$/, '$1.')}` : `${what}. Try again in a moment.`)
   const say = (reply, intent = null, pills = []) => {
     const lead = intent?.language === 'it' ? `${T.ITALIAN_NOTE} ` : ''
     messages.value = [...messages.value, { role: 'app', ...reply, text: lead + reply.text, intent, pills }]
@@ -261,14 +263,122 @@ export const useChatStore = defineStore('chat', () => {
         place: f?.properties.name || null, placeId: f?.properties.id ?? null }), intent, pillsOf(intent, { name }))
     },
 
+    async compare_seasons(intent) {
+      if (mode() !== 'area') await router.push('/area')
+      const wantsArea = !intent.near || /(area|zona|zone|neighbou?rhood|quartiere)/i.test(intent.near)
+      const f = wantsArea ? null : placeNamed(intent.near)
+      if (!f && !wantsArea && !isThis(intent.near)) {
+        return say({ text: `${intent.near} is not in the loaded area. Load an area around it first, such as “places near ${intent.near}”.` }, intent)
+      }
+      if (area.step !== 'analysed' || !area.segments) return say(T.needArea(), intent)
+      // "This" with no place open ("best season here?" read as "this"): the whole area.
+      if (f && area.selectedId !== f.properties.id) selectHere(f)
+      const time = seasonTime()
+      const missing = SEASONS.length - knownSeasons(time).length
+      if (!missing) return answerSeasons(intent, f, time)
+      // Each new simulation is billed: ask first (Elena, 2026-11-23); "Run them" carries on (act).
+      seasonAsk = { intent, id: f?.properties.id ?? null, time, key: areaKey() }
+      say(T.seasonsAsk(missing, { time, place: f?.properties.name || null }), intent, pillsOf(intent, { name }))
+    },
+
     async out_of_scope(intent) {
       say(T.outOfScope(), intent)
     },
   }
 
+  // compare_seasons (Elena, 2026-11-23: "which season is the best to go?"): thermal comfort for each season at the time
+  // on the map, for the loaded area, compared with the person's limits. Values are kept for this session only; the
+  // server caches the runs, so asking again costs nothing.
+  const seasonValues = new Map() // `${lat},${lon},${radius}|${season}|${time}` → { street id: °C }
+  const seasonRun = ref(null) // { done, total, season } while the simulations run
+  let seasonAsk = null // the request waiting for "Run them"
+  let seasonController = null
+  const areaKey = () => (area.analysed ? `${area.analysed.lat},${area.analysed.lon},${area.analysed.radius}` : '')
+  const windowKey = (season, time, key = areaKey()) => `${key}|${season}|${time}`
+  const seasonTime = () => area.thermalInfo?.time ?? area.thermalWindow.time
+  /** The seasons already known at `time`: the one on the map (its values are on the streets), and earlier runs. */
+  function knownSeasons(time) {
+    const info = area.thermalInfo
+    if (info && info.time === time && area.thermal === 'ready') {
+      const values = Object.fromEntries((area.segments?.features ?? []).filter((f) => f.properties.utci != null)
+        .map((f) => [f.properties.id, f.properties.utci]))
+      if (Object.keys(values).length) seasonValues.set(windowKey(info.season, time), values)
+    }
+    return SEASONS.filter((s) => seasonValues.has(windowKey(s, time)))
+  }
+  function answerSeasons(intent, f, time) {
+    const limits = thermalLimits()
+    const values = Object.fromEntries(SEASONS.map((s) => [s, seasonValues.get(windowKey(s, time))]).filter(([, v]) => v))
+    const r = compareSeasons(f ? [f] : (area.segments?.features ?? []), values,
+      { stateOf: (t) => thermalState(t, limits), coldOf: (t) => isCold(t, limits) })
+    const showing = area.layer !== 'senses' && area.thermal === 'ready' && area.thermalInfo?.time === time
+    say(T.seasonsReply(r, { time, place: f ? f.properties.name || 'this place' : null, personal: profile.personal,
+      current: area.thermalInfo?.season ?? null, showing }), intent, pillsOf(intent, { name }))
+  }
+  async function runSeasons() {
+    const ask = seasonAsk
+    if (!ask || seasonRun.value) return
+    seasonAsk = null
+    if (ask.key !== areaKey()) return say({ text: 'The area has changed since. Ask again for this one.' })
+    const todo = SEASONS.filter((s) => !seasonValues.has(windowKey(s, ask.time, ask.key)))
+    seasonController?.abort()
+    seasonController = new AbortController()
+    const signal = seasonController.signal
+    try {
+      for (const [i, season] of todo.entries()) {
+        seasonRun.value = { done: i, total: todo.length, season }
+        let values = null
+        let problem = ''
+        await loadArea({ ...area.analysed, season, time: ask.time, layer: 'thermal' }, (e) => {
+          if (e.type === 'thermal') values = e.values
+          else if (e.type === 'thermal_error' || e.type === 'error') problem = e.message
+        }, signal)
+        if (signal.aborted) return
+        if (!values) {
+          return say({ text: failedText(`Thermal comfort for ${season} could not be loaded`, problem) }, ask.intent)
+        }
+        seasonValues.set(windowKey(season, ask.time, ask.key), values)
+      }
+    } catch (err) {
+      if (signal.aborted) return
+      return say({ text: err.status === 429 && err.message ? err.message : 'Thermal comfort could not be loaded. Try again in a moment.' }, ask.intent)
+    } finally {
+      if (!signal.aborted) seasonRun.value = null
+    }
+    const f = ask.id ? area.segments?.features.find((x) => x.properties.id === ask.id) ?? null : null
+    answerSeasons(ask.intent, f, ask.time)
+  }
+  // A new area stops the comparison of the old one.
+  watch(areaKey, () => {
+    seasonAsk = null
+    if (seasonRun.value) {
+      seasonController?.abort()
+      seasonRun.value = null
+    }
+  })
+  /** "Show spring": the map's season (cached by then, so at once); on Senses, the default layer, where it shows. */
+  function showSeason(season) {
+    if (area.thermal === 'ready') {
+      area.setThermalWindow({ season })
+      if (area.layer === 'senses') area.setLayer(config.layerDefault)
+      return
+    }
+    area.thermalWindow = { ...area.thermalWindow, season }
+    area.setLayer(area.layer === 'senses' ? config.layerDefault : area.layer)
+  }
+  /** A button in a reply ("Run them", "Show spring"). */
+  function act(id) {
+    if (id === 'run-seasons') return runSeasons()
+    if (id.startsWith('season:')) return showSeason(id.slice('season:'.length))
+  }
+
   // Loading inside the chat (Elena, 2026-11-23): while the chat is open it takes the card's place, so the area's or the
   // routes' progress is shown here, in one line, and the reply comes when they are ready (or say they failed).
   const progress = computed(() => {
+    if (seasonRun.value) {
+      const r = seasonRun.value
+      return { text: `Comparing the seasons: simulating ${r.season} (${r.done + 1} of ${r.total}), a few minutes each…`, share: r.total ? r.done / r.total : null }
+    }
     if (routes.load === 'loading') {
       const p = routes.progress
       const what = { streets: 'finding the streets', photos: `street photos ${p.done} of ${p.total}`, thermal: 'simulating thermal comfort (this can take a few minutes)', routes: 'comparing the routes' }[p.stage] ?? 'loading'
@@ -303,12 +413,12 @@ export const useChatStore = defineStore('chat', () => {
   watch(() => routes.load, (load) => {
     if (load !== 'error' || !routePending.value) return
     routePending.value = null
-    say({ text: `The routes could not be analysed${routes.error ? `: ${routes.error}` : ''}. Try again in a moment.` })
+    say({ text: failedText('The routes could not be analysed', routes.error) })
   })
   watch(() => area.load, (load) => {
     if (load !== 'error' || !pending.value) return
     pending.value = null
-    say({ text: `The area could not be loaded${area.loadError ? `: ${area.loadError}` : ''}. Try again in a moment.` })
+    say({ text: failedText('The area could not be loaded', area.loadError) })
   })
 
   // A request near a new place: carried out once that area is ready on its layer (Thermal: its values; Senses and
@@ -370,9 +480,10 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     pending.value = null
     routePending.value = null
+    seasonAsk = null
     marked.value = []
     mark()
   }
 
-  return { open, messages, busy, error, pending, progress, returnTo, show, close, send, preset, removePill, run, openPlace, backToChat, clear, name }
+  return { open, messages, busy, error, pending, progress, returnTo, show, close, send, preset, removePill, run, act, openPlace, backToChat, clear, name }
 })

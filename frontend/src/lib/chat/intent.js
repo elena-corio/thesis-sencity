@@ -2,7 +2,7 @@
 // prompts build without a model call, and the pills that show how a request was read. Removing a pill runs the same
 // intent again without that part, with no model call.
 
-export const ACTIONS = ['filter_places', 'explain_place', 'plan_route', 'set_view', 'summarise_profile', 'prepare_cope', 'out_of_scope']
+export const ACTIONS = ['filter_places', 'explain_place', 'plan_route', 'set_view', 'summarise_profile', 'prepare_cope', 'compare_seasons', 'out_of_scope']
 const LEVELS = ['easy', 'mixed', 'hard']
 const LAYERS = ['senses', 'thermal', 'overall']
 const SEASONS = ['spring', 'summer', 'autumn', 'winter']
@@ -68,7 +68,7 @@ export function pillsOf(i, { layer, name = (c) => c } = {}) {
     if (i.end) out.push({ key: 'end', label: `to ${i.end}` })
     if (i.calmer) out.push({ key: 'calmer', label: 'calmer' })
   }
-  if (['explain_place', 'prepare_cope'].includes(i.action) && i.near && !isThis(i.near)) out.push({ key: 'near', label: i.near })
+  if (['explain_place', 'prepare_cope', 'compare_seasons'].includes(i.action) && i.near && !isThis(i.near)) out.push({ key: 'near', label: i.near })
   if (['filter_places', 'set_view'].includes(i.action)) {
     if (i.layer && !(i.action === 'filter_places' && i.level)) out.push({ key: 'layer', label: LAYER_NAMES[i.layer] })
     if (i.season) out.push({ key: 'season', label: i.season })

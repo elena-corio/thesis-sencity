@@ -20,6 +20,7 @@ export const EXAMPLES = [
   { task: 'Change the view', items: ['Show thermal in summer at 15:00', 'Switch to the overall layer'] },
   { task: 'Your profile', items: ['What bothers me most?', 'What feels good to me?'] },
   { task: 'Prepare and cope', items: ['How can I prepare for the Naschmarkt?', 'What could help me on this street?'] },
+  { task: 'When to go', items: ['When is the best season for this area?', 'Is this street nicer in spring or summer?'] },
 ]
 /** The rotating example in the input field. */
 export const PLACEHOLDERS = EXAMPLES.flatMap((e) => e.items.slice(0, 1))
@@ -201,4 +202,50 @@ export function linkParts(text, links = []) {
   }
   if (at < text.length) out.push({ text: text.slice(at) })
   return out
+}
+
+const cap = (w) => w[0].toUpperCase() + w.slice(1)
+/** "spring", "spring and autumn", "spring, summer and autumn". */
+const listed = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
+
+/** compare_seasons before billed runs: how many new simulations, and a button to run them (Elena: ask first). */
+export function seasonsAsk(n, { time, place = null }) {
+  const what = place ? `${place}` : 'this area'
+  return {
+    text: `To compare the seasons for ${what} I need thermal comfort for each season at ${time}: up to ${n} new simulation${n === 1 ? '' : 's'}, `
+      + `billed by Infrared.city, a few minutes each (any already done are free). Run ${n === 1 ? 'it' : 'them'}?`,
+    actions: [{ id: 'run-seasons', label: n === 1 ? 'Run it' : 'Run them' }],
+  }
+}
+
+/**
+ * compare_seasons: r from execute.compareSeasons; place: the place's name when one place was asked about; current: the
+ * season on the map (no "Show" button for it when the map already shows thermal comfort).
+ */
+export function seasonsReply(r, { time, place = null, personal = false, current = null, showing = false }) {
+  if (!r.best.length) return { text: `There are no thermal values for ${place ?? 'this area'}, so the seasons cannot be compared.` }
+  const who = personal ? 'For you' : 'In general'
+  const best = cap(listed(r.best))
+  const one = r.best.length === 1
+  const row = (x) => r.rows.find((y) => y.season === x)
+  const deg = (t) => `${Math.round(t).toString().replace('-', '−')} °C`
+  const why = (x) => (x.why && x.hard ? `, mostly ${x.why === 'heat' ? 'heat' : 'cold'}` : '')
+  let lead
+  let others
+  if (place) {
+    const word = (x) => (x.easy ? 'easy' : x.mixed ? 'mixed' : x.hard ? 'hard' : 'no value')
+    const b = row(r.best[0])
+    lead = `${who}, ${place} looks best in ${listed(r.best)} at ${time}: ${word(b)}${b.utci != null ? `, feels like ${deg(b.utci)}` : ''}.`
+    others = r.rows.filter((x) => !r.best.includes(x.season)).map((x) => `${cap(x.season)}: ${word(x)}${x.utci != null ? `, feels like ${deg(x.utci)}` : ''}.`)
+  } else {
+    const b = row(r.best[0])
+    lead = `${who}, ${best} ${one ? 'looks' : 'look'} best here at ${time}: ${b.easy} of ${b.rated} streets may feel easy and ${b.hard} hard.`
+    others = r.rows.filter((x) => !r.best.includes(x.season)).map((x) => `${cap(x.season)}: ${x.easy} easy, ${x.hard} hard${why(x)}.`)
+  }
+  const basis = r.photos ? 'Only thermal comfort changes with the season; the photo ratings stay the same.' : 'From thermal comfort only: the photos are not rated yet.'
+  const shown = showing && r.best.includes(current)
+  return {
+    text: [lead, ...others, basis, shown ? `The map already shows ${current}.` : ''].filter(Boolean).join(' '),
+    actions: shown ? [] : [{ id: `season:${r.best[0]}`, label: `Show ${r.best[0]}` }],
+  }
 }

@@ -1,0 +1,96 @@
+{
+ "about": "Frozen test set for compare_seasons (Elena, 2026-11-23: \"which season is the best to go?\"), written before the prompt was changed and never edited. The prompt is tuned on the development set only. Same format and comparison as chat_intents_test.json; pass mark 90% (9 of 10).",
+ "cases": [
+  {
+   "id": "s01",
+   "message": "Which season is best to go here?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "s02",
+   "message": "When in the year does this area feel easiest for me?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "s03",
+   "message": "Is summer or winter better around here?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "s04",
+   "message": "best time of year to visit Karlsplatz",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": "Karlsplatz"
+   }
+  },
+  {
+   "id": "s05",
+   "message": "which season suits this street best?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": "this"
+   }
+  },
+  {
+   "id": "s06",
+   "message": "in quale stagione è meglio andare qui?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "it",
+    "near": null
+   }
+  },
+  {
+   "id": "s07",
+   "message": "qual è il periodo dell'anno migliore per questa piazza?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "it",
+    "near": "this"
+   }
+  },
+  {
+   "id": "s08",
+   "message": "what season should I avoid here?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "s09",
+   "message": "show the area in autumn",
+   "expected": {
+    "action": "set_view",
+    "language": "en",
+    "season": "autumn"
+   }
+  },
+  {
+   "id": "s10",
+   "message": "easy places in spring",
+   "expected": {
+    "action": "filter_places",
+    "language": "en",
+    "level": "easy",
+    "season": "spring"
+   }
+  }
+ ]
+}

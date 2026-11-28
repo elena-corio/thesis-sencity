@@ -12,6 +12,7 @@ const INTENTS = {
   'hard places here': blank('filter_places', { level: 'hard' }),
   'how to prepare for this area?': blank('prepare_cope', { near: 'this area' }),
   'karlsplatz to stadtpark on thermal': blank('plan_route', { start: 'Karlsplatz', end: 'Stadtpark', layer: 'thermal' }),
+  'best season here?': blank('compare_seasons'),
 }
 const PLACES = { Karlsplatz: { lat: 48.2006, lon: 16.3700 }, Stadtpark: { lat: 48.2045, lon: 16.3795 } }
 const mockSearch = (page) => page.route('**/api/search', (route) => {
@@ -164,6 +165,50 @@ test.describe('Ask about places', () => {
     await expect(lastText(page)).toContainText('The routes could not be analysed', { timeout: 20_000 })
   })
 
+  // Elena, 2026-11-23: "which season is the best to go?". The area mock gives the same values in spring, summer and
+  // autumn, and 30 °C colder in winter.
+  test('which season is best: asks before the billed runs, runs only the missing ones, then answers and offers the map', async ({ page }) => {
+    await mockChat(page)
+    await openArea(page) // Thermal, summer 15:00
+    // The map on winter first, so the best season is not the one shown.
+    await page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').setThermalWindow({ season: 'winter' }))
+    await expect.poll(() => page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').thermalInfo?.season)).toBe('winter')
+    const asked = []
+    page.on('request', (r) => { if (r.url().includes('/api/area')) asked.push(r.postDataJSON()) })
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'best season here?')
+    await expect(lastText(page)).toHaveText('To compare the seasons for this area I need thermal comfort for each season at 15:00: up to 3 new '
+      + 'simulations, billed by Infrared.city, a few minutes each (any already done are free). Run them?')
+    expect(asked).toEqual([]) // nothing runs before "Run them"
+    await panel(page).getByRole('button', { name: 'Run them' }).click()
+    await expect(lastText(page)).toContainText('Spring, summer and autumn look best here at 15:00', { timeout: 20_000 })
+    await expect(lastText(page)).toContainText(/Winter: 0 easy, \d+ hard, mostly cold\./)
+    expect(asked.map((b) => [b.season, b.time, b.layer])).toEqual([['spring', '15:00', 'thermal'], ['summer', '15:00', 'thermal'], ['autumn', '15:00', 'thermal']])
+    await expect(panel(page).getByTestId('chat-progress')).toHaveCount(0)
+
+    await panel(page).getByRole('button', { name: 'Show spring' }).click()
+    await expect.poll(() => page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').thermalInfo?.season)).toBe('spring')
+
+    // Asked again: every season is known, so it answers at once, with no new run.
+    asked.length = 0
+    await ask(page, 'best season here?')
+    await expect(lastText(page)).toContainText('look best here at 15:00')
+    await expect(lastText(page)).toContainText('The map already shows spring.')
+    expect(asked).toEqual([])
+  })
+
+  test('which season is best: a season that fails says so', async ({ page }) => {
+    await mockChat(page)
+    await mockArea(page, { thermal: 'fail-winter' })
+    await openMap(page, 'dark')
+    await analyseCentre(page)
+    await expect.poll(() => page.evaluate(() => document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('area').thermal)).toBe('ready')
+    await page.getByRole('button', { name: 'Ask about places' }).click()
+    await ask(page, 'best season here?')
+    await panel(page).getByRole('button', { name: 'Run them' }).click()
+    await expect(lastText(page)).toHaveText('Thermal comfort for winter could not be loaded: Too many new thermal runs in a short time. Try again later.', { timeout: 20_000 })
+  })
+
   test('Italian: understood, answered in English with the note first', async ({ page }) => {
     await mockChat(page)
     await openArea(page)
@@ -191,12 +236,12 @@ test.describe('Ask about places', () => {
     await expect(panel(page).getByTestId('chat-input')).toHaveValue('show the overall layer')
   })
 
-  test('"What can I ask?" lists examples for the six tasks; never "persona"', async ({ page }) => {
+  test('"What can I ask?" lists examples for the seven tasks; never "persona"', async ({ page }) => {
     await mockChat(page)
     await openArea(page)
     await page.getByRole('button', { name: 'Ask about places' }).click()
     await panel(page).getByRole('button', { name: 'What can I ask?' }).click()
-    await expect(panel(page).getByTestId('chat-help').locator('h3')).toHaveCount(6)
+    await expect(panel(page).getByTestId('chat-help').locator('h3')).toHaveCount(7)
     expect((await panel(page).innerText()).toLowerCase()).not.toContain('persona')
   })
 

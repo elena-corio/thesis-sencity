@@ -203,6 +203,87 @@
     "end": "Rathaus",
     "calmer": true
    }
+  },
+  {
+   "id": "d20",
+   "message": "what's the best season for this area?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "d21",
+   "message": "which part of the year is nicer for the Naschmarkt?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": "Naschmarkt"
+   }
+  },
+  {
+   "id": "d22",
+   "message": "compare the four seasons",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "d23",
+   "message": "stagione migliore per questo posto",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "it",
+    "near": "this"
+   }
+  },
+  {
+   "id": "d24",
+   "message": "switch to winter",
+   "expected": {
+    "action": "set_view",
+    "language": "en",
+    "season": "winter"
+   }
+  },
+  {
+   "id": "d25",
+   "message": "is this place better in spring or autumn?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": "this"
+   }
+  },
+  {
+   "id": "d26",
+   "message": "what time of year is nicest around here?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
+  },
+  {
+   "id": "d27",
+   "message": "quando conviene venire qui, in che stagione?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "it",
+    "near": null
+   }
+  },
+  {
+   "id": "d28",
+   "message": "is it worse here in summer or in winter?",
+   "expected": {
+    "action": "compare_seasons",
+    "language": "en",
+    "near": null
+   }
   }
  ]
 }

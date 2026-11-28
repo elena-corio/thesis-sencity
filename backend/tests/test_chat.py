@@ -34,7 +34,8 @@ def test_the_test_set_is_frozen_and_covers_every_action():
     assert hashlib.sha256(raw).hexdigest() == TEST_SET_SHA256
     test = cases("test")
     assert len(test) == 30
-    assert {c["expected"]["action"] for c in test} == set(chat_mod.ACTIONS)
+    # Every action of its time; actions added later have their own frozen set (below).
+    assert {c["expected"]["action"] for c in test} == set(chat_mod.ACTIONS) - set(chat_mod.LATER_ACTIONS)
     assert sum(c["expected"]["language"] == "it" for c in test) >= 3
     for c in test:
         assert set(c["expected"]) <= set(chat_mod.FIELDS), c["id"]
@@ -42,8 +43,23 @@ def test_the_test_set_is_frozen_and_covers_every_action():
             assert set(c["expected"].get(k, [])) <= set(CODES), c["id"]
 
 
+SEASONS_SET_SHA256 = "07d177cc19b1fa231a6c154bfb522450fac11dbf53878856e673bbaf679b2a26"
+
+
+def test_the_seasons_set_is_frozen_and_covers_compare_seasons():
+    """Elena, 2026-11-23: "which season is the best to go?". Written before the prompt changed, never edited."""
+    raw = (FIXTURES / "chat_intents_seasons_test.json").read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(raw).hexdigest() == SEASONS_SET_SHA256
+    seasons = cases("seasons")
+    assert len(seasons) == 10
+    assert sum(c["expected"]["action"] == "compare_seasons" for c in seasons) >= 7
+    assert sum(c["expected"]["language"] == "it" for c in seasons) >= 2
+    for c in seasons:
+        assert set(c["expected"]) <= set(chat_mod.FIELDS), c["id"]
+
+
 def test_the_dev_set_never_repeats_a_test_message_and_the_prompt_quotes_none():
-    test = {c["message"].lower() for c in cases("test")}
+    test = {c["message"].lower() for c in cases("test") + cases("seasons")}
     assert not test & {c["message"].lower() for c in cases("dev")}
     prompt = chat_mod.PROMPT_PATH.read_text(encoding="utf-8").lower()
     assert not [m for m in test if m.rstrip("?") in prompt]

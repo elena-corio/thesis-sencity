@@ -1,7 +1,7 @@
 // The chat in the browser: intents and pills, each action carried out on made-up data, and the reply templates.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from './execute.js'
+import { compareSeasons, explainPlace, filterPlaces, levelOn, placeFacts, prepareCope, summariseProfile } from './execute.js'
 import { PRESETS, WHY_PRESET, blank, clean, isThis, pillsOf, withoutPill } from './intent.js'
 import * as T from './templates.js'
 
@@ -239,6 +239,75 @@ describe('templates', () => {
   it('never says "persona"', () => {
     const all = JSON.stringify([T.INTRO, T.EXAMPLES, T.outOfScope(), T.needArea(), T.needPlace(), T.needProfile(), PRESETS])
     expect(all).not.toMatch(/persona/i)
-    expect(T.EXAMPLES).toHaveLength(6)
+    expect(T.EXAMPLES).toHaveLength(7)
+  })
+})
+
+describe('compare_seasons (Elena, 2026-11-23: "which season is the best to go?")', () => {
+  // The standard-like limits here: hard above 32 or below 0, mixed above 26 or below 9.
+  const stateOf = (t) => (t > 32 || t < 0 ? 'hard' : t > 26 || t < 9 ? 'mixed' : 'easy')
+  const coldOf = (t) => t < 9
+  const three = [street('a', { senses: 'easy' }), street('b', { senses: 'easy' }), street('c', { senses: 'hard' })]
+  const values = {
+    spring: { a: 18, b: 20, c: 19 },
+    summer: { a: 35, b: 30, c: 34 },
+    autumn: { a: 17, b: 21, c: 18 },
+    winter: { a: -3, b: 2, c: -1 },
+  }
+
+  it('counts each season on Overall (the worse of the photos and that season), and names the best', () => {
+    const r = compareSeasons(three, values, { stateOf, coldOf })
+    expect(r.rows.map((x) => [x.season, x.easy, x.mixed, x.hard])).toEqual([
+      ['spring', 2, 0, 1], ['summer', 0, 1, 2], ['autumn', 2, 0, 1], ['winter', 0, 1, 2]])
+    expect(r.best).toEqual(['spring', 'autumn']) // a tie is said as one
+    expect(r.rows.find((x) => x.season === 'summer').why).toBe('heat')
+    expect(r.rows.find((x) => x.season === 'winter').why).toBe('cold')
+    expect(r.photos).toBe(true)
+  })
+
+  it('without photo ratings it rests on thermal comfort alone, and says so', () => {
+    const bare = three.map((f) => ({ ...f, properties: { ...f.properties, senses_state: null } }))
+    const r = compareSeasons(bare, { spring: values.spring, summer: values.summer }, { stateOf, coldOf })
+    expect(r.best).toEqual(['spring'])
+    expect(T.seasonsReply(r, { time: '15:00' }).text).toContain('From thermal comfort only: the photos are not rated yet.')
+  })
+
+  it('the reply: the best first with its numbers, then the others with heat or cold; a button to show it', () => {
+    const r = compareSeasons(three, values, { stateOf, coldOf })
+    const reply = T.seasonsReply(r, { time: '15:00', personal: true, current: 'summer', showing: true })
+    expect(reply.text).toBe('For you, Spring and autumn look best here at 15:00: 2 of 3 streets may feel easy and 1 hard. '
+      + 'Summer: 0 easy, 2 hard, mostly heat. Winter: 0 easy, 2 hard, mostly cold. '
+      + 'Only thermal comfort changes with the season; the photo ratings stay the same.')
+    expect(reply.actions).toEqual([{ id: 'season:spring', label: 'Show spring' }])
+    // Already on the map: no button, it says so.
+    const shown = T.seasonsReply(r, { time: '15:00', current: 'spring', showing: true })
+    expect(shown.actions).toEqual([])
+    expect(shown.text).toMatch(/^In general, .* The map already shows spring\.$/)
+  })
+
+  it('one place: its level and feels-like in each season', () => {
+    const r = compareSeasons([three[0]], values, { stateOf, coldOf })
+    expect(T.seasonsReply(r, { time: '15:00', place: 'Graben', personal: true }).text).toBe(
+      'For you, Graben looks best in spring and autumn at 15:00: easy, feels like 18 °C. '
+      + 'Summer: hard, feels like 35 °C. Winter: hard, feels like −3 °C. '
+      + 'Only thermal comfort changes with the season; the photo ratings stay the same.')
+  })
+
+  it('asks before billed runs, with how many', () => {
+    expect(T.seasonsAsk(3, { time: '15:00' })).toEqual({
+      text: 'To compare the seasons for this area I need thermal comfort for each season at 15:00: up to 3 new simulations, '
+        + 'billed by Infrared.city, a few minutes each (any already done are free). Run them?',
+      actions: [{ id: 'run-seasons', label: 'Run them' }],
+    })
+    expect(T.seasonsAsk(1, { time: '15:00', place: 'Graben' }).actions[0].label).toBe('Run it')
+  })
+
+  it('no thermal values: says the seasons cannot be compared', () => {
+    expect(T.seasonsReply(compareSeasons(three, {}, { stateOf }), { time: '15:00' }).text).toBe('There are no thermal values for this area, so the seasons cannot be compared.')
+  })
+
+  it('compare_seasons is a known action, and a named place is its pill', () => {
+    expect(clean(blank('compare_seasons', { near: 'Graben' }))?.action).toBe('compare_seasons')
+    expect(pillsOf(blank('compare_seasons', { near: 'Graben' }))).toEqual([{ key: 'near', label: 'Graben' }])
   })
 })
