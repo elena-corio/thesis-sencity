@@ -31,6 +31,7 @@ keeps it and sends it in the body of a rating request, where it is used for the 
 the body, not the URL, so they do not appear in access logs or the browser history either.
 """
 import json
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -735,6 +736,11 @@ def app_test_finish(user: auth.User = SignedIn) -> dict:
 
 # The built frontend (npm run build → frontend/dist), served from here in the one web service. Any path that is not
 # a file and not /api gets index.html, so the app's own routes (/area, /profile…) load on refresh.
+# .mjs (MapLibre's worker) and .js as JavaScript, whatever the system says (Python 3.11 on Linux may not know .mjs;
+# Windows can map .js to another type): a module sent as anything else is refused by the browser (2026-11-28: the
+# deployed map was blank).
+mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("text/javascript", ".js")
 DIST = senses_mod.REPO_ROOT / "frontend" / "dist"
 
 
