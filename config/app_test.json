@@ -1,6 +1,6 @@
 {
-  "_about": "The in-app test (D197 in the thesis log; docs/decisions.md 2026-11-28). The same photos for everyone, in this order: Elena's 8 (config/photo_specs/place21-28.txt), each a 640x640 square at fov 90 and its own pitch, fetched on demand and never stored (Street View: pano ID, heading, pitch, location and date only). copyright/contributor: a contributor photosphere's credit. approved stays false until Elena approves the list; until then the API refuses the test unless APP_TEST_ALLOW_UNAPPROVED=1 (local testing only).",
-  "approved": false,
+  "_about": "The in-app test (D197 in the thesis log; docs/decisions.md 2026-11-28). The same photos for everyone, in this order: Elena's 8 (config/photo_specs/place21-28.txt), each a 640x640 square at fov 90 and its own pitch, fetched on demand and never stored (Street View: pano ID, heading, pitch, location and date only). copyright/contributor: a contributor photosphere's credit. approved: Elena approved this list on 2026-11-28 (false would close the test again, except with APP_TEST_ALLOW_UNAPPROVED=1, local testing only).",
+  "approved": true,
   "info_sheet_url": "https://drive.google.com/file/d/1BzxHc9r6MhgXZehcxkk-k8Lc5t9es4Lx/view?usp=sharing",
   "free_text_max": 500,
   "photos": [

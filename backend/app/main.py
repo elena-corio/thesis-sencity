@@ -68,7 +68,7 @@ from . import steps
 
 full_cfg = load_config()
 cfg = full_cfg["api"]
-photo_source(full_cfg)  # refuses an unknown source, and Street View on Render, before the API starts
+PHOTO_SOURCE = photo_source(full_cfg)  # refuses an unknown source, and Street View on Render, before the API starts
 log = logging.getLogger("sencity.api")
 
 @asynccontextmanager
@@ -130,15 +130,23 @@ def _ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-# (pano ID, heading) of every Street View photo of a cached area or route: the only ones fetched (not an open proxy).
-_known_photos: set[tuple[str, float]] = photos_mod.load_all_known(full_cfg)
-_photo_pitches: dict[tuple[str, float], float] = {}
-try:  # and the app test's fixed photos (D197), whether or not an area holds them, each at its own pitch
-    _app_test_cfg_at_start = app_test_mod.load()
-    _known_photos |= app_test_mod.known_photos(_app_test_cfg_at_start)
-    _photo_pitches = app_test_mod.pitches(_app_test_cfg_at_start)
-except app_test_mod.AppTestError:
-    log.warning("app test: config/app_test.json cannot be used")
+def street_view_at_start(source: str) -> tuple[set[tuple[str, float]], dict[tuple[str, float], float]]:
+    """The only Street View photos the API fetches (not an open proxy), as (pano ID, heading), and the pitch of those
+    with their own. With Street View as the source: every photo of a cached area or route. With Mapillary (Render): none
+    of the map's, so only the app test's (exception of 2026-11-28: invited testers, on demand, never stored). The app
+    test's photos (D197) are added either way, each at its own pitch."""
+    known = photos_mod.load_all_known(full_cfg) if source == "streetview" else set()
+    pitches: dict = {}
+    try:
+        cfg = app_test_mod.load()
+        known |= app_test_mod.known_photos(cfg)
+        pitches = app_test_mod.pitches(cfg)
+    except app_test_mod.AppTestError:
+        log.warning("app test: config/app_test.json cannot be used")
+    return known, pitches
+
+
+_known_photos, _photo_pitches = street_view_at_start(PHOTO_SOURCE)
 # The Street View images (the key stays here) and the pictures for the model; created on first use, on the server only.
 _streetview = None
 _images = None

@@ -46,6 +46,10 @@ services:
         sync: false
       - key: MAPILLARY_ACCESS_TOKEN
         sync: false
+      # Street View, for the app test's 8 photos only (exception of 2026-11-28: invited testers, on demand, never
+      # stored, under streetview.daily_image_cap). The map stays Mapillary: no other Street View image is fetched here.
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
       # Clerk's development instance for now (production needs our own domain): its sk_test_/pk_test_ keys.
       - key: CLERK_SECRET_KEY
         sync: false

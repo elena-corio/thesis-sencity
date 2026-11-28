@@ -283,26 +283,70 @@ Clerk shows a small "Development mode" badge, and development instances have usa
 Moving to a production instance with our own domain is a later step (new `pk_live_…`/`sk_live_…` keys, the domain's
 DNS records in Clerk, then the same env vars with the new values).
 
-**Environment variables** (names only; values in the dashboard):
-- you set: `OPENROUTER_API_KEY`, `INFRARED_API_KEY`, `MAPILLARY_ACCESS_TOKEN`, `CLERK_SECRET_KEY` (the dev instance's
-  `sk_test_…`), `VITE_CLERK_PUBLISHABLE_KEY` (its `pk_test_…`), `CLERK_AUTHORIZED_PARTIES` (the Render address, e.g.
-  `https://sencity.onrender.com`);
-- set by the blueprint: `DATABASE_URL`, `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`, `NODE_VERSION`, and the per-user
-  limits `LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`, `LIMIT_RUNS_PER_DAY`,
-  `LIMIT_MODEL_CALLS_PER_DAY`;
-- optional, per address (defaults in `config/tool.yaml`, sized for a class on one network):
+**Environment variables** (names only; values only in the dashboard, never in this repo or a chat):
+- **you paste into Render yourself:** `CLERK_SECRET_KEY` (the dev instance's `sk_test_…`), `VITE_CLERK_PUBLISHABLE_KEY`
+  (its `pk_test_…`), `CLERK_AUTHORIZED_PARTIES` (the Render address, e.g. `https://sencity.onrender.com`, no trailing
+  slash), `OPENROUTER_API_KEY`, `GOOGLE_MAPS_API_KEY` (Street View, for the app test's 8 photos only),
+  `MAPILLARY_ACCESS_TOKEN`, `INFRARED_API_KEY`;
+- **set by the blueprint:** `DATABASE_URL` (from the Frankfurt database), `PHOTO_SOURCE=mapillary`, `PYTHON_VERSION`,
+  `NODE_VERSION`, and the per-user limits `LIMIT_CHAT_PER_HOUR`, `LIMIT_CHAT_PER_DAY`, `LIMIT_RUNS_PER_HOUR`,
+  `LIMIT_RUNS_PER_DAY`, `LIMIT_MODEL_CALLS_PER_DAY`;
+- **set by Render itself:** `RENDER` (Street View is then refused for the map) and `RENDER_GIT_COMMIT` (the app version
+  saved with each app-test answer);
+- **optional**, per address (defaults in `config/tool.yaml`, sized for a class on one network):
   `IP_LIMIT_SENSES_PER_HOUR` (100), `IP_LIMIT_CHAT_PER_HOUR` (600), `IP_LIMIT_AREA_PER_HOUR` (100),
   `IP_LIMIT_ROUTES_PER_HOUR` (50), `IP_LIMIT_THERMAL_PER_HOUR` (50, each run billed), `IP_LIMIT_SEARCH_PER_MINUTE`
-  (120), `IP_LIMIT_REVERSE_PER_MINUTE` (120), `IP_LIMIT_PHOTO_PER_MINUTE` (600).
+  (120), `IP_LIMIT_REVERSE_PER_MINUTE` (120), `IP_LIMIT_PHOTO_PER_MINUTE` (600); `APP_VERSION` overrides the commit;
+- **never on Render:** `APP_TEST_ALLOW_UNAPPROVED` (local testing only), `VITE_AUTH` (the build refuses `off`).
+
+**The model.** No model setting is an environment variable: every prediction (profile, presence, rating, chat, the app
+test's estimates) uses the export named by `api.senses.export` in `config/tool.yaml` (now `app_v9`). The code refuses an
+export whose `model.json` lacks zero data retention, denies no data collection, allows fallbacks, names a `:free` model
+or an endpoint that is not an EU one (`…/eu`), and checks every file against the export's MANIFEST, so the study's
+OpenRouter settings hold on Render too. **To switch** (e.g. after Tuesday's final run): add the new export folder
+(`model/app_v10/`), change that one value, run the tests, merge and deploy. Ratings made with the old export are never
+reused (their stamp holds its commit).
+
+**Street View on Render: the app test only** (exception of 2026-11-28). The map uses Mapillary there; the only Street
+View images the API fetches are the app test's 8 photos, on demand, never stored, for invited testers only (Clerk's
+invite-only mode), counted against `streetview.daily_image_cap`.
 
 **By hand, once:**
 1. Merge into `main` (the blueprint deploys `main`).
-2. Render: New > Blueprint, pick this repo; enter the values above (the Clerk ones from the **development** instance).
-   The web service, the database and the disk are all created in Frankfurt.
+2. Render: New > Blueprint, pick this repo; paste the values above (the Clerk ones from the **development** instance).
+   The web service, the database and the disk are all created in **Frankfurt**.
 3. After the first deploy, set `CLERK_AUTHORIZED_PARTIES` to the service's address and redeploy.
 4. Clerk dashboard (development instance): keep email code as the only sign-in method and the invite-only access mode;
-   invite people from **Users > Invite**, with the redirect URL `<Render address>/sign-in`.
-5. Open the site, accept an invitation, and check sign-in, a profile save and "Delete my account and data".
+   add the Render address to the allowed origins / redirect URLs if Clerk asks; invite people from **Users > Invite**,
+   with the redirect URL `<Render address>/sign-in`.
+5. Check the live app (list below).
+
+Later deploys: Manual Deploy > Deploy latest commit (`autoDeploy` is off). The start command runs `python -m app.db
+migrate` first, so new tables (the app test's) are created in the Render database on the first start.
+
+**Exporting the app test from Render.** The database accepts no outside connections (`ipAllowList: []`). To export:
+1. Render > `sencity-db` > Info: copy the **External Database URL** (keep it out of chats and files).
+2. Render > `sencity-db` > Access Control: add your current IP address.
+3. On your computer, from `backend/`, with that URL for this one command:
+   `DATABASE_URL="<external URL>" ../.venv/Scripts/python -m app.app_test_export` (Git Bash; in PowerShell set
+   `$env:DATABASE_URL` first and remove it after). It writes `data/raw/app_test/app_test_<time>.csv` (gitignored).
+4. Remove your IP from Access Control again. (A blueprint sync may also reset the list to the file's empty one.)
+
+**Checklist for the live app** (after each deploy that touches the app test):
+1. `<Render address>/api/health` answers `{"ok": true}`.
+2. Open the address in a private window: the welcome page; "Create your profile" shows the privacy notice; sign in with
+   an invited test address (`…+clerk_test@…`, code `424242`).
+3. Make a profile, save it, and check it is still there after a reload (it is in the database).
+4. Profile > "Rate a few places": the consent screen links the information sheet; the box is unticked.
+5. **Without consent:** leave the box unticked, Start, rate place 1 (photo square, "© Google", the estimate with
+   bothers / pleases and "A prediction, not a reason"), then Leave. Nothing is saved (export later: no rows for this
+   account).
+6. **With consent:** with a second invited test account (one test per account; make and save a profile first), tick the box, Start, rate place 1 with a
+   reason answer and a short text, skip place 2, then Leave. Reopen: it goes on at place 3.
+7. Export (above): rows only for the second account, place 1 with its rating and text, place 2 with an empty rating,
+   and the app version (the deployed commit) and model export commit filled in.
+8. place26 shows "© Ilan-Tal". The map's own photos are Mapillary.
+9. "Delete my account and data" for both test accounts; export again: their rows are gone.
 
 Build: `pip install -r backend/requirements.txt && cd frontend && npm ci && npm run build && npm run check:bundle`.
 Start: `cd backend && python -m app.db migrate && uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
