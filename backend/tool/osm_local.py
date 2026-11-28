@@ -1,7 +1,7 @@
 """A local copy of OpenStreetMap for one city, so a new area or route does not wait for the public Overpass server.
 
   python -m tool.osm_local              # downloads what is missing into runs/osm/vienna/ (free, resumes)
-  python -m tool.osm_local --limit 12   # the 12 tiles nearest the centre (on Render: the city centre, about 10 min)
+  python -m tool.osm_local --limit 16   # the 16 tiles nearest Stephansplatz: the inner districts (on Render, ~15 min)
   python -m tool.osm_local --limit 2    # only two tiles, to try it
   python -m tool.osm_local --refresh    # downloads every tile again
 
@@ -129,16 +129,32 @@ out geom;
 """
 
 
+def by_distance(local: dict) -> list[tuple[int, int]]:
+    """Every tile, nearest osm_local.centre first (metres between the tile's middle and the centre); without a centre,
+    the box's middle."""
+    west, south, east, north = local["bbox"]
+    size = local["tile_deg"]
+    clon, clat = local.get("centre") or ((west + east) / 2, (south + north) / 2)
+    cols, rows = _grid(local)
+
+    def metres(t):
+        lon, lat = west + (t[0] + 0.5) * size, south + (t[1] + 0.5) * size
+        return math.hypot((lon - clon) * M_PER_DEG_LAT * math.cos(math.radians(clat)), (lat - clat) * M_PER_DEG_LAT)
+    return sorted(((c, r) for c in range(cols) for r in range(rows)), key=metres)
+
+
 def download(cfg: dict, limit: int | None = None, refresh: bool = False) -> int:
     """Fetch the tiles still missing, gently, one at a time. Returns how many failed."""
     local = cfg["osm_local"]
     cols, rows = _grid(local)
-    todo = [(c, r) for c in range(cols) for r in range(rows) if refresh or not tile_path((c, r), local).exists()]
-    todo.sort(key=lambda t: (t[0] - cols / 2) ** 2 + (t[1] - rows / 2) ** 2)  # the centre first: usable early
-    print(f"{cols * rows} tiles in all, {len(todo)} to fetch", flush=True)
+    # Nearest the centre first, so a partial download is usable early; with --limit, the limit counts from the centre
+    # (tiles already there count too), so --limit 16 always means "the 16 nearest", whatever was fetched before.
+    ordered = by_distance(local)[:limit] if limit else by_distance(local)
+    todo = [t for t in ordered if refresh or not tile_path(t, local).exists()]
+    print(f"{cols * rows} tiles in all, {len(ordered)} wanted, {len(todo)} to fetch", flush=True)
     server = {"overpass_url": cfg["osm"]["overpass_url"], "timeout_s": local["timeout_s"]}
     failed = 0
-    for i, tile in enumerate(todo[:limit] if limit else todo, 1):
+    for i, tile in enumerate(todo, 1):
         started = time.perf_counter()
         try:
             data = _post(tile_query(tile, cfg), server)
@@ -159,7 +175,7 @@ def download(cfg: dict, limit: int | None = None, refresh: bool = False) -> int:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Download a local copy of OpenStreetMap for the city in config/tool.yaml (osm_local).")
-    ap.add_argument("--limit", type=int, default=None, help="fetch at most this many tiles")
+    ap.add_argument("--limit", type=int, default=None, help="only the N tiles nearest osm_local.centre (16: the inner districts)")
     ap.add_argument("--refresh", action="store_true", help="fetch every tile again")
     args = ap.parse_args()
     failed = download(load_config(), args.limit, args.refresh)

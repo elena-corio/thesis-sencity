@@ -130,6 +130,9 @@ osm_local:
                              # Under runs/: on Render that is the persistent disk, so the copy survives deploys
                              # (2026-11-28; it was data/osm/vienna)
   bbox: [16.18, 48.11, 16.58, 48.33]   # west, south, east, north: Vienna
+  centre: [16.3721, 48.2085]           # lon, lat: Stephansplatz. Tiles are downloaded nearest this first (by distance in
+                                       # metres), so --limit 16 covers the inner districts (2026-11-28: the box's middle
+                                       # lies north-east of the old town, and --limit 12 missed Karlsplatz and the west)
   tile_deg: 0.03             # about 2 x 3 km: a circle or a route touches only a few
   pause_s: 3                 # between tiles, to be gentle with the public server
   timeout_s: 180
