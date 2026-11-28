@@ -16,6 +16,9 @@ export const REASONS = [
   { code: 'partly', label: 'Partly' },
   { code: 'no', label: 'No' },
 ]
+/** "Skip for now" pressed in this browser: kept here only (nothing is sent without consent) and sent as skipped_first
+ *  if the person starts later. Cleared with the rest of this browser's data (sign-out, delete). */
+export const SKIPPED_KEY = 'sencity-app-test-skipped'
 export const CONSENT_TEXT = 'My ratings and answers may be saved and used anonymously in the thesis.'
 
 const isScore = (v) => Number.isInteger(v) && v >= 1 && v <= 5

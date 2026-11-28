@@ -1,6 +1,8 @@
 <script setup>
-// The in-app test (D197; docs/decisions.md 2026-11-28): optional, after sign-in and the profile. Three screens:
-// 1. consent: what it is, the information sheet, an unticked box. Without the tick it still runs, but nothing is saved.
+// The in-app test (D197; docs/decisions.md 2026-11-28): optional, offered right after the profile questions (?from=profile)
+// and later from "Rate 8 places" (account menu, Profile), until it is finished. Three screens:
+// 1. intro: what comes next, the information sheet, an unticked box; Start (only once ticked) or "Skip for now" (to the
+//    map; nothing is saved, this browser only remembers the skip). An unfinished test goes on at its next photo.
 // 2. one screen per photo, the same photos in the same order for everyone: the survey's scenario line and the photo;
 //    the app's estimate for you (1–5 and what may bother / what may please, the map's own personal prediction); then
 //    your rating, B1 in the survey's exact words and scale; then "Were the reasons right for you?" and a short text.
@@ -8,7 +10,7 @@
 // The estimate comes before your rating on purpose (the test asks whether it is useful); this can pull ratings towards
 // it, which the thesis log records as a limitation (D197). Never "persona": "the app's estimate", "your profile".
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppLogo from '../components/AppLogo.vue'
 import ScoreChoice from '../components/ScoreChoice.vue'
 import SenseItem from '../components/SenseItem.vue'
@@ -22,6 +24,9 @@ import { useAppTestStore } from '../stores/appTest.js'
 import { useProfileStore } from '../stores/profile.js'
 
 const router = useRouter()
+const route = useRoute()
+// Where the test was opened from: right after the profile questions, or later (saved with the session).
+const entry = route.query.from === 'profile' ? 'profile' : 'later'
 const store = useAppTestStore()
 const profile = useProfileStore()
 const phone = useMedia('(max-width: 767px)')
@@ -57,7 +62,7 @@ onMounted(async () => {
 
 async function begin() {
   busy.value = true
-  const ok = await store.choose(ticked.value)
+  const ok = await store.choose(true, entry)
   busy.value = false
   if (ok) store.estimate(profile.profile)
 }
@@ -74,6 +79,12 @@ watch(() => store.index, () => {
 })
 watch(() => store.consent, focusTitle)
 watch(settled, (s) => { if (s && p.value) store.shown(p.value.id) }, { immediate: true })
+
+/** "Skip for now": to the map. Nothing is sent; the entry point stays until the test is finished. */
+function skipForNow() {
+  store.skip()
+  router.push('/area')
+}
 
 async function next(skip = false) {
   if (!skip && rating.value == null) {
@@ -92,9 +103,11 @@ async function next(skip = false) {
   <main ref="page" class="app-test" :class="{ phone }" data-panel="app-test" data-scrollable>
     <header class="head">
       <AppLogo class="logo" />
-      <span class="head-title">Rate a few places</span>
+      <span class="head-title">Rate {{ total || 8 }} places</span>
       <span class="spacer" />
-      <button type="button" class="link" @click="router.push('/profile')">{{ store.atEnd ? 'Close' : 'Leave' }}</button>
+      <!-- On the intro, its own two buttons; during the test, back to the map (what is saved stays, it goes on later). -->
+      <button v-if="store.consent !== 'unset' || store.atEnd" type="button" class="link" @click="router.push('/area')">
+        {{ store.atEnd ? 'Close' : 'Leave for now' }}</button>
     </header>
 
     <section v-if="!ready || store.status === 'loading'" class="card panel" aria-busy="true">
@@ -118,21 +131,21 @@ async function next(skip = false) {
 
     <!-- 1. Consent -->
     <section v-else-if="store.consent === 'unset'" class="card panel" aria-labelledby="t-consent" data-testid="app-test-consent">
-      <h1 id="t-consent" tabindex="-1">Rate a few places (optional)</h1>
-      <p>You will see {{ total }} places in Vienna, one at a time. For each one you see the app's estimate for you, then you give
-        your own rating and say whether the app's reasons fit you. It takes about 5 minutes.</p>
-      <p class="muted">This is an extra test for a master's thesis, separate from the survey. You can stop at any time.</p>
+      <h1 id="t-consent" tabindex="-1">Next: rate {{ total }} places</h1>
+      <p>You will see {{ total }} places in Vienna, one at a time, about 10 minutes. For each one you first see the app's
+        estimate for you, then you give your own rating.</p>
+      <p class="muted">Optional, for a master's thesis, separate from the survey. You can stop at any time and go on later.</p>
       <p><a :href="store.infoSheetUrl" target="_blank" rel="noopener">Read the information sheet</a></p>
       <label class="agree">
         <input v-model="ticked" type="checkbox" data-testid="app-test-box">
         <span>{{ CONSENT_TEXT }}</span>
       </label>
       <p class="muted" aria-live="polite" data-testid="app-test-saving">{{ ticked ? 'Your answers will be saved, without your name or email.'
-        : 'Without the tick you can still take part, but nothing from this test is saved.' }}</p>
+        : 'Tick the box to start. If you skip, nothing from this test is saved.' }}</p>
       <p v-if="store.saveError" class="message" role="alert">{{ store.saveError }}</p>
       <div class="actions">
-        <button type="button" class="btn" @click="router.push('/profile')">Not now</button>
-        <button type="button" class="btn btn-primary" :disabled="busy" data-testid="app-test-start" @click="begin">Start</button>
+        <button type="button" class="btn" data-testid="app-test-skip" @click="skipForNow">Skip for now</button>
+        <button type="button" class="btn btn-primary" :disabled="busy || !ticked" data-testid="app-test-start" @click="begin">Start</button>
       </div>
     </section>
 

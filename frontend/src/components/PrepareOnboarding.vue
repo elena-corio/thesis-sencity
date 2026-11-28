@@ -10,6 +10,7 @@ import { complete, answered } from '../lib/profile.js'
 import { isAnswered, scoreOf, toggle } from '../lib/prepare.js'
 import { rowText, textOf } from '../lib/questions.js'
 import { useProfileStore } from '../stores/profile.js'
+import { useAppTestStore } from '../stores/appTest.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
 
@@ -48,7 +49,9 @@ async function next() {
     store.setStep(store.profileSteps.findIndex((c) => !answered(store.survey, store.draft.answers, c)))
     return
   }
-  await store.finish()
+  // A new profile goes on to the app test's intro (when it is open and not started); an edit stays on the profile.
+  const isNew = !store.draft.editing
+  if (await store.finish() && isNew) await useAppTestStore().offerAfterProfile(router)
 }
 /** Back: the previous question, or from the first one the profile's last step (Weather). */
 function back() {

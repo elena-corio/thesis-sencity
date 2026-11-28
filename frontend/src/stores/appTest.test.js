@@ -4,7 +4,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const api = vi.hoisted(() => ({ calls: [], session: null, rateFails: false }))
+const api = vi.hoisted(() => ({ calls: [], session: null, rateFails: false, started: null }))
 const PHOTOS = [
   { order: 1, id: 'sv:AAAAAAAAAAAA', source: 'streetview', pano_id: 'AAAAAAAAAAAA', heading: 10, name: 'One' },
   { order: 2, id: 'sv:BBBBBBBBBBBB', source: 'streetview', pano_id: 'BBBBBBBBBBBB', heading: 20, name: 'Two' },
@@ -13,7 +13,7 @@ const PHOTOS = [
 const element = (code) => ({ code, n: 1, en: code, it: code, icon_key: 'sight' })
 vi.mock('../lib/api.js', () => ({
   getAppTest: async () => ({ photos: PHOTOS, info_sheet_url: 'https://example.org/sheet', free_text_max: 500, session: api.session }),
-  startAppTest: async () => { api.calls.push('start'); return { session: { finished: false, answered: [], rated: 0 } } },
+  startAppTest: async (how) => { api.calls.push('start'); api.started = how; return { session: { finished: false, answered: [], rated: 0 } } },
   saveAppTestAnswer: async (a) => { api.calls.push(['answer', a]); return { saved: true } },
   finishAppTest: async () => { api.calls.push('finish'); return { session: { finished: true, answered: [], rated: 1 } } },
   rateSenses: async (photos, onEvent) => {
@@ -105,10 +105,49 @@ describe('the app test', () => {
     expect(Object.values(store.estimates).map((e) => e.status)).toEqual(['failed', 'failed', 'failed'])
   })
 
+  it('"Skip for now" sends nothing and keeps the way back in', async () => {
+    store.skip()
+    expect(api.calls).toEqual([])
+    expect(globalThis.localStorage.getItem('sencity-app-test-skipped')).toBeTruthy()
+    expect(store.available).toBe(true) // the "Rate 8 places" entry stays
+    expect(store.started).toBe(false)
+  })
+
+  it('says where it started and whether it was skipped first', async () => {
+    await store.choose(true, 'profile')
+    expect(api.started).toEqual({ entry: 'profile', skippedFirst: false })
+    setActivePinia(createPinia())
+    const { useAppTestStore } = await import('./appTest.js')
+    const later = useAppTestStore()
+    await later.load()
+    later.skip()
+    await later.choose(true, 'later')
+    expect(api.started).toEqual({ entry: 'later', skippedFirst: true })
+  })
+
+  it('offers the intro after a new profile only while the test is open and not started', async () => {
+    const pushed = []
+    const router = { push: (to) => pushed.push(to) }
+    await store.offerAfterProfile(router)
+    expect(pushed).toEqual([{ path: '/app-test', query: { from: 'profile' } }])
+    await store.choose(true, 'profile')
+    await store.offerAfterProfile(router)
+    expect(pushed).toHaveLength(1) // started: not again
+  })
+
+  it('is gone from the entry point once the photos are done', async () => {
+    await answerAll(true)
+    expect(store.available).toBe(false)
+  })
+
   it('goes on where an earlier opt-in left off', async () => {
     api.session = { finished: false, answered: [PHOTOS[0].id], rated: 1 }
     await store.load()
     expect(store.consent).toBe('yes')
     expect(store.index).toBe(1)
+    expect(store.photo.id).toBe(PHOTOS[1].id) // the next unrated photo, in the fixed order
+    await store.estimate(PROFILE)
+    await store.submit({ rating: 3 })
+    expect(saved().map((a) => [a.order, a.photo_id])).toEqual([[2, PHOTOS[1].id]]) // nothing sent again for photo 1
   })
 })

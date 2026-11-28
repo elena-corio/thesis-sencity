@@ -9,6 +9,7 @@ import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '.
 import { cleanWeather } from '../lib/weather.js'
 import { cleanPrepare, emptyPrepare } from '../lib/prepare.js'
 import { PREPARE_KEYS, PROFILE_KEYS, stepsOf } from '../lib/questions.js'
+import { SKIPPED_KEY } from '../lib/appTest.js'
 import { allRatings, clearRatings, forgetRemoteRatings, setRatings, useRemoteRatings } from '../lib/myRatings.js'
 import { useHelpStore } from './help.js'
 import { useAdjustStore } from './adjust.js'
@@ -239,7 +240,7 @@ export const useProfileStore = defineStore('profile', () => {
     profile.value = null
     draft.value = null
     consent.value = null
-    for (const k of [SAVED_KEY, DRAFT_KEY, CONSENT_KEY]) write(k, null)
+    for (const k of [SAVED_KEY, DRAFT_KEY, CONSENT_KEY, SKIPPED_KEY]) write(k, null)
     try { sessionStorage.removeItem(PENDING_CONSENT_KEY) } catch { /* blocked */ }
     personalRatings.clearAll()
     forgetRemoteRatings() // never sends an empty list: the account's ratings stay on the server (or are deleted with it)

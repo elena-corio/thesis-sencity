@@ -230,8 +230,9 @@ To run with sign-in locally, put the Clerk **development** keys in `.env`: `CLER
 `VITE_CLERK_PUBLISHABLE_KEY` (Clerk dashboard > API keys), then `npm run dev`. Test emails: any address with
 `+clerk_test` (for example `you+clerk_test@example.com`) signs in with the code `424242`, no email sent.
 
-**The in-app test** (D197 in the thesis log; `docs/decisions.md` 2026-11-28): an optional extra at `/app-test`,
-offered on the Profile page after the profile is saved. The fixed photos, the information sheet link and whether the
+**The in-app test** (D197 in the thesis log; `docs/decisions.md` 2026-11-28): an optional extra at `/app-test`, offered
+right after a new profile is saved (intro with the consent box, Start or Skip for now), and later from "Rate 8 places" in
+the account menu and on the Profile page until it is finished. The fixed photos, the information sheet link and whether the
 list is approved are in `config/app_test.json`. Until `"approved": true` the API refuses the test (503), unless
 `APP_TEST_ALLOW_UNAPPROVED=1` is in `.env` (local testing only: never on Render). Answers are saved only after the test's
 own tick, in the tables `app_test_sessions` and `app_test_answers`; "Delete my account and data" removes them too.

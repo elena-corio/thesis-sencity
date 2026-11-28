@@ -221,3 +221,36 @@ def test_the_export_writes_one_row_per_person_and_photo(client, cfg, with_profil
     assert [r["rating_b1"] for r in rows] == ["2", "3", "", "4"]
     assert rows[0]["photo_name"] == cfg["photos"][0]["name"] and rows[0]["estimate_bothers"] == "traffic_trams"
     assert json.loads(rows[0]["profile_answers"])["answers"] == PROFILE["answers"]
+
+
+def test_the_session_says_where_it_started_and_whether_it_was_skipped_first(client, cfg, with_profile):
+    assert client.post("/api/app-test/start", json={"consent": True, "entry": "somewhere"}).status_code == 422
+    assert db.app_test_session("user_test") is None
+    assert client.post("/api/app-test/start", json={"consent": True, "entry": "later", "skipped_first": True}).status_code == 200
+    s = db.app_test_session("user_test")
+    assert (s["entry"], s["skipped_first"]) == ("later", True)
+    client.post("/api/app-test/answer", json=answer(cfg, 0))
+    row = app_test_export.rows(db.app_test_export(), {})[0]
+    assert (row["entry"], row["skipped_first"]) == ("later", "True")
+
+
+def test_started_right_after_the_profile(client, cfg, with_profile):
+    client.post("/api/app-test/start", json={"consent": True, "entry": "profile"})
+    s = db.app_test_session("user_test")
+    assert (s["entry"], s["skipped_first"]) == ("profile", False)
+
+
+def test_migrate_adds_the_new_columns_to_a_table_that_already_exists(tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+    e = create_engine(f"sqlite:///{(tmp_path / 'old.db').as_posix()}")
+    with e.begin() as c:  # the table as schema version 2 made it, with a row in it
+        c.execute(text("CREATE TABLE app_test_sessions (id VARCHAR(36) PRIMARY KEY, clerk_user_id VARCHAR(64) NOT NULL UNIQUE, "
+                       "consented_at DATETIME NOT NULL, started_at DATETIME NOT NULL, finished_at DATETIME, "
+                       "photo_set VARCHAR(16) NOT NULL, app_version VARCHAR(40) NOT NULL, profile JSON NOT NULL, profile_version VARCHAR(32))"))
+        c.execute(text("INSERT INTO app_test_sessions VALUES ('s1', 'user_old', '2026-11-28', '2026-11-28', NULL, 'abc', 'v', '{}', NULL)"))
+    assert db.migrate(e) == db.SCHEMA_VERSION
+    assert {"entry", "skipped_first"} <= {c["name"] for c in inspect(e).get_columns("app_test_sessions")}
+    with e.begin() as c:
+        assert c.execute(text("SELECT clerk_user_id, entry, skipped_first FROM app_test_sessions")).one() == ("user_old", None, None)
+    db.migrate(e)  # safe to run again
+    e.dispose()

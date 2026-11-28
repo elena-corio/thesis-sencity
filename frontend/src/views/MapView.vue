@@ -23,6 +23,7 @@ import PhoneSheet from '../components/PhoneSheet.vue'
 import ProfilePage from '../components/ProfilePage.vue'
 import AppLogo from '../components/AppLogo.vue'
 import { useProfileStore } from '../stores/profile.js'
+import { useAppTestStore } from '../stores/appTest.js'
 import { useSensesStore } from '../stores/senses.js'
 import { useWalkStore } from '../stores/walk.js'
 import WalkView from '../components/WalkView.vue'
@@ -53,6 +54,7 @@ const router = useRouter()
 onMounted(async () => {
   try {
     if (await profile.syncAccount() === 'notice') router.replace({ path: '/welcome', query: { notice: '1' } })
+    else useAppTestStore().ensureLoaded() // for "Rate 8 places" in the account menu (fails quietly without an account)
   } catch {
     // The API could not be reached: the map still works; the profile loads on the next visit.
   }

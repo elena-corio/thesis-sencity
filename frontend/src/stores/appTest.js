@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { finishAppTest, getAppTest, rateSenses, saveAppTestAnswer, startAppTest } from '../lib/api.js'
-import { answerOf, estimateOf, nextIndex } from '../lib/appTest.js'
+import { SKIPPED_KEY, answerOf, estimateOf, nextIndex } from '../lib/appTest.js'
 import * as personalRatings from '../lib/personalRatings.js'
 import { requestProfile } from '../lib/profile.js'
 
@@ -10,9 +10,15 @@ import { requestProfile } from '../lib/profile.js'
  * everyone, in the order the server gives (config/app_test.json). For each: the app's estimate for this person (the
  * same personal prediction as the map, POST /api/senses/rate), then their own B1, then whether the reasons were right.
  *
- * Saving needs the test's own tick (`consent` 'yes'). Without it the flow works the same, but nothing is sent: no
- * session, no answer, no end. With it, each answer is sent as it is given, so leaving halfway keeps what was answered.
+ * It is offered right after the profile questions (Elena, 2026-11-28): an intro with the consent box, Start (only once
+ * ticked) or "Skip for now" (to the map; nothing is saved, only this browser remembers the skip). The "Rate 8 places"
+ * entry (account menu, Profile) opens the same intro until the test is finished; an unfinished test goes on at the next
+ * photo without an answer. Each answer is sent as it is given, so leaving halfway keeps what was answered.
  */
+
+function skippedHere() {
+  try { return !!localStorage.getItem(SKIPPED_KEY) } catch { return false }
+}
 export const useAppTestStore = defineStore('appTest', () => {
   const status = ref('idle') // 'idle' | 'loading' | 'ready' | 'closed' | 'error'
   const error = ref('')
@@ -37,6 +43,28 @@ export const useAppTestStore = defineStore('appTest', () => {
   const atEnd = computed(() => photos.value.length > 0 && index.value >= photos.value.length)
   const rated = computed(() => ratedOnServer.value ?? Object.values(answers.value).filter((a) => a.rating != null).length)
   const saving = computed(() => consent.value === 'yes')
+  /** The entry point shows: the test is open and not finished (an unfinished one goes on where it stopped). */
+  const available = computed(() => status.value === 'ready' && !finished.value)
+  const started = computed(() => consent.value === 'yes')
+
+  /** Load once (the menu, the profile page and the end of the profile all ask). */
+  let loading = null
+  function ensureLoaded() {
+    if (status.value === 'ready' || status.value === 'closed') return Promise.resolve()
+    loading ??= load().finally(() => { loading = null })
+    return loading
+  }
+
+  /** Right after a new profile is saved: the intro, if the test is open and not started yet (Elena, 2026-11-28). */
+  async function offerAfterProfile(router) {
+    await ensureLoaded()
+    if (available.value && !started.value) router.push({ path: '/app-test', query: { from: 'profile' } })
+  }
+
+  /** "Skip for now": nothing is sent; this browser remembers it, for skipped_first if the person starts later. */
+  function skip() {
+    try { localStorage.setItem(SKIPPED_KEY, new Date().toISOString()) } catch { /* blocked: not remembered */ }
+  }
 
   /** The photos and, with an earlier opt-in, where the person left off. */
   async function load() {
@@ -60,15 +88,16 @@ export const useAppTestStore = defineStore('appTest', () => {
     }
   }
 
-  /** The consent screen answered: with the tick a session is opened on the server; without, nothing is sent. */
-  async function choose(agreed) {
+  /** The consent screen answered: with the tick a session is opened on the server (with where it started and whether
+   *  it was skipped before); without, nothing is sent. */
+  async function choose(agreed, entry = 'later') {
     saveError.value = ''
     if (!agreed) {
       consent.value = 'no'
       return true
     }
     try {
-      await startAppTest()
+      await startAppTest({ entry, skippedFirst: skippedHere() })
       consent.value = 'yes'
       return true
     } catch (err) {
@@ -152,5 +181,5 @@ export const useAppTestStore = defineStore('appTest', () => {
   }
 
   return { status, error, photos, infoSheetUrl, freeTextMax, consent, index, estimates, answers, saveError, finished,
-    photo, atEnd, rated, saving, load, choose, estimate, shown, submit }
+    photo, atEnd, rated, saving, available, started, load, ensureLoaded, offerAfterProfile, skip, choose, estimate, shown, submit }
 })

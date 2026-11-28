@@ -12,14 +12,14 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import (JSON, Column, DateTime, ForeignKey, Integer, MetaData, String, Table, create_engine, delete,
-                        insert, select, update)
+from sqlalchemy import (JSON, Boolean, Column, DateTime, ForeignKey, Integer, MetaData, String, Table, create_engine, delete,
+                        inspect, insert, select, text, update)
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
 from tool.config import REPO_ROOT
 
-SCHEMA_VERSION = 2  # 2: the app test's two tables (2026-11-28)
+SCHEMA_VERSION = 3  # 2: the app test's two tables; 3: where a session started (entry, skipped_first) (2026-11-28)
 metadata = MetaData()
 
 accounts = Table(
@@ -61,6 +61,8 @@ app_test_sessions = Table(
     Column("app_version", String(40), nullable=False),
     Column("profile", JSON, nullable=False),                           # the profile answers as they were at the start
     Column("profile_version", String(32)),
+    Column("entry", String(16)),                                       # "profile" (right after the profile) | "later"
+    Column("skipped_first", Boolean),                                  # pressed "Skip for now" before starting
 )
 app_test_answers = Table(
     "app_test_answers", metadata,
@@ -116,6 +118,15 @@ def migrate(e: Engine | None = None) -> int:
     """Create the tables that are missing and record the schema version. Returns the version."""
     e = e or engine()
     metadata.create_all(e)
+    # Columns added to a table that already exists (create_all adds only missing tables): nullable, so old rows stay.
+    added = {"app_test_sessions": {"entry": "VARCHAR(16)", "skipped_first": "BOOLEAN"}}
+    have = inspect(e)
+    for table, cols in added.items():
+        present = {c["name"] for c in have.get_columns(table)}
+        with e.begin() as c:
+            for name, sql_type in cols.items():
+                if name not in present:
+                    c.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
     with e.begin() as c:
         found = c.execute(select(schema_version.c.version)).first()
         if found is None:
@@ -264,7 +275,8 @@ def app_test_export() -> list[dict]:
     """Every saved answer with its session, one row per person and photo (for app/app_test_export.py)."""
     s, a = app_test_sessions, app_test_answers
     with engine().begin() as c:
-        rows = c.execute(select(s.c.clerk_user_id, s.c.id.label("session_id"), s.c.consented_at, s.c.started_at,
+        rows = c.execute(select(s.c.clerk_user_id, s.c.id.label("session_id"), s.c.entry, s.c.skipped_first,
+                                s.c.consented_at, s.c.started_at,
                                 s.c.finished_at, s.c.photo_set, s.c.profile, s.c.profile_version.label("session_profile_version"),
                                 a.c.photo_id, a.c.order_shown, a.c.estimate, a.c.rating, a.c.reasons_right, a.c.free_text,
                                 a.c.shown_at, a.c.answered_at, a.c.app_version, a.c.model, a.c.export_commit,
