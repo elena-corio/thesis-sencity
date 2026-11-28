@@ -1,0 +1,17 @@
+{
+  "_about": "The profile questions of the onboarding: which are shown, in what order, and their labels on screen (Elena, 2026-11-28). Only what the screen shows changes: the stored keys, the answers and the profile text the model reads stay as they are (the text is built from model/app_v9/, never from these labels). Two parts, in this order: profile, then prepare (how you prepare for new places); the order inside each part is free. Each entry: key (required), shown (default true; A11, A12 and A13 must stay shown, the profile text needs them), and optional title, help ({\"en\": ..., \"it\": ...}) and rows ({row or option code: {\"en\": ...}}: grid rows of A12/A13, weather rows hot/cold/wind, options of Q2/Q4). Checked by backend/app/profile_questions.py.",
+  "profile": [
+    { "key": "intro" },
+    { "key": "A11" },
+    { "key": "A12" },
+    { "key": "A13" },
+    { "key": "A16" },
+    { "key": "weather" }
+  ],
+  "prepare": [
+    { "key": "Q1" },
+    { "key": "Q2" },
+    { "key": "Q3" },
+    { "key": "Q4" }
+  ]
+}

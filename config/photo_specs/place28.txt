@@ -1,0 +1,18 @@
+Google Street View — image specifications
+Fetched November 28, 2026 from the Street View Static API, by pano id
+
+Panorama
+  pano_id       AqHRxylthYuz2zVamzs8-Q
+  Capture date  2024-10
+  Copyright     © 2026 Google
+
+Location (panorama)
+  Latitude   48.212920
+  Longitude  16.336492
+
+Street View
+  Heading  189.9°
+  Pitch    7.5°
+  FOV      90°
+
+Size  640 x 640

@@ -266,16 +266,18 @@ class StreetViewImages:
     """The Street View image a card or the walk shows, for /api/photo and for the model. Only photos chosen for a loaded
     area or route (`known`), so this is not an open Street View proxy. In memory only."""
 
-    def __init__(self, cfg: dict, known: set):
+    def __init__(self, cfg: dict, known: set, pitches: dict | None = None):
         from tool.photos.streetview import StreetViewProvider
         self.cfg, self.known = cfg, known
+        # (pano ID, heading) → pitch, for photos with a pitch of their own (the app test's, D197); else the config's.
+        self.pitches = pitches or {}
         self.provider = StreetViewProvider(cfg)
 
     def fetch(self, pano_id: str, heading: float) -> bytes:
         if not PANO_ID.match(pano_id) or (pano_id, round(heading, 1)) not in self.known:
             raise mapillary.NotThisPhoto("Not a photo of a loaded area or route.")
         take_image(self.cfg)
-        return self.provider.fetch_image(pano_id, heading)
+        return self.provider.fetch_image(pano_id, heading, self.pitches.get((pano_id, round(heading, 1))))
 
 
 class Images:

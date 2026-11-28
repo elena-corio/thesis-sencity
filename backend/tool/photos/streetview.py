@@ -72,7 +72,8 @@ class StreetViewProvider(PhotoProvider):
             copyright=copyright_,
         )
 
-    def fetch_image(self, photo_id: str, heading: float) -> bytes:
+    def fetch_image(self, photo_id: str, heading: float, pitch: float | None = None) -> bytes:
+        """The square crop (size, fov from the config); pitch from the config unless given (the app test's photos)."""
         with self._count_lock:
             self.image_calls += 1
         resp = self._get(self.cfg["image_url"], {
@@ -80,7 +81,7 @@ class StreetViewProvider(PhotoProvider):
             "heading": f"{heading:.1f}",
             "size": self.cfg["size"],
             "fov": self.cfg["fov"],
-            "pitch": self.cfg["pitch"],
+            "pitch": self.cfg["pitch"] if pitch is None else pitch,
             "return_error_code": "true",
         })
         resp.raise_for_status()

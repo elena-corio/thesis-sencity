@@ -146,8 +146,8 @@ def client(tmp_path, monkeypatch):
                                                       "usage_file": str(tmp_path / "usage.json")})
     calls = []
 
-    def fetch(self, pano_id, heading):
-        calls.append((pano_id, heading))
+    def fetch(self, pano_id, heading, pitch=None):
+        calls.append((pano_id, heading) if pitch is None else (pano_id, heading, pitch))
         return b"JPEG"
     monkeypatch.setattr(StreetViewProvider, "fetch_image", fetch)
     monkeypatch.setattr(main, "_streetview", None)
@@ -176,6 +176,15 @@ def test_a_photo_is_streamed_through_and_not_kept(client):
     assert client.calls == [("panoAAAAAAAAAA", 90.0)]
     usage = json.loads(client.usage.read_text())
     assert usage["images"] == 1 and set(usage) == {"date", "images"}  # a count, nothing else
+
+
+def test_a_photo_with_its_own_pitch_is_fetched_at_it(client, monkeypatch):
+    # The app test's photos (D197): the square at the specs' pitch, shown and rated alike; the others at the config's.
+    main._known_photos.add(("panoBBBBBBBBBB", 18.6))
+    monkeypatch.setattr(main, "_photo_pitches", {("panoBBBBBBBBBB", 18.6): 7.5})
+    assert client.get("/api/photo/panoBBBBBBBBBB?heading=18.6").status_code == 200
+    assert client.get("/api/photo/panoAAAAAAAAAA?heading=90").status_code == 200
+    assert client.calls == [("panoBBBBBBBBBB", 18.6, 7.5), ("panoAAAAAAAAAA", 90.0)]
 
 
 def test_the_daily_cap_stops_the_images(client):

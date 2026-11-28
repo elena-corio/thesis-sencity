@@ -152,6 +152,7 @@ cd ..   # repo root
 .venv/Scripts/python -m pytest backend/tests --rootdir backend
 .venv/Scripts/python -m pytest backend/tests/test_senses.py --rootdir backend   # only the Senses request and replies
 .venv/Scripts/python -m pytest backend/tests/test_profile.py --rootdir backend  # only your sensory profile (text, checks, V0/V2)
+.venv/Scripts/python -m pytest backend/tests/test_app_test.py --rootdir backend # only the in-app test (consent, fixed order, no 0 for a missing rating, export)
 ```
 
 **Chat intent accuracy (paid).** The chat parser is checked on two fixed sets of requests. Each request is one model call (about $0.00075):
@@ -228,6 +229,30 @@ cd backend
 To run with sign-in locally, put the Clerk **development** keys in `.env`: `CLERK_SECRET_KEY` and
 `VITE_CLERK_PUBLISHABLE_KEY` (Clerk dashboard > API keys), then `npm run dev`. Test emails: any address with
 `+clerk_test` (for example `you+clerk_test@example.com`) signs in with the code `424242`, no email sent.
+
+**The in-app test** (D197 in the thesis log; `docs/decisions.md` 2026-11-28): an optional extra at `/app-test`,
+offered on the Profile page after the profile is saved. The fixed photos, the information sheet link and whether the
+list is approved are in `config/app_test.json`. Until `"approved": true` the API refuses the test (503), unless
+`APP_TEST_ALLOW_UNAPPROVED=1` is in `.env` (local testing only: never on Render). Answers are saved only after the test's
+own tick, in the tables `app_test_sessions` and `app_test_answers`; "Delete my account and data" removes them too.
+To try it locally: set `APP_TEST_ALLOW_UNAPPROVED=1`, run `npm run dev`, sign in, save a profile, then Profile >
+"Rate a few places". Each photo's estimate is a personal prediction (one model call per photo not yet rated with this
+profile: two calls for these photos, the presence list and the rating, about $0.002; plus one Street View image for the model and one per photo shown, about $0.007 each: about $0.13 for the 8 photos). Each photo is a 640 × 640 square at its own pitch from `config/app_test.json` (7.5°, Elena's specs in `config/photo_specs/`), fetched on demand and never stored.
+
+Export (one row per person and photo; empty cells for a missing rating, never 0):
+
+```bash
+cd backend
+../.venv/Scripts/python -m app.app_test_export                 # → data/raw/app_test/app_test_<UTC time>.csv (gitignored)
+../.venv/Scripts/python -m app.app_test_export --out some/dir  # elsewhere
+```
+
+It reads the database in `DATABASE_URL` (empty: the local SQLite file). For Render's Postgres, set `DATABASE_URL` to its
+external URL for that one command. The file holds Clerk user ids (pseudonyms) and free text: keep it out of the repo.
+
+**The profile questions** (which are shown, their order inside each part, and their words on screen) are set in
+`config/profile_questions.json` (checked by `backend/app/profile_questions.py` and served with the survey). The stored
+keys, the answers and the profile text the model reads never change with it; A11, A12 and A13 must stay shown.
 
 The browser tests (`npm run test:e2e`) run the development server with `VITE_AUTH=off`: no Clerk, the profile stays in
 the browser as before. `npm run build` refuses `VITE_AUTH=off` and needs `VITE_CLERK_PUBLISHABLE_KEY`.

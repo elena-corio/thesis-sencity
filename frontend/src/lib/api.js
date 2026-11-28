@@ -188,3 +188,9 @@ export const deleteProfileData = () => json('DELETE', '/api/profile')
 /** Your own photo ratings (the whole list). */
 export const getOwnRatings = async () => (await json('GET', '/api/ratings/own')).ratings ?? []
 export const putOwnRatings = (list) => json('PUT', '/api/ratings/own', list)
+
+// The in-app test (D197): its photos and saved progress; the opt-in; one answer at a time; the end.
+export const getAppTest = () => json('GET', '/api/app-test')
+export const startAppTest = () => json('POST', '/api/app-test/start', { consent: true })
+export const saveAppTestAnswer = (answer) => json('POST', '/api/app-test/answer', answer)
+export const finishAppTest = () => json('POST', '/api/app-test/finish', {})
