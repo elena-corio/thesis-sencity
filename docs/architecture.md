@@ -128,7 +128,7 @@ flowchart LR
 
 | Path | What it does |
 |---|---|
-| `src/main.js`, `src/App.vue`, `src/router.js` | App entry; `/area` and `/routes` are one view around one map (`/` and any other path redirect to `/area`) |
+| `src/main.js`, `src/App.vue`, `src/router.js` | App entry (MapLibre's worker shipped as a file of the build and set with `setWorkerUrl`: without it a built app has no worker and the map stays blank; the API serves `.mjs` and `.js` as JavaScript); `/area` and `/routes` are one view around one map (`/` and any other path redirect to `/area`) |
 | `src/views/MapView.vue` | Map view, for Area and Routes: places every floating panel from the viewport; phone layout below 768 px |
 | `src/components/MapCanvas.vue` | MapLibre map, theme style swap, the two-click selection (pointer, touch, keyboard), crosshair, edge handle, radius chip, pan to keep the circle visible; in Routes: clicks set Start and End, pins, hover and click on a stretch, fit the way in the free space |
 | `src/map/routes.js` | Route layers: each street in its state colour, A continuous, B dashed over runs of one state, glow, selected edge, the rest dimmed on hover |
