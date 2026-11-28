@@ -125,16 +125,36 @@ out geom;
     return _post(query, cfg["osm"])
 
 
-def _post(query: str, osm: dict) -> dict:
-    # The public server answers 429/502/503/504 when busy: wait and try again.
-    for attempt in range(4):
-        resp = requests.post(osm["overpass_url"], data={"data": query}, timeout=osm["timeout_s"] + 30,
-                             headers={"User-Agent": "SenCity thesis tool (fetch_photos)"})
-        if resp.status_code not in (429, 502, 503, 504) or attempt == 3:
-            break
-        time.sleep(10 * (attempt + 1))
-    resp.raise_for_status()
-    return resp.json()
+def fallback_urls() -> list[str]:
+    """Other public Overpass servers, asked only when the main one cannot be reached or stays busy (2026-11-28: the
+    deployed app could not connect to overpass-api.de). Their own config section (`overpass`), not `osm`, so the
+    area and route cache keys, which hash `osm`, do not change."""
+    from .config import load_config
+    return [u for u in (load_config().get("overpass") or {}).get("fallback_urls", []) if isinstance(u, str) and u]
+
+
+def _post(query: str, osm: dict, fallbacks: list[str] | None = None) -> dict:
+    """The query on the main server; on a connection error, a timeout or a server that stays busy, on the next one.
+    The public servers answer 429/502/503/504 when busy: wait and try again (3 more times on the main server)."""
+    urls = [osm["overpass_url"], *(fallback_urls() if fallbacks is None else fallbacks)]
+    last: Exception | None = None
+    for n, url in enumerate(urls):
+        tries = 4 if n == 0 else 2
+        try:
+            for attempt in range(tries):
+                resp = requests.post(url, data={"data": query}, timeout=osm["timeout_s"] + 30,
+                                     headers={"User-Agent": "SenCity thesis tool (fetch_photos)"})
+                if resp.status_code not in (429, 502, 503, 504) or attempt == tries - 1:
+                    break
+                time.sleep(10 * (attempt + 1))
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if isinstance(e, requests.HTTPError) and status not in (429, 502, 503, 504):
+                raise  # a real answer (a bad query): another server would say the same
+            last = e
+    raise last
 
 
 def parse_buildings(data: dict, proj: LocalProjection, inset_m: float = 0):

@@ -2,6 +2,15 @@
 
 One entry per decision, newest at the top. **(proposed)** marks a choice Claude made where the brief leaves it open; it stands until Elena confirms or changes it. **(accepted)** means Elena confirmed it.
 
+## 2026-11-28 – Overpass fallback servers, and the area says which service failed (proposed)
+**Context.** On Render a new area failed with "Could not load street photos for this area" and the log said `area failed: ConnectionError`: the server could not connect. Locally the streets come from the copy of Vienna in `data/osm/vienna/` (gitignored, so not on Render); on Render every new area asks the public Overpass server, which often refuses or drops shared cloud addresses.
+**Proposed (Claude).**
+- *Fallback servers:* when `osm.overpass_url` cannot be reached, times out, or stays busy (429/502/503/504 after the retries), the same query goes to `overpass.private.coffee`, then `overpass.kumi.systems` (`overpass.fallback_urls` in `config/tool.yaml`). A real error answer (a bad query) is not sent elsewhere. Their own section, not `osm`, so the area and route cache keys (which hash `osm`, and the thermal key with them) do not change: nothing already paid for is paid again.
+- *Privacy:* these servers receive what overpass-api.de already receives: the circle of an area, or the corridor of a route (which shows roughly where someone walks, never the start or end as such), from our server's address, never the user's.
+- *The message says which service failed:* "The street map (OpenStreetMap) could not be reached: its public servers are busy. Try again in a minute.", "The street photos (Mapillary) could not be reached. …", or the server's own sentence (e.g. Mapillary not set up); the app shows the server's sentence instead of always the general one. The log gives the error type and the host only (no path or query).
+**Alternatives.** The Vienna copy on Render's disk (303 MB, 112 tiles): no public server at all for Vienna, but it has to be uploaded to the disk by hand (it cannot be downloaded from Render if Overpass refuses Render); the next step if the fallbacks are not enough.
+**Consequences.** Two more external services that see area circles and route corridors (docs/architecture.md).
+
 ## 2026-11-28 – Deploying the app test on Render; the model version as one setting (accepted; details proposed)
 **Context.** Elena: prepare the Render deployment for the app test (Frankfurt for the service and the database; Clerk's development instance with `CLERK_AUTHORIZED_PARTIES` set to the Render address; OpenRouter as in the study: zero data retention, the EU endpoint, no free endpoints); the app-test data in the deployed database, readable by the export script; the current model version for the estimates until Tuesday's final run, with switching as a single setting.
 **Decision (Elena).**
