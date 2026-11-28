@@ -11,6 +11,7 @@ the grid and the UTCI per segment, so the same area, season and time is never pa
 import hashlib
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
@@ -113,7 +114,12 @@ def run_area(lat: float, lon: float, radius: int, cfg: dict, key: str | None = N
     data = steps.load(where, key, "osm") if key else None
     if data is None:
         yield {"type": "stage", "stage": "streets"}
-        data = osm_local.around(lat, lon, radius, cfg) or fetch_overpass(lat, lon, radius, cfg, with_buildings=True)
+        started = time.perf_counter()
+        data = osm_local.around(lat, lon, radius, cfg)
+        source = "local copy"
+        if data is None:
+            data, source = fetch_overpass(lat, lon, radius, cfg, with_buildings=True), "Overpass"
+        log.info("area streets: %s, %.1f s", source, time.perf_counter() - started)  # no place, no person: source and time
         if key:
             steps.save(where, key, "osm", data)
     footprints = parse_buildings(data, proj, 0)
