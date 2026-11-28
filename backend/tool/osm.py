@@ -133,16 +133,24 @@ def fallback_urls() -> list[str]:
     return [u for u in (load_config().get("overpass") or {}).get("fallback_urls", []) if isinstance(u, str) and u]
 
 
+CONNECT_TIMEOUT_S = 10   # a server that does not answer at all is left after this, not after the whole read timeout
+DEAD_FOR_S = 600         # a server that could not be reached is skipped for this long (2026-11-28: slow areas on Render)
+_dead: dict[str, float] = {}
+
+
 def _post(query: str, osm: dict, fallbacks: list[str] | None = None) -> dict:
     """The query on the main server; on a connection error, a timeout or a server that stays busy, on the next one.
-    The public servers answer 429/502/503/504 when busy: wait and try again (3 more times on the main server)."""
+    The public servers answer 429/502/503/504 when busy: wait and try again (3 more times on the main server). A server
+    that could not be reached is skipped for DEAD_FOR_S, unless every server is (then all are tried again)."""
     urls = [osm["overpass_url"], *(fallback_urls() if fallbacks is None else fallbacks)]
+    now = time.monotonic()
+    alive = [u for u in urls if _dead.get(u, 0) <= now] or urls
     last: Exception | None = None
-    for n, url in enumerate(urls):
-        tries = 4 if n == 0 else 2
+    for url in alive:
+        tries = 4 if url == urls[0] else 2
         try:
             for attempt in range(tries):
-                resp = requests.post(url, data={"data": query}, timeout=osm["timeout_s"] + 30,
+                resp = requests.post(url, data={"data": query}, timeout=(CONNECT_TIMEOUT_S, osm["timeout_s"] + 30),
                                      headers={"User-Agent": "SenCity thesis tool (fetch_photos)"})
                 if resp.status_code not in (429, 502, 503, 504) or attempt == tries - 1:
                     break
@@ -153,6 +161,8 @@ def _post(query: str, osm: dict, fallbacks: list[str] | None = None) -> dict:
             status = getattr(getattr(e, "response", None), "status_code", None)
             if isinstance(e, requests.HTTPError) and status not in (429, 502, 503, 504):
                 raise  # a real answer (a bad query): another server would say the same
+            if isinstance(e, (requests.ConnectionError, requests.ConnectTimeout)):
+                _dead[url] = time.monotonic() + DEAD_FOR_S
             last = e
     raise last
 

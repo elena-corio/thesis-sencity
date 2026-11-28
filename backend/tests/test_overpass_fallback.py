@@ -36,6 +36,7 @@ def fake_post(plan, asked):
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
     monkeypatch.setattr(osm.time, "sleep", lambda s: None)
+    osm._dead.clear()
 
 
 def test_the_next_server_answers_when_the_main_one_cannot_be_reached(monkeypatch):
@@ -86,3 +87,23 @@ def test_the_area_says_which_service_failed():
     assert main_mod._failed_host(failed("https://graph.mapillary.com/images?bbox=1,2,3,4")) == "graph.mapillary.com"
     assert main_mod._area_failure(main_mod.mapillary_mod.MapillaryError("Mapillary photos are not set up on the server.")) \
         == "Mapillary photos are not set up on the server."
+
+
+def test_a_server_that_cannot_be_reached_is_skipped_for_a_while(monkeypatch):
+    asked = []
+    plan = {OSM["overpass_url"]: requests.ConnectionError("no"), FALLBACKS[0]: Answer(200)}
+    monkeypatch.setattr(osm.requests, "post", fake_post(plan, asked))
+    osm._post("q", OSM, FALLBACKS)
+    osm._post("q", OSM, FALLBACKS)
+    assert asked == [OSM["overpass_url"], FALLBACKS[0], FALLBACKS[0]]  # the second area goes straight to a working one
+
+
+def test_the_connection_is_given_up_quickly_but_the_answer_may_take_long(monkeypatch):
+    seen = {}
+
+    def post(url, **kw):
+        seen.update(kw)
+        return Answer(200)
+    monkeypatch.setattr(osm.requests, "post", post)
+    osm._post("q", OSM, [])
+    assert seen["timeout"] == (osm.CONNECT_TIMEOUT_S, OSM["timeout_s"] + 30)

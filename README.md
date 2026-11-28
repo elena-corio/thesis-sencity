@@ -329,7 +329,8 @@ Overpass servers, which is slow. Once, in Render > `sencity` > **Shell**:
 ```bash
 cd backend && python -m tool.osm_local --limit 12   # the 12 tiles nearest the centre, about 10 minutes
 ```
-It saves into `runs/osm/vienna/` on the persistent disk (about 3 MB a tile), so it survives deploys. Keep the Shell
+It saves into `runs/osm/vienna/` on the persistent disk (about 3 MB a tile), so it survives deploys. Each new area logs
+where its streets came from: `area streets: local copy, 0.3 s` (from the disk) or `area streets: Overpass, 40.2 s`. Keep the Shell
 open until it prints "done"; if it stops, run it again: it goes on with the missing tiles. Without `--limit` it fetches
 all 112 tiles (about 300 MB, one to two hours). An area or route outside the downloaded tiles still asks Overpass.
 

@@ -71,6 +71,14 @@ full_cfg = load_config()
 cfg = full_cfg["api"]
 PHOTO_SOURCE = photo_source(full_cfg)  # refuses an unknown source, and Street View on Render, before the API starts
 log = logging.getLogger("sencity.api")
+# The app's own log lines (never bodies, profiles or keys) at info level too, so Render shows e.g. how long an area's
+# streets took and from where. Python prints only warnings by default; other libraries stay at their own level.
+_sencity_log = logging.getLogger("sencity")
+if not _sencity_log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    _sencity_log.addHandler(_handler)
+    _sencity_log.setLevel(logging.INFO)
 
 @asynccontextmanager
 async def _lifespan(_app):
