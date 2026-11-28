@@ -15,6 +15,8 @@
                      the browser carries the intent out and writes the reply. Never stored or logged
 - GET/PUT/DELETE /api/profile, GET/PUT /api/ratings/own   your profile and your own photo ratings, in our database
 - POST /api/account/consent, DELETE /api/account          the privacy notice agreed; delete your account and data
+- GET /api/app-test, POST /api/app-test/start|answer|finish   the in-app test (D197): fixed photos, its own opt-in,
+                     answers saved only after it (config/app_test.json, app/app_test.py)
 - GET  /api/health   public: the API is up and the database answers
 
 Sign-in (Elena, 2026-11-22): every /api route but /api/health needs a Clerk session, checked on the server
@@ -31,6 +33,8 @@ the body, not the URL, so they do not appear in access logs or the browser histo
 import json
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Literal
 import logging
 import threading
 import time
@@ -46,6 +50,7 @@ from tool.config import load_config, photo_source
 from tool.photos import mapillary as mapillary_mod
 from tool.infrared import km_between
 
+from . import app_test as app_test_mod
 from . import area as area_mod
 from . import auth
 from . import db
@@ -55,6 +60,7 @@ from . import formula as formula_mod
 from . import photos as photos_mod
 from . import prepare as prepare_mod
 from . import profile as profile_mod
+from . import profile_questions as layout_mod
 from . import routes as routes_mod
 from . import search as search_mod
 from . import senses as senses_mod
@@ -126,6 +132,13 @@ def _ip(request: Request) -> str:
 
 # (pano ID, heading) of every Street View photo of a cached area or route: the only ones fetched (not an open proxy).
 _known_photos: set[tuple[str, float]] = photos_mod.load_all_known(full_cfg)
+_photo_pitches: dict[tuple[str, float], float] = {}
+try:  # and the app test's fixed photos (D197), whether or not an area holds them, each at its own pitch
+    _app_test_cfg_at_start = app_test_mod.load()
+    _known_photos |= app_test_mod.known_photos(_app_test_cfg_at_start)
+    _photo_pitches = app_test_mod.pitches(_app_test_cfg_at_start)
+except app_test_mod.AppTestError:
+    log.warning("app test: config/app_test.json cannot be used")
 # The Street View images (the key stays here) and the pictures for the model; created on first use, on the server only.
 _streetview = None
 _images = None
@@ -137,7 +150,7 @@ def _make_streetview():
     global _streetview
     with _images_lock:
         if _streetview is None:
-            _streetview = photos_mod.StreetViewImages(full_cfg, _known_photos)
+            _streetview = photos_mod.StreetViewImages(full_cfg, _known_photos, _photo_pitches)
         return _streetview
 
 
@@ -426,7 +439,11 @@ def profile_survey(user: auth.User = SignedIn) -> dict:
     so the browser builds and shows the same text as the server; and the optional step about new places
     (config/prepare.json). Nothing personal."""
     try:
-        return {**profile_mod.survey(profile_mod.load()), "prepare": prepare_mod.load()}
+        survey, prepare = profile_mod.survey(profile_mod.load()), prepare_mod.load()
+        return {**survey, "prepare": prepare, "layout": layout_mod.load(survey, prepare)}
+    except layout_mod.LayoutError as e:
+        log.warning("profile: config/profile_questions.json cannot be used")
+        raise HTTPException(503, f"The profile questions cannot be loaded. {e}") from None
     except senses_mod.ExportError as e:
         log.warning("profile: the export cannot be used")
         raise HTTPException(503, f"The survey cannot be loaded. {e}") from None
@@ -536,7 +553,8 @@ def account(user: auth.User = SignedIn) -> dict:
 
 @app.delete("/api/account")
 def account_delete(user: auth.User = SignedIn) -> dict:
-    """"Delete my account and data": our rows first, then the Clerk user. The browser then signs out."""
+    """"Delete my account and data": our rows first (the app test's too), then the Clerk user. The browser then signs out."""
+    db.delete_app_test(user.clerk_user_id)
     db.delete_account(user.account_id)
     auth.delete_clerk_user(user.clerk_user_id)
     log.info("account: deleted")
@@ -591,6 +609,120 @@ async def ratings_put(request: Request, user: auth.User = SignedIn) -> dict:
         raise HTTPException(422, "The ratings could not be read.")
     db.put_ratings(user.account_id, data)
     return {"saved": len(data)}
+
+
+# The app test (D197, Elena 2026-11-28): optional, exploratory, separate from the survey study. The fixed photos come
+# from config/app_test.json; nothing is saved before the test's own opt-in, and then only under the Clerk user id.
+# Request bodies (ratings, free text) are never logged.
+def _app_test_cfg() -> dict:
+    try:
+        cfg = app_test_mod.load()
+    except app_test_mod.AppTestError as e:
+        log.warning("app test: config/app_test.json cannot be used")
+        raise HTTPException(503, f"The app test cannot be loaded. {e}") from None
+    if not app_test_mod.is_open(cfg):
+        raise HTTPException(503, "The app test is not open yet.")
+    return cfg
+
+
+def _app_test_state(session: dict | None) -> dict | None:
+    if not session:
+        return None
+    answered = db.app_test_answered(session["id"])
+    return {"finished": session["finished_at"] is not None, "answered": [a["photo_id"] for a in answered],
+            "rated": sum(1 for a in answered if a["rating"] is not None)}
+
+
+@app.get("/api/app-test")
+def app_test_get(user: auth.User = SignedIn) -> dict:
+    """The fixed photos in their order, the information sheet, and the person's saved progress (only after opt-in)."""
+    cfg = _app_test_cfg()
+    return {"photos": app_test_mod.public(cfg), "info_sheet_url": cfg["info_sheet_url"], "approved": cfg["approved"],
+            "photo_set": app_test_mod.photo_set(cfg), "free_text_max": cfg["free_text_max"],
+            "session": _app_test_state(db.app_test_session(user.clerk_user_id))}
+
+
+class AppTestStart(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    consent: bool
+
+
+@app.post("/api/app-test/start")
+def app_test_start(body: AppTestStart, user: auth.User = SignedIn) -> dict:
+    """The opt-in ticked: one session per person, with the profile answers as they are now."""
+    cfg = _app_test_cfg()
+    if not body.consent:
+        raise HTTPException(422, "Nothing is saved without your consent.")
+    _consented(user)
+    snapshot = app_test_mod.profile_snapshot(db.get_profile(user.account_id))
+    if snapshot is None:
+        raise HTTPException(409, "Make your profile first.")
+    session = db.start_app_test(user.clerk_user_id, consented_at=db.now(), photo_set=app_test_mod.photo_set(cfg),
+                                app_version=app_test_mod.app_version(), profile=snapshot, profile_version=snapshot.get("version"))
+    return {"session": _app_test_state(session)}
+
+
+class AppTestEstimate(BaseModel):
+    """The app's estimate as it was on screen: the 1–5 rating, its level and the reasons, with what made it."""
+    model_config = ConfigDict(extra="forbid")
+    comfort: int = Field(..., ge=1, le=5)
+    level: Literal["easy", "mixed", "hard"]
+    bothers: list[str] = Field(default_factory=list, max_length=20)
+    feels_good: list[str] = Field(default_factory=list, max_length=20)
+    model: str = Field(..., max_length=200)
+    commit: str = Field(..., pattern=r"^[0-9a-f]{7,40}$")
+    prompt: str = Field("", max_length=20)
+    profile_version: str | None = Field(None, max_length=32)
+    personal: bool
+
+
+class AppTestAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    photo_id: str = Field(..., max_length=140)
+    order: int = Field(..., ge=1, le=8)
+    estimate: AppTestEstimate | None = None   # null: the app could not make one
+    rating: int | None = Field(None, ge=1, le=5)  # B1; missing or null is stored as missing (0 is refused)
+    reasons_right: Literal["yes", "partly", "no"] | None = None
+    free_text: str = Field("", max_length=2000)
+    shown_at: datetime
+    answered_at: datetime | None = None
+
+
+@app.post("/api/app-test/answer")
+def app_test_answer(body: AppTestAnswer, user: auth.User = SignedIn) -> dict:
+    """One photo's answer. Refused without the opt-in, for a photo not in the test, or out of the fixed order."""
+    cfg = _app_test_cfg()
+    session = db.app_test_session(user.clerk_user_id)
+    if not session:
+        raise HTTPException(403, "Nothing is saved without your consent.")
+    if session["photo_set"] != app_test_mod.photo_set(cfg):
+        raise HTTPException(409, "The places of the test have changed. Reload the page.")
+    if app_test_mod.order_of(cfg, body.photo_id) != body.order:
+        raise HTTPException(422, "This place is not in the test's fixed order.")
+    free = body.free_text.strip()
+    if len(free) > cfg["free_text_max"]:
+        raise HTTPException(422, f"Please keep the text under {cfg['free_text_max']} characters.")
+    est = body.estimate
+    db.save_app_test_answer({
+        "session_id": session["id"], "photo_id": body.photo_id, "order_shown": body.order,
+        "estimate": est.model_dump() if est else None, "rating": body.rating,
+        "reasons_right": body.reasons_right if est else None, "free_text": free or None,
+        "shown_at": body.shown_at, "answered_at": body.answered_at, "app_version": app_test_mod.app_version(),
+        "model": est.model if est else None, "export_commit": est.commit if est else None,
+        "prompt_version": est.prompt if est else None, "profile_version": est.profile_version if est else None,
+    })
+    return {"saved": True}
+
+
+@app.post("/api/app-test/finish")
+def app_test_finish(user: auth.User = SignedIn) -> dict:
+    """The end screen: how many places were rated (nothing to finish without the opt-in)."""
+    _app_test_cfg()
+    session = db.app_test_session(user.clerk_user_id)
+    if not session:
+        raise HTTPException(403, "Nothing is saved without your consent.")
+    db.finish_app_test(session["id"])
+    return {"session": _app_test_state(db.app_test_session(user.clerk_user_id))}
 
 
 # The built frontend (npm run build → frontend/dist), served from here in the one web service. Any path that is not

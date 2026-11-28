@@ -4,11 +4,13 @@ import { AUTH_ON } from '../lib/auth.js'
 // your own words (no "Strongest for you": Elena, 2026-11-21), and the device-only actions: download,
 // import, delete. The radar (ProfileRadar) under the title; under the overall comfort, the temperature that feels
 // comfortable (ThermalComfortBar, from the Weather step). "Places that may suit you" comes later.
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import config from '../config.js'
 import { GRIDS, gridRows } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
-import { STEPS, useProfileStore } from '../stores/profile.js'
+import { useProfileStore } from '../stores/profile.js'
+import { useAppTestStore } from '../stores/appTest.js'
 import AppIcon from './AppIcon.vue'
 import ProfileRadar from './ProfileRadar.vue'
 import HowClose from './HowClose.vue'
@@ -22,6 +24,10 @@ import { anyAnswered, answerText } from '../lib/prepare.js'
 defineProps({ error: { type: String, default: '' } })
 const emit = defineEmits(['map', 'download', 'import', 'delete'])
 const store = useProfileStore()
+// The in-app test (D197): offered here, after the profile, only while it is open (config/app_test.json).
+const router = useRouter()
+const appTest = useAppTestStore()
+onMounted(() => { if (AUTH_ON && appTest.status === 'idle') appTest.load() })
 const lang = config.language
 const survey = computed(() => store.survey)
 const p = computed(() => store.profile)
@@ -30,7 +36,8 @@ const a11 = computed(() => question('A11'))
 const words = (code) => question(code).scale[lang]
 const kind = (v) => (v <= 2 ? 'bothers' : v >= 4 ? 'good' : 'neither')
 const saved = computed(() => new Date(p.value.saved).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))
-const edit = (code) => store.begin(STEPS.indexOf(code))
+// A question hidden in the layout (config/profile_questions.json) opens the onboarding at its start.
+const edit = (code) => store.begin(Math.max(0, store.steps.indexOf(code)))
 const limits = computed(() => store.limits ?? standardLimits())
 const moved = computed(() => !!p.value.thermal)
 // How you prepare for new places (config/prepare.json): optional, kept with the profile, never sent to the model.
@@ -158,6 +165,16 @@ function a11Key(e) {
         <p v-else class="muted" data-testid="answers-prepare-empty">Optional, four short questions. Never sent to the model.</p>
       </template>
 
+      <div v-if="appTest.status === 'ready'" class="app-test" data-testid="app-test-offer">
+        <h3>Rate a few places (optional)</h3>
+        <p v-if="appTest.finished" class="muted">Thank you: you rated {{ appTest.rated }} {{ appTest.rated === 1 ? 'place' : 'places' }}.</p>
+        <template v-else>
+          <p class="muted">{{ appTest.photos.length }} places, about 5 minutes: see the app's estimate for you, then give your own rating.
+            For a master's thesis; you choose whether anything is saved.</p>
+          <button type="button" class="btn" @click="router.push('/app-test')">{{ appTest.consent === 'yes' ? 'Go on' : 'Start' }}</button>
+        </template>
+      </div>
+
       <div class="buttons">
         <button type="button" class="btn" @click="store.begin(1)">Edit answers</button>
         <button type="button" class="btn btn-primary" @click="emit('map')">Go to map</button>
@@ -186,6 +203,7 @@ h2 { font-size: var(--fs-xl); font-weight: var(--fw-semibold); line-height: 1.2;
 h3 { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-2); }
 .group { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .group-head { display: flex; align-items: baseline; gap: var(--space-3); justify-content: space-between; }
+.app-test { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding-top: var(--space-3); border-top: var(--hairline) solid var(--line); }
 .edit { border: 0; background: none; padding: var(--space-2); min-height: var(--touch); color: var(--text-2); text-decoration: underline; flex: none; }
 .overall, .thermal { padding-bottom: var(--space-3); border-bottom: var(--hairline) solid var(--line); }
 .rows .plain-icon { color: var(--text-muted); }

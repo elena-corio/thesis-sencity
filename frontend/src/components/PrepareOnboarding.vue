@@ -8,7 +8,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { complete, answered } from '../lib/profile.js'
 import { isAnswered, scoreOf, toggle } from '../lib/prepare.js'
-import { PROFILE_STEPS, useProfileStore } from '../stores/profile.js'
+import { rowText, textOf } from '../lib/questions.js'
+import { useProfileStore } from '../stores/profile.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
 
@@ -20,9 +21,14 @@ const card = ref(null)
 const def = computed(() => store.survey.prepare)
 const answers = computed(() => store.draft?.prepare ?? {})
 const editing = computed(() => !!store.draft?.editing)
-const step = computed(() => Math.max(0, (store.draft?.step ?? PROFILE_STEPS.length) - PROFILE_STEPS.length))
-const q = computed(() => def.value.questions[Math.min(step.value, def.value.questions.length - 1)])
-const count = computed(() => def.value.questions.length)
+// The shown questions in the layout's order, and their words on screen (config/profile_questions.json, lib/questions.js).
+const keys = computed(() => store.prepareSteps)
+const step = computed(() => Math.max(0, (store.draft?.step ?? store.profileSteps.length) - store.profileSteps.length))
+const q = computed(() => def.value.questions.find((x) => x.code === keys.value[Math.min(step.value, keys.value.length - 1)]))
+const count = computed(() => keys.value.length)
+const title = computed(() => textOf(store.survey, q.value.code, 'title', q.value.title.en, 'en'))
+const help = computed(() => (q.value.help ? textOf(store.survey, q.value.code, 'help', q.value.help.en, 'en') : ''))
+const optionText = (o) => rowText(store.survey, q.value.code, o.code, o.en, 'en')
 const last = computed(() => step.value >= count.value - 1)
 const words = computed(() => (q.value.type === 'scale_1_5' ? [q.value.labels['1'].en, '', '', '', q.value.labels['5'].en] : []))
 const otherOption = computed(() => q.value.options?.find((o) => o.other) ?? null)
@@ -39,7 +45,7 @@ async function next() {
   // The one save of the onboarding. A profile answer missing (a draft from before): back to it, saying so.
   if (!complete(store.survey, store.draft.answers)) {
     store.notice = 'A few answers are missing here.'
-    store.setStep(PROFILE_STEPS.findIndex((c) => !answered(store.survey, store.draft.answers, c)))
+    store.setStep(store.profileSteps.findIndex((c) => !answered(store.survey, store.draft.answers, c)))
     return
   }
   await store.finish()
@@ -76,13 +82,13 @@ watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
       </div>
 
       <section ref="card" class="card panel" :aria-labelledby="`p-${q.code}`">
-        <h2 :id="`p-${q.code}`" tabindex="-1">{{ q.title.en }}</h2>
-        <p v-if="q.help" class="help">{{ q.help.en }}</p>
+        <h2 :id="`p-${q.code}`" tabindex="-1">{{ title }}</h2>
+        <p v-if="help" class="help">{{ help }}</p>
 
         <template v-if="q.type === 'scale_1_5'">
           <p class="help">1 = {{ q.labels['1'].en }}, 5 = {{ q.labels['5'].en }}</p>
           <div class="cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
-          <ScoreChoice :name="`prepare-${q.code}`" :label="q.title.en" bare :words="words" :model-value="scoreOf(answers, q.code)"
+          <ScoreChoice :name="`prepare-${q.code}`" :label="title" bare :words="words" :model-value="scoreOf(answers, q.code)"
                        @update:model-value="store.setPrepare(q.code, $event)" />
         </template>
 
@@ -90,17 +96,17 @@ watch(step, () => nextTick(() => card.value?.querySelector('h2')?.focus()))
           <label v-for="o in q.options" :key="o.code" class="option" :data-option="o.code">
             <input type="radio" :name="`prepare-${q.code}`" :value="o.code" :checked="answers[q.code] === o.code"
                    @change="store.setPrepare(q.code, o.code)">
-            <span>{{ o.en }}</span>
+            <span>{{ optionText(o) }}</span>
           </label>
         </div>
 
         <div v-else class="options" role="group" :aria-labelledby="`p-${q.code}`">
           <label v-for="o in q.options" :key="o.code" class="option" :data-option="o.code">
             <input type="checkbox" :checked="ticked(o.code)" @change="tick(o.code)">
-            <span>{{ o.en }}</span>
+            <span>{{ optionText(o) }}</span>
           </label>
           <input v-if="otherOption && ticked(otherOption.code)" class="other" type="text" :maxlength="def.other_max"
-                 :aria-label="`${otherOption.en}: ${q.title.en}`" :value="answers[q.code]?.other ?? ''"
+                 :aria-label="`${optionText(otherOption)}: ${title}`" :value="answers[q.code]?.other ?? ''"
                  data-testid="prepare-other" @input="setOther($event.target.value)">
         </div>
 

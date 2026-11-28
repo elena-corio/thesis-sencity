@@ -175,6 +175,7 @@
 
   /* Your sensory profile (boards 4, P4, 5, 5b, 5c) */
   --onboarding-w: 760px;           /* the question card */
+  --app-test-photo: 480px;         /* the photo in the app test (D197), square, at most this wide */
   --score-w: 44px;                 /* one 1–5 answer box */
   --score-h: 40px;
   --score-h-phone: 44px;

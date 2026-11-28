@@ -12,7 +12,8 @@ import config from '../config.js'
 import { A16_MAX, answered, gridRows } from '../lib/profile.js'
 import { senseName } from '../lib/senses.js'
 import { WEATHER } from '../lib/weather.js'
-import { PROFILE_STEPS, useProfileStore } from '../stores/profile.js'
+import { rowText, textOf } from '../lib/questions.js'
+import { useProfileStore } from '../stores/profile.js'
 import AppLogo from './AppLogo.vue'
 import ScoreChoice from './ScoreChoice.vue'
 
@@ -26,7 +27,12 @@ const message = ref('')
 const survey = computed(() => store.survey)
 const draft = computed(() => store.draft)
 const step = computed(() => draft.value?.step ?? 0)
-const code = computed(() => PROFILE_STEPS[step.value])
+// The shown steps in the layout's order, and the words on screen from config/profile_questions.json (lib/questions.js):
+// only the labels change; the answers, their keys and the profile text stay.
+const steps = computed(() => store.profileSteps)
+const code = computed(() => steps.value[step.value])
+const t = (field, fallback) => textOf(survey.value, code.value, field, fallback, lang)
+const row = (r) => rowText(survey.value, code.value, r.code, r[lang], lang)
 const q = computed(() => survey.value.questions.find((x) => x.code === code.value) ?? null)
 const editing = computed(() => !!draft.value?.editing)
 
@@ -62,6 +68,8 @@ function next() {
     })
     return
   }
+  // The last shown step with no question about new places after it (all hidden in the layout): the one save is here.
+  if (step.value + 1 >= store.steps.length) return store.finish()
   store.setStep(step.value + 1)
 }
 function back() {
@@ -89,51 +97,51 @@ function cancelEdit() {
     <div v-if="survey && draft" class="body">
       <div class="progress-row">
         <span v-if="!phone" class="progress-title">Your sensory profile</span>
-        <span class="step" data-testid="onboarding-step">Step {{ step + 1 }} of {{ PROFILE_STEPS.length }}</span>
+        <span class="step" data-testid="onboarding-step">Step {{ step + 1 }} of {{ steps.length }}</span>
       </div>
-      <div class="progress" role="progressbar" :aria-valuemin="1" :aria-valuemax="PROFILE_STEPS.length" :aria-valuenow="step + 1"
-           :aria-valuetext="`Step ${step + 1} of ${PROFILE_STEPS.length}`" aria-label="Your sensory profile">
-        <span v-for="(s, i) in PROFILE_STEPS" :key="s" class="seg" :class="{ on: i <= step }" />
+      <div class="progress" role="progressbar" :aria-valuemin="1" :aria-valuemax="steps.length" :aria-valuenow="step + 1"
+           :aria-valuetext="`Step ${step + 1} of ${steps.length}`" aria-label="Your sensory profile">
+        <span v-for="(s, i) in steps" :key="s" class="seg" :class="{ on: i <= step }" />
       </div>
 
       <section ref="card" class="card panel" :aria-labelledby="`q-${code}`">
         <template v-if="code === 'intro'">
-          <h2 :id="`q-${code}`" tabindex="-1">Before the questions</h2>
-          <p class="intro">{{ survey.intro[lang] }}</p>
+          <h2 :id="`q-${code}`" tabindex="-1">{{ t('title', 'Before the questions') }}</h2>
+          <p class="intro">{{ t('help', survey.intro[lang]) }}</p>
         </template>
 
         <template v-else-if="q?.code === 'A11'">
-          <h2 :id="`q-${code}`" tabindex="-1">{{ q.title[lang] }}</h2>
-          <p class="help">1 = {{ q.labels['1'][lang] }}, 5 = {{ q.labels['5'][lang] }}</p>
+          <h2 :id="`q-${code}`" tabindex="-1">{{ t('title', q.title[lang]) }}</h2>
+          <p class="help">{{ t('help', `1 = ${q.labels['1'][lang]}, 5 = ${q.labels['5'][lang]}`) }}</p>
           <div class="cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
-          <ScoreChoice name="A11" :label="q.title[lang]" bare :words="a11Words" :model-value="draft.answers.A11"
+          <ScoreChoice name="A11" :label="t('title', q.title[lang])" bare :words="a11Words" :model-value="draft.answers.A11"
                        @update:model-value="store.answer('A11', $event)" />
         </template>
 
         <template v-else-if="q?.type === 'grid_1_5'">
-          <h2 :id="`q-${code}`" tabindex="-1">{{ q.title[lang] }}</h2>
-          <p class="help">{{ q.help[lang] }}</p>
+          <h2 :id="`q-${code}`" tabindex="-1">{{ t('title', q.title[lang]) }}</h2>
+          <p class="help">{{ t('help', q.help[lang]) }}</p>
           <div class="cols grid-cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
-          <ScoreChoice v-for="r in rows" :key="r.code" :name="`${code}-${r.code}`" :label="r[lang]" :sense="r.icon_key"
+          <ScoreChoice v-for="r in rows" :key="r.code" :name="`${code}-${r.code}`" :label="row(r)" :sense="r.icon_key"
                        :sense-name="senseName(r.icon_key)" :words="scaleWords" :model-value="draft.answers[code][r.code] ?? null"
                        @update:model-value="store.answer(code, $event, r.code)" />
         </template>
 
         <template v-else-if="code === 'weather'">
-          <h2 :id="`q-${code}`" tabindex="-1">{{ WEATHER.title[lang] }}</h2>
-          <p class="help">{{ partAScale.help[lang] }}</p>
+          <h2 :id="`q-${code}`" tabindex="-1">{{ t('title', WEATHER.title[lang]) }}</h2>
+          <p class="help">{{ t('help', partAScale.help[lang]) }}</p>
           <p class="help weather-note">{{ WEATHER.note[lang] }}</p>
           <div class="cols grid-cols" aria-hidden="true"><span v-for="v in 5" :key="v">{{ v }}</span></div>
-          <ScoreChoice v-for="r in WEATHER.rows" :key="r.code" :name="`weather-${r.code}`" :label="r[lang]" :icon="r.icon"
+          <ScoreChoice v-for="r in WEATHER.rows" :key="r.code" :name="`weather-${r.code}`" :label="row(r)" :icon="r.icon"
                        :words="partAScale.scale[lang]" :model-value="draft.weather?.[r.code] ?? null"
                        @update:model-value="store.answer('weather', $event, r.code)" />
         </template>
 
         <template v-else-if="q?.code === 'A16'">
           <h2 :id="`q-${code}`" tabindex="-1">
-            <label for="a16">{{ q.title[lang] }}</label>
+            <label for="a16">{{ t('title', q.title[lang]) }}</label>
           </h2>
-          <p id="a16-help" class="help">{{ q.help[lang] }}</p>
+          <p id="a16-help" class="help">{{ t('help', q.help[lang]) }}</p>
           <textarea id="a16" class="answer" :maxlength="A16_MAX" aria-describedby="a16-help" :value="draft.answers.A16"
                     @input="store.answer('A16', $event.target.value)" />
         </template>

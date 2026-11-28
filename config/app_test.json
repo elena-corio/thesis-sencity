@@ -1,0 +1,98 @@
+{
+  "_about": "The in-app test (D197 in the thesis log; docs/decisions.md 2026-11-28). The same photos for everyone, in this order: Elena's 8 (config/photo_specs/place21-28.txt), each a 640x640 square at fov 90 and its own pitch, fetched on demand and never stored (Street View: pano ID, heading, pitch, location and date only). copyright/contributor: a contributor photosphere's credit. approved stays false until Elena approves the list; until then the API refuses the test unless APP_TEST_ALLOW_UNAPPROVED=1 (local testing only).",
+  "approved": false,
+  "info_sheet_url": "https://drive.google.com/file/d/1BzxHc9r6MhgXZehcxkk-k8Lc5t9es4Lx/view?usp=sharing",
+  "free_text_max": 500,
+  "photos": [
+    {
+      "id": "sv:Ei0v22cSv0mm9mkY3PCIDQ",
+      "source": "streetview",
+      "pano_id": "Ei0v22cSv0mm9mkY3PCIDQ",
+      "heading": 18.6,
+      "pitch": 7.5,
+      "lat": 48.188046,
+      "lon": 16.352788,
+      "date": "2026-04",
+      "name": "place21"
+    },
+    {
+      "id": "sv:UMR23yWOtk2V1O2BlRrDTg",
+      "source": "streetview",
+      "pano_id": "UMR23yWOtk2V1O2BlRrDTg",
+      "heading": 0.0,
+      "pitch": 7.5,
+      "lat": 48.211615,
+      "lon": 16.376811,
+      "date": "2024-07",
+      "name": "place22"
+    },
+    {
+      "id": "sv:OP1YBsHBNykRMOaubFpurQ",
+      "source": "streetview",
+      "pano_id": "OP1YBsHBNykRMOaubFpurQ",
+      "heading": 0.0,
+      "pitch": 7.5,
+      "lat": 48.215822,
+      "lon": 16.379642,
+      "date": "2024-07",
+      "name": "place23"
+    },
+    {
+      "id": "sv:u1DD-Qe86EbqoaVxZW8AMA",
+      "source": "streetview",
+      "pano_id": "u1DD-Qe86EbqoaVxZW8AMA",
+      "heading": 66.6,
+      "pitch": 7.5,
+      "lat": 48.249623,
+      "lon": 16.390333,
+      "date": "2024-10",
+      "name": "place24"
+    },
+    {
+      "id": "sv:YA0-ZgvtUlLjL8iZKswNEQ",
+      "source": "streetview",
+      "pano_id": "YA0-ZgvtUlLjL8iZKswNEQ",
+      "heading": 233.1,
+      "pitch": 7.5,
+      "lat": 48.211095,
+      "lon": 16.382819,
+      "date": "2026-05",
+      "name": "place25"
+    },
+    {
+      "id": "sv:CAoSF0NJSE0wb2dLRUlDQWdJRE8ydGVHblFF",
+      "source": "streetview",
+      "pano_id": "CAoSF0NJSE0wb2dLRUlDQWdJRE8ydGVHblFF",
+      "heading": 37.2,
+      "pitch": 7.5,
+      "lat": 48.204945,
+      "lon": 16.380495,
+      "date": "2022-07",
+      "name": "place26",
+      "copyright": "© Ilan-Tal",
+      "contributor": true
+    },
+    {
+      "id": "sv:6JdNLH_Yz-SWwOCCRAL4-g",
+      "source": "streetview",
+      "pano_id": "6JdNLH_Yz-SWwOCCRAL4-g",
+      "heading": 69.3,
+      "pitch": 7.5,
+      "lat": 48.185766,
+      "lon": 16.37449,
+      "date": "2024-09",
+      "name": "place27"
+    },
+    {
+      "id": "sv:AqHRxylthYuz2zVamzs8-Q",
+      "source": "streetview",
+      "pano_id": "AqHRxylthYuz2zVamzs8-Q",
+      "heading": 189.9,
+      "pitch": 7.5,
+      "lat": 48.21292,
+      "lon": 16.336492,
+      "date": "2024-10",
+      "name": "place28"
+    }
+  ]
+}

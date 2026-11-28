@@ -8,6 +8,7 @@ import { buildProfile, clean, complete, emptyAnswers, exportFile, profileVersion
 import { clampStart, personalLimits, setPersonalLimits, standardLimits } from '../lib/thermal.js'
 import { cleanWeather } from '../lib/weather.js'
 import { cleanPrepare, emptyPrepare } from '../lib/prepare.js'
+import { PREPARE_KEYS, PROFILE_KEYS, stepsOf } from '../lib/questions.js'
 import { allRatings, clearRatings, forgetRemoteRatings, setRatings, useRemoteRatings } from '../lib/myRatings.js'
 import { useHelpStore } from './help.js'
 import { useAdjustStore } from './adjust.js'
@@ -20,11 +21,12 @@ export const CONSENT_KEY = 'sencity-consent'
 /** With accounts: the privacy notice agreed before sign-up, in this tab only, until the account exists. */
 export const PENDING_CONSENT_KEY = 'sencity-consent-pending'
 /** The sensory profile part of the onboarding, one question group per screen: the eight-senses intro, A11, A12, A13,
- *  A16 (part_a.json), then the app's own Weather step (lib/weather.js; Elena, 2026-11-15). */
-export const PROFILE_STEPS = ['intro', 'A11', 'A12', 'A13', 'A16', 'weather']
+ *  A16 (part_a.json), then the app's own Weather step (lib/weather.js; Elena, 2026-11-15). The usual order: the store's
+ *  `profileSteps` follow config/profile_questions.json (shown, order; lib/questions.js). */
+export const PROFILE_STEPS = PROFILE_KEYS
 /** The whole onboarding: the profile part, then how you prepare for new places (Q1–Q4, config/prepare.json, optional).
  *  One draft for all of it, and one save at the very end (Elena, 2026-11-21). */
-export const PREPARE_STEPS = ['Q1', 'Q2', 'Q3', 'Q4']
+export const PREPARE_STEPS = PREPARE_KEYS
 export const STEPS = [...PROFILE_STEPS, ...PREPARE_STEPS]
 
 /** A start moved by hand: a number in the bar's range, or nothing. */
@@ -97,6 +99,12 @@ export const useProfileStore = defineStore('profile', () => {
     if (draft.value && !draft.value.editing) discardDraft()
   }
   if (profile.value && !(profile.value.answers && ['en', 'it'].includes(profile.value.language))) profile.value = null
+
+  // The onboarding's steps from config/profile_questions.json (shown, order): the profile part, then the prepare part.
+  // The draft's `step` counts in `steps`. Without the survey yet, the usual order.
+  const profileSteps = computed(() => stepsOf(survey.value, 'profile'))
+  const prepareSteps = computed(() => stepsOf(survey.value, 'prepare'))
+  const steps = computed(() => [...profileSteps.value, ...prepareSteps.value])
 
   const personal = computed(() => !!profile.value)
   /** Changes when the profile changes: ratings made with another one are not used (stores/senses.js). */
@@ -181,13 +189,13 @@ export const useProfileStore = defineStore('profile', () => {
         prepare: editing && profile.value.prepare ? copy(profile.value.prepare) : emptyPrepare(), step: 0, editing }
     }
     if (!draft.value.prepare) draft.value.prepare = emptyPrepare() // a draft kept from before this step was in it
-    if (step != null) draft.value.step = Math.max(0, Math.min(STEPS.length - 1, step))
+    if (step != null) draft.value.step = Math.max(0, Math.min(steps.value.length - 1, step))
     write(DRAFT_KEY, draft.value)
     ensureSurvey()
   }
   function setStep(step) {
     if (!draft.value) return
-    draft.value.step = Math.max(0, Math.min(STEPS.length - 1, step))
+    draft.value.step = Math.max(0, Math.min(steps.value.length - 1, step))
     write(DRAFT_KEY, draft.value)
   }
   /** One answer: A11 or A16 (row null), a grid row, or a weather row ('weather', hot | cold | wind). */
@@ -201,7 +209,7 @@ export const useProfileStore = defineStore('profile', () => {
   /** Why the onboarding went back to a step: shown there once (an answer missing at the save at the end). */
   const notice = ref('')
   /** The onboarding shows how you prepare for new places (Q1–Q4) rather than the profile part. */
-  const inPrepare = computed(() => !!draft.value && draft.value.step >= PROFILE_STEPS.length)
+  const inPrepare = computed(() => !!draft.value && draft.value.step >= profileSteps.value.length)
   /** One answer of how you prepare for new places (Q1–Q4): in the draft, as typed; cleaned when the profile is saved. */
   function setPrepare(code, value) {
     if (!draft.value) return
@@ -336,5 +344,5 @@ export const useProfileStore = defineStore('profile', () => {
     decline, ensureSurvey, begin, setStep, answer, limits, setStart, resetStarts, setAnswer,
     finish, discardDraft, deleteAll, signOutAll, fileData, importData, loadTestProfile,
     deviceProfile, saveError, syncAccount, consentPending, hasPendingConsent, agreeOnServer, keepDeviceProfile, dropDeviceProfile,
-    inPrepare, setPrepare, notice }
+    inPrepare, setPrepare, notice, profileSteps, prepareSteps, steps }
 })

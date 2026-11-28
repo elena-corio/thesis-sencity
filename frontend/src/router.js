@@ -11,6 +11,8 @@ const router = createRouter({
     { path: '/sign-in/:rest(.*)*', name: 'sign-in', component: () => import('./views/SignInView.vue'), meta: { public: true } },
     // Area, Routes and Profile are one view around one map, so the map stays when the tab changes.
     { path: '/:mode(area|routes|profile)', name: 'map', component: MapView },
+    // The in-app test (D197): optional, after the profile; its own page with its own opt-in.
+    { path: '/app-test', name: 'app-test', component: () => import('./views/AppTestView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/area' },
   ],
 })
